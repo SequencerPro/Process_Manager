@@ -5,6 +5,7 @@
 | Version | Date       | Notes                          |
 |---------|------------|--------------------------------|
 | 0.1     | 2026-02-16 | Initial draft                  |
+| 0.2     | 2026-02-22 | Added RoutingType clarification; minor wording updates to reflect implemented system |
 
 ---
 
@@ -57,7 +58,13 @@ A connection that carries items from an Output Port to an Input Port. Flows exis
 
 ### 1.7 Routing Decision
 
-A rule or human decision at the Workflow level that determines which Process an item enters after exiting another Process. Routing Decisions are the mechanism by which branching is expressed.
+A rule or human decision at the Workflow level that determines which Process an item enters after exiting another Process. Routing Decisions are the mechanism by which branching is expressed. In the data model these are represented as **WorkflowLinks** with a `RoutingType`:
+
+| RoutingType | Meaning |
+|---|---|
+| Always | Item always follows this link unconditionally |
+| GradeBased | Item follows this link only when its current Grade matches one of the link's conditions |
+| Manual | A human operator chooses whether to route via this link |
 
 ---
 

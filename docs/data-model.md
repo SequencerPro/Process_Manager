@@ -7,6 +7,7 @@
 | 0.1     | 2026-02-16 | Initial draft — Phases 1–3     |
 | 0.2     | 2026-02-16 | Added Phase 5 — Execution      |
 | 0.3     | 2026-02-16 | Added Phase 4 — Workflows      |
+| 0.4     | 2026-02-22 | Corrections: RoutingType values (Always/GradeBased/Manual, not Sequential); noted JobName/BatchCode denormalized fields on Item/Batch response DTOs for display performance |
 
 ---
 
@@ -508,6 +509,17 @@ OR:
 5. Link 3 matches (Always) → route back to Widget Finishing
 6. Cycle repeats until item passes inspection
 ```
+
+### Response DTO Notes
+
+API response DTOs for **Item** and **Batch** include denormalized display fields that are not stored on the entity itself:
+
+| DTO | Denormalized fields | Source |
+|---|---|---|
+| `ItemResponseDto` | `JobName` (string), `BatchCode` (string?) | Loaded via `.Include(Job)` / `.Include(Batch)` |
+| `BatchResponseDto` | `JobName` (string) | Loaded via `.Include(Job)` |
+
+These fields exist to avoid extra round-trips from list views. They are not persisted columns.
 
 ---
 

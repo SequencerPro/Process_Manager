@@ -39,6 +39,9 @@ else
                     <StatusBadge Status="@_item.Status" />
                 </div>
                 <div>
+                    <button class="btn btn-outline-secondary btn-sm me-1" @onclick="ShowEditForm">
+                        <i class="bi bi-pencil me-1"></i>Edit
+                    </button>
                     <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
                         <i class="bi bi-trash me-1"></i>Delete
                     </button>
@@ -161,6 +164,31 @@ else
     </div>
 }
 
+@* Edit Item Modal *@
+@if (_showEditForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Item</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showEditForm = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Serial Number</label>
+                        <input class="form-control" @bind="_editSerial" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showEditForm = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveEdit">Update</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public Guid Id { get; set; }
 
@@ -175,6 +203,10 @@ else
     private string _dataValue = "";
     private string _dataType = "String";
     private string? _dataUnit;
+
+    // Edit form
+    private bool _showEditForm;
+    private string _editSerial = "";
 
     protected override async Task OnInitializedAsync() => await LoadAll();
 
@@ -213,6 +245,24 @@ else
         {
             await Api.DeleteItemAsync(Id);
             Nav.NavigateTo("items");
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private void ShowEditForm()
+    {
+        _editSerial = _item?.SerialNumber ?? "";
+        _showEditForm = true;
+    }
+
+    private async Task SaveEdit()
+    {
+        try
+        {
+            var serial = string.IsNullOrWhiteSpace(_editSerial) ? null : _editSerial.Trim();
+            await Api.UpdateItemAsync(Id, new UpdateItemDto(serial));
+            _showEditForm = false; _error = null;
+            await LoadAll();
         }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }

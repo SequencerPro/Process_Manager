@@ -32,6 +32,9 @@ else
                     <span class="badge bg-dark">v@_proc.Version</span>
                 </div>
                 <div>
+                    <button class="btn btn-outline-secondary btn-sm me-1" @onclick="ShowEditForm">
+                        <i class="bi bi-pencil me-1"></i>Edit
+                    </button>
                     <button class="btn btn-outline-info btn-sm me-1" @onclick="Validate">
                         <i class="bi bi-check2-all me-1"></i>Validate
                     </button>
@@ -237,6 +240,39 @@ else
             </div>
         </div>
     }
+
+    @* Edit Process Modal *@
+    @if (_showEditForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Process</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showEditForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="_editName" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" rows="3" @bind="_editDescription"></textarea>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="procIsActive" @bind="_editIsActive" />
+                            <label class="form-check-label" for="procIsActive">Active</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showEditForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveEdit">Update</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -260,6 +296,12 @@ else
     private string _flowSrcPortId = "";
     private string _flowTgtStepId = "";
     private string _flowTgtPortId = "";
+
+    // Edit form
+    private bool _showEditForm;
+    private string _editName = "";
+    private string? _editDescription;
+    private bool _editIsActive;
 
     protected override async Task OnInitializedAsync() => await LoadData();
 
@@ -335,6 +377,26 @@ else
     private async Task Delete()
     {
         try { await Api.DeleteProcessAsync(Id); Nav.NavigateTo("processes"); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    // --- Edit Process ---
+    private void ShowEditForm()
+    {
+        _editName = _proc!.Name;
+        _editDescription = _proc.Description;
+        _editIsActive = _proc.IsActive;
+        _showEditForm = true;
+    }
+
+    private async Task SaveEdit()
+    {
+        try
+        {
+            await Api.UpdateProcessAsync(Id, new ProcessUpdateDto(_editName, _editDescription, _editIsActive));
+            _showEditForm = false; _error = null;
+            await LoadData();
+        }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }
 }

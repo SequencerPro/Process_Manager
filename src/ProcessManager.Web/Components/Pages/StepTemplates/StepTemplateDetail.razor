@@ -32,9 +32,14 @@ else
                     <span class="badge me-1 @(_st.IsActive ? "bg-success" : "bg-secondary")">@(_st.IsActive ? "Active" : "Inactive")</span>
                     <span class="badge bg-dark">v@_st.Version</span>
                 </div>
-                <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
-                    <i class="bi bi-trash me-1"></i>Delete
-                </button>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ShowEditForm">
+                        <i class="bi bi-pencil me-1"></i>Edit
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                </div>
             </div>
             @if (!string.IsNullOrEmpty(_st.Description))
             {
@@ -75,6 +80,9 @@ else
                                         <td><code>@p.KindCode</code> / <code>@p.GradeCode</code></td>
                                         <td>@FormatQtyRule(p)</td>
                                         <td>
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1" @onclick="() => ShowEditPort(p)" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
                                             <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => DeletePort(p)">
                                                 <i class="bi bi-trash"></i>
                                             </button>
@@ -115,6 +123,9 @@ else
                                         <td><code>@p.KindCode</code> / <code>@p.GradeCode</code></td>
                                         <td>@FormatQtyRule(p)</td>
                                         <td>
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1" @onclick="() => ShowEditPort(p)" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
                                             <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => DeletePort(p)">
                                                 <i class="bi bi-trash"></i>
                                             </button>
@@ -133,14 +144,14 @@ else
         </div>
     </div>
 
-    <!-- Add Port Modal -->
+    @* Add / Edit Port Modal *@
     @if (_showPortForm)
     {
         <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">Add @_portDirection Port</h5>
+                        <h5 class="modal-title">@(_editPortId.HasValue ? "Edit" : "Add @_portDirection") Port</h5>
                         <button type="button" class="btn-close" @onclick="ClosePortForm"></button>
                     </div>
                     <div class="modal-body">
@@ -194,7 +205,51 @@ else
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" @onclick="ClosePortForm">Cancel</button>
-                        <button type="button" class="btn btn-primary" @onclick="SavePort">Save Port</button>
+                        <button type="button" class="btn btn-primary" @onclick="SavePort">
+                            @(_editPortId.HasValue ? "Update" : "Save Port")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Edit Template Modal *@
+    @if (_showEditForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Step Template</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showEditForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="_editName" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" rows="3" @bind="_editDescription"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Pattern</label>
+                            <select class="form-select" @bind="_editPattern">
+                                @foreach (var p in Enum.GetValues<StepPattern>())
+                                {
+                                    <option value="@p">@p</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="editIsActive" @bind="_editIsActive" />
+                            <label class="form-check-label" for="editIsActive">Active</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showEditForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveEdit">Update</button>
                     </div>
                 </div>
             </div>
@@ -216,12 +271,20 @@ else
 
     // Port form state
     private bool _showPortForm;
+    private Guid? _editPortId;
     private PortDirection _portDirection;
     private string _portName = "";
     private string _portKindId = "";
     private string _portGradeId = "";
     private QuantityRuleMode _portQtyMode = QuantityRuleMode.Exactly;
     private int _portSortOrder;
+
+    // Edit template form state
+    private bool _showEditForm;
+    private string _editName = "";
+    private string? _editDescription;
+    private StepPattern _editPattern;
+    private bool _editIsActive;
 
     // Lookup data
     private PaginatedResponse<KindResponseDto>? _kinds;
@@ -236,8 +299,31 @@ else
         _loading = false;
     }
 
+    // --- Edit Template ---
+    private void ShowEditForm()
+    {
+        _editName = _st!.Name;
+        _editDescription = _st.Description;
+        _editPattern = _st.Pattern;
+        _editIsActive = _st.IsActive;
+        _showEditForm = true;
+    }
+
+    private async Task SaveEdit()
+    {
+        try
+        {
+            await Api.UpdateStepTemplateAsync(Id, new StepTemplateUpdateDto(_editName, _editDescription, _editPattern, _editIsActive));
+            _showEditForm = false; _error = null;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    // --- Add / Edit Port ---
     private void ShowPortForm(PortDirection direction)
     {
+        _editPortId = null;
         _portDirection = direction;
         _portName = "";
         _portKindId = "";
@@ -248,9 +334,29 @@ else
         _ = LoadLookups();
     }
 
+    private void ShowEditPort(PortResponseDto p)
+    {
+        _editPortId = p.Id;
+        _portDirection = p.Direction;
+        _portName = p.Name;
+        _portKindId = p.KindId.ToString();
+        _portGradeId = p.GradeId.ToString();
+        _portQtyMode = p.QtyRuleMode;
+        _portSortOrder = p.SortOrder;
+        _showPortForm = true;
+        _ = LoadLookups();
+    }
+
     private async Task LoadLookups()
     {
         _kinds = await Api.GetKindsAsync("", 1, 100);
+        _grades = new();
+        // Pre-load grades for the selected kind
+        if (Guid.TryParse(_portKindId, out var kindId))
+        {
+            var kind = await Api.GetKindAsync(kindId);
+            _grades = kind?.Grades?.ToList() ?? new();
+        }
         StateHasChanged();
     }
 
@@ -265,8 +371,19 @@ else
                 _error = "Please select both a Kind and a Grade.";
                 return;
             }
-            var dto = new PortCreateDto(_portName, _portDirection, kindId, gradeId, _portQtyMode, null, null, null, _portSortOrder);
-            await Api.CreatePortAsync(Id, dto);
+
+            if (_editPortId.HasValue)
+            {
+                // Update existing port
+                var dto = new PortUpdateDto(_portName, kindId, gradeId, _portQtyMode, null, null, null, _portSortOrder);
+                await Api.UpdatePortAsync(Id, _editPortId.Value, dto);
+            }
+            else
+            {
+                // Create new port
+                var dto = new PortCreateDto(_portName, _portDirection, kindId, gradeId, _portQtyMode, null, null, null, _portSortOrder);
+                await Api.CreatePortAsync(Id, dto);
+            }
             _showPortForm = false;
             _error = null;
             await LoadData();

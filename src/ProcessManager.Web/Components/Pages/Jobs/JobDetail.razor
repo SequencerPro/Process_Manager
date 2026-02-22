@@ -35,6 +35,9 @@ else
                     }
                 </div>
                 <div class="d-flex gap-1 flex-wrap">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ShowEditForm">
+                        <i class="bi bi-pencil me-1"></i>Edit
+                    </button>
                     @if (_job.Status == "Created")
                     {
                         <button class="btn btn-success btn-sm" @onclick='() => Transition("start")'>
@@ -59,6 +62,9 @@ else
                         </button>
                         <button class="btn btn-outline-danger btn-sm" @onclick='() => Transition("cancel")'>Cancel</button>
                     }
+                    <button class="btn btn-outline-danger btn-sm" @onclick="DeleteJob">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
                 </div>
             </div>
             @if (!string.IsNullOrEmpty(_job.Description))
@@ -188,6 +194,39 @@ else
             <p class="text-muted small">No batches for this job.</p>
         }
     }
+
+    @* Edit Job Modal *@
+    @if (_showEditForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Job</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showEditForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="_editName" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" rows="3" @bind="_editDescription"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Priority</label>
+                            <input type="number" class="form-control" @bind="_editPriority" min="0" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showEditForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveEdit">Update</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -201,6 +240,12 @@ else
     // Sub-resources loaded from flat endpoints
     private List<ItemResponseDto>? _items;
     private List<BatchResponseDto>? _batches;
+
+    // Edit form
+    private bool _showEditForm;
+    private string _editName = "";
+    private string? _editDescription;
+    private int _editPriority;
 
     protected override async Task OnInitializedAsync() => await LoadAll();
 
@@ -232,4 +277,30 @@ else
     }
 
     private void SwitchTab(string tab) => _activeTab = tab;
+
+    // --- Edit Job ---
+    private void ShowEditForm()
+    {
+        _editName = _job!.Name;
+        _editDescription = _job.Description;
+        _editPriority = _job.Priority;
+        _showEditForm = true;
+    }
+
+    private async Task SaveEdit()
+    {
+        try
+        {
+            await Api.UpdateJobAsync(Id, new UpdateJobDto(_editName, _editDescription, _editPriority));
+            _showEditForm = false; _error = null;
+            await LoadAll();
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private async Task DeleteJob()
+    {
+        try { await Api.DeleteJobAsync(Id); Nav.NavigateTo("jobs"); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
 }

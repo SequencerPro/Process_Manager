@@ -36,7 +36,7 @@ else if (_data is not null)
                     <th>Ports</th>
                     <th>Version</th>
                     <th>Active</th>
-                    <th style="width:100px">Actions</th>
+                    <th style="width:120px">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -63,6 +63,9 @@ else if (_data is not null)
                             }
                         </td>
                         <td>
+                            <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEditForm(st)" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </button>
                             <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(st)">
                                 <i class="bi bi-trash"></i>
                             </button>
@@ -82,27 +85,31 @@ else if (_data is not null)
     <div class="alert alert-danger mt-3 py-2">@_error</div>
 }
 
+@* Create / Edit Modal *@
 @if (_showForm)
 {
     <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">New Step Template</h5>
+                    <h5 class="modal-title">@(_isEdit ? "Edit Step Template" : "New Step Template")</h5>
                     <button type="button" class="btn-close" @onclick="CloseForm"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-muted small">
-                        Create step templates via the API. A full template creation form with port configuration
-                        will be available in a future update.
-                    </p>
-                    <div class="mb-3">
-                        <label class="form-label">Code</label>
-                        <input class="form-control" @bind="_formCode" />
-                    </div>
+                    @if (!_isEdit)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Code</label>
+                            <input class="form-control" @bind="_formCode" />
+                        </div>
+                    }
                     <div class="mb-3">
                         <label class="form-label">Name</label>
                         <input class="form-control" @bind="_formName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" rows="2" @bind="_formDescription"></textarea>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Pattern</label>
@@ -113,9 +120,114 @@ else if (_data is not null)
                             }
                         </select>
                     </div>
+                    @if (_isEdit)
+                    {
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="formIsActive" @bind="_formIsActive" />
+                            <label class="form-check-label" for="formIsActive">Active</label>
+                        </div>
+                    }
+
+                    @* Inline port builder for create only *@
+                    @if (!_isEdit)
+                    {
+                        <hr />
+                        <h6>Ports <span class="text-muted small">(at least one required)</span></h6>
+                        @if (_formPorts.Any())
+                        {
+                            <div class="table-responsive mb-2">
+                                <table class="table table-sm mb-0">
+                                    <thead class="table-light">
+                                        <tr><th>Name</th><th>Direction</th><th>Kind</th><th>Grade</th><th>Qty Mode</th><th></th></tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var fp in _formPorts)
+                                        {
+                                            <tr>
+                                                <td>@fp.Name</td>
+                                                <td><span class="badge @(fp.Direction == PortDirection.Input ? "bg-success" : "bg-primary")">@fp.Direction</span></td>
+                                                <td>@(_kinds?.Items.FirstOrDefault(k => k.Id == fp.KindId)?.Name ?? fp.KindId.ToString()[..8])</td>
+                                                <td>@fp.GradeCode</td>
+                                                <td>@fp.QtyRuleMode</td>
+                                                <td>
+                                                    <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => _formPorts.Remove(fp)">
+                                                        <i class="bi bi-x-lg"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        <div class="card card-body bg-light mb-0">
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label form-label-sm">Port Name</label>
+                                    <input class="form-control form-control-sm" @bind="_ipName" />
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label form-label-sm">Direction</label>
+                                    <select class="form-select form-select-sm" @bind="_ipDirection">
+                                        <option value="@PortDirection.Input">Input</option>
+                                        <option value="@PortDirection.Output">Output</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label form-label-sm">Kind</label>
+                                    <select class="form-select form-select-sm" @bind="_ipKindId" @bind:after="OnInlineKindChanged">
+                                        <option value="">Select kind...</option>
+                                        @if (_kinds is not null)
+                                        {
+                                            @foreach (var k in _kinds.Items)
+                                            {
+                                                <option value="@k.Id">@k.Name (@k.Code)</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row g-2 mt-1">
+                                <div class="col-md-4">
+                                    <label class="form-label form-label-sm">Grade</label>
+                                    <select class="form-select form-select-sm" @bind="_ipGradeId">
+                                        <option value="">Select grade...</option>
+                                        @if (_ipGrades is not null)
+                                        {
+                                            @foreach (var g in _ipGrades)
+                                            {
+                                                <option value="@g.Id">@g.Name (@g.Code)</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label form-label-sm">Qty Mode</label>
+                                    <select class="form-select form-select-sm" @bind="_ipQtyMode">
+                                        @foreach (var m in Enum.GetValues<QuantityRuleMode>())
+                                        {
+                                            <option value="@m">@m</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label form-label-sm">Sort Order</label>
+                                    <input type="number" class="form-control form-control-sm" @bind="_ipSortOrder" />
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end">
+                                    <button class="btn btn-sm btn-outline-primary w-100" @onclick="AddInlinePort">
+                                        <i class="bi bi-plus-lg"></i> Add
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveForm">
+                        @(_isEdit ? "Update" : "Create")
+                    </button>
                 </div>
             </div>
         </div>
@@ -131,11 +243,30 @@ else if (_data is not null)
     private int _pageSize = 25;
     private string? _error;
 
-    // Form placeholder
+    // Form state
     private bool _showForm;
+    private bool _isEdit;
+    private Guid? _editId;
     private string _formCode = "";
     private string _formName = "";
+    private string? _formDescription;
     private StepPattern _formPattern = StepPattern.Transform;
+    private bool _formIsActive = true;
+
+    // Inline port builder (create mode only)
+    private List<InlinePort> _formPorts = new();
+    private string _ipName = "";
+    private PortDirection _ipDirection = PortDirection.Input;
+    private string _ipKindId = "";
+    private string _ipGradeId = "";
+    private QuantityRuleMode _ipQtyMode = QuantityRuleMode.Exactly;
+    private int _ipSortOrder;
+
+    // Lookups
+    private PaginatedResponse<KindResponseDto>? _kinds;
+    private List<GradeResponseDto>? _ipGrades;
+
+    private record InlinePort(string Name, PortDirection Direction, Guid KindId, Guid GradeId, string GradeCode, QuantityRuleMode QtyRuleMode, int SortOrder);
 
     protected override async Task OnInitializedAsync() => await LoadData();
 
@@ -157,8 +288,81 @@ else if (_data is not null)
         await LoadData();
     }
 
-    private void ShowCreateForm() => _showForm = true;
+    private async Task ShowCreateForm()
+    {
+        _isEdit = false; _editId = null;
+        _formCode = ""; _formName = ""; _formDescription = null;
+        _formPattern = StepPattern.Transform; _formIsActive = true;
+        _formPorts.Clear();
+        ResetInlinePort();
+        _showForm = true;
+        _kinds = await Api.GetKindsAsync("", 1, 100);
+        StateHasChanged();
+    }
+
+    private void ShowEditForm(StepTemplateResponseDto st)
+    {
+        _isEdit = true; _editId = st.Id;
+        _formName = st.Name;
+        _formDescription = st.Description;
+        _formPattern = st.Pattern;
+        _formIsActive = st.IsActive;
+        _showForm = true;
+    }
+
     private void CloseForm() => _showForm = false;
+
+    private async Task OnInlineKindChanged()
+    {
+        _ipGrades = null;
+        _ipGradeId = "";
+        if (Guid.TryParse(_ipKindId, out var kindId))
+        {
+            var kind = await Api.GetKindAsync(kindId);
+            _ipGrades = kind?.Grades?.ToList();
+        }
+    }
+
+    private void AddInlinePort()
+    {
+        if (string.IsNullOrWhiteSpace(_ipName) || !Guid.TryParse(_ipKindId, out var kid) || !Guid.TryParse(_ipGradeId, out var gid))
+        {
+            _error = "Port name, kind, and grade are required."; return;
+        }
+        _error = null;
+        var gradeCode = _ipGrades?.FirstOrDefault(g => g.Id == gid)?.Code ?? gid.ToString()[..8];
+        _formPorts.Add(new InlinePort(_ipName, _ipDirection, kid, gid, gradeCode, _ipQtyMode, _ipSortOrder));
+        _ipSortOrder++;
+        _ipName = "";
+    }
+
+    private void ResetInlinePort()
+    {
+        _ipName = ""; _ipDirection = PortDirection.Input; _ipKindId = ""; _ipGradeId = "";
+        _ipQtyMode = QuantityRuleMode.Exactly; _ipSortOrder = 0; _ipGrades = null;
+    }
+
+    private async Task SaveForm()
+    {
+        try
+        {
+            if (_isEdit)
+            {
+                await Api.UpdateStepTemplateAsync(_editId!.Value,
+                    new StepTemplateUpdateDto(_formName, _formDescription, _formPattern, _formIsActive));
+            }
+            else
+            {
+                if (!_formPorts.Any()) { _error = "Add at least one port."; return; }
+                var ports = _formPorts.Select(p =>
+                    new PortCreateDto(p.Name, p.Direction, p.KindId, p.GradeId, p.QtyRuleMode, null, null, null, p.SortOrder)).ToList();
+                await Api.CreateStepTemplateAsync(new StepTemplateCreateDto(_formCode, _formName, _formDescription, _formPattern, ports));
+            }
+            _showForm = false; _error = null;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
 
     private async Task Delete(StepTemplateResponseDto st)
     {

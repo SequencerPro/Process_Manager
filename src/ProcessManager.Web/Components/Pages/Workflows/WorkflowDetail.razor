@@ -31,9 +31,14 @@ else
                     <span class="badge me-1 @(_wf.IsActive ? "bg-success" : "bg-secondary")">@(_wf.IsActive ? "Active" : "Inactive")</span>
                     <span class="badge bg-dark">v@_wf.Version</span>
                 </div>
-                <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
-                    <i class="bi bi-trash me-1"></i>Delete
-                </button>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ShowEditForm">
+                        <i class="bi bi-pencil me-1"></i>Edit
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                </div>
             </div>
             @if (!string.IsNullOrEmpty(_wf.Description))
             {
@@ -241,6 +246,39 @@ else
             </div>
         </div>
     }
+
+    @* Edit Workflow Modal *@
+    @if (_showEditForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Workflow</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showEditForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="_editName" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" rows="3" @bind="_editDescription"></textarea>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="wfIsActive" @bind="_editIsActive" />
+                            <label class="form-check-label" for="wfIsActive">Active</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showEditForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveEdit">Update</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -263,6 +301,12 @@ else
     private string _lkTargetId = "";
     private RoutingType _lkRoutingType = RoutingType.Always;
     private string _lkName = "";
+
+    // Edit form
+    private bool _showEditForm;
+    private string _editName = "";
+    private string? _editDescription;
+    private bool _editIsActive;
 
     protected override async Task OnInitializedAsync() => await LoadData();
 
@@ -329,6 +373,26 @@ else
     private async Task Delete()
     {
         try { await Api.DeleteWorkflowAsync(Id); Nav.NavigateTo("workflows"); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    // --- Edit Workflow ---
+    private void ShowEditForm()
+    {
+        _editName = _wf!.Name;
+        _editDescription = _wf.Description;
+        _editIsActive = _wf.IsActive;
+        _showEditForm = true;
+    }
+
+    private async Task SaveEdit()
+    {
+        try
+        {
+            await Api.UpdateWorkflowAsync(Id, new UpdateWorkflowDto(_editName, _editDescription, _editIsActive));
+            _showEditForm = false; _error = null;
+            await LoadData();
+        }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }
 }

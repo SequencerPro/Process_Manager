@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Workflow Detail</PageTitle>
 
@@ -32,6 +33,9 @@ else
                     <span class="badge bg-dark">v@_wf.Version</span>
                 </div>
                 <div class="d-flex gap-1">
+                    <button class="btn btn-outline-info btn-sm" @onclick="Validate">
+                        <i class="bi bi-check2-circle me-1"></i>Validate
+                    </button>
                     <button class="btn btn-outline-secondary btn-sm" @onclick="ShowEditForm">
                         <i class="bi bi-pencil me-1"></i>Edit
                     </button>
@@ -51,6 +55,29 @@ else
     @if (_error is not null)
     {
         <div class="alert alert-danger py-2">@_error</div>
+    }
+
+    @if (_validation is not null)
+    {
+        <div class="alert @(_validation.IsValid ? "alert-success" : "alert-warning") py-2">
+            <strong>@(_validation.IsValid ? "Valid" : "Invalid")</strong>
+            @if (_validation.Errors.Any())
+            {
+                <ul class="mb-0 mt-1">
+                    @foreach (var e in _validation.Errors) { <li class="text-danger">@e</li> }
+                </ul>
+            }
+            @if (_validation.Warnings.Any())
+            {
+                <ul class="mb-0 mt-1">
+                    @foreach (var w in _validation.Warnings) { <li class="text-warning">@w</li> }
+                </ul>
+            }
+            @if (_validation.IsValid && !_validation.Warnings.Any())
+            {
+                <span class="ms-1">— workflow configuration is correct.</span>
+            }
+        </div>
     }
 
     <!-- Workflow Processes -->
@@ -78,7 +105,10 @@ else
                                     @if (wp.IsEntryPoint) { <i class="bi bi-flag-fill text-success"></i> }
                                 </td>
                                 <td>@wp.SortOrder</td>
-                                <td>
+                                <td class="text-end">
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1" @onclick="() => ShowEditWfProcess(wp)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
                                     <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => DeleteWfProcess(wp.Id)">
                                         <i class="bi bi-trash"></i>
                                     </button>
@@ -124,11 +154,21 @@ else
                                     {
                                         @foreach (var c in lk.Conditions)
                                         {
-                                            <span class="badge bg-light text-dark border me-1">@c.GradeCode</span>
+                                            <span class="badge bg-light text-dark border me-1">
+                                                @c.GradeCode
+                                                <button type="button" class="btn-close btn-close-sm ms-1" style="font-size:.5rem"
+                                                        @onclick="() => RemoveCondition(lk.Id, c.Id)"></button>
+                                            </span>
                                         }
                                     }
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1" @onclick="() => ShowAddCondition(lk)">
+                                        <i class="bi bi-plus"></i>
+                                    </button>
                                 </td>
-                                <td>
+                                <td class="text-end">
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1" @onclick="() => ShowEditLink(lk)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
                                     <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => DeleteLink(lk.Id)">
                                         <i class="bi bi-trash"></i>
                                     </button>
@@ -279,6 +319,98 @@ else
             </div>
         </div>
     }
+
+    @* Edit Workflow Process Modal *@
+    @if (_showEditWpForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Workflow Process</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showEditWpForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="editWpEntry" @bind="_editWpIsEntry" />
+                            <label class="form-check-label" for="editWpEntry">Is Entry Point</label>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Sort Order</label>
+                            <input type="number" class="form-control" @bind="_editWpSortOrder" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showEditWpForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveEditWfProcess">Update</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Edit Link Modal *@
+    @if (_showEditLinkForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Link</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showEditLinkForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="_editLinkName" placeholder="Optional" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Sort Order</label>
+                            <input type="number" class="form-control" @bind="_editLinkSortOrder" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showEditLinkForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveEditLink">Update</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Add Condition Modal *@
+    @if (_showConditionForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add Condition</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showConditionForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Grade</label>
+                            <select class="form-select" @bind="_condGradeId">
+                                <option value="">Select grade...</option>
+                                @if (_allGrades is not null)
+                                {
+                                    @foreach (var g in _allGrades)
+                                    {
+                                        <option value="@g.Id">@g.Code — @g.Name</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showConditionForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveCondition">Add</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -287,6 +419,7 @@ else
     private WorkflowResponseDto? _wf;
     private bool _loading = true;
     private string? _error;
+    private WorkflowValidationResultDto? _validation;
 
     // Add Process form
     private bool _showProcessForm;
@@ -302,11 +435,29 @@ else
     private RoutingType _lkRoutingType = RoutingType.Always;
     private string _lkName = "";
 
-    // Edit form
+    // Edit workflow form
     private bool _showEditForm;
     private string _editName = "";
     private string? _editDescription;
     private bool _editIsActive;
+
+    // Edit workflow process form
+    private bool _showEditWpForm;
+    private Guid _editWpId;
+    private bool _editWpIsEntry;
+    private int _editWpSortOrder;
+
+    // Edit link form
+    private bool _showEditLinkForm;
+    private Guid _editLinkId;
+    private string _editLinkName = "";
+    private int _editLinkSortOrder;
+
+    // Add condition form
+    private bool _showConditionForm;
+    private Guid _condLinkId;
+    private string _condGradeId = "";
+    private List<GradeResponseDto>? _allGrades;
 
     protected override async Task OnInitializedAsync() => await LoadData();
 
@@ -317,6 +468,18 @@ else
         _loading = false;
     }
 
+    // --- Validate ---
+    private async Task Validate()
+    {
+        try
+        {
+            _validation = await Api.ValidateWorkflowAsync(Id);
+            _error = null;
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; _validation = null; }
+    }
+
+    // --- Process CRUD ---
     private async Task ShowAddProcess()
     {
         _wpProcessId = ""; _wpIsEntry = false; _wpSortOrder = 0;
@@ -330,8 +493,27 @@ else
         try
         {
             if (!Guid.TryParse(_wpProcessId, out var pid)) { _error = "Select a process."; return; }
-            var resp = await Api.AddWorkflowProcessAsync(Id, new AddWorkflowProcessDto(pid, _wpIsEntry, _wpSortOrder));
+            await Api.AddWorkflowProcessAsync(Id, new AddWorkflowProcessDto(pid, _wpIsEntry, _wpSortOrder));
             _showProcessForm = false; _error = null;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private void ShowEditWfProcess(WorkflowProcessResponseDto wp)
+    {
+        _editWpId = wp.Id;
+        _editWpIsEntry = wp.IsEntryPoint;
+        _editWpSortOrder = wp.SortOrder;
+        _showEditWpForm = true;
+    }
+
+    private async Task SaveEditWfProcess()
+    {
+        try
+        {
+            await Api.UpdateWorkflowProcessAsync(Id, _editWpId, new UpdateWorkflowProcessDto(_editWpIsEntry, _editWpSortOrder));
+            _showEditWpForm = false; _error = null;
             await LoadData();
         }
         catch (HttpRequestException ex) { _error = ex.Message; }
@@ -339,10 +521,12 @@ else
 
     private async Task DeleteWfProcess(Guid wpId)
     {
+        if (!await JS.InvokeAsync<bool>("confirm", "Remove this process from the workflow?")) return;
         try { await Api.DeleteWorkflowProcessAsync(Id, wpId); await LoadData(); }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }
 
+    // --- Link CRUD ---
     private void ShowAddLink()
     {
         _lkSourceId = ""; _lkTargetId = ""; _lkRoutingType = RoutingType.Always; _lkName = "";
@@ -364,14 +548,76 @@ else
         catch (HttpRequestException ex) { _error = ex.Message; }
     }
 
+    private void ShowEditLink(WorkflowLinkResponseDto lk)
+    {
+        _editLinkId = lk.Id;
+        _editLinkName = lk.Name ?? "";
+        _editLinkSortOrder = lk.SortOrder;
+        _showEditLinkForm = true;
+    }
+
+    private async Task SaveEditLink()
+    {
+        try
+        {
+            await Api.UpdateWorkflowLinkAsync(Id, _editLinkId,
+                new UpdateWorkflowLinkDto(string.IsNullOrWhiteSpace(_editLinkName) ? null : _editLinkName, _editLinkSortOrder));
+            _showEditLinkForm = false; _error = null;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
     private async Task DeleteLink(Guid linkId)
     {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this link?")) return;
         try { await Api.DeleteWorkflowLinkAsync(Id, linkId); await LoadData(); }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }
 
+    // --- Conditions ---
+    private async Task ShowAddCondition(WorkflowLinkResponseDto lk)
+    {
+        _condLinkId = lk.Id;
+        _condGradeId = "";
+        _showConditionForm = true;
+
+        // Load all grades (from all kinds)
+        if (_allGrades is null)
+        {
+            try
+            {
+                var kindsResult = await Api.GetKindsAsync(page: 1, pageSize: 100);
+                _allGrades = kindsResult?.Items?.SelectMany(k => k.Grades).OrderBy(g => g.Code).ToList() ?? new();
+            }
+            catch { _allGrades = new(); }
+        }
+        StateHasChanged();
+    }
+
+    private async Task SaveCondition()
+    {
+        try
+        {
+            if (!Guid.TryParse(_condGradeId, out var gid)) { _error = "Select a grade."; return; }
+            await Api.AddWorkflowLinkConditionAsync(Id, _condLinkId, new AddWorkflowLinkConditionDto(gid));
+            _showConditionForm = false; _error = null;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private async Task RemoveCondition(Guid linkId, Guid conditionId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Remove this condition?")) return;
+        try { await Api.DeleteWorkflowLinkConditionAsync(Id, linkId, conditionId); await LoadData(); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    // --- Delete Workflow ---
     private async Task Delete()
     {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this workflow? This cannot be undone.")) return;
         try { await Api.DeleteWorkflowAsync(Id); Nav.NavigateTo("workflows"); }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }

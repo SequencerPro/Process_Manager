@@ -1,6 +1,7 @@
 @page "/batches"
 @rendermode InteractiveServer
 @inject ApiClient Api
+@inject IJSRuntime JS
 
 <PageTitle>Batches</PageTitle>
 
@@ -42,23 +43,30 @@ else if (_data is not null)
                 </tr>
             </thead>
             <tbody>
-                @foreach (var b in _data.Items)
+                @if (!_data.Items.Any())
                 {
-                    <tr>
-                        <td><a href="batches/@b.Id"><code>@b.Code</code></a></td>
-                        <td>@b.KindName</td>
-                        <td>@b.GradeName</td>
-                        <td>@b.Quantity</td>
-                        <td><span class="badge bg-secondary">@b.ItemCount</span></td>
-                        <td><StatusBadge Status="@b.Status" /></td>
-                        <td><a href="jobs/@b.JobId">View</a></td>
-                        <td>@b.CreatedAt.ToString("g")</td>
-                        <td>
-                            <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(b.Id)">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
+                    <tr><td colspan="9" class="text-center text-muted py-3">No batches found.</td></tr>
+                }
+                else
+                {
+                    @foreach (var b in _data.Items)
+                    {
+                        <tr>
+                            <td><a href="batches/@b.Id"><code>@b.Code</code></a></td>
+                            <td>@b.KindName</td>
+                            <td>@b.GradeName</td>
+                            <td>@b.Quantity</td>
+                            <td><span class="badge bg-secondary">@b.ItemCount</span></td>
+                            <td><StatusBadge Status="@b.Status" /></td>
+                            <td><a href="jobs/@b.JobId">@b.JobName</a></td>
+                            <td>@b.CreatedAt.ToString("g")</td>
+                            <td>
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(b.Id)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
@@ -217,6 +225,7 @@ else if (_data is not null)
 
     private async Task Delete(Guid id)
     {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this batch?")) return;
         try { await Api.DeleteBatchAsync(id); await LoadData(); }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }

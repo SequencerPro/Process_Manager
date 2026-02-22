@@ -53,7 +53,9 @@ public record ItemResponseDto(
     Guid GradeId,
     string GradeName,
     Guid JobId,
+    string JobName,
     Guid? BatchId,
+    string? BatchCode,
     string Status,
     DateTime CreatedAt,
     DateTime UpdatedAt);
@@ -78,6 +80,7 @@ public record BatchResponseDto(
     Guid GradeId,
     string GradeName,
     Guid JobId,
+    string JobName,
     int Quantity,
     string Status,
     int ItemCount,

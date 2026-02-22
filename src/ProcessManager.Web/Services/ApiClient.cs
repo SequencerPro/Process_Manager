@@ -158,6 +158,13 @@ public class ApiClient
         return await resp.Content.ReadFromJsonAsync<ProcessStepResponseDto>(_json);
     }
 
+    public async Task<ProcessStepResponseDto?> UpdateProcessStepAsync(Guid processId, Guid stepId, ProcessStepUpdateDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/processes/{processId}/steps/{stepId}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ProcessStepResponseDto>(_json);
+    }
+
     public async Task DeleteProcessStepAsync(Guid processId, Guid stepId)
     {
         var resp = await _http.DeleteAsync($"api/processes/{processId}/steps/{stepId}");
@@ -397,6 +404,18 @@ public class ApiClient
         resp.EnsureSuccessStatusCode();
     }
 
+    public Task<WorkflowValidationResultDto?> ValidateWorkflowAsync(Guid id)
+    {
+        return PostAndReadAsync<WorkflowValidationResultDto>($"api/workflows/{id}/validate");
+    }
+
+    private async Task<T?> PostAndReadAsync<T>(string url)
+    {
+        var resp = await _http.PostAsync(url, null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<T>(_json);
+    }
+
     public Task<List<WorkflowProcessResponseDto>?> GetWorkflowProcessesAsync(Guid workflowId)
         => _http.GetFromJsonAsync<List<WorkflowProcessResponseDto>>(
             $"api/workflows/{workflowId}/processes", _json);
@@ -404,6 +423,13 @@ public class ApiClient
     public async Task<WorkflowProcessResponseDto?> AddWorkflowProcessAsync(Guid workflowId, AddWorkflowProcessDto dto)
     {
         var resp = await _http.PostAsJsonAsync($"api/workflows/{workflowId}/processes", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<WorkflowProcessResponseDto>(_json);
+    }
+
+    public async Task<WorkflowProcessResponseDto?> UpdateWorkflowProcessAsync(Guid workflowId, Guid wpId, UpdateWorkflowProcessDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/workflows/{workflowId}/processes/{wpId}", dto, _json);
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<WorkflowProcessResponseDto>(_json);
     }
@@ -425,9 +451,29 @@ public class ApiClient
         return await resp.Content.ReadFromJsonAsync<WorkflowLinkResponseDto>(_json);
     }
 
+    public async Task<WorkflowLinkResponseDto?> UpdateWorkflowLinkAsync(Guid workflowId, Guid linkId, UpdateWorkflowLinkDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/workflows/{workflowId}/links/{linkId}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<WorkflowLinkResponseDto>(_json);
+    }
+
     public async Task DeleteWorkflowLinkAsync(Guid workflowId, Guid linkId)
     {
         var resp = await _http.DeleteAsync($"api/workflows/{workflowId}/links/{linkId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<WorkflowLinkConditionResponseDto?> AddWorkflowLinkConditionAsync(Guid workflowId, Guid linkId, AddWorkflowLinkConditionDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/workflows/{workflowId}/links/{linkId}/conditions", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<WorkflowLinkConditionResponseDto>(_json);
+    }
+
+    public async Task DeleteWorkflowLinkConditionAsync(Guid workflowId, Guid linkId, Guid conditionId)
+    {
+        var resp = await _http.DeleteAsync($"api/workflows/{workflowId}/links/{linkId}/conditions/{conditionId}");
         resp.EnsureSuccessStatusCode();
     }
 

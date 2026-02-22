@@ -1,6 +1,7 @@
 @page "/jobs"
 @rendermode InteractiveServer
 @inject ApiClient Api
+@inject IJSRuntime JS
 
 <PageTitle>Jobs</PageTitle>
 
@@ -43,6 +44,12 @@ else if (_data is not null)
                 </tr>
             </thead>
             <tbody>
+                @if (!_data.Items.Any())
+                {
+                    <tr><td colspan="7" class="text-center text-muted py-3">No jobs found.</td></tr>
+                }
+                else
+                {
                 @foreach (var j in _data.Items)
                 {
                     <tr>
@@ -61,6 +68,7 @@ else if (_data is not null)
                             </button>
                         </td>
                     </tr>
+                }
                 }
             </tbody>
         </table>
@@ -202,6 +210,7 @@ else if (_data is not null)
 
     private async Task Delete(Guid id)
     {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this job?")) return;
         try { await Api.DeleteJobAsync(id); await LoadData(); }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }

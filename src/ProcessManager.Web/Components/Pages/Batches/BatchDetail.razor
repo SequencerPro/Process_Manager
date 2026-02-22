@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Batch Detail</PageTitle>
 
@@ -323,6 +324,7 @@ else
 
     private async Task RemoveItem(Guid itemId)
     {
+        if (!await JS.InvokeAsync<bool>("confirm", "Remove this item from the batch?")) return;
         try
         {
             await Api.RemoveBatchItemAsync(Id, itemId);
@@ -355,6 +357,7 @@ else
 
     private async Task Delete()
     {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this batch? This cannot be undone.")) return;
         try
         {
             await Api.DeleteBatchAsync(Id);

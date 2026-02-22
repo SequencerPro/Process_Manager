@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Step Template Detail</PageTitle>
 
@@ -393,12 +394,14 @@ else
 
     private async Task DeletePort(PortResponseDto p)
     {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete port '{p.Name}'?")) return;
         try { await Api.DeletePortAsync(Id, p.Id); await LoadData(); }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }
 
     private async Task Delete()
     {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this step template? This cannot be undone.")) return;
         try { await Api.DeleteStepTemplateAsync(_st!.Id); Nav.NavigateTo("step-templates"); }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }

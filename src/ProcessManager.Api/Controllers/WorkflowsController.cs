@@ -485,10 +485,3 @@ public class WorkflowsController : ControllerBase
             wl.CreatedAt, wl.UpdatedAt);
     }
 }
-
-// ──────────── Validation Result ────────────
-
-public record WorkflowValidationResultDto(
-    bool IsValid,
-    List<string> Errors,
-    List<string> Warnings);

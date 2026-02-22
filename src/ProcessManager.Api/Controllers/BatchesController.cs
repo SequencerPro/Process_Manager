@@ -28,6 +28,7 @@ public class BatchesController : ControllerBase
             .Include(b => b.Kind)
             .Include(b => b.Grade)
             .Include(b => b.Items)
+            .Include(b => b.Job)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -61,6 +62,7 @@ public class BatchesController : ControllerBase
             .Include(b => b.Kind)
             .Include(b => b.Grade)
             .Include(b => b.Items)
+            .Include(b => b.Job)
             .FirstOrDefaultAsync(b => b.Id == id);
 
         if (batch is null) return NotFound();
@@ -105,6 +107,7 @@ public class BatchesController : ControllerBase
             .Include(b => b.Kind)
             .Include(b => b.Grade)
             .Include(b => b.Items)
+            .Include(b => b.Job)
             .FirstAsync(b => b.Id == batch.Id);
 
         return CreatedAtAction(nameof(GetById), new { id = batch.Id }, JobsController.MapBatchToDto(result));
@@ -117,6 +120,7 @@ public class BatchesController : ControllerBase
             .Include(b => b.Kind)
             .Include(b => b.Grade)
             .Include(b => b.Items)
+            .Include(b => b.Job)
             .FirstOrDefaultAsync(b => b.Id == id);
 
         if (batch is null) return NotFound();
@@ -155,6 +159,8 @@ public class BatchesController : ControllerBase
         var items = await _db.Items
             .Include(i => i.Kind)
             .Include(i => i.Grade)
+            .Include(i => i.Job)
+            .Include(i => i.Batch)
             .Where(i => i.BatchId == id)
             .OrderBy(i => i.SerialNumber)
             .ToListAsync();
@@ -174,6 +180,8 @@ public class BatchesController : ControllerBase
         var item = await _db.Items
             .Include(i => i.Kind)
             .Include(i => i.Grade)
+            .Include(i => i.Job)
+            .Include(i => i.Batch)
             .FirstOrDefaultAsync(i => i.Id == itemId);
 
         if (item is null) return BadRequest($"Item '{itemId}' not found.");
@@ -214,6 +222,7 @@ public class BatchesController : ControllerBase
             .Include(b => b.Kind)
             .Include(b => b.Grade)
             .Include(b => b.Items)
+            .Include(b => b.Job)
             .FirstOrDefaultAsync(b => b.Id == id);
 
         if (batch is null) return NotFound();

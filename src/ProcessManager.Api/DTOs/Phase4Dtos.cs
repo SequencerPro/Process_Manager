@@ -87,3 +87,10 @@ public record WorkflowLinkConditionResponseDto(
     Guid GradeId,
     string GradeCode,
     string GradeName);
+
+// ──────────── Workflow Validation ────────────
+
+public record WorkflowValidationResultDto(
+    bool IsValid,
+    List<string> Errors,
+    List<string> Warnings);

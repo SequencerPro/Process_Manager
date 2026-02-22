@@ -15,6 +15,16 @@
         <option value="Skipped">Skipped</option>
         <option value="Failed">Failed</option>
     </select>
+    <select class="form-select form-select-sm" style="width:auto" @onchange="OnJobFilter">
+        <option value="">All Jobs</option>
+        @if (_jobs is not null)
+        {
+            @foreach (var j in _jobs)
+            {
+                <option value="@j.Id">@j.Name (@j.Code)</option>
+            }
+        }
+    </select>
 </div>
 
 @if (_loading)
@@ -37,6 +47,12 @@ else if (_data is not null)
                 </tr>
             </thead>
             <tbody>
+                @if (!_data.Items.Any())
+                {
+                    <tr><td colspan="7" class="text-center text-muted py-3">No step executions found.</td></tr>
+                }
+                else
+                {
                 @foreach (var se in _data.Items)
                 {
                     <tr>
@@ -48,6 +64,7 @@ else if (_data is not null)
                         <td>@(se.CompletedAt?.ToString("g") ?? "—")</td>
                         <td class="small text-truncate" style="max-width:200px">@(se.Notes ?? "")</td>
                     </tr>
+                }
                 }
             </tbody>
         </table>
@@ -66,16 +83,23 @@ else if (_data is not null)
     private PaginatedResponse<StepExecutionResponseDto>? _data;
     private bool _loading = true;
     private string? _status;
+    private Guid? _jobId;
     private int _page = 1;
     private int _pageSize = 25;
     private string? _error;
+    private List<JobResponseDto>? _jobs;
 
-    protected override async Task OnInitializedAsync() => await LoadData();
+    protected override async Task OnInitializedAsync()
+    {
+        var jobResult = await Api.GetJobsAsync(page: 1, pageSize: 200);
+        _jobs = jobResult?.Items?.ToList();
+        await LoadData();
+    }
 
     private async Task LoadData()
     {
         _loading = true; _error = null;
-        _data = await Api.GetStepExecutionsAsync(status: _status, page: _page, pageSize: _pageSize);
+        _data = await Api.GetStepExecutionsAsync(jobId: _jobId, status: _status, page: _page, pageSize: _pageSize);
         _loading = false;
     }
 
@@ -84,6 +108,12 @@ else if (_data is not null)
     private async Task OnStatusFilter(ChangeEventArgs e)
     {
         _status = string.IsNullOrEmpty(e.Value?.ToString()) ? null : e.Value.ToString();
+        _page = 1; await LoadData();
+    }
+
+    private async Task OnJobFilter(ChangeEventArgs e)
+    {
+        _jobId = Guid.TryParse(e.Value?.ToString(), out var id) ? id : null;
         _page = 1; await LoadData();
     }
 }

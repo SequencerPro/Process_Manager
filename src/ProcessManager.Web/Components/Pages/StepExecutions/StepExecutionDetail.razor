@@ -103,6 +103,12 @@ else
 
     @if (_activeTab == "transactions")
     {
+        <div class="d-flex justify-content-end mb-2">
+            <button class="btn btn-primary btn-sm" @onclick="ShowPortTxnForm">
+                <i class="bi bi-plus-lg me-1"></i> Add Transaction
+            </button>
+        </div>
+
         @if (_transactions?.Any() == true)
         {
             <div class="table-responsive">
@@ -239,6 +245,69 @@ else
     </div>
 }
 
+@if (_showPortTxnForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Port Transaction</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showPortTxnForm = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Port</label>
+                        <select class="form-select" @bind="_ptPortId">
+                            <option value="">Select port...</option>
+                            @if (_stepPorts is not null)
+                            {
+                                @foreach (var p in _stepPorts)
+                                {
+                                    <option value="@p.Id">@(p.Direction == PortDirection.Input ? "⬇" : "⬆") @p.Name (@p.KindCode / @p.GradeCode)</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Item (optional)</label>
+                        <select class="form-select" @bind="_ptItemId">
+                            <option value="">None</option>
+                            @if (_jobItems is not null)
+                            {
+                                @foreach (var item in _jobItems)
+                                {
+                                    <option value="@item.Id">@(item.SerialNumber ?? item.Id.ToString()[..8]) — @item.KindName/@item.GradeName</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Batch (optional)</label>
+                        <select class="form-select" @bind="_ptBatchId">
+                            <option value="">None</option>
+                            @if (_jobBatches is not null)
+                            {
+                                @foreach (var b in _jobBatches)
+                                {
+                                    <option value="@b.Id">@b.Code — @b.KindName/@b.GradeName</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" class="form-control" @bind="_ptQuantity" min="1" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showPortTxnForm = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SavePortTxn">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public Guid Id { get; set; }
 
@@ -256,6 +325,16 @@ else
     private string _dataValue = "";
     private string _dataType = "String";
     private string? _dataUnit;
+
+    // Port Transaction form
+    private bool _showPortTxnForm;
+    private string _ptPortId = "";
+    private string _ptItemId = "";
+    private string _ptBatchId = "";
+    private int _ptQuantity = 1;
+    private List<PortResponseDto>? _stepPorts;
+    private List<ItemResponseDto>? _jobItems;
+    private List<BatchResponseDto>? _jobBatches;
 
     protected override async Task OnInitializedAsync() => await LoadAll();
 
@@ -309,6 +388,59 @@ else
             await Api.AddStepExecutionDataAsync(Id, new CreateExecutionDataDto(_dataKey, _dataValue, dataType, _dataUnit));
             _showDataForm = false; _error = null;
             _data = await Api.GetStepExecutionDataAsync(Id);
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    // --- Port Transaction ---
+    private async Task ShowPortTxnForm()
+    {
+        _ptPortId = ""; _ptItemId = ""; _ptBatchId = ""; _ptQuantity = 1;
+        _stepPorts = null; _jobItems = null; _jobBatches = null;
+        _showPortTxnForm = true;
+        _error = null;
+
+        try
+        {
+            // Load the step's ports via its template
+            var job = await Api.GetJobAsync(_exec!.JobId);
+            if (job is not null)
+            {
+                var process = await Api.GetProcessAsync(job.ProcessId);
+                if (process is not null)
+                {
+                    var step = process.Steps.FirstOrDefault(s => s.Id == _exec.ProcessStepId);
+                    if (step is not null)
+                    {
+                        var tpl = await Api.GetStepTemplateAsync(step.StepTemplateId);
+                        _stepPorts = tpl?.Ports?.OrderBy(p => p.Direction).ThenBy(p => p.SortOrder).ToList();
+                    }
+                }
+                // Load items and batches for the job
+                var itemResult = await Api.GetItemsAsync(jobId: job.Id, page: 1, pageSize: 200);
+                _jobItems = itemResult?.Items?.ToList();
+                var batchResult = await Api.GetBatchesAsync(jobId: job.Id, page: 1, pageSize: 200);
+                _jobBatches = batchResult?.Items?.ToList();
+            }
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+
+        StateHasChanged();
+    }
+
+    private async Task SavePortTxn()
+    {
+        try
+        {
+            if (!Guid.TryParse(_ptPortId, out var portId)) { _error = "Select a port."; return; }
+            Guid? itemId = Guid.TryParse(_ptItemId, out var iid) ? iid : null;
+            Guid? batchId = Guid.TryParse(_ptBatchId, out var bid) ? bid : null;
+
+            await Api.AddStepExecutionPortTransactionAsync(Id,
+                new CreatePortTransactionDto(portId, itemId, batchId, _ptQuantity));
+
+            _showPortTxnForm = false; _error = null;
+            _transactions = await Api.GetStepExecutionPortTransactionsAsync(Id);
         }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }

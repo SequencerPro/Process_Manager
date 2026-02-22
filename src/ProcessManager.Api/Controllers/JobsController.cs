@@ -357,7 +357,9 @@ public class JobsController : ControllerBase
             item.GradeId,
             item.Grade?.Name ?? "",
             item.JobId,
+            item.Job?.Name ?? "",
             item.BatchId,
+            item.Batch?.Code,
             item.Status.ToString(),
             item.CreatedAt,
             item.UpdatedAt);
@@ -373,6 +375,7 @@ public class JobsController : ControllerBase
             batch.GradeId,
             batch.Grade?.Name ?? "",
             batch.JobId,
+            batch.Job?.Name ?? "",
             batch.Quantity,
             batch.Status.ToString(),
             batch.Items?.Count ?? 0,

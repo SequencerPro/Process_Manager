@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Process Detail</PageTitle>
 
@@ -81,7 +82,7 @@ else
             <div class="table-responsive">
                 <table class="table table-sm mb-0 align-middle">
                     <thead class="table-light">
-                        <tr><th>#</th><th>Template</th><th>Name Override</th><th></th></tr>
+                        <tr><th>#</th><th>Template</th><th>Name Override</th><th>Desc. Override</th><th></th></tr>
                     </thead>
                     <tbody>
                         @foreach (var s in _proc.Steps.OrderBy(s => s.Sequence))
@@ -90,7 +91,11 @@ else
                                 <td>@s.Sequence</td>
                                 <td><code>@s.StepTemplateCode</code> — @s.StepTemplateName</td>
                                 <td>@(s.NameOverride ?? "—")</td>
+                                <td class="small text-truncate" style="max-width:200px">@(s.DescriptionOverride ?? "—")</td>
                                 <td>
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1" @onclick="() => ShowEditStep(s)" title="Edit">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
                                     <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => DeleteStep(s.Id)">
                                         <i class="bi bi-trash"></i>
                                     </button>
@@ -205,7 +210,7 @@ else
                     <div class="modal-body">
                         <div class="mb-3">
                             <label class="form-label">Source Step</label>
-                            <select class="form-select" @bind="_flowSrcStepId">
+                            <select class="form-select" @bind="_flowSrcStepId" @bind:after="OnFlowSrcStepChanged">
                                 <option value="">Select...</option>
                                 @foreach (var s in _proc.Steps.OrderBy(s => s.Sequence))
                                 {
@@ -214,12 +219,21 @@ else
                             </select>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Source Port ID</label>
-                            <input class="form-control" @bind="_flowSrcPortId" placeholder="Port GUID" />
+                            <label class="form-label">Source Port (Output)</label>
+                            <select class="form-select" @bind="_flowSrcPortId">
+                                <option value="">Select...</option>
+                                @if (_flowSrcPorts is not null)
+                                {
+                                    @foreach (var p in _flowSrcPorts)
+                                    {
+                                        <option value="@p.Id">@p.Name (@p.KindCode / @p.GradeCode)</option>
+                                    }
+                                }
+                            </select>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Target Step</label>
-                            <select class="form-select" @bind="_flowTgtStepId">
+                            <select class="form-select" @bind="_flowTgtStepId" @bind:after="OnFlowTgtStepChanged">
                                 <option value="">Select...</option>
                                 @foreach (var s in _proc.Steps.OrderBy(s => s.Sequence))
                                 {
@@ -228,13 +242,55 @@ else
                             </select>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Target Port ID</label>
-                            <input class="form-control" @bind="_flowTgtPortId" placeholder="Port GUID" />
+                            <label class="form-label">Target Port (Input)</label>
+                            <select class="form-select" @bind="_flowTgtPortId">
+                                <option value="">Select...</option>
+                                @if (_flowTgtPorts is not null)
+                                {
+                                    @foreach (var p in _flowTgtPorts)
+                                    {
+                                        <option value="@p.Id">@p.Name (@p.KindCode / @p.GradeCode)</option>
+                                    }
+                                }
+                            </select>
                         </div>
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-secondary" @onclick="() => _showFlowForm = false">Cancel</button>
                         <button class="btn btn-primary" @onclick="SaveFlow">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Edit Step Modal -->
+    @if (_showEditStepForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Step</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showEditStepForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Sequence</label>
+                            <input type="number" class="form-control" @bind="_editStepSequence" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Name Override</label>
+                            <input class="form-control" @bind="_editStepName" placeholder="Optional" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description Override</label>
+                            <textarea class="form-control" rows="2" @bind="_editStepDesc"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showEditStepForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveEditStep">Update</button>
                     </div>
                 </div>
             </div>
@@ -290,12 +346,21 @@ else
     private string _stepNameOverride = "";
     private PaginatedResponse<StepTemplateResponseDto>? _templates;
 
+    // Edit Step form
+    private bool _showEditStepForm;
+    private Guid _editStepId;
+    private int _editStepSequence;
+    private string _editStepName = "";
+    private string _editStepDesc = "";
+
     // Flow form
     private bool _showFlowForm;
     private string _flowSrcStepId = "";
     private string _flowSrcPortId = "";
     private string _flowTgtStepId = "";
     private string _flowTgtPortId = "";
+    private List<PortResponseDto>? _flowSrcPorts;
+    private List<PortResponseDto>? _flowTgtPorts;
 
     // Edit form
     private bool _showEditForm;
@@ -340,8 +405,33 @@ else
         catch (HttpRequestException ex) { _error = ex.Message; }
     }
 
+    private void ShowEditStep(ProcessStepResponseDto s)
+    {
+        _editStepId = s.Id;
+        _editStepSequence = s.Sequence;
+        _editStepName = s.NameOverride ?? "";
+        _editStepDesc = s.DescriptionOverride ?? "";
+        _showEditStepForm = true;
+    }
+
+    private async Task SaveEditStep()
+    {
+        try
+        {
+            var dto = new ProcessStepUpdateDto(
+                _editStepSequence,
+                string.IsNullOrWhiteSpace(_editStepName) ? null : _editStepName,
+                string.IsNullOrWhiteSpace(_editStepDesc) ? null : _editStepDesc);
+            await Api.UpdateProcessStepAsync(Id, _editStepId, dto);
+            _showEditStepForm = false; _error = null;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
     private async Task DeleteStep(Guid stepId)
     {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this step?")) return;
         try { await Api.DeleteProcessStepAsync(Id, stepId); await LoadData(); }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }
@@ -349,7 +439,36 @@ else
     private void ShowAddFlow()
     {
         _flowSrcStepId = ""; _flowSrcPortId = ""; _flowTgtStepId = ""; _flowTgtPortId = "";
+        _flowSrcPorts = null; _flowTgtPorts = null;
         _showFlowForm = true;
+    }
+
+    private async Task OnFlowSrcStepChanged()
+    {
+        _flowSrcPorts = null; _flowSrcPortId = "";
+        if (Guid.TryParse(_flowSrcStepId, out var stepId))
+        {
+            var step = _proc!.Steps.FirstOrDefault(s => s.Id == stepId);
+            if (step is not null)
+            {
+                var tpl = await Api.GetStepTemplateAsync(step.StepTemplateId);
+                _flowSrcPorts = tpl?.Ports?.Where(p => p.Direction == PortDirection.Output).OrderBy(p => p.SortOrder).ToList();
+            }
+        }
+    }
+
+    private async Task OnFlowTgtStepChanged()
+    {
+        _flowTgtPorts = null; _flowTgtPortId = "";
+        if (Guid.TryParse(_flowTgtStepId, out var stepId))
+        {
+            var step = _proc!.Steps.FirstOrDefault(s => s.Id == stepId);
+            if (step is not null)
+            {
+                var tpl = await Api.GetStepTemplateAsync(step.StepTemplateId);
+                _flowTgtPorts = tpl?.Ports?.Where(p => p.Direction == PortDirection.Input).OrderBy(p => p.SortOrder).ToList();
+            }
+        }
     }
 
     private async Task SaveFlow()
@@ -370,12 +489,14 @@ else
 
     private async Task DeleteFlow(Guid flowId)
     {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this flow?")) return;
         try { await Api.DeleteFlowAsync(Id, flowId); await LoadData(); }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }
 
     private async Task Delete()
     {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete process '{_proc!.Name}'? This cannot be undone.")) return;
         try { await Api.DeleteProcessAsync(Id); Nav.NavigateTo("processes"); }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }

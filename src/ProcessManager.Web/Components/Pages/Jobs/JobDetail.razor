@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Job Detail</PageTitle>
 
@@ -300,6 +301,7 @@ else
 
     private async Task DeleteJob()
     {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this job? This cannot be undone.")) return;
         try { await Api.DeleteJobAsync(Id); Nav.NavigateTo("jobs"); }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }

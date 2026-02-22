@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Kind Detail</PageTitle>
 
@@ -202,6 +203,7 @@ else
 
     private async Task DeleteGrade(GradeResponseDto grade)
     {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete grade '{grade.Code}'?")) return;
         try
         {
             await Api.DeleteGradeAsync(Id, grade.Id);

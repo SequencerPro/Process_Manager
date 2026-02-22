@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Item Detail</PageTitle>
 
@@ -241,6 +242,7 @@ else
 
     private async Task Delete()
     {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this item? This cannot be undone.")) return;
         try
         {
             await Api.DeleteItemAsync(Id);

@@ -27,6 +27,8 @@ public class ItemsController : ControllerBase
         var query = _db.Items
             .Include(i => i.Kind)
             .Include(i => i.Grade)
+            .Include(i => i.Job)
+            .Include(i => i.Batch)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -59,6 +61,8 @@ public class ItemsController : ControllerBase
         var item = await _db.Items
             .Include(i => i.Kind)
             .Include(i => i.Grade)
+            .Include(i => i.Job)
+            .Include(i => i.Batch)
             .FirstOrDefaultAsync(i => i.Id == id);
 
         if (item is null) return NotFound();
@@ -121,6 +125,8 @@ public class ItemsController : ControllerBase
         var result = await _db.Items
             .Include(i => i.Kind)
             .Include(i => i.Grade)
+            .Include(i => i.Job)
+            .Include(i => i.Batch)
             .FirstAsync(i => i.Id == item.Id);
 
         return CreatedAtAction(nameof(GetById), new { id = item.Id }, JobsController.MapItemToDto(result));
@@ -132,6 +138,8 @@ public class ItemsController : ControllerBase
         var item = await _db.Items
             .Include(i => i.Kind)
             .Include(i => i.Grade)
+            .Include(i => i.Job)
+            .Include(i => i.Batch)
             .FirstOrDefaultAsync(i => i.Id == id);
 
         if (item is null) return NotFound();

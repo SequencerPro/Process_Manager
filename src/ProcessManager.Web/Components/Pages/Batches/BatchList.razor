@@ -1,0 +1,105 @@
+@page "/batches"
+@rendermode InteractiveServer
+@inject ApiClient Api
+
+<PageTitle>Batches</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Batches</h3>
+</div>
+
+<div class="d-flex gap-3 mb-3 flex-wrap">
+    <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search by code..." />
+    <select class="form-select form-select-sm" style="width:auto" @onchange="OnStatusFilter">
+        <option value="">All Statuses</option>
+        <option value="Open">Open</option>
+        <option value="Closed">Closed</option>
+    </select>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_data is not null)
+{
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Kind</th>
+                    <th>Grade</th>
+                    <th>Quantity</th>
+                    <th>Items</th>
+                    <th>Status</th>
+                    <th>Job</th>
+                    <th>Created</th>
+                    <th style="width:80px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var b in _data.Items)
+                {
+                    <tr>
+                        <td><a href="batches/@b.Id"><code>@b.Code</code></a></td>
+                        <td>@b.KindName</td>
+                        <td>@b.GradeName</td>
+                        <td>@b.Quantity</td>
+                        <td><span class="badge bg-secondary">@b.ItemCount</span></td>
+                        <td><StatusBadge Status="@b.Status" /></td>
+                        <td><a href="jobs/@b.JobId">View</a></td>
+                        <td>@b.CreatedAt.ToString("g")</td>
+                        <td>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(b.Id)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <Pager Page="_page" PageSize="_pageSize" TotalCount="_data.TotalCount"
+           OnPageChanged="OnPageChanged" />
+}
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger mt-3 py-2">@_error</div>
+}
+
+@code {
+    private PaginatedResponse<BatchResponseDto>? _data;
+    private bool _loading = true;
+    private string _search = "";
+    private string? _status;
+    private int _page = 1;
+    private int _pageSize = 25;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true; _error = null;
+        _data = await Api.GetBatchesAsync(_search, status: _status, page: _page, pageSize: _pageSize);
+        _loading = false;
+    }
+
+    private async Task OnSearch(string v) { _search = v; _page = 1; await LoadData(); }
+    private async Task OnPageChanged(int p) { _page = p; await LoadData(); }
+
+    private async Task OnStatusFilter(ChangeEventArgs e)
+    {
+        _status = string.IsNullOrEmpty(e.Value?.ToString()) ? null : e.Value.ToString();
+        _page = 1; await LoadData();
+    }
+
+    private async Task Delete(Guid id)
+    {
+        try { await Api.DeleteBatchAsync(id); await LoadData(); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+}

@@ -1,0 +1,222 @@
+@page "/kinds/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Kind Detail</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_kind is null)
+{
+    <div class="alert alert-warning">Kind not found.</div>
+}
+else
+{
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="kinds">Kinds</a></li>
+            <li class="breadcrumb-item active">@_kind.Code</li>
+        </ol>
+    </nav>
+
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h3>@_kind.Name <code class="ms-2 fs-6">@_kind.Code</code></h3>
+            @if (!string.IsNullOrEmpty(_kind.Description))
+            {
+                <p class="text-muted">@_kind.Description</p>
+            }
+            <div class="d-flex gap-3 mb-3">
+                <span class="badge @(_kind.IsSerialized ? "bg-primary" : "bg-secondary")">
+                    @(_kind.IsSerialized ? "Serialized" : "Not Serialized")
+                </span>
+                <span class="badge @(_kind.IsBatchable ? "bg-primary" : "bg-secondary")">
+                    @(_kind.IsBatchable ? "Batchable" : "Not Batchable")
+                </span>
+            </div>
+            <small class="text-muted">Created @_kind.CreatedAt.ToString("g") &middot; Updated @_kind.UpdatedAt.ToString("g")</small>
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger py-2">@_error</div>
+    }
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Grades</h5>
+        <button class="btn btn-primary btn-sm" @onclick="ShowGradeForm">
+            <i class="bi bi-plus-lg me-1"></i> Add Grade
+        </button>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Description</th>
+                    <th>Default</th>
+                    <th>Sort</th>
+                    <th style="width:120px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var grade in _kind.Grades)
+                {
+                    <tr>
+                        <td><code>@grade.Code</code></td>
+                        <td>@grade.Name</td>
+                        <td class="text-muted small">@grade.Description</td>
+                        <td>
+                            @if (grade.IsDefault)
+                            {
+                                <i class="bi bi-check-circle-fill text-success"></i>
+                            }
+                        </td>
+                        <td>@grade.SortOrder</td>
+                        <td>
+                            <button class="btn btn-outline-secondary btn-sm me-1"
+                                    @onclick="() => ShowEditGrade(grade)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm"
+                                    @onclick="() => DeleteGrade(grade)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+                @if (!_kind.Grades.Any())
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-3">No grades defined yet.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@if (_showGradeForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_editingGradeId.HasValue ? "Edit Grade" : "Add Grade")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseGradeForm"></button>
+                </div>
+                <EditForm Model="_gradeForm" OnValidSubmit="SaveGrade">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Code</label>
+                            <InputText class="form-control" @bind-Value="_gradeForm.Code"
+                                       disabled="@_editingGradeId.HasValue" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <InputText class="form-control" @bind-Value="_gradeForm.Name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <InputTextArea class="form-control" @bind-Value="_gradeForm.Description" rows="2" />
+                        </div>
+                        <div class="form-check mb-2">
+                            <InputCheckbox class="form-check-input" @bind-Value="_gradeForm.IsDefault" />
+                            <label class="form-check-label">Default Grade</label>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Sort Order</label>
+                            <InputNumber class="form-control" @bind-Value="_gradeForm.SortOrder" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseGradeForm">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private KindResponseDto? _kind;
+    private bool _loading = true;
+    private string? _error;
+
+    // Grade form
+    private bool _showGradeForm;
+    private Guid? _editingGradeId;
+    private GradeFormModel _gradeForm = new();
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        _kind = await Api.GetKindAsync(Id);
+        _loading = false;
+    }
+
+    private void ShowGradeForm()
+    {
+        _editingGradeId = null;
+        _gradeForm = new();
+        _showGradeForm = true;
+    }
+
+    private void ShowEditGrade(GradeResponseDto g)
+    {
+        _editingGradeId = g.Id;
+        _gradeForm = new() { Code = g.Code, Name = g.Name, Description = g.Description ?? "",
+                              IsDefault = g.IsDefault, SortOrder = g.SortOrder };
+        _showGradeForm = true;
+    }
+
+    private void CloseGradeForm() => _showGradeForm = false;
+
+    private async Task SaveGrade()
+    {
+        try
+        {
+            if (_editingGradeId.HasValue)
+                await Api.UpdateGradeAsync(Id, _editingGradeId.Value,
+                    new GradeUpdateDto(_gradeForm.Name, _gradeForm.Description, _gradeForm.IsDefault, _gradeForm.SortOrder));
+            else
+                await Api.CreateGradeAsync(Id,
+                    new GradeCreateDto(_gradeForm.Code, _gradeForm.Name, _gradeForm.Description, _gradeForm.IsDefault, _gradeForm.SortOrder));
+
+            _showGradeForm = false;
+            _error = null;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private async Task DeleteGrade(GradeResponseDto grade)
+    {
+        try
+        {
+            await Api.DeleteGradeAsync(Id, grade.Id);
+            _error = null;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private class GradeFormModel
+    {
+        public string Code { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public bool IsDefault { get; set; }
+        public int SortOrder { get; set; }
+    }
+}

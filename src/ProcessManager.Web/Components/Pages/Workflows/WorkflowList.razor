@@ -1,0 +1,180 @@
+@page "/workflows"
+@rendermode InteractiveServer
+@inject ApiClient Api
+
+<PageTitle>Workflows</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Workflows</h3>
+    <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
+        <i class="bi bi-plus-lg me-1"></i> New Workflow
+    </button>
+</div>
+
+<div class="d-flex gap-3 mb-3">
+    <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search workflows..." />
+    <select class="form-select form-select-sm" style="width:auto" @onchange="OnActiveFilter">
+        <option value="">All</option>
+        <option value="true">Active</option>
+        <option value="false">Inactive</option>
+    </select>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_data is not null)
+{
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Version</th>
+                    <th>Processes</th>
+                    <th>Links</th>
+                    <th>Active</th>
+                    <th style="width:140px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var w in _data.Items)
+                {
+                    <tr>
+                        <td><code>@w.Code</code></td>
+                        <td><a href="workflows/@w.Id">@w.Name</a></td>
+                        <td>v@w.Version</td>
+                        <td><span class="badge bg-secondary">@(w.Processes?.Count ?? 0)</span></td>
+                        <td><span class="badge bg-secondary">@(w.Links?.Count ?? 0)</span></td>
+                        <td>
+                            @if (w.IsActive)
+                            {
+                                <i class="bi bi-check-circle-fill text-success"></i>
+                            }
+                            else
+                            {
+                                <i class="bi bi-x-circle text-danger"></i>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEdit(w)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(w.Id)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <Pager Page="_page" PageSize="_pageSize" TotalCount="_data.TotalCount"
+           OnPageChanged="OnPageChanged" />
+}
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger mt-3 py-2">@_error</div>
+}
+
+@if (_showForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "New") Workflow</h5>
+                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!_editId.HasValue)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Code</label>
+                            <input class="form-control" @bind="_formCode" />
+                        </div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input class="form-control" @bind="_formName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" rows="3" @bind="_formDesc"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="Save">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResponse<WorkflowResponseDto>? _data;
+    private bool _loading = true;
+    private string _search = "";
+    private bool? _active;
+    private int _page = 1;
+    private int _pageSize = 25;
+    private string? _error;
+
+    private bool _showForm;
+    private Guid? _editId;
+    private string _formCode = "";
+    private string _formName = "";
+    private string _formDesc = "";
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true; _error = null;
+        _data = await Api.GetWorkflowsAsync(_search, _active, _page, _pageSize);
+        _loading = false;
+    }
+
+    private async Task OnSearch(string v) { _search = v; _page = 1; await LoadData(); }
+    private async Task OnPageChanged(int p) { _page = p; await LoadData(); }
+
+    private async Task OnActiveFilter(ChangeEventArgs e)
+    {
+        _active = string.IsNullOrEmpty(e.Value?.ToString()) ? null : bool.Parse(e.Value.ToString()!);
+        _page = 1; await LoadData();
+    }
+
+    private void ShowCreate() { _editId = null; _formCode = ""; _formName = ""; _formDesc = ""; _showForm = true; }
+
+    private void ShowEdit(WorkflowResponseDto w)
+    {
+        _editId = w.Id; _formName = w.Name; _formDesc = w.Description ?? ""; _showForm = true;
+    }
+
+    private void CloseForm() => _showForm = false;
+
+    private async Task Save()
+    {
+        try
+        {
+            if (_editId.HasValue)
+                await Api.UpdateWorkflowAsync(_editId.Value, new UpdateWorkflowDto(_formName, _formDesc));
+            else
+                await Api.CreateWorkflowAsync(new CreateWorkflowDto(_formCode, _formName, _formDesc));
+            _showForm = false; _error = null;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private async Task Delete(Guid id)
+    {
+        try { await Api.DeleteWorkflowAsync(id); await LoadData(); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+}

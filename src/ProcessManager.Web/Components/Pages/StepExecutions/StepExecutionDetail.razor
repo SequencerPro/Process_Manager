@@ -1,0 +1,315 @@
+@page "/step-executions/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Step Execution Detail</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_exec is null)
+{
+    <div class="alert alert-warning">Step Execution not found.</div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="step-executions">Step Executions</a></li>
+            <li class="breadcrumb-item active">@_exec.StepName #@_exec.Sequence</li>
+        </ol>
+    </nav>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h4 class="mb-1">@_exec.StepName <span class="text-muted fs-6">#@_exec.Sequence</span></h4>
+                    <StatusBadge Status="@_exec.Status" />
+                </div>
+                <div class="d-flex gap-1 flex-wrap">
+                    @if (_exec.Status == "Pending")
+                    {
+                        <button class="btn btn-success btn-sm" @onclick='() => Transition("start")'>
+                            <i class="bi bi-play-fill me-1"></i>Start
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" @onclick='() => Transition("skip")'>Skip</button>
+                    }
+                    else if (_exec.Status == "Running")
+                    {
+                        <button class="btn btn-primary btn-sm" @onclick='() => Transition("complete")'>
+                            <i class="bi bi-check-lg me-1"></i>Complete
+                        </button>
+                        <button class="btn btn-danger btn-sm" @onclick='() => Transition("fail")'>
+                            <i class="bi bi-x-lg me-1"></i>Fail
+                        </button>
+                    }
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Job</dt>
+                        <dd class="col-sm-8"><a href="jobs/@_exec.JobId">View Job</a></dd>
+                        <dt class="col-sm-4">Started</dt>
+                        <dd class="col-sm-8">@(_exec.StartedAt?.ToString("g") ?? "—")</dd>
+                        <dt class="col-sm-4">Completed</dt>
+                        <dd class="col-sm-8">@(_exec.CompletedAt?.ToString("g") ?? "—")</dd>
+                    </dl>
+                </div>
+                <div class="col-md-6">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Created</dt>
+                        <dd class="col-sm-8">@_exec.CreatedAt.ToString("g")</dd>
+                        <dt class="col-sm-4">Updated</dt>
+                        <dd class="col-sm-8">@_exec.UpdatedAt.ToString("g")</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="mt-3">
+                <label class="form-label fw-bold">Notes</label>
+                <div class="input-group">
+                    <input class="form-control" @bind="_notes" placeholder="Add notes..." />
+                    <button class="btn btn-outline-primary" @onclick="SaveNotes">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger py-2">@_error</div>
+    }
+
+    <!-- Tabs: Port Transactions / Execution Data -->
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <button class="nav-link @(_activeTab == "transactions" ? "active" : "")"
+                    @onclick='() => _activeTab = "transactions"'>
+                Port Transactions (@(_transactions?.Count ?? 0))
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(_activeTab == "data" ? "active" : "")"
+                    @onclick='() => _activeTab = "data"'>
+                Execution Data (@(_data?.Count ?? 0))
+            </button>
+        </li>
+    </ul>
+
+    @if (_activeTab == "transactions")
+    {
+        @if (_transactions?.Any() == true)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Port</th>
+                            <th>Direction</th>
+                            <th>Item</th>
+                            <th>Batch</th>
+                            <th>Quantity</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var pt in _transactions)
+                        {
+                            <tr>
+                                <td>@pt.PortName</td>
+                                <td>
+                                    <span class="badge @(pt.PortDirection == "Input" ? "bg-info text-dark" : "bg-warning text-dark")">
+                                        @pt.PortDirection
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (pt.ItemId.HasValue)
+                                    {
+                                        <a href="items/@pt.ItemId"><code>@(pt.ItemSerialNumber ?? pt.ItemId.Value.ToString()[..8])</code></a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (pt.BatchId.HasValue)
+                                    {
+                                        <a href="batches/@pt.BatchId"><code>@(pt.BatchCode ?? pt.BatchId.Value.ToString()[..8])</code></a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td>@pt.Quantity</td>
+                                <td>@pt.CreatedAt.ToString("g")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted small">No port transactions recorded.</p>
+        }
+    }
+
+    @if (_activeTab == "data")
+    {
+        <div class="d-flex justify-content-end mb-2">
+            <button class="btn btn-primary btn-sm" @onclick="ShowDataForm">
+                <i class="bi bi-plus-lg me-1"></i> Add Data
+            </button>
+        </div>
+
+        @if (_data?.Any() == true)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead class="table-light">
+                        <tr><th>Key</th><th>Value</th><th>Type</th><th>Unit</th><th>Created</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in _data)
+                        {
+                            <tr>
+                                <td><strong>@d.Key</strong></td>
+                                <td>@d.Value</td>
+                                <td><span class="badge bg-secondary">@d.DataType</span></td>
+                                <td>@(d.UnitOfMeasure ?? "—")</td>
+                                <td>@d.CreatedAt.ToString("g")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted small">No execution data recorded.</p>
+        }
+    }
+}
+
+@if (_showDataForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Execution Data</h5>
+                    <button type="button" class="btn-close" @onclick="CloseDataForm"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Key</label>
+                        <input class="form-control" @bind="_dataKey" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Value</label>
+                        <input class="form-control" @bind="_dataValue" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Data Type</label>
+                        <select class="form-select" @bind="_dataType">
+                            <option value="String">String</option>
+                            <option value="Number">Number</option>
+                            <option value="Boolean">Boolean</option>
+                            <option value="DateTime">DateTime</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Unit of Measure</label>
+                        <input class="form-control" @bind="_dataUnit" placeholder="e.g., mm, kg, °C" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseDataForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveData">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private StepExecutionResponseDto? _exec;
+    private List<PortTransactionResponseDto>? _transactions;
+    private List<ExecutionDataResponseDto>? _data;
+    private bool _loading = true;
+    private string? _error;
+    private string _activeTab = "transactions";
+    private string _notes = "";
+
+    // Data form
+    private bool _showDataForm;
+    private string _dataKey = "";
+    private string _dataValue = "";
+    private string _dataType = "String";
+    private string? _dataUnit;
+
+    protected override async Task OnInitializedAsync() => await LoadAll();
+
+    private async Task LoadAll()
+    {
+        _loading = true; _error = null;
+        _exec = await Api.GetStepExecutionAsync(Id);
+        if (_exec is not null)
+        {
+            _notes = _exec.Notes ?? "";
+            _transactions = await Api.GetStepExecutionPortTransactionsAsync(Id);
+            _data = await Api.GetStepExecutionDataAsync(Id);
+        }
+        _loading = false;
+    }
+
+    private async Task Transition(string action)
+    {
+        try
+        {
+            _exec = await Api.StepExecutionTransitionAsync(Id, action);
+            _error = null;
+            _transactions = await Api.GetStepExecutionPortTransactionsAsync(Id);
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private async Task SaveNotes()
+    {
+        try
+        {
+            _exec = await Api.UpdateStepExecutionNotesAsync(Id, new UpdateStepExecutionNotesDto(_notes));
+            _error = null;
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private void ShowDataForm()
+    {
+        _dataKey = ""; _dataValue = ""; _dataType = "String"; _dataUnit = null;
+        _showDataForm = true;
+    }
+
+    private void CloseDataForm() => _showDataForm = false;
+
+    private async Task SaveData()
+    {
+        try
+        {
+            var dataType = Enum.Parse<ProcessManager.Domain.Enums.DataValueType>(_dataType);
+            await Api.AddStepExecutionDataAsync(Id, new CreateExecutionDataDto(_dataKey, _dataValue, dataType, _dataUnit));
+            _showDataForm = false; _error = null;
+            _data = await Api.GetStepExecutionDataAsync(Id);
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+}

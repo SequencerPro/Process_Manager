@@ -1,0 +1,340 @@
+@page "/processes/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Process Detail</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_proc is null)
+{
+    <div class="alert alert-warning">Process not found.</div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="processes">Processes</a></li>
+            <li class="breadcrumb-item active">@_proc.Name</li>
+        </ol>
+    </nav>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <h4 class="mb-1">@_proc.Name</h4>
+                    <span class="text-muted me-3"><code>@_proc.Code</code></span>
+                    <span class="badge me-1 @(_proc.IsActive ? "bg-success" : "bg-secondary")">@(_proc.IsActive ? "Active" : "Inactive")</span>
+                    <span class="badge bg-dark">v@_proc.Version</span>
+                </div>
+                <div>
+                    <button class="btn btn-outline-info btn-sm me-1" @onclick="Validate">
+                        <i class="bi bi-check2-all me-1"></i>Validate
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(_proc.Description))
+            {
+                <p class="mb-2">@_proc.Description</p>
+            }
+            <small class="text-muted">Created @_proc.CreatedAt.ToString("g") &bull; Updated @_proc.UpdatedAt.ToString("g")</small>
+        </div>
+    </div>
+
+    @if (_validation is not null)
+    {
+        <div class="alert @(_validation.Errors.Any() ? "alert-danger" : "alert-success") py-2">
+            @if (!_validation.Errors.Any() && !_validation.Warnings.Any())
+            {
+                <span><i class="bi bi-check-circle me-1"></i> Valid &mdash; no errors found.</span>
+            }
+            @foreach (var e in _validation.Errors) { <div><i class="bi bi-x-circle text-danger me-1"></i> @e</div> }
+            @foreach (var w in _validation.Warnings) { <div><i class="bi bi-exclamation-triangle text-warning me-1"></i> @w</div> }
+        </div>
+    }
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger py-2">@_error</div>
+    }
+
+    <!-- Steps -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-list-ol me-1"></i> Steps (@_proc.Steps.Count)</span>
+            <button class="btn btn-primary btn-sm" @onclick="ShowAddStep">
+                <i class="bi bi-plus-lg"></i>
+            </button>
+        </div>
+        @if (_proc.Steps.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr><th>#</th><th>Template</th><th>Name Override</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in _proc.Steps.OrderBy(s => s.Sequence))
+                        {
+                            <tr>
+                                <td>@s.Sequence</td>
+                                <td><code>@s.StepTemplateCode</code> — @s.StepTemplateName</td>
+                                <td>@(s.NameOverride ?? "—")</td>
+                                <td>
+                                    <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => DeleteStep(s.Id)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="card-body text-muted small">No steps defined. Add a step template to begin.</div>
+        }
+    </div>
+
+    <!-- Flows -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-arrow-left-right me-1"></i> Flows (@_proc.Flows.Count)</span>
+            <button class="btn btn-primary btn-sm" @onclick="ShowAddFlow">
+                <i class="bi bi-plus-lg"></i>
+            </button>
+        </div>
+        @if (_proc.Flows.Any())
+        {
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr><th>Source Step</th><th>Source Port</th><th></th><th>Target Step</th><th>Target Port</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var f in _proc.Flows)
+                        {
+                            var srcStep = _proc.Steps.FirstOrDefault(s => s.Id == f.SourceProcessStepId);
+                            var tgtStep = _proc.Steps.FirstOrDefault(s => s.Id == f.TargetProcessStepId);
+                            <tr>
+                                <td>@(srcStep?.NameOverride ?? srcStep?.StepTemplateName ?? "?")</td>
+                                <td><code>@f.SourcePortName</code></td>
+                                <td class="text-center"><i class="bi bi-arrow-right"></i></td>
+                                <td>@(tgtStep?.NameOverride ?? tgtStep?.StepTemplateName ?? "?")</td>
+                                <td><code>@f.TargetPortName</code></td>
+                                <td>
+                                    <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => DeleteFlow(f.Id)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="card-body text-muted small">No flows defined.</div>
+        }
+    </div>
+
+    <!-- Add Step Modal -->
+    @if (_showStepForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add Step</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showStepForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Step Template</label>
+                            <select class="form-select" @bind="_stepTemplateId">
+                                <option value="">Select...</option>
+                                @if (_templates is not null)
+                                {
+                                    @foreach (var t in _templates.Items)
+                                    {
+                                        <option value="@t.Id">@t.Name (@t.Code)</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Sequence</label>
+                            <input type="number" class="form-control" @bind="_stepSequence" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Name Override</label>
+                            <input class="form-control" @bind="_stepNameOverride" placeholder="Optional" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showStepForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveStep">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Add Flow Modal -->
+    @if (_showFlowForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add Flow</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showFlowForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Source Step</label>
+                            <select class="form-select" @bind="_flowSrcStepId">
+                                <option value="">Select...</option>
+                                @foreach (var s in _proc.Steps.OrderBy(s => s.Sequence))
+                                {
+                                    <option value="@s.Id">@s.Sequence. @(s.NameOverride ?? s.StepTemplateName)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Source Port ID</label>
+                            <input class="form-control" @bind="_flowSrcPortId" placeholder="Port GUID" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Target Step</label>
+                            <select class="form-select" @bind="_flowTgtStepId">
+                                <option value="">Select...</option>
+                                @foreach (var s in _proc.Steps.OrderBy(s => s.Sequence))
+                                {
+                                    <option value="@s.Id">@s.Sequence. @(s.NameOverride ?? s.StepTemplateName)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Target Port ID</label>
+                            <input class="form-control" @bind="_flowTgtPortId" placeholder="Port GUID" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showFlowForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveFlow">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private ProcessResponseDto? _proc;
+    private ProcessValidationResultDto? _validation;
+    private bool _loading = true;
+    private string? _error;
+
+    // Step form
+    private bool _showStepForm;
+    private string _stepTemplateId = "";
+    private int _stepSequence = 1;
+    private string _stepNameOverride = "";
+    private PaginatedResponse<StepTemplateResponseDto>? _templates;
+
+    // Flow form
+    private bool _showFlowForm;
+    private string _flowSrcStepId = "";
+    private string _flowSrcPortId = "";
+    private string _flowTgtStepId = "";
+    private string _flowTgtPortId = "";
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        _error = null;
+        _proc = await Api.GetProcessAsync(Id);
+        _loading = false;
+    }
+
+    private async Task Validate()
+    {
+        _validation = await Api.ValidateProcessAsync(Id);
+    }
+
+    private async Task ShowAddStep()
+    {
+        _stepTemplateId = ""; _stepSequence = (_proc?.Steps.Count ?? 0) + 1; _stepNameOverride = "";
+        _showStepForm = true;
+        _templates = await Api.GetStepTemplatesAsync("", true, 1, 100);
+        StateHasChanged();
+    }
+
+    private async Task SaveStep()
+    {
+        try
+        {
+            if (!Guid.TryParse(_stepTemplateId, out var tid)) { _error = "Select a step template."; return; }
+            var dto = new ProcessStepCreateDto(tid, _stepSequence, 
+                string.IsNullOrWhiteSpace(_stepNameOverride) ? null : _stepNameOverride, null);
+            await Api.AddProcessStepAsync(Id, dto);
+            _showStepForm = false; _error = null;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private async Task DeleteStep(Guid stepId)
+    {
+        try { await Api.DeleteProcessStepAsync(Id, stepId); await LoadData(); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private void ShowAddFlow()
+    {
+        _flowSrcStepId = ""; _flowSrcPortId = ""; _flowTgtStepId = ""; _flowTgtPortId = "";
+        _showFlowForm = true;
+    }
+
+    private async Task SaveFlow()
+    {
+        try
+        {
+            if (!Guid.TryParse(_flowSrcStepId, out var ss) || !Guid.TryParse(_flowSrcPortId, out var sp)
+                || !Guid.TryParse(_flowTgtStepId, out var ts) || !Guid.TryParse(_flowTgtPortId, out var tp))
+            {
+                _error = "All flow fields are required."; return;
+            }
+            await Api.AddFlowAsync(Id, new FlowCreateDto(ss, sp, ts, tp));
+            _showFlowForm = false; _error = null;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private async Task DeleteFlow(Guid flowId)
+    {
+        try { await Api.DeleteFlowAsync(Id, flowId); await LoadData(); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private async Task Delete()
+    {
+        try { await Api.DeleteProcessAsync(Id); Nav.NavigateTo("processes"); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+}

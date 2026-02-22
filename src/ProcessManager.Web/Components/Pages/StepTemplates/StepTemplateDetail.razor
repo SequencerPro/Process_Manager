@@ -1,0 +1,300 @@
+@page "/step-templates/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Step Template Detail</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_st is null)
+{
+    <div class="alert alert-warning">Step template not found.</div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="step-templates">Step Templates</a></li>
+            <li class="breadcrumb-item active">@_st.Name</li>
+        </ol>
+    </nav>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <h4 class="mb-1">@_st.Name</h4>
+                    <span class="text-muted me-3"><code>@_st.Code</code></span>
+                    <span class="badge bg-info text-dark me-1">@_st.Pattern</span>
+                    <span class="badge me-1 @(_st.IsActive ? "bg-success" : "bg-secondary")">@(_st.IsActive ? "Active" : "Inactive")</span>
+                    <span class="badge bg-dark">v@_st.Version</span>
+                </div>
+                <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
+                    <i class="bi bi-trash me-1"></i>Delete
+                </button>
+            </div>
+            @if (!string.IsNullOrEmpty(_st.Description))
+            {
+                <p class="mb-2">@_st.Description</p>
+            }
+            <small class="text-muted">Created @_st.CreatedAt.ToString("g") &bull; Updated @_st.UpdatedAt.ToString("g")</small>
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger py-2">@_error</div>
+    }
+
+    <!-- Input Ports -->
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-box-arrow-in-right text-success me-1"></i> Input Ports (@InputPorts.Count)</span>
+                    <button class="btn btn-success btn-sm" @onclick='() => ShowPortForm(PortDirection.Input)'>
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+                @if (InputPorts.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr><th>Name</th><th>Kind / Grade</th><th>Qty Rule</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var p in InputPorts)
+                                {
+                                    <tr>
+                                        <td>@p.Name</td>
+                                        <td><code>@p.KindCode</code> / <code>@p.GradeCode</code></td>
+                                        <td>@FormatQtyRule(p)</td>
+                                        <td>
+                                            <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => DeletePort(p)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="card-body text-muted small">No input ports defined.</div>
+                }
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-box-arrow-right text-primary me-1"></i> Output Ports (@OutputPorts.Count)</span>
+                    <button class="btn btn-primary btn-sm" @onclick='() => ShowPortForm(PortDirection.Output)'>
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+                @if (OutputPorts.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr><th>Name</th><th>Kind / Grade</th><th>Qty Rule</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var p in OutputPorts)
+                                {
+                                    <tr>
+                                        <td>@p.Name</td>
+                                        <td><code>@p.KindCode</code> / <code>@p.GradeCode</code></td>
+                                        <td>@FormatQtyRule(p)</td>
+                                        <td>
+                                            <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => DeletePort(p)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="card-body text-muted small">No output ports defined.</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Port Modal -->
+    @if (_showPortForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add @_portDirection Port</h5>
+                        <button type="button" class="btn-close" @onclick="ClosePortForm"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="_portName" />
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label">Kind</label>
+                                <select class="form-select" @bind="_portKindId">
+                                    <option value="">Select...</option>
+                                    @if (_kinds is not null)
+                                    {
+                                        @foreach (var k in _kinds.Items)
+                                        {
+                                            <option value="@k.Id">@k.Name (@k.Code)</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Grade</label>
+                                <select class="form-select" @bind="_portGradeId">
+                                    <option value="">Select...</option>
+                                    @if (_grades is not null)
+                                    {
+                                        @foreach (var g in _grades)
+                                        {
+                                            <option value="@g.Id">@g.Name (@g.Code)</option>
+                                        }
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label">Qty Rule Mode</label>
+                                <select class="form-select" @bind="_portQtyMode">
+                                    @foreach (var m in Enum.GetValues<QuantityRuleMode>())
+                                    {
+                                        <option value="@m">@m</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Sort Order</label>
+                                <input type="number" class="form-control" @bind="_portSortOrder" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="ClosePortForm">Cancel</button>
+                        <button type="button" class="btn btn-primary" @onclick="SavePort">Save Port</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private StepTemplateResponseDto? _st;
+    private bool _loading = true;
+    private string? _error;
+
+    private List<PortResponseDto> InputPorts =>
+        _st?.Ports?.Where(p => p.Direction == PortDirection.Input).OrderBy(p => p.SortOrder).ToList() ?? new();
+    private List<PortResponseDto> OutputPorts =>
+        _st?.Ports?.Where(p => p.Direction == PortDirection.Output).OrderBy(p => p.SortOrder).ToList() ?? new();
+
+    // Port form state
+    private bool _showPortForm;
+    private PortDirection _portDirection;
+    private string _portName = "";
+    private string _portKindId = "";
+    private string _portGradeId = "";
+    private QuantityRuleMode _portQtyMode = QuantityRuleMode.Exactly;
+    private int _portSortOrder;
+
+    // Lookup data
+    private PaginatedResponse<KindResponseDto>? _kinds;
+    private List<GradeResponseDto>? _grades = new();
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        _st = await Api.GetStepTemplateAsync(Id);
+        _loading = false;
+    }
+
+    private void ShowPortForm(PortDirection direction)
+    {
+        _portDirection = direction;
+        _portName = "";
+        _portKindId = "";
+        _portGradeId = "";
+        _portQtyMode = QuantityRuleMode.Exactly;
+        _portSortOrder = 0;
+        _showPortForm = true;
+        _ = LoadLookups();
+    }
+
+    private async Task LoadLookups()
+    {
+        _kinds = await Api.GetKindsAsync("", 1, 100);
+        StateHasChanged();
+    }
+
+    private void ClosePortForm() => _showPortForm = false;
+
+    private async Task SavePort()
+    {
+        try
+        {
+            if (!Guid.TryParse(_portKindId, out var kindId) || !Guid.TryParse(_portGradeId, out var gradeId))
+            {
+                _error = "Please select both a Kind and a Grade.";
+                return;
+            }
+            var dto = new PortCreateDto(_portName, _portDirection, kindId, gradeId, _portQtyMode, null, null, null, _portSortOrder);
+            await Api.CreatePortAsync(Id, dto);
+            _showPortForm = false;
+            _error = null;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private async Task DeletePort(PortResponseDto p)
+    {
+        try { await Api.DeletePortAsync(Id, p.Id); await LoadData(); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private async Task Delete()
+    {
+        try { await Api.DeleteStepTemplateAsync(_st!.Id); Nav.NavigateTo("step-templates"); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private string FormatQtyRule(PortResponseDto p)
+    {
+        return p.QtyRuleMode switch
+        {
+            QuantityRuleMode.Exactly => $"= {p.QtyRuleN}",
+            QuantityRuleMode.ZeroOrN => $"0 or {p.QtyRuleN}",
+            QuantityRuleMode.Range => $"{p.QtyRuleMin}\u2013{p.QtyRuleMax}",
+            QuantityRuleMode.Unbounded => $">= {p.QtyRuleMin}",
+            _ => p.QtyRuleMode.ToString()
+        };
+    }
+}

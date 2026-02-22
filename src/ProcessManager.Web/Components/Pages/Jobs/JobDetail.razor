@@ -1,0 +1,235 @@
+@page "/jobs/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Job Detail</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_job is null)
+{
+    <div class="alert alert-warning">Job not found.</div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="jobs">Jobs</a></li>
+            <li class="breadcrumb-item active">@_job.Name</li>
+        </ol>
+    </nav>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h4 class="mb-1">@_job.Name</h4>
+                    <span class="text-muted me-3"><code>@_job.Code</code></span>
+                    <StatusBadge Status="@_job.Status" />
+                    @if (_job.Priority > 0)
+                    {
+                        <span class="badge bg-warning text-dark ms-1">Priority @_job.Priority</span>
+                    }
+                </div>
+                <div class="d-flex gap-1 flex-wrap">
+                    @if (_job.Status == "Created")
+                    {
+                        <button class="btn btn-success btn-sm" @onclick='() => Transition("start")'>
+                            <i class="bi bi-play-fill me-1"></i>Start
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" @onclick='() => Transition("cancel")'>Cancel</button>
+                    }
+                    else if (_job.Status == "InProgress")
+                    {
+                        <button class="btn btn-primary btn-sm" @onclick='() => Transition("complete")'>
+                            <i class="bi bi-check-lg me-1"></i>Complete
+                        </button>
+                        <button class="btn btn-warning btn-sm" @onclick='() => Transition("hold")'>
+                            <i class="bi bi-pause-fill me-1"></i>Hold
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" @onclick='() => Transition("cancel")'>Cancel</button>
+                    }
+                    else if (_job.Status == "OnHold")
+                    {
+                        <button class="btn btn-success btn-sm" @onclick='() => Transition("resume")'>
+                            <i class="bi bi-play-fill me-1"></i>Resume
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" @onclick='() => Transition("cancel")'>Cancel</button>
+                    }
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(_job.Description))
+            {
+                <p class="mt-2 mb-2">@_job.Description</p>
+            }
+            <div class="mt-2">
+                <small class="text-muted">
+                    Process: <strong>@_job.ProcessName</strong> &bull;
+                    Created @_job.CreatedAt.ToString("g")
+                    @if (_job.StartedAt.HasValue) { <text> &bull; Started @_job.StartedAt.Value.ToString("g")</text> }
+                    @if (_job.CompletedAt.HasValue) { <text> &bull; Completed @_job.CompletedAt.Value.ToString("g")</text> }
+                </small>
+            </div>
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger py-2">@_error</div>
+    }
+
+    <!-- Step Executions -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="bi bi-list-check me-1"></i> Step Executions (@(_job.StepExecutions?.Count ?? 0))
+        </div>
+        @if (_job.StepExecutions?.Any() == true)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr><th>#</th><th>Step Name</th><th>Status</th><th>Started</th><th>Completed</th><th>Notes</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var se in _job.StepExecutions.OrderBy(s => s.Sequence))
+                        {
+                            <tr>
+                                <td><a href="step-executions/@se.Id">@se.Sequence</a></td>
+                                <td><a href="step-executions/@se.Id">@se.StepName</a></td>
+                                <td><StatusBadge Status="@se.Status" /></td>
+                                <td>@(se.StartedAt?.ToString("g") ?? "—")</td>
+                                <td>@(se.CompletedAt?.ToString("g") ?? "—")</td>
+                                <td class="small">@(se.Notes ?? "")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="card-body text-muted small">No step executions yet. Start the job to generate them.</div>
+        }
+    </div>
+
+    <!-- Items & Batches tabs -->
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <button class="nav-link @(_activeTab == "items" ? "active" : "")" @onclick='() => SwitchTab("items")'>
+                Items (@(_items?.Count ?? 0))
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(_activeTab == "batches" ? "active" : "")" @onclick='() => SwitchTab("batches")'>
+                Batches (@(_batches?.Count ?? 0))
+            </button>
+        </li>
+    </ul>
+
+    @if (_activeTab == "items")
+    {
+        @if (_items?.Any() == true)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead class="table-light">
+                        <tr><th>Serial</th><th>Kind</th><th>Grade</th><th>Status</th><th>Created</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var i in _items)
+                        {
+                            <tr>
+                                <td><a href="items/@i.Id"><code>@(i.SerialNumber ?? "—")</code></a></td>
+                                <td>@i.KindName</td>
+                                <td>@i.GradeName</td>
+                                <td><StatusBadge Status="@i.Status" /></td>
+                                <td>@i.CreatedAt.ToString("g")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted small">No items for this job.</p>
+        }
+    }
+    else if (_activeTab == "batches")
+    {
+        @if (_batches?.Any() == true)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead class="table-light">
+                        <tr><th>Code</th><th>Kind</th><th>Grade</th><th>Qty</th><th>Items</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var b in _batches)
+                        {
+                            <tr>
+                                <td><a href="batches/@b.Id"><code>@b.Code</code></a></td>
+                                <td>@b.KindName</td>
+                                <td>@b.GradeName</td>
+                                <td>@b.Quantity</td>
+                                <td>@b.ItemCount</td>
+                                <td><StatusBadge Status="@b.Status" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted small">No batches for this job.</p>
+        }
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private JobResponseDto? _job;
+    private bool _loading = true;
+    private string? _error;
+    private string _activeTab = "items";
+
+    // Sub-resources loaded from flat endpoints
+    private List<ItemResponseDto>? _items;
+    private List<BatchResponseDto>? _batches;
+
+    protected override async Task OnInitializedAsync() => await LoadAll();
+
+    private async Task LoadAll()
+    {
+        _loading = true; _error = null;
+        _job = await Api.GetJobAsync(Id);
+        await LoadSubResources();
+        _loading = false;
+    }
+
+    private async Task LoadSubResources()
+    {
+        var itemsResult = await Api.GetItemsAsync(jobId: Id, page: 1, pageSize: 200);
+        _items = itemsResult?.Items;
+        var batchesResult = await Api.GetBatchesAsync(jobId: Id, page: 1, pageSize: 200);
+        _batches = batchesResult?.Items;
+    }
+
+    private async Task Transition(string action)
+    {
+        try
+        {
+            _job = await Api.JobTransitionAsync(Id, action);
+            _error = null;
+            await LoadSubResources();
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private void SwitchTab(string tab) => _activeTab = tab;
+}

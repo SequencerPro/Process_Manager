@@ -1,0 +1,288 @@
+@page "/batches/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Batch Detail</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_batch is null)
+{
+    <div class="alert alert-warning">Batch not found.</div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="batches">Batches</a></li>
+            <li class="breadcrumb-item active">@_batch.Code</li>
+        </ol>
+    </nav>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h4 class="mb-1"><code class="fs-5">@_batch.Code</code></h4>
+                    <StatusBadge Status="@_batch.Status" />
+                </div>
+                <div class="d-flex gap-1">
+                    @if (_batch.Status == "Open")
+                    {
+                        <button class="btn btn-warning btn-sm" @onclick="CloseBatch">
+                            <i class="bi bi-lock me-1"></i>Close
+                        </button>
+                    }
+                    <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Kind</dt>
+                        <dd class="col-sm-8">@_batch.KindName</dd>
+                        <dt class="col-sm-4">Grade</dt>
+                        <dd class="col-sm-8">@_batch.GradeName</dd>
+                        <dt class="col-sm-4">Job</dt>
+                        <dd class="col-sm-8"><a href="jobs/@_batch.JobId">View Job</a></dd>
+                    </dl>
+                </div>
+                <div class="col-md-6">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Quantity</dt>
+                        <dd class="col-sm-8">@_batch.Quantity</dd>
+                        <dt class="col-sm-4">Items</dt>
+                        <dd class="col-sm-8"><span class="badge bg-secondary">@_batch.ItemCount</span></dd>
+                        <dt class="col-sm-4">Created</dt>
+                        <dd class="col-sm-8">@_batch.CreatedAt.ToString("g")</dd>
+                        <dt class="col-sm-4">Updated</dt>
+                        <dd class="col-sm-8">@_batch.UpdatedAt.ToString("g")</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger py-2">@_error</div>
+    }
+
+    <!-- Items in Batch -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="bi bi-box-seam me-1"></i> Items in Batch (@(_items?.Count ?? 0))
+        </div>
+        @if (_items?.Any() == true)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Serial</th>
+                            <th>Kind</th>
+                            <th>Grade</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th style="width:80px">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _items)
+                        {
+                            <tr>
+                                <td>
+                                    <a href="items/@item.Id">
+                                        <code>@(item.SerialNumber ?? "—")</code>
+                                    </a>
+                                </td>
+                                <td>@item.KindName</td>
+                                <td>@item.GradeName</td>
+                                <td><StatusBadge Status="@item.Status" /></td>
+                                <td>@item.CreatedAt.ToString("g")</td>
+                                <td>
+                                    @if (_batch.Status == "Open")
+                                    {
+                                        <button class="btn btn-outline-danger btn-sm" title="Remove from batch"
+                                                @onclick="() => RemoveItem(item.Id)">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="card-body text-muted small">No items in this batch.</div>
+        }
+    </div>
+
+    <!-- Execution Data -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-clipboard-data me-1"></i> Execution Data (@(_data?.Count ?? 0))</span>
+            <button class="btn btn-primary btn-sm" @onclick="ShowDataForm">
+                <i class="bi bi-plus-lg me-1"></i> Add Data
+            </button>
+        </div>
+        @if (_data?.Any() == true)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr><th>Key</th><th>Value</th><th>Type</th><th>Unit</th><th>Created</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in _data)
+                        {
+                            <tr>
+                                <td><strong>@d.Key</strong></td>
+                                <td>@d.Value</td>
+                                <td><span class="badge bg-secondary">@d.DataType</span></td>
+                                <td>@(d.UnitOfMeasure ?? "—")</td>
+                                <td>@d.CreatedAt.ToString("g")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="card-body text-muted small">No execution data recorded.</div>
+        }
+    </div>
+}
+
+@if (_showDataForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Execution Data</h5>
+                    <button type="button" class="btn-close" @onclick="CloseDataForm"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Key</label>
+                        <input class="form-control" @bind="_dataKey" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Value</label>
+                        <input class="form-control" @bind="_dataValue" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Data Type</label>
+                        <select class="form-select" @bind="_dataType">
+                            <option value="String">String</option>
+                            <option value="Number">Number</option>
+                            <option value="Boolean">Boolean</option>
+                            <option value="DateTime">DateTime</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Unit of Measure</label>
+                        <input class="form-control" @bind="_dataUnit" placeholder="e.g., mm, kg, °C" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseDataForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveData">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private BatchResponseDto? _batch;
+    private List<ItemResponseDto>? _items;
+    private List<ExecutionDataResponseDto>? _data;
+    private bool _loading = true;
+    private string? _error;
+
+    // Data form
+    private bool _showDataForm;
+    private string _dataKey = "";
+    private string _dataValue = "";
+    private string _dataType = "String";
+    private string? _dataUnit;
+
+    protected override async Task OnInitializedAsync() => await LoadAll();
+
+    private async Task LoadAll()
+    {
+        _loading = true; _error = null;
+        _batch = await Api.GetBatchAsync(Id);
+        if (_batch is not null)
+        {
+            _items = await Api.GetBatchItemsAsync(Id);
+            _data = await Api.GetBatchDataAsync(Id);
+        }
+        _loading = false;
+    }
+
+    private async Task CloseBatch()
+    {
+        try
+        {
+            _batch = await Api.CloseBatchAsync(Id);
+            _error = null;
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private async Task RemoveItem(Guid itemId)
+    {
+        try
+        {
+            await Api.RemoveBatchItemAsync(Id, itemId);
+            _error = null;
+            _items = await Api.GetBatchItemsAsync(Id);
+            _batch = await Api.GetBatchAsync(Id);
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private void ShowDataForm()
+    {
+        _dataKey = ""; _dataValue = ""; _dataType = "String"; _dataUnit = null;
+        _showDataForm = true;
+    }
+
+    private void CloseDataForm() => _showDataForm = false;
+
+    private async Task SaveData()
+    {
+        try
+        {
+            var dataType = Enum.Parse<ProcessManager.Domain.Enums.DataValueType>(_dataType);
+            await Api.AddBatchDataAsync(Id, new CreateExecutionDataDto(_dataKey, _dataValue, dataType, _dataUnit));
+            _showDataForm = false; _error = null;
+            _data = await Api.GetBatchDataAsync(Id);
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private async Task Delete()
+    {
+        try
+        {
+            await Api.DeleteBatchAsync(Id);
+            Nav.NavigateTo("batches");
+        }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+}

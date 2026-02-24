@@ -218,6 +218,31 @@ else if (_data is not null)
                                         }
                                     </select>
                                 </div>
+                                @if (_ipQtyMode == QuantityRuleMode.Exactly || _ipQtyMode == QuantityRuleMode.ZeroOrN)
+                                {
+                                    <div class="col-md-3">
+                                        <label class="form-label form-label-sm">N</label>
+                                        <input type="number" class="form-control form-control-sm" @bind="_ipQtyN" min="1" />
+                                    </div>
+                                }
+                                else if (_ipQtyMode == QuantityRuleMode.Range)
+                                {
+                                    <div class="col-md-2">
+                                        <label class="form-label form-label-sm">Min</label>
+                                        <input type="number" class="form-control form-control-sm" @bind="_ipQtyMin" min="0" />
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label form-label-sm">Max</label>
+                                        <input type="number" class="form-control form-control-sm" @bind="_ipQtyMax" min="0" />
+                                    </div>
+                                }
+                                else if (_ipQtyMode == QuantityRuleMode.Unbounded)
+                                {
+                                    <div class="col-md-3">
+                                        <label class="form-label form-label-sm">Min</label>
+                                        <input type="number" class="form-control form-control-sm" @bind="_ipQtyMin" min="0" />
+                                    </div>
+                                }
                                 <div class="col-md-3">
                                     <label class="form-label form-label-sm">Sort Order</label>
                                     <input type="number" class="form-control form-control-sm" @bind="_ipSortOrder" />
@@ -268,13 +293,16 @@ else if (_data is not null)
     private string _ipKindId = "";
     private string _ipGradeId = "";
     private QuantityRuleMode _ipQtyMode = QuantityRuleMode.Exactly;
+    private int? _ipQtyN;
+    private int? _ipQtyMin;
+    private int? _ipQtyMax;
     private int _ipSortOrder;
 
     // Lookups
     private PaginatedResponse<KindResponseDto>? _kinds;
     private List<GradeResponseDto>? _ipGrades;
 
-    private record InlinePort(string Name, PortDirection Direction, Guid KindId, Guid GradeId, string GradeCode, QuantityRuleMode QtyRuleMode, int SortOrder);
+    private record InlinePort(string Name, PortDirection Direction, Guid KindId, Guid GradeId, string GradeCode, QuantityRuleMode QtyRuleMode, int? QtyRuleN, int? QtyRuleMin, int? QtyRuleMax, int SortOrder);
 
     protected override async Task OnInitializedAsync() => await LoadData();
 
@@ -337,9 +365,21 @@ else if (_data is not null)
         {
             _error = "Port name, kind, and grade are required."; return;
         }
+        if ((_ipQtyMode == QuantityRuleMode.Exactly || _ipQtyMode == QuantityRuleMode.ZeroOrN) && (_ipQtyN is null or <= 0))
+        {
+            _error = $"{_ipQtyMode} mode requires N > 0."; return;
+        }
+        if (_ipQtyMode == QuantityRuleMode.Range && (_ipQtyMin is null || _ipQtyMax is null))
+        {
+            _error = "Range mode requires both Min and Max."; return;
+        }
+        if (_ipQtyMode == QuantityRuleMode.Unbounded && _ipQtyMin is null)
+        {
+            _error = "Unbounded mode requires Min."; return;
+        }
         _error = null;
         var gradeCode = _ipGrades?.FirstOrDefault(g => g.Id == gid)?.Code ?? gid.ToString()[..8];
-        _formPorts.Add(new InlinePort(_ipName, _ipDirection, kid, gid, gradeCode, _ipQtyMode, _ipSortOrder));
+        _formPorts.Add(new InlinePort(_ipName, _ipDirection, kid, gid, gradeCode, _ipQtyMode, _ipQtyN, _ipQtyMin, _ipQtyMax, _ipSortOrder));
         _ipSortOrder++;
         _ipName = "";
     }
@@ -347,7 +387,8 @@ else if (_data is not null)
     private void ResetInlinePort()
     {
         _ipName = ""; _ipDirection = PortDirection.Input; _ipKindId = ""; _ipGradeId = "";
-        _ipQtyMode = QuantityRuleMode.Exactly; _ipSortOrder = 0; _ipGrades = null;
+        _ipQtyMode = QuantityRuleMode.Exactly; _ipQtyN = null; _ipQtyMin = null; _ipQtyMax = null;
+        _ipSortOrder = 0; _ipGrades = null;
     }
 
     private async Task SaveForm()
@@ -363,7 +404,7 @@ else if (_data is not null)
             {
                 if (!_formPorts.Any()) { _error = "Add at least one port."; return; }
                 var ports = _formPorts.Select(p =>
-                    new PortCreateDto(p.Name, p.Direction, p.KindId, p.GradeId, p.QtyRuleMode, null, null, null, p.SortOrder)).ToList();
+                    new PortCreateDto(p.Name, p.Direction, p.KindId, p.GradeId, p.QtyRuleMode, p.QtyRuleN, p.QtyRuleMin, p.QtyRuleMax, p.SortOrder)).ToList();
                 await Api.CreateStepTemplateAsync(new StepTemplateCreateDto(_formCode, _formName, _formDescription, _formPattern, ports));
             }
             _showForm = false; _error = null;

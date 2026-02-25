@@ -1,5 +1,7 @@
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Components.Forms;
 using ProcessManager.Api.DTOs;
 
 namespace ProcessManager.Web.Services;
@@ -98,6 +100,33 @@ public class ApiClient
         var resp = await _http.DeleteAsync($"api/steptemplates/{id}");
         resp.EnsureSuccessStatusCode();
     }
+
+    public async Task<StepTemplateImageResponseDto?> UploadStepTemplateImageAsync(Guid stepTemplateId, IBrowserFile file)
+    {
+        // Buffer into MemoryStream so the body is seekable (required when API redirects HTTP→HTTPS)
+        using var ms = new MemoryStream();
+        await file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).CopyToAsync(ms);
+        ms.Position = 0;
+
+        using var content = new MultipartFormDataContent();
+        var sc = new StreamContent(ms);
+        sc.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
+        content.Add(sc, "file", file.Name);
+
+        var resp = await _http.PostAsync($"api/steptemplates/{stepTemplateId}/images", content);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<StepTemplateImageResponseDto>(_json);
+    }
+
+    public async Task DeleteStepTemplateImageAsync(Guid stepTemplateId, Guid imageId)
+    {
+        var resp = await _http.DeleteAsync($"api/steptemplates/{stepTemplateId}/images/{imageId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Returns the absolute URL for an image relative path (e.g., "uploads/steptemplates/abc.jpg").</summary>
+    public string GetImageUrl(string relativePath)
+        => $"{_http.BaseAddress?.ToString().TrimEnd('/')}/{relativePath.TrimStart('/')}";
 
     // ═══════════════════ Ports ═══════════════════
 

@@ -27,4 +27,5 @@ public class StepTemplate : BaseEntity
 
     // Navigation properties
     public ICollection<Port> Ports { get; set; } = new List<Port>();
+    public ICollection<StepTemplateImage> Images { get; set; } = new List<StepTemplateImage>();
 }

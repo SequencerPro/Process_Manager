@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Api.Data;
+using ProcessManager.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +16,9 @@ builder.Services.AddControllers()
         opts.JsonSerializerOptions.Converters.Add(
             new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
+
+// Image storage
+builder.Services.AddScoped<IImageStorageService, LocalImageStorageService>();
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -37,6 +41,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.MapControllers();
 
 app.Run();

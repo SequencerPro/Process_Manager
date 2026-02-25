@@ -18,6 +18,7 @@ public class ProcessManagerDbContext : DbContext
     // Phase 2: Step Design
     public DbSet<StepTemplate> StepTemplates => Set<StepTemplate>();
     public DbSet<Port> Ports => Set<Port>();
+    public DbSet<StepTemplateImage> StepTemplateImages => Set<StepTemplateImage>();
 
     // Phase 3: Process Composition
     public DbSet<Process> Processes => Set<Process>();
@@ -92,6 +93,20 @@ public class ProcessManagerDbContext : DbContext
             e.Property(s => s.Code).HasMaxLength(50).IsRequired();
             e.Property(s => s.Name).HasMaxLength(200).IsRequired();
             e.Property(s => s.Pattern).HasConversion<string>().HasMaxLength(20);
+        });
+
+        // --- StepTemplateImage ---
+        modelBuilder.Entity<StepTemplateImage>(e =>
+        {
+            e.HasKey(i => i.Id);
+            e.Property(i => i.FileName).HasMaxLength(200).IsRequired();
+            e.Property(i => i.OriginalFileName).HasMaxLength(200).IsRequired();
+            e.Property(i => i.MimeType).HasMaxLength(100).IsRequired();
+
+            e.HasOne(i => i.StepTemplate)
+                .WithMany(s => s.Images)
+                .HasForeignKey(i => i.StepTemplateId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // --- Port ---

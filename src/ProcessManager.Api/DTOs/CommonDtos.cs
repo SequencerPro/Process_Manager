@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Http;
+
 namespace ProcessManager.Api.DTOs;
 
 /// <summary>
@@ -22,3 +24,11 @@ public record ApiError(
     string Detail,
     int Status,
     Dictionary<string, string[]>? Errors = null);
+
+/// <summary>
+/// Wrapper for file upload form data — required for Swashbuckle to generate correct multipart/form-data schema.
+/// </summary>
+public class ImageUploadRequest
+{
+    public IFormFile File { get; set; } = null!;
+}

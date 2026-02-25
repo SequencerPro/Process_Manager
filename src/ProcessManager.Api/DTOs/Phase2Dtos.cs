@@ -30,7 +30,19 @@ public record StepTemplateResponseDto(
     bool IsActive,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    List<PortResponseDto> Ports
+    List<PortResponseDto> Ports,
+    List<StepTemplateImageResponseDto> Images
+);
+
+public record StepTemplateImageResponseDto(
+    Guid Id,
+    Guid StepTemplateId,
+    string FileName,
+    string OriginalFileName,
+    string MimeType,
+    int SortOrder,
+    string Url,
+    DateTime CreatedAt
 );
 
 // ──────────────────── Port ────────────────────

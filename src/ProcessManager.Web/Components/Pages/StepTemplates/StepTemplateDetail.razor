@@ -145,6 +145,48 @@ else
         </div>
     </div>
 
+    <!-- Images -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-images me-1"></i> Images (@(_st.Images?.Count ?? 0))</span>
+            <label class="btn btn-outline-secondary btn-sm mb-0" style="cursor:pointer" title="Upload image">
+                <i class="bi bi-upload me-1"></i>Upload
+                <InputFile OnChange="UploadImage" accept="image/*" class="d-none" />
+            </label>
+        </div>
+        @if (_uploadingImage)
+        {
+            <div class="card-body"><span class="spinner-border spinner-border-sm text-secondary me-2"></span>Uploading...</div>
+        }
+        else if (_st.Images?.Any() == true)
+        {
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-3">
+                    @foreach (var img in _st.Images.OrderBy(i => i.SortOrder))
+                    {
+                        <div class="position-relative" style="width:140px">
+                            <img src="@Api.GetImageUrl(img.Url)"
+                                 class="img-thumbnail"
+                                 style="width:140px;height:100px;object-fit:cover"
+                                 alt="@img.OriginalFileName" />
+                            <button class="btn btn-danger btn-sm position-absolute top-0 end-0 py-0 px-1"
+                                    style="line-height:1.4"
+                                    @onclick="() => DeleteImage(img)"
+                                    title="Delete image">
+                                <i class="bi bi-x"></i>
+                            </button>
+                            <div class="text-muted small text-truncate mt-1" title="@img.OriginalFileName">@img.OriginalFileName</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="card-body text-muted small">No images uploaded yet.</div>
+        }
+    </div>
+
     @* Add / Edit Port Modal *@
     @if (_showPortForm)
     {
@@ -287,6 +329,9 @@ else
     private StepPattern _editPattern;
     private bool _editIsActive;
 
+    // Image upload state
+    private bool _uploadingImage;
+
     // Lookup data
     private PaginatedResponse<KindResponseDto>? _kinds;
     private List<GradeResponseDto>? _grades = new();
@@ -403,6 +448,28 @@ else
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Delete this step template? This cannot be undone.")) return;
         try { await Api.DeleteStepTemplateAsync(_st!.Id); Nav.NavigateTo("step-templates"); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    // --- Images ---
+
+    private async Task UploadImage(InputFileChangeEventArgs e)
+    {
+        _uploadingImage = true;
+        _error = null;
+        try
+        {
+            await Api.UploadStepTemplateImageAsync(Id, e.File);
+            await LoadData();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _uploadingImage = false; }
+    }
+
+    private async Task DeleteImage(StepTemplateImageResponseDto img)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete image '{img.OriginalFileName}'?")) return;
+        try { await Api.DeleteStepTemplateImageAsync(Id, img.Id); await LoadData(); }
         catch (HttpRequestException ex) { _error = ex.Message; }
     }
 

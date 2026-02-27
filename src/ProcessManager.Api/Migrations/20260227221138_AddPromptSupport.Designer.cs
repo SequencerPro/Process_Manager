@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ProcessManager.Api.Data;
 
@@ -10,9 +11,11 @@ using ProcessManager.Api.Data;
 namespace ProcessManager.Api.Migrations
 {
     [DbContext(typeof(ProcessManagerDbContext))]
-    partial class ProcessManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260227221138_AddPromptSupport")]
+    partial class AddPromptSupport
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.13");

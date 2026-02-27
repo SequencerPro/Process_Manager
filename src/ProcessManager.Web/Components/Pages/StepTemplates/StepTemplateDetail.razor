@@ -204,8 +204,13 @@ else
         <div class="card-header d-flex justify-content-between align-items-center">
             <span><i class="bi bi-card-text me-1"></i> Work Instructions (@_contentBlocks.Count)</span>
             <div class="d-flex gap-2">
-                <button class="btn btn-outline-secondary btn-sm" @onclick="StartAddTextBlock" disabled="@_addingTextBlock">
-                    <i class="bi bi-plus-lg me-1"></i>Add Text
+                <button class="btn btn-outline-secondary btn-sm" @onclick="StartAddTextBlock"
+                        disabled="@(_addingTextBlock || _addingPromptBlock)">
+                    <i class="bi bi-text-paragraph me-1"></i>Add Text
+                </button>
+                <button class="btn btn-outline-primary btn-sm" @onclick="StartAddPromptBlock"
+                        disabled="@(_addingTextBlock || _addingPromptBlock)">
+                    <i class="bi bi-input-cursor-text me-1"></i>Add Prompt
                 </button>
                 <label class="btn btn-outline-secondary btn-sm mb-0" style="cursor:pointer" title="Add image block">
                     <i class="bi bi-image me-1"></i>Add Image
@@ -228,7 +233,7 @@ else
                     </div>
                 }
 
-                @if (_contentBlocks.Count == 0 && !_addingTextBlock)
+                @if (_contentBlocks.Count == 0 && !_addingTextBlock && !_addingPromptBlock)
                 {
                     <p class="text-muted small mb-0">No instructions added yet. Use the buttons above to add text or image blocks.</p>
                 }
@@ -267,12 +272,85 @@ else
                                               title="@block.OriginalFileName">@block.OriginalFileName</span>
                                     </div>
                                 }
+                                else if (block.ContentType == "Prompt")
+                                {
+                                    @if (_editingPromptBlockId == block.Id)
+                                    {
+                                        <div class="mb-2">
+                                            <label class="form-label form-label-sm fw-semibold">Question / Label</label>
+                                            <input class="form-control form-control-sm" @bind="_editPromptLabel" />
+                                        </div>
+                                        @if (_editPromptType == "NumericEntry")
+                                        {
+                                            <div class="row g-2 mb-2">
+                                                <div class="col-4">
+                                                    <label class="form-label form-label-sm">Min</label>
+                                                    <input class="form-control form-control-sm" @bind="_editPromptMin" placeholder="no min" />
+                                                </div>
+                                                <div class="col-4">
+                                                    <label class="form-label form-label-sm">Max</label>
+                                                    <input class="form-control form-control-sm" @bind="_editPromptMax" placeholder="no max" />
+                                                </div>
+                                                <div class="col-4">
+                                                    <label class="form-label form-label-sm">Units</label>
+                                                    <input class="form-control form-control-sm" @bind="_editPromptUnits" placeholder="mm, rpm…" />
+                                                </div>
+                                            </div>
+                                        }
+                                        @if (_editPromptType == "MultipleChoice")
+                                        {
+                                            <div class="mb-2">
+                                                <label class="form-label form-label-sm">Choices <span class="text-muted">(one per line)</span></label>
+                                                <textarea class="form-control form-control-sm" rows="3" @bind="_editPromptChoicesRaw"></textarea>
+                                            </div>
+                                        }
+                                        <div class="form-check mb-2">
+                                            <input type="checkbox" class="form-check-input" @bind="_editPromptRequired" />
+                                            <label class="form-check-label small">Required</label>
+                                        </div>
+                                        <div class="d-flex gap-1">
+                                            <button class="btn btn-primary btn-sm" @onclick="SaveEditedPromptBlock">Save</button>
+                                            <button class="btn btn-outline-secondary btn-sm" @onclick="CancelEditPromptBlock">Cancel</button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex align-items-start gap-2">
+                                            <i class="bi bi-input-cursor-text text-primary mt-1" style="font-size:1.1rem;flex-shrink:0"></i>
+                                            <div>
+                                                <div class="fw-semibold">@block.Label</div>
+                                                <div class="d-flex flex-wrap gap-1 mt-1">
+                                                    <span class="badge bg-info text-dark">@block.PromptType</span>
+                                                    @if (block.IsRequired)
+                                                    {
+                                                        <span class="badge bg-warning text-dark">Required</span>
+                                                    }
+                                                    @if (!string.IsNullOrEmpty(block.Units))
+                                                    {
+                                                        <span class="badge bg-light text-dark border">@block.Units</span>
+                                                    }
+                                                    @if (block.MinValue.HasValue || block.MaxValue.HasValue)
+                                                    {
+                                                        <span class="badge bg-light text-dark border">@block.MinValue – @block.MaxValue</span>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                }
                             </div>
                             <div class="d-flex flex-column gap-1 ms-2 flex-shrink-0">
                                 @if (block.ContentType == "Text" && _editingTextBlockId != block.Id)
                                 {
                                     <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Edit"
                                             @onclick="() => StartEditTextBlock(block)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                }
+                                @if (block.ContentType == "Prompt" && _editingPromptBlockId != block.Id)
+                                {
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Edit prompt"
+                                            @onclick="() => StartEditPromptBlock(block)">
                                         <i class="bi bi-pencil"></i>
                                     </button>
                                 }
@@ -304,6 +382,61 @@ else
                         <div class="d-flex gap-1">
                             <button class="btn btn-primary btn-sm" @onclick="SaveNewTextBlock">Add Block</button>
                             <button class="btn btn-outline-secondary btn-sm" @onclick="() => { _addingTextBlock = false; _newTextBody = string.Empty; }">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @if (_addingPromptBlock)
+                {
+                    <div class="border border-primary rounded p-2 bg-light mt-2">
+                        <label class="form-label small fw-semibold mb-2"><i class="bi bi-input-cursor-text me-1 text-primary"></i>New Prompt Block</label>
+                        <div class="mb-2">
+                            <label class="form-label form-label-sm">Question / Label <span class="text-danger">*</span></label>
+                            <input class="form-control form-control-sm" @bind="_newPromptLabel" placeholder="e.g. Measure outer diameter at point A" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label form-label-sm">Prompt Type</label>
+                            <select class="form-select form-select-sm" @bind="_newPromptType">
+                                <option value="NumericEntry">Numeric Entry (number + optional bounds)</option>
+                                <option value="PassFail">Pass / Fail</option>
+                                <option value="MultipleChoice">Multiple Choice</option>
+                                <option value="TextEntry">Text Entry (free form)</option>
+                                <option value="Checkbox">Checkbox (tick)</option>
+                                <option value="Scan">Scan (barcode / serial)</option>
+                            </select>
+                        </div>
+                        @if (_newPromptType == "NumericEntry")
+                        {
+                            <div class="row g-2 mb-2">
+                                <div class="col-4">
+                                    <label class="form-label form-label-sm">Min</label>
+                                    <input class="form-control form-control-sm" @bind="_newPromptMin" placeholder="no min" />
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label form-label-sm">Max</label>
+                                    <input class="form-control form-control-sm" @bind="_newPromptMax" placeholder="no max" />
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label form-label-sm">Units</label>
+                                    <input class="form-control form-control-sm" @bind="_newPromptUnits" placeholder="mm, rpm…" />
+                                </div>
+                            </div>
+                        }
+                        @if (_newPromptType == "MultipleChoice")
+                        {
+                            <div class="mb-2">
+                                <label class="form-label form-label-sm">Choices <span class="text-muted">(one per line)</span></label>
+                                <textarea class="form-control form-control-sm" rows="3" @bind="_newPromptChoicesRaw"
+                                          placeholder="Option A&#10;Option B&#10;Option C"></textarea>
+                            </div>
+                        }
+                        <div class="form-check mb-2">
+                            <input type="checkbox" class="form-check-input" @bind="_newPromptRequired" />
+                            <label class="form-check-label small">Required (operator must answer before completing step)</label>
+                        </div>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-primary btn-sm" @onclick="SaveNewPromptBlock">Add Prompt</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _addingPromptBlock = false">Cancel</button>
                         </div>
                     </div>
                 }
@@ -532,6 +665,24 @@ else
     private string _newTextBody = string.Empty;
     private Guid? _editingTextBlockId;
     private string _editingTextBody = string.Empty;
+
+    // Prompt block state
+    private bool _addingPromptBlock;
+    private string _newPromptLabel = string.Empty;
+    private string _newPromptType = "NumericEntry";
+    private bool _newPromptRequired = true;
+    private string _newPromptUnits = string.Empty;
+    private string _newPromptMin = string.Empty;
+    private string _newPromptMax = string.Empty;
+    private string _newPromptChoicesRaw = string.Empty;
+    private Guid? _editingPromptBlockId;
+    private string _editPromptLabel = string.Empty;
+    private string _editPromptType = "NumericEntry";
+    private bool _editPromptRequired = true;
+    private string _editPromptUnits = string.Empty;
+    private string _editPromptMin = string.Empty;
+    private string _editPromptMax = string.Empty;
+    private string _editPromptChoicesRaw = string.Empty;
 
     // Lookup data
     private PaginatedResponse<KindResponseDto>? _kinds;
@@ -800,6 +951,91 @@ else
             await LoadContent();
         }
         catch (Exception ex) { _contentError = ex.Message; }
+    }
+
+    // --- Prompt Blocks ---
+
+    private void StartAddPromptBlock()
+    {
+        _addingPromptBlock = true;
+        _newPromptLabel = string.Empty;
+        _newPromptType = "NumericEntry";
+        _newPromptRequired = true;
+        _newPromptUnits = string.Empty;
+        _newPromptMin = string.Empty;
+        _newPromptMax = string.Empty;
+        _newPromptChoicesRaw = string.Empty;
+    }
+
+    private async Task SaveNewPromptBlock()
+    {
+        if (string.IsNullOrWhiteSpace(_newPromptLabel)) return;
+        _contentError = null;
+        try
+        {
+            decimal? min = decimal.TryParse(_newPromptMin, out var mn) ? mn : null;
+            decimal? max = decimal.TryParse(_newPromptMax, out var mx) ? mx : null;
+            string? choices = _newPromptType == "MultipleChoice" ? SerializeChoices(_newPromptChoicesRaw) : null;
+            await Api.AddStepTemplatePromptBlockAsync(Id, new AddStepTemplatePromptBlockDto(
+                _newPromptLabel, _newPromptType, _newPromptRequired,
+                string.IsNullOrWhiteSpace(_newPromptUnits) ? null : _newPromptUnits,
+                min, max, choices));
+            _addingPromptBlock = false;
+            await LoadContent();
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
+    }
+
+    private void StartEditPromptBlock(StepTemplateContentResponseDto block)
+    {
+        _editingPromptBlockId = block.Id;
+        _editPromptLabel = block.Label ?? string.Empty;
+        _editPromptType = block.PromptType ?? "NumericEntry";
+        _editPromptRequired = block.IsRequired;
+        _editPromptUnits = block.Units ?? string.Empty;
+        _editPromptMin = block.MinValue?.ToString() ?? string.Empty;
+        _editPromptMax = block.MaxValue?.ToString() ?? string.Empty;
+        _editPromptChoicesRaw = DeserializeChoices(block.Choices);
+    }
+
+    private void CancelEditPromptBlock()
+    {
+        _editingPromptBlockId = null;
+    }
+
+    private async Task SaveEditedPromptBlock()
+    {
+        if (_editingPromptBlockId is null) return;
+        _contentError = null;
+        try
+        {
+            decimal? min = decimal.TryParse(_editPromptMin, out var mn) ? mn : null;
+            decimal? max = decimal.TryParse(_editPromptMax, out var mx) ? mx : null;
+            string? choices = _editPromptType == "MultipleChoice" ? SerializeChoices(_editPromptChoicesRaw) : null;
+            await Api.UpdateStepTemplatePromptBlockAsync(Id, _editingPromptBlockId.Value,
+                new UpdateStepTemplatePromptBlockDto(
+                    _editPromptLabel, _editPromptRequired,
+                    string.IsNullOrWhiteSpace(_editPromptUnits) ? null : _editPromptUnits,
+                    min, max, choices));
+            _editingPromptBlockId = null;
+            await LoadContent();
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
+    }
+
+    private static string SerializeChoices(string raw) =>
+        System.Text.Json.JsonSerializer.Serialize(
+            raw.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+    private static string DeserializeChoices(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return string.Empty;
+        try
+        {
+            var arr = System.Text.Json.JsonSerializer.Deserialize<string[]>(json);
+            return arr is null ? string.Empty : string.Join("\n", arr);
+        }
+        catch { return json; }
     }
 
     private string FormatQtyRule(PortResponseDto p)

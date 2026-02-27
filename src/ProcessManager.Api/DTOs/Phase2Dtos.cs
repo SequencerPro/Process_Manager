@@ -55,7 +55,15 @@ public record StepTemplateContentResponseDto(
     string? OriginalFileName,
     string? MimeType,
     string? ImageUrl,
-    DateTime CreatedAt
+    DateTime CreatedAt,
+    // Prompt fields — null for Text/Image blocks
+    string? PromptType,
+    string? Label,
+    bool IsRequired,
+    string? Units,
+    decimal? MinValue,
+    decimal? MaxValue,
+    string? Choices
 );
 
 public record AddStepTemplateTextBlockDto(
@@ -66,6 +74,27 @@ public record AddStepTemplateTextBlockDto(
 public record UpdateStepTemplateTextBlockDto(
     [System.ComponentModel.DataAnnotations.Required,
      System.ComponentModel.DataAnnotations.StringLength(10000, MinimumLength = 1)] string Body
+);
+
+public record AddStepTemplatePromptBlockDto(
+    [System.ComponentModel.DataAnnotations.Required,
+     System.ComponentModel.DataAnnotations.StringLength(500, MinimumLength = 1)] string Label,
+    [System.ComponentModel.DataAnnotations.Required] string PromptType,
+    bool IsRequired = true,
+    [System.ComponentModel.DataAnnotations.StringLength(50)] string? Units = null,
+    decimal? MinValue = null,
+    decimal? MaxValue = null,
+    [System.ComponentModel.DataAnnotations.StringLength(4000)] string? Choices = null
+);
+
+public record UpdateStepTemplatePromptBlockDto(
+    [System.ComponentModel.DataAnnotations.Required,
+     System.ComponentModel.DataAnnotations.StringLength(500, MinimumLength = 1)] string Label,
+    bool IsRequired = true,
+    [System.ComponentModel.DataAnnotations.StringLength(50)] string? Units = null,
+    decimal? MinValue = null,
+    decimal? MaxValue = null,
+    [System.ComponentModel.DataAnnotations.StringLength(4000)] string? Choices = null
 );
 
 public record ReorderStepTemplateContentBlocksDto(

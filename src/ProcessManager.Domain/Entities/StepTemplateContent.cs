@@ -32,6 +32,29 @@ public class StepTemplateContent : BaseEntity
     /// <summary>MIME type of the uploaded image.</summary>
     public string? MimeType { get; set; }
 
+    // ── Prompt block ──
+
+    /// <summary>Prompt type (used when ContentType = Prompt).</summary>
+    public PromptType? PromptType { get; set; }
+
+    /// <summary>The question or instruction label shown to the operator.</summary>
+    public string? Label { get; set; }
+
+    /// <summary>Whether the operator must answer this prompt before the step can be completed.</summary>
+    public bool IsRequired { get; set; }
+
+    /// <summary>Unit label displayed alongside numeric prompts (e.g., "mm", "rpm").</summary>
+    public string? Units { get; set; }
+
+    /// <summary>Soft lower bound for NumericEntry prompts.</summary>
+    public decimal? MinValue { get; set; }
+
+    /// <summary>Soft upper bound for NumericEntry prompts.</summary>
+    public decimal? MaxValue { get; set; }
+
+    /// <summary>JSON array of option strings for MultipleChoice prompts.</summary>
+    public string? Choices { get; set; }
+
     // Navigation
     public StepTemplate StepTemplate { get; set; } = null!;
 }

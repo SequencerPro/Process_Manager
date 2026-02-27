@@ -431,6 +431,61 @@ public class StepTemplatesController : ControllerBase
         return MapStepTemplateContentToDto(block);
     }
 
+    [HttpPost("{id:guid}/content/prompt")]
+    public async Task<ActionResult<StepTemplateContentResponseDto>> AddPromptBlock(
+        Guid id, AddStepTemplatePromptBlockDto dto)
+    {
+        var st = await _db.StepTemplates
+            .Include(s => s.Contents)
+            .FirstOrDefaultAsync(s => s.Id == id);
+        if (st is null) return NotFound();
+
+        if (!Enum.TryParse<PromptType>(dto.PromptType, ignoreCase: true, out var promptType))
+            return BadRequest($"Unknown PromptType '{dto.PromptType}'.");
+
+        var sortOrder = st.Contents.Any() ? st.Contents.Max(c => c.SortOrder) + 1 : 0;
+        var block = new StepTemplateContent
+        {
+            StepTemplateId = id,
+            ContentType = StepContentType.Prompt,
+            SortOrder = sortOrder,
+            PromptType = promptType,
+            Label = dto.Label,
+            IsRequired = dto.IsRequired,
+            Units = dto.Units,
+            MinValue = dto.MinValue,
+            MaxValue = dto.MaxValue,
+            Choices = dto.Choices
+        };
+
+        _db.StepTemplateContents.Add(block);
+        await _db.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetContent), new { id }, MapStepTemplateContentToDto(block));
+    }
+
+    [HttpPut("{id:guid}/content/{contentId:guid}/prompt")]
+    public async Task<ActionResult<StepTemplateContentResponseDto>> UpdatePromptBlock(
+        Guid id, Guid contentId, UpdateStepTemplatePromptBlockDto dto)
+    {
+        var stExists = await _db.StepTemplates.AnyAsync(s => s.Id == id);
+        if (!stExists) return NotFound();
+
+        var block = await _db.StepTemplateContents
+            .FirstOrDefaultAsync(c => c.Id == contentId && c.StepTemplateId == id);
+        if (block is null) return NotFound();
+        if (block.ContentType != StepContentType.Prompt)
+            return BadRequest("Only Prompt blocks can be updated via this endpoint.");
+
+        block.Label = dto.Label;
+        block.IsRequired = dto.IsRequired;
+        block.Units = dto.Units;
+        block.MinValue = dto.MinValue;
+        block.MaxValue = dto.MaxValue;
+        block.Choices = dto.Choices;
+        await _db.SaveChangesAsync();
+        return MapStepTemplateContentToDto(block);
+    }
+
     [HttpPut("{id:guid}/content/reorder")]
     public async Task<IActionResult> ReorderContent(
         Guid id, ReorderStepTemplateContentBlocksDto dto)
@@ -585,7 +640,8 @@ public class StepTemplatesController : ControllerBase
         c.ContentType == StepContentType.Image && c.FileName is not null
             ? $"uploads/step-template-content/{c.FileName}"
             : null,
-        c.CreatedAt
+        c.CreatedAt,
+        c.PromptType?.ToString(), c.Label, c.IsRequired, c.Units, c.MinValue, c.MaxValue, c.Choices
     );
 }
 

@@ -34,6 +34,7 @@ public class ProcessManagerDbContext : DbContext
     public DbSet<StepExecution> StepExecutions => Set<StepExecution>();
     public DbSet<PortTransaction> PortTransactions => Set<PortTransaction>();
     public DbSet<ExecutionData> ExecutionData => Set<ExecutionData>();
+    public DbSet<PromptResponse> PromptResponses => Set<PromptResponse>();
 
     // Phase 4: Workflow Composition
     public DbSet<Workflow> Workflows => Set<Workflow>();
@@ -180,6 +181,10 @@ public class ProcessManagerDbContext : DbContext
             e.Property(c => c.FileName).HasMaxLength(200);
             e.Property(c => c.OriginalFileName).HasMaxLength(200);
             e.Property(c => c.MimeType).HasMaxLength(100);
+            e.Property(c => c.PromptType).HasConversion<string>().HasMaxLength(20);
+            e.Property(c => c.Label).HasMaxLength(500);
+            e.Property(c => c.Units).HasMaxLength(50);
+            e.Property(c => c.Choices).HasMaxLength(4000);
 
             e.HasOne(c => c.StepTemplate)
                 .WithMany(st => st.Contents)
@@ -198,11 +203,41 @@ public class ProcessManagerDbContext : DbContext
             e.Property(c => c.FileName).HasMaxLength(200);
             e.Property(c => c.OriginalFileName).HasMaxLength(200);
             e.Property(c => c.MimeType).HasMaxLength(100);
+            e.Property(c => c.PromptType).HasConversion<string>().HasMaxLength(20);
+            e.Property(c => c.Label).HasMaxLength(500);
+            e.Property(c => c.Units).HasMaxLength(50);
+            e.Property(c => c.Choices).HasMaxLength(4000);
 
             e.HasOne(c => c.ProcessStep)
                 .WithMany(ps => ps.Contents)
                 .HasForeignKey(c => c.ProcessStepId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- PromptResponse ---
+        modelBuilder.Entity<PromptResponse>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.ResponseValue).HasMaxLength(1000);
+            e.Property(r => r.OverrideNote).HasMaxLength(2000);
+
+            e.HasOne(r => r.StepExecution)
+                .WithMany(se => se.PromptResponses)
+                .HasForeignKey(r => r.StepExecutionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Preserve historical responses if a prompt block is deleted
+            e.HasOne(r => r.ProcessStepContent)
+                .WithMany()
+                .HasForeignKey(r => r.ProcessStepContentId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(r => r.StepTemplateContent)
+                .WithMany()
+                .HasForeignKey(r => r.StepTemplateContentId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasIndex(r => r.StepExecutionId);
         });
 
         // --- Flow ---

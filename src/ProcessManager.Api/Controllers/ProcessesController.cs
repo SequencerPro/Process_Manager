@@ -385,6 +385,62 @@ public class ProcessesController : ControllerBase
         return MapContentToDto(block);
     }
 
+    [HttpPost("{processId:guid}/steps/{stepId:guid}/content/prompt")]
+    public async Task<ActionResult<ProcessStepContentResponseDto>> AddPromptBlock(
+        Guid processId, Guid stepId, AddPromptBlockDto dto)
+    {
+        var step = await _db.ProcessSteps
+            .Include(ps => ps.Contents)
+            .FirstOrDefaultAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (step is null) return NotFound();
+
+        if (!Enum.TryParse<PromptType>(dto.PromptType, ignoreCase: true, out var promptType))
+            return BadRequest($"Unknown PromptType '{dto.PromptType}'.");
+
+        var sortOrder = step.Contents.Any() ? step.Contents.Max(c => c.SortOrder) + 1 : 0;
+        var block = new ProcessStepContent
+        {
+            ProcessStepId = stepId,
+            ContentType = StepContentType.Prompt,
+            SortOrder = sortOrder,
+            PromptType = promptType,
+            Label = dto.Label,
+            IsRequired = dto.IsRequired,
+            Units = dto.Units,
+            MinValue = dto.MinValue,
+            MaxValue = dto.MaxValue,
+            Choices = dto.Choices
+        };
+
+        _db.ProcessStepContents.Add(block);
+        await _db.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetStepContent), new { processId, stepId }, MapContentToDto(block));
+    }
+
+    [HttpPut("{processId:guid}/steps/{stepId:guid}/content/{contentId:guid}/prompt")]
+    public async Task<ActionResult<ProcessStepContentResponseDto>> UpdatePromptBlock(
+        Guid processId, Guid stepId, Guid contentId, UpdatePromptBlockDto dto)
+    {
+        var stepExists = await _db.ProcessSteps
+            .AnyAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (!stepExists) return NotFound();
+
+        var block = await _db.ProcessStepContents
+            .FirstOrDefaultAsync(c => c.Id == contentId && c.ProcessStepId == stepId);
+        if (block is null) return NotFound();
+        if (block.ContentType != StepContentType.Prompt)
+            return BadRequest("Only Prompt blocks can be updated via this endpoint.");
+
+        block.Label = dto.Label;
+        block.IsRequired = dto.IsRequired;
+        block.Units = dto.Units;
+        block.MinValue = dto.MinValue;
+        block.MaxValue = dto.MaxValue;
+        block.Choices = dto.Choices;
+        await _db.SaveChangesAsync();
+        return MapContentToDto(block);
+    }
+
     [HttpPut("{processId:guid}/steps/{stepId:guid}/content/reorder")]
     public async Task<IActionResult> ReorderContent(
         Guid processId, Guid stepId, ReorderContentBlocksDto dto)
@@ -535,6 +591,7 @@ public class ProcessesController : ControllerBase
         c.ContentType == StepContentType.Image && c.FileName is not null
             ? $"uploads/process-steps/{c.FileName}"
             : null,
-        c.CreatedAt
+        c.CreatedAt,
+        c.PromptType?.ToString(), c.Label, c.IsRequired, c.Units, c.MinValue, c.MaxValue, c.Choices
     );
 }

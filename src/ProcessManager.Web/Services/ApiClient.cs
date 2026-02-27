@@ -180,6 +180,24 @@ public class ApiClient
         resp.EnsureSuccessStatusCode();
     }
 
+    public async Task<StepTemplateContentResponseDto?> AddStepTemplatePromptBlockAsync(
+        Guid stepTemplateId, AddStepTemplatePromptBlockDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync(
+            $"api/steptemplates/{stepTemplateId}/content/prompt", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<StepTemplateContentResponseDto>(_json);
+    }
+
+    public async Task<StepTemplateContentResponseDto?> UpdateStepTemplatePromptBlockAsync(
+        Guid stepTemplateId, Guid contentId, UpdateStepTemplatePromptBlockDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync(
+            $"api/steptemplates/{stepTemplateId}/content/{contentId}/prompt", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<StepTemplateContentResponseDto>(_json);
+    }
+
     /// <summary>Returns the absolute URL for an image relative path (e.g., "uploads/steptemplates/abc.jpg").</summary>
     public string GetImageUrl(string relativePath)
         => $"{_http.BaseAddress?.ToString().TrimEnd('/')}/{relativePath.TrimStart('/')}";
@@ -326,6 +344,37 @@ public class ApiClient
     {
         var resp = await _http.DeleteAsync(
             $"api/processes/{processId}/steps/{stepId}/content/{contentId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<ProcessStepContentResponseDto?> AddPromptBlockAsync(
+        Guid processId, Guid stepId, AddPromptBlockDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync(
+            $"api/processes/{processId}/steps/{stepId}/content/prompt", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ProcessStepContentResponseDto>(_json);
+    }
+
+    public async Task<ProcessStepContentResponseDto?> UpdatePromptBlockAsync(
+        Guid processId, Guid stepId, Guid contentId, UpdatePromptBlockDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync(
+            $"api/processes/{processId}/steps/{stepId}/content/{contentId}/prompt", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ProcessStepContentResponseDto>(_json);
+    }
+
+    public async Task<List<PromptResponseDto>> GetPromptResponsesAsync(Guid stepExecutionId)
+    {
+        return await _http.GetFromJsonAsync<List<PromptResponseDto>>(
+            $"api/step-executions/{stepExecutionId}/prompt-responses", _json) ?? new();
+    }
+
+    public async Task SavePromptResponsesAsync(Guid stepExecutionId, SavePromptResponsesDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync(
+            $"api/step-executions/{stepExecutionId}/prompt-responses", dto, _json);
         resp.EnsureSuccessStatusCode();
     }
 

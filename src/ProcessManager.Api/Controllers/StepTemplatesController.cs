@@ -341,6 +341,137 @@ public class StepTemplatesController : ControllerBase
         return NoContent();
     }
 
+    // ──────────── StepTemplateContent sub-resources ────────────
+
+    [HttpGet("{id:guid}/content")]
+    public async Task<ActionResult<List<StepTemplateContentResponseDto>>> GetContent(Guid id)
+    {
+        var st = await _db.StepTemplates
+            .Include(s => s.Contents)
+            .FirstOrDefaultAsync(s => s.Id == id);
+        if (st is null) return NotFound();
+
+        return st.Contents
+            .OrderBy(c => c.SortOrder)
+            .Select(MapStepTemplateContentToDto)
+            .ToList();
+    }
+
+    [HttpPost("{id:guid}/content/text")]
+    public async Task<ActionResult<StepTemplateContentResponseDto>> AddTextBlock(
+        Guid id, AddStepTemplateTextBlockDto dto)
+    {
+        var st = await _db.StepTemplates
+            .Include(s => s.Contents)
+            .FirstOrDefaultAsync(s => s.Id == id);
+        if (st is null) return NotFound();
+
+        var sortOrder = st.Contents.Any() ? st.Contents.Max(c => c.SortOrder) + 1 : 0;
+        var block = new StepTemplateContent
+        {
+            StepTemplateId = id,
+            ContentType = StepContentType.Text,
+            SortOrder = sortOrder,
+            Body = dto.Body
+        };
+
+        _db.StepTemplateContents.Add(block);
+        await _db.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetContent), new { id }, MapStepTemplateContentToDto(block));
+    }
+
+    [HttpPost("{id:guid}/content/image")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<StepTemplateContentResponseDto>> AddImageBlock(
+        Guid id,
+        [FromForm] ImageUploadRequest request,
+        [FromServices] IImageStorageService imageStorage)
+    {
+        var st = await _db.StepTemplates
+            .Include(s => s.Contents)
+            .FirstOrDefaultAsync(s => s.Id == id);
+        if (st is null) return NotFound();
+
+        var file = request.File;
+        if (file is null) return BadRequest("No file was provided.");
+
+        var (fileName, _) = await imageStorage.SaveAsync(file, "step-template-content");
+
+        var sortOrder = st.Contents.Any() ? st.Contents.Max(c => c.SortOrder) + 1 : 0;
+        var block = new StepTemplateContent
+        {
+            StepTemplateId = id,
+            ContentType = StepContentType.Image,
+            SortOrder = sortOrder,
+            FileName = fileName,
+            OriginalFileName = file.FileName,
+            MimeType = file.ContentType
+        };
+
+        _db.StepTemplateContents.Add(block);
+        await _db.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetContent), new { id }, MapStepTemplateContentToDto(block));
+    }
+
+    [HttpPut("{id:guid}/content/{contentId:guid}")]
+    public async Task<ActionResult<StepTemplateContentResponseDto>> UpdateTextBlock(
+        Guid id, Guid contentId, UpdateStepTemplateTextBlockDto dto)
+    {
+        var stExists = await _db.StepTemplates.AnyAsync(s => s.Id == id);
+        if (!stExists) return NotFound();
+
+        var block = await _db.StepTemplateContents
+            .FirstOrDefaultAsync(c => c.Id == contentId && c.StepTemplateId == id);
+        if (block is null) return NotFound();
+        if (block.ContentType != StepContentType.Text)
+            return BadRequest("Only Text blocks can be updated via this endpoint.");
+
+        block.Body = dto.Body;
+        await _db.SaveChangesAsync();
+        return MapStepTemplateContentToDto(block);
+    }
+
+    [HttpPut("{id:guid}/content/reorder")]
+    public async Task<IActionResult> ReorderContent(
+        Guid id, ReorderStepTemplateContentBlocksDto dto)
+    {
+        var stExists = await _db.StepTemplates.AnyAsync(s => s.Id == id);
+        if (!stExists) return NotFound();
+
+        var blocks = await _db.StepTemplateContents
+            .Where(c => c.StepTemplateId == id)
+            .ToListAsync();
+
+        for (int i = 0; i < dto.OrderedIds.Count; i++)
+        {
+            var block = blocks.FirstOrDefault(c => c.Id == dto.OrderedIds[i]);
+            if (block is not null) block.SortOrder = i;
+        }
+
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpDelete("{id:guid}/content/{contentId:guid}")]
+    public async Task<IActionResult> DeleteContentBlock(
+        Guid id, Guid contentId,
+        [FromServices] IImageStorageService imageStorage)
+    {
+        var stExists = await _db.StepTemplates.AnyAsync(s => s.Id == id);
+        if (!stExists) return NotFound();
+
+        var block = await _db.StepTemplateContents
+            .FirstOrDefaultAsync(c => c.Id == contentId && c.StepTemplateId == id);
+        if (block is null) return NotFound();
+
+        if (block.ContentType == StepContentType.Image && block.FileName is not null)
+            await imageStorage.DeleteAsync($"uploads/step-template-content/{block.FileName}");
+
+        _db.StepTemplateContents.Remove(block);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // ──────────── Validation ────────────
 
     private async Task<List<string>> ValidatePorts(List<PortCreateDto> ports, StepPattern pattern)
@@ -444,4 +575,17 @@ public class StepTemplatesController : ControllerBase
         $"uploads/steptemplates/{img.FileName}",
         img.CreatedAt
     );
+
+    private static StepTemplateContentResponseDto MapStepTemplateContentToDto(StepTemplateContent c) => new(
+        c.Id, c.StepTemplateId,
+        c.ContentType.ToString(),
+        c.SortOrder,
+        c.Body,
+        c.FileName, c.OriginalFileName, c.MimeType,
+        c.ContentType == StepContentType.Image && c.FileName is not null
+            ? $"uploads/step-template-content/{c.FileName}"
+            : null,
+        c.CreatedAt
+    );
 }
+

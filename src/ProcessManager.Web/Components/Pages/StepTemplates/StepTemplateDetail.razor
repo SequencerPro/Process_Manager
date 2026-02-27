@@ -199,6 +199,118 @@ else
         }
     </div>
 
+    @* Work Instructions *@
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-card-text me-1"></i> Work Instructions (@_contentBlocks.Count)</span>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" @onclick="StartAddTextBlock" disabled="@_addingTextBlock">
+                    <i class="bi bi-plus-lg me-1"></i>Add Text
+                </button>
+                <label class="btn btn-outline-secondary btn-sm mb-0" style="cursor:pointer" title="Add image block">
+                    <i class="bi bi-image me-1"></i>Add Image
+                    <InputFile OnChange="AddImageBlock" accept="image/*" class="d-none" />
+                </label>
+            </div>
+        </div>
+
+        <div class="card-body">
+            @if (_contentLoading)
+            {
+                <div class="text-center py-3"><span class="spinner-border spinner-border-sm text-secondary me-2"></span>Loading…</div>
+            }
+            else
+            {
+                @if (_contentError is not null)
+                {
+                    <div class="alert alert-danger py-2 mb-3">@_contentError
+                        <button type="button" class="btn-close float-end py-0" @onclick='() => _contentError = null'></button>
+                    </div>
+                }
+
+                @if (_contentBlocks.Count == 0 && !_addingTextBlock)
+                {
+                    <p class="text-muted small mb-0">No instructions added yet. Use the buttons above to add text or image blocks.</p>
+                }
+
+                @foreach (var block in _contentBlocks.OrderBy(b => b.SortOrder))
+                {
+                    var isFirst = block.SortOrder == _contentBlocks.Min(b => b.SortOrder);
+                    var isLast = block.SortOrder == _contentBlocks.Max(b => b.SortOrder);
+
+                    <div class="border rounded p-2 mb-2 bg-white">
+                        <div class="d-flex align-items-start gap-2">
+                            <div class="flex-grow-1">
+                                @if (block.ContentType == "Text")
+                                {
+                                    @if (_editingTextBlockId == block.Id)
+                                    {
+                                        <textarea class="form-control form-control-sm mb-1" rows="4"
+                                                  @bind="_editingTextBody"></textarea>
+                                        <div class="d-flex gap-1">
+                                            <button class="btn btn-primary btn-sm" @onclick="SaveEditedTextBlock">Save</button>
+                                            <button class="btn btn-outline-secondary btn-sm" @onclick="CancelEditTextBlock">Cancel</button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <p class="mb-0" style="white-space: pre-wrap">@block.Body</p>
+                                    }
+                                }
+                                else if (block.ContentType == "Image")
+                                {
+                                    <div class="d-flex align-items-center gap-2">
+                                        <img src="@Api.GetImageUrl(block.ImageUrl!)"
+                                             style="height:64px;width:auto;object-fit:cover;border-radius:4px"
+                                             alt="@block.OriginalFileName" />
+                                        <span class="text-muted small text-truncate" style="max-width:200px"
+                                              title="@block.OriginalFileName">@block.OriginalFileName</span>
+                                    </div>
+                                }
+                            </div>
+                            <div class="d-flex flex-column gap-1 ms-2 flex-shrink-0">
+                                @if (block.ContentType == "Text" && _editingTextBlockId != block.Id)
+                                {
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Edit"
+                                            @onclick="() => StartEditTextBlock(block)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                }
+                                <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Move up"
+                                        disabled="@isFirst"
+                                        @onclick="() => MoveBlock(block, -1)">
+                                    <i class="bi bi-arrow-up"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Move down"
+                                        disabled="@isLast"
+                                        @onclick="() => MoveBlock(block, 1)">
+                                    <i class="bi bi-arrow-down"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete"
+                                        @onclick="() => DeleteContentBlock(block)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (_addingTextBlock)
+                {
+                    <div class="border rounded p-2 bg-light mt-2">
+                        <label class="form-label small fw-semibold mb-1">New Text Block</label>
+                        <textarea class="form-control form-control-sm mb-2" rows="4"
+                                  @bind="_newTextBody" placeholder="Enter instructions…"></textarea>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-primary btn-sm" @onclick="SaveNewTextBlock">Add Block</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => { _addingTextBlock = false; _newTextBody = string.Empty; }">Cancel</button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
     @* Add / Edit Port Modal *@
     @if (_showPortForm)
     {
@@ -412,6 +524,15 @@ else
     // Image upload state
     private bool _uploadingImage;
 
+    // Content block state
+    private bool _contentLoading;
+    private string? _contentError;
+    private List<StepTemplateContentResponseDto> _contentBlocks = new();
+    private bool _addingTextBlock;
+    private string _newTextBody = string.Empty;
+    private Guid? _editingTextBlockId;
+    private string _editingTextBody = string.Empty;
+
     // Lookup data
     private PaginatedResponse<KindResponseDto>? _kinds;
     private List<GradeResponseDto>? _grades = new();
@@ -423,6 +544,19 @@ else
         _loading = true;
         _st = await Api.GetStepTemplateAsync(Id);
         _loading = false;
+        _ = LoadContent();
+    }
+
+    private async Task LoadContent()
+    {
+        _contentLoading = true;
+        _contentError = null;
+        try
+        {
+            _contentBlocks = await Api.GetStepTemplateContentAsync(Id);
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
+        finally { _contentLoading = false; StateHasChanged(); }
     }
 
     // --- Edit Template ---
@@ -580,6 +714,92 @@ else
         if (!await JS.InvokeAsync<bool>("confirm", $"Delete image '{img.OriginalFileName}'?")) return;
         try { await Api.DeleteStepTemplateImageAsync(Id, img.Id); await LoadData(); }
         catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    // --- Content Blocks ---
+
+    private void StartAddTextBlock() { _addingTextBlock = true; _newTextBody = string.Empty; }
+
+    private async Task SaveNewTextBlock()
+    {
+        if (string.IsNullOrWhiteSpace(_newTextBody)) return;
+        _contentError = null;
+        try
+        {
+            await Api.AddStepTemplateTextBlockAsync(Id, new AddStepTemplateTextBlockDto(_newTextBody));
+            _addingTextBlock = false;
+            _newTextBody = string.Empty;
+            await LoadContent();
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
+    }
+
+    private void StartEditTextBlock(StepTemplateContentResponseDto block)
+    {
+        _editingTextBlockId = block.Id;
+        _editingTextBody = block.Body ?? string.Empty;
+    }
+
+    private void CancelEditTextBlock()
+    {
+        _editingTextBlockId = null;
+        _editingTextBody = string.Empty;
+    }
+
+    private async Task SaveEditedTextBlock()
+    {
+        if (_editingTextBlockId is null) return;
+        _contentError = null;
+        try
+        {
+            await Api.UpdateStepTemplateTextBlockAsync(Id, _editingTextBlockId.Value,
+                new UpdateStepTemplateTextBlockDto(_editingTextBody));
+            _editingTextBlockId = null;
+            _editingTextBody = string.Empty;
+            await LoadContent();
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
+    }
+
+    private async Task AddImageBlock(InputFileChangeEventArgs e)
+    {
+        _contentError = null;
+        try
+        {
+            await Api.UploadStepTemplateContentImageAsync(Id, e.File);
+            await LoadContent();
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
+    }
+
+    private async Task MoveBlock(StepTemplateContentResponseDto block, int direction)
+    {
+        _contentError = null;
+        try
+        {
+            var ordered = _contentBlocks.OrderBy(b => b.SortOrder).ToList();
+            var idx = ordered.IndexOf(block);
+            var newIdx = idx + direction;
+            if (newIdx < 0 || newIdx >= ordered.Count) return;
+            ordered.RemoveAt(idx);
+            ordered.Insert(newIdx, block);
+            var dto = new ReorderStepTemplateContentBlocksDto(ordered.Select(b => b.Id).ToList());
+            await Api.ReorderStepTemplateContentAsync(Id, dto);
+            await LoadContent();
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
+    }
+
+    private async Task DeleteContentBlock(StepTemplateContentResponseDto block)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this content block?")) return;
+        _contentError = null;
+        try
+        {
+            await Api.DeleteStepTemplateContentBlockAsync(Id, block.Id);
+            await LoadContent();
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
     }
 
     private string FormatQtyRule(PortResponseDto p)

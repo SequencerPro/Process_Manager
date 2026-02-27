@@ -124,6 +124,62 @@ public class ApiClient
         resp.EnsureSuccessStatusCode();
     }
 
+    // ─── StepTemplate content blocks ───
+
+    public async Task<List<StepTemplateContentResponseDto>> GetStepTemplateContentAsync(Guid stepTemplateId)
+    {
+        return await _http.GetFromJsonAsync<List<StepTemplateContentResponseDto>>(
+            $"api/steptemplates/{stepTemplateId}/content", _json) ?? new();
+    }
+
+    public async Task<StepTemplateContentResponseDto?> AddStepTemplateTextBlockAsync(
+        Guid stepTemplateId, AddStepTemplateTextBlockDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/steptemplates/{stepTemplateId}/content/text", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<StepTemplateContentResponseDto>(_json);
+    }
+
+    public async Task<StepTemplateContentResponseDto?> UploadStepTemplateContentImageAsync(
+        Guid stepTemplateId, IBrowserFile file)
+    {
+        using var ms = new MemoryStream();
+        await file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).CopyToAsync(ms);
+        ms.Position = 0;
+
+        using var content = new MultipartFormDataContent();
+        var sc = new StreamContent(ms);
+        sc.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
+        content.Add(sc, "file", file.Name);
+
+        var resp = await _http.PostAsync($"api/steptemplates/{stepTemplateId}/content/image", content);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<StepTemplateContentResponseDto>(_json);
+    }
+
+    public async Task<StepTemplateContentResponseDto?> UpdateStepTemplateTextBlockAsync(
+        Guid stepTemplateId, Guid contentId, UpdateStepTemplateTextBlockDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync(
+            $"api/steptemplates/{stepTemplateId}/content/{contentId}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<StepTemplateContentResponseDto>(_json);
+    }
+
+    public async Task ReorderStepTemplateContentAsync(
+        Guid stepTemplateId, ReorderStepTemplateContentBlocksDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync(
+            $"api/steptemplates/{stepTemplateId}/content/reorder", dto, _json);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteStepTemplateContentBlockAsync(Guid stepTemplateId, Guid contentId)
+    {
+        var resp = await _http.DeleteAsync($"api/steptemplates/{stepTemplateId}/content/{contentId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
     /// <summary>Returns the absolute URL for an image relative path (e.g., "uploads/steptemplates/abc.jpg").</summary>
     public string GetImageUrl(string relativePath)
         => $"{_http.BaseAddress?.ToString().TrimEnd('/')}/{relativePath.TrimStart('/')}";

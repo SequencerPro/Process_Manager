@@ -45,6 +45,33 @@ public record StepTemplateImageResponseDto(
     DateTime CreatedAt
 );
 
+public record StepTemplateContentResponseDto(
+    Guid Id,
+    Guid StepTemplateId,
+    string ContentType,
+    int SortOrder,
+    string? Body,
+    string? FileName,
+    string? OriginalFileName,
+    string? MimeType,
+    string? ImageUrl,
+    DateTime CreatedAt
+);
+
+public record AddStepTemplateTextBlockDto(
+    [System.ComponentModel.DataAnnotations.Required,
+     System.ComponentModel.DataAnnotations.StringLength(10000, MinimumLength = 1)] string Body
+);
+
+public record UpdateStepTemplateTextBlockDto(
+    [System.ComponentModel.DataAnnotations.Required,
+     System.ComponentModel.DataAnnotations.StringLength(10000, MinimumLength = 1)] string Body
+);
+
+public record ReorderStepTemplateContentBlocksDto(
+    [System.ComponentModel.DataAnnotations.Required] List<Guid> OrderedIds
+);
+
 // ──────────────────── Port ────────────────────
 
 public record PortCreateDto(

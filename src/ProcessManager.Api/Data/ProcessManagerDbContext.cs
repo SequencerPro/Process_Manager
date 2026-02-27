@@ -24,6 +24,7 @@ public class ProcessManagerDbContext : DbContext
     public DbSet<Process> Processes => Set<Process>();
     public DbSet<ProcessStep> ProcessSteps => Set<ProcessStep>();
     public DbSet<ProcessStepContent> ProcessStepContents => Set<ProcessStepContent>();
+    public DbSet<StepTemplateContent> StepTemplateContents => Set<StepTemplateContent>();
     public DbSet<Flow> Flows => Set<Flow>();
 
     // Phase 5: Execution / Runtime
@@ -168,6 +169,24 @@ public class ProcessManagerDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(ps => ps.StepTemplateId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- StepTemplateContent ---
+        modelBuilder.Entity<StepTemplateContent>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.ContentType).HasConversion<string>().HasMaxLength(10);
+            e.Property(c => c.Body).HasMaxLength(10000);
+            e.Property(c => c.FileName).HasMaxLength(200);
+            e.Property(c => c.OriginalFileName).HasMaxLength(200);
+            e.Property(c => c.MimeType).HasMaxLength(100);
+
+            e.HasOne(c => c.StepTemplate)
+                .WithMany(st => st.Contents)
+                .HasForeignKey(c => c.StepTemplateId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(c => c.StepTemplateId);
         });
 
         // --- ProcessStepContent ---

@@ -115,7 +115,13 @@ public class ProcessManagerDbContext : DbContext
             e.HasKey(p => p.Id);
             e.Property(p => p.Name).HasMaxLength(200).IsRequired();
             e.Property(p => p.Direction).HasConversion<string>().HasMaxLength(10);
+            e.Property(p => p.PortType).HasConversion<string>().HasMaxLength(20);
             e.Property(p => p.QtyRuleMode).HasConversion<string>().HasMaxLength(20);
+            e.Property(p => p.DataType).HasConversion<string>().HasMaxLength(20);
+            e.Property(p => p.Units).HasMaxLength(50);
+            e.Property(p => p.NominalValue).HasMaxLength(200);
+            e.Property(p => p.LowerTolerance).HasMaxLength(100);
+            e.Property(p => p.UpperTolerance).HasMaxLength(100);
 
             e.HasOne(p => p.StepTemplate)
                 .WithMany(s => s.Ports)
@@ -125,11 +131,13 @@ public class ProcessManagerDbContext : DbContext
             e.HasOne(p => p.Kind)
                 .WithMany()
                 .HasForeignKey(p => p.KindId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
 
             e.HasOne(p => p.Grade)
                 .WithMany()
                 .HasForeignKey(p => p.GradeId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

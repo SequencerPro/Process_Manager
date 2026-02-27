@@ -204,9 +204,13 @@ else
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Edit Job</h5>
-                        <button type="button" class="btn-close" @onclick="() => _showEditForm = false"></button>
+                        <button type="button" class="btn-close" @onclick="CloseEditJobForm"></button>
                     </div>
                     <div class="modal-body">
+                        @if (_error is not null)
+                        {
+                            <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
+                        }
                         <div class="mb-3">
                             <label class="form-label">Name</label>
                             <input class="form-control" @bind="_editName" />
@@ -221,7 +225,7 @@ else
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button class="btn btn-secondary" @onclick="() => _showEditForm = false">Cancel</button>
+                        <button class="btn btn-secondary" @onclick="CloseEditJobForm">Cancel</button>
                         <button class="btn btn-primary" @onclick="SaveEdit">Update</button>
                     </div>
                 </div>
@@ -287,6 +291,8 @@ else
         _editPriority = _job.Priority;
         _showEditForm = true;
     }
+
+    private void CloseEditJobForm() { _showEditForm = false; _error = null; }
 
     private async Task SaveEdit()
     {

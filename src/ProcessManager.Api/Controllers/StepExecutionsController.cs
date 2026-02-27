@@ -255,21 +255,21 @@ public class StepExecutionsController : ControllerBase
 
         _db.PortTransactions.Add(pt);
 
-        // For output ports: update item/batch grade to match port's declared grade
-        if (port.Direction == PortDirection.Output)
+        // For output ports: update item/batch grade to match port's declared grade (Material ports only)
+        if (port.Direction == PortDirection.Output && port.GradeId.HasValue)
         {
             if (item != null)
             {
-                item.GradeId = port.GradeId;
+                item.GradeId = port.GradeId.Value;
                 item.Status = ItemStatus.InProcess;
             }
             if (batch != null)
             {
-                batch.GradeId = port.GradeId;
+                batch.GradeId = port.GradeId.Value;
                 // Also update all items in the batch
                 var batchItems = await _db.Items.Where(i => i.BatchId == batch.Id).ToListAsync();
                 foreach (var bi in batchItems)
-                    bi.GradeId = port.GradeId;
+                    bi.GradeId = port.GradeId.Value;
             }
         }
 

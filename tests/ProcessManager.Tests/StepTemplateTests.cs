@@ -56,9 +56,9 @@ public class StepTemplateTests : IntegrationTestBase
 
         var dto = new StepTemplateCreateDto("ASM-01", "Test Assembly", null, StepPattern.Assembly, new()
         {
-            new("Part A In", PortDirection.Input, kindA.Id, gradeA.Id, QuantityRuleMode.Exactly, 1, null, null, 0),
-            new("Part B In", PortDirection.Input, kindB.Id, gradeB.Id, QuantityRuleMode.Exactly, 1, null, null, 1),
-            new("Assembly Out", PortDirection.Output, kindC.Id, gradeC.Id, QuantityRuleMode.Exactly, 1, null, null, 0),
+            new("Part A In", PortDirection.Input, PortType.Material, kindA.Id, gradeA.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
+            new("Part B In", PortDirection.Input, PortType.Material, kindB.Id, gradeB.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 1),
+            new("Assembly Out", PortDirection.Output, PortType.Material, kindC.Id, gradeC.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
         });
 
         var response = await Client.PostAsJsonAsync("/api/steptemplates", dto, JsonOptions);
@@ -79,8 +79,8 @@ public class StepTemplateTests : IntegrationTestBase
 
         var dto = new StepTemplateCreateDto("DUP-STEP", "Second", null, StepPattern.Transform, new()
         {
-            new("In", PortDirection.Input, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, 0),
-            new("Out", PortDirection.Output, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, 0),
+            new("In", PortDirection.Input, PortType.Material, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
+            new("Out", PortDirection.Output, PortType.Material, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
         });
 
         var response = await Client.PostAsJsonAsync("/api/steptemplates", dto, JsonOptions);
@@ -96,9 +96,9 @@ public class StepTemplateTests : IntegrationTestBase
 
         var dto = new StepTemplateCreateDto("BAD-XFORM", "Bad Transform", null, StepPattern.Transform, new()
         {
-            new("In 1", PortDirection.Input, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, 0),
-            new("In 2", PortDirection.Input, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, 1),
-            new("Out", PortDirection.Output, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, 0),
+            new("In 1", PortDirection.Input, PortType.Material, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
+            new("In 2", PortDirection.Input, PortType.Material, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 1),
+            new("Out", PortDirection.Output, PortType.Material, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
         });
 
         var response = await Client.PostAsJsonAsync("/api/steptemplates", dto, JsonOptions);
@@ -112,8 +112,8 @@ public class StepTemplateTests : IntegrationTestBase
 
         var dto = new StepTemplateCreateDto("BAD-ASM", "Bad Assembly", null, StepPattern.Assembly, new()
         {
-            new("In", PortDirection.Input, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, 0),
-            new("Out", PortDirection.Output, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, 0),
+            new("In", PortDirection.Input, PortType.Material, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
+            new("Out", PortDirection.Output, PortType.Material, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
         });
 
         var response = await Client.PostAsJsonAsync("/api/steptemplates", dto, JsonOptions);
@@ -127,8 +127,8 @@ public class StepTemplateTests : IntegrationTestBase
 
         var dto = new StepTemplateCreateDto("BAD-DIV", "Bad Division", null, StepPattern.Division, new()
         {
-            new("In", PortDirection.Input, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, 0),
-            new("Out", PortDirection.Output, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, 0),
+            new("In", PortDirection.Input, PortType.Material, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
+            new("Out", PortDirection.Output, PortType.Material, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
         });
 
         var response = await Client.PostAsJsonAsync("/api/steptemplates", dto, JsonOptions);
@@ -142,8 +142,8 @@ public class StepTemplateTests : IntegrationTestBase
     {
         var dto = new StepTemplateCreateDto("NO-KIND", "No Kind", null, StepPattern.Transform, new()
         {
-            new("In", PortDirection.Input, Guid.NewGuid(), Guid.NewGuid(), QuantityRuleMode.Exactly, 1, null, null, 0),
-            new("Out", PortDirection.Output, Guid.NewGuid(), Guid.NewGuid(), QuantityRuleMode.Exactly, 1, null, null, 0),
+            new("In", PortDirection.Input, PortType.Material, Guid.NewGuid(), Guid.NewGuid(), QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
+            new("Out", PortDirection.Output, PortType.Material, Guid.NewGuid(), Guid.NewGuid(), QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
         });
 
         var response = await Client.PostAsJsonAsync("/api/steptemplates", dto, JsonOptions);
@@ -159,8 +159,8 @@ public class StepTemplateTests : IntegrationTestBase
         // Use kindA with gradeB — should fail because gradeB belongs to kindB
         var dto = new StepTemplateCreateDto("BAD-GRADE", "Bad Grade", null, StepPattern.Transform, new()
         {
-            new("In", PortDirection.Input, kindA.Id, gradeB.Id, QuantityRuleMode.Exactly, 1, null, null, 0),
-            new("Out", PortDirection.Output, kindA.Id, gradeA.Id, QuantityRuleMode.Exactly, 1, null, null, 0),
+            new("In", PortDirection.Input, PortType.Material, kindA.Id, gradeB.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
+            new("Out", PortDirection.Output, PortType.Material, kindA.Id, gradeA.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
         });
 
         var response = await Client.PostAsJsonAsync("/api/steptemplates", dto, JsonOptions);
@@ -176,8 +176,8 @@ public class StepTemplateTests : IntegrationTestBase
 
         var dto = new StepTemplateCreateDto("BAD-QTY", "Bad Qty", null, StepPattern.Transform, new()
         {
-            new("In", PortDirection.Input, kind.Id, grade.Id, QuantityRuleMode.Exactly, null, null, null, 0),
-            new("Out", PortDirection.Output, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, 0),
+            new("In", PortDirection.Input, PortType.Material, kind.Id, grade.Id, QuantityRuleMode.Exactly, null, null, null, null, null, null, null, null, 0),
+            new("Out", PortDirection.Output, PortType.Material, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
         });
 
         var response = await Client.PostAsJsonAsync("/api/steptemplates", dto, JsonOptions);
@@ -191,8 +191,8 @@ public class StepTemplateTests : IntegrationTestBase
 
         var dto = new StepTemplateCreateDto("BAD-RNG", "Bad Range", null, StepPattern.Transform, new()
         {
-            new("In", PortDirection.Input, kind.Id, grade.Id, QuantityRuleMode.Range, null, 10, 5, 0),
-            new("Out", PortDirection.Output, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, 0),
+            new("In", PortDirection.Input, PortType.Material, kind.Id, grade.Id, QuantityRuleMode.Range, null, 10, 5, null, null, null, null, null, 0),
+            new("Out", PortDirection.Output, PortType.Material, kind.Id, grade.Id, QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
         });
 
         var response = await Client.PostAsJsonAsync("/api/steptemplates", dto, JsonOptions);
@@ -274,8 +274,8 @@ public class StepTemplateTests : IntegrationTestBase
 
         // Step already has 2 ports. Add a third (making it a General pattern now)
         var gradeNew = await CreateGrade(kind.Id, "NEW", "New Grade", sortOrder: 1);
-        var portDto = new PortCreateDto("Extra Out", PortDirection.Output, kind.Id, gradeNew.Id,
-            QuantityRuleMode.ZeroOrN, 1, null, null, 1);
+        var portDto = new PortCreateDto("Extra Out", PortDirection.Output, PortType.Material, kind.Id, gradeNew.Id,
+            QuantityRuleMode.ZeroOrN, 1, null, null, null, null, null, null, null, 1);
 
         var response = await Client.PostAsJsonAsync($"/api/steptemplates/{step.Id}/ports", portDto, JsonOptions);
         response.EnsureSuccessStatusCode();

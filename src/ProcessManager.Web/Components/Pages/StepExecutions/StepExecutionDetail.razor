@@ -214,6 +214,10 @@ else
                     <button type="button" class="btn-close" @onclick="CloseDataForm"></button>
                 </div>
                 <div class="modal-body">
+                    @if (_error is not null)
+                    {
+                        <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
+                    }
                     <div class="mb-3">
                         <label class="form-label">Key</label>
                         <input class="form-control" @bind="_dataKey" />
@@ -252,9 +256,13 @@ else
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Add Port Transaction</h5>
-                    <button type="button" class="btn-close" @onclick="() => _showPortTxnForm = false"></button>
+                    <button type="button" class="btn-close" @onclick="() => { _showPortTxnForm = false; _error = null; }"></button>
                 </div>
                 <div class="modal-body">
+                    @if (_error is not null)
+                    {
+                        <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
+                    }
                     <div class="mb-3">
                         <label class="form-label">Port</label>
                         <select class="form-select" @bind="_ptPortId">
@@ -300,7 +308,7 @@ else
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="() => _showPortTxnForm = false">Cancel</button>
+                    <button class="btn btn-secondary" @onclick="() => { _showPortTxnForm = false; _error = null; }">Cancel</button>
                     <button class="btn btn-primary" @onclick="SavePortTxn">Save</button>
                 </div>
             </div>
@@ -378,7 +386,7 @@ else
         _showDataForm = true;
     }
 
-    private void CloseDataForm() => _showDataForm = false;
+    private void CloseDataForm() { _showDataForm = false; _error = null; }
 
     private async Task SaveData()
     {

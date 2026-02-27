@@ -134,6 +134,10 @@ else
                     <button type="button" class="btn-close" @onclick="CloseDataForm"></button>
                 </div>
                 <div class="modal-body">
+                    @if (_error is not null)
+                    {
+                        <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
+                    }
                     <div class="mb-3">
                         <label class="form-label">Key</label>
                         <input class="form-control" @bind="_dataKey" />
@@ -173,16 +177,20 @@ else
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Edit Item</h5>
-                    <button type="button" class="btn-close" @onclick="() => _showEditForm = false"></button>
+                        <button type="button" class="btn-close" @onclick="CloseEditItemForm"></button>
                 </div>
                 <div class="modal-body">
+                    @if (_error is not null)
+                    {
+                        <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
+                    }
                     <div class="mb-3">
                         <label class="form-label">Serial Number</label>
                         <input class="form-control" @bind="_editSerial" />
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="() => _showEditForm = false">Cancel</button>
+                    <button class="btn btn-secondary" @onclick="CloseEditItemForm">Cancel</button>
                     <button class="btn btn-primary" @onclick="SaveEdit">Update</button>
                 </div>
             </div>
@@ -226,7 +234,9 @@ else
         _showDataForm = true;
     }
 
-    private void CloseDataForm() => _showDataForm = false;
+    private void CloseDataForm() { _showDataForm = false; _error = null; }
+
+    private void CloseEditItemForm() { _showEditForm = false; _error = null; }
 
     private async Task SaveData()
     {

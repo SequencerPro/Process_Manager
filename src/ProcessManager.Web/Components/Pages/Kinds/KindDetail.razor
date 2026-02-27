@@ -113,6 +113,10 @@ else
                 <EditForm Model="_gradeForm" OnValidSubmit="SaveGrade">
                     <DataAnnotationsValidator />
                     <div class="modal-body">
+                        @if (_error is not null)
+                        {
+                            <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
+                        }
                         <div class="mb-3">
                             <label class="form-label">Code</label>
                             <InputText class="form-control" @bind-Value="_gradeForm.Code"
@@ -181,7 +185,7 @@ else
         _showGradeForm = true;
     }
 
-    private void CloseGradeForm() => _showGradeForm = false;
+    private void CloseGradeForm() { _showGradeForm = false; _error = null; }
 
     private async Task SaveGrade()
     {

@@ -239,11 +239,15 @@ public class ProcessesController : ControllerBase
         if (targetPort is null)
             return BadRequest("Target port not found or is not an input port on the target step's template.");
 
+        // Flows are only allowed between Material ports
+        if (sourcePort.PortType != PortType.Material || targetPort.PortType != PortType.Material)
+            return BadRequest("Flows can only connect Material ports. Non-material ports (Parameter, Characteristic, Condition) are connected analytically, not via flows.");
+
         // Validate type compatibility (Kind + Grade must match)
         if (sourcePort.KindId != targetPort.KindId || sourcePort.GradeId != targetPort.GradeId)
             return BadRequest(
-                $"Type mismatch: source port flows {sourcePort.Kind.Code}/{sourcePort.Grade.Code} " +
-                $"but target port expects {targetPort.Kind.Code}/{targetPort.Grade.Code}.");
+                $"Type mismatch: source port flows {sourcePort.Kind?.Code}/{sourcePort.Grade?.Code} " +
+                $"but target port expects {targetPort.Kind?.Code}/{targetPort.Grade?.Code}.");
 
         // Check for duplicate connections
         if (await _db.Flows.AnyAsync(f => f.SourcePortId == dto.SourcePortId && f.ProcessId == processId))

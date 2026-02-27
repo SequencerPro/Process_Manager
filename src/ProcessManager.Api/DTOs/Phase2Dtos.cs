@@ -50,23 +50,39 @@ public record StepTemplateImageResponseDto(
 public record PortCreateDto(
     [Required, StringLength(200, MinimumLength = 1)] string Name,
     PortDirection Direction,
-    Guid KindId,
-    Guid GradeId,
-    QuantityRuleMode QtyRuleMode,
+    PortType PortType,
+    // Material-only
+    Guid? KindId,
+    Guid? GradeId,
+    QuantityRuleMode? QtyRuleMode,
     int? QtyRuleN,
     int? QtyRuleMin,
     int? QtyRuleMax,
+    // Parameter / Characteristic
+    DataValueType? DataType,
+    [StringLength(50)] string? Units,
+    [StringLength(200)] string? NominalValue,
+    [StringLength(100)] string? LowerTolerance,
+    [StringLength(100)] string? UpperTolerance,
     [Range(0, int.MaxValue)] int SortOrder
 );
 
 public record PortUpdateDto(
     [Required, StringLength(200, MinimumLength = 1)] string Name,
-    Guid KindId,
-    Guid GradeId,
-    QuantityRuleMode QtyRuleMode,
+    PortType PortType,
+    // Material-only
+    Guid? KindId,
+    Guid? GradeId,
+    QuantityRuleMode? QtyRuleMode,
     int? QtyRuleN,
     int? QtyRuleMin,
     int? QtyRuleMax,
+    // Parameter / Characteristic
+    DataValueType? DataType,
+    [StringLength(50)] string? Units,
+    [StringLength(200)] string? NominalValue,
+    [StringLength(100)] string? LowerTolerance,
+    [StringLength(100)] string? UpperTolerance,
     [Range(0, int.MaxValue)] int SortOrder
 );
 
@@ -75,16 +91,24 @@ public record PortResponseDto(
     Guid StepTemplateId,
     string Name,
     PortDirection Direction,
-    Guid KindId,
-    string KindCode,
-    string KindName,
-    Guid GradeId,
-    string GradeCode,
-    string GradeName,
-    QuantityRuleMode QtyRuleMode,
+    PortType PortType,
+    // Material-only (null for non-Material ports)
+    Guid? KindId,
+    string? KindCode,
+    string? KindName,
+    Guid? GradeId,
+    string? GradeCode,
+    string? GradeName,
+    QuantityRuleMode? QtyRuleMode,
     int? QtyRuleN,
     int? QtyRuleMin,
     int? QtyRuleMax,
+    // Parameter / Characteristic (null for Material and Condition ports)
+    DataValueType? DataType,
+    string? Units,
+    string? NominalValue,
+    string? LowerTolerance,
+    string? UpperTolerance,
     int SortOrder,
     DateTime CreatedAt,
     DateTime UpdatedAt

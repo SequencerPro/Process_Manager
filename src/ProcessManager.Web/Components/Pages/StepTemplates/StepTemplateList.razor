@@ -104,6 +104,10 @@ else if (_data is not null)
                     <button type="button" class="btn-close" @onclick="CloseForm"></button>
                 </div>
                 <div class="modal-body">
+                    @if (_error is not null)
+                    {
+                        <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
+                    }
                     @if (!_isEdit)
                     {
                         <div class="mb-3">
@@ -302,7 +306,10 @@ else if (_data is not null)
     private PaginatedResponse<KindResponseDto>? _kinds;
     private List<GradeResponseDto>? _ipGrades;
 
-    private record InlinePort(string Name, PortDirection Direction, Guid KindId, Guid GradeId, string GradeCode, QuantityRuleMode QtyRuleMode, int? QtyRuleN, int? QtyRuleMin, int? QtyRuleMax, int SortOrder);
+    private record InlinePort(string Name, PortDirection Direction, Guid KindId, Guid GradeId, string GradeCode, QuantityRuleMode QtyRuleMode, int? QtyRuleN, int? QtyRuleMin, int? QtyRuleMax, int SortOrder)
+    {
+        public PortType PortType => PortType.Material;
+    }
 
     protected override async Task OnInitializedAsync() => await LoadData();
 
@@ -346,7 +353,7 @@ else if (_data is not null)
         _showForm = true;
     }
 
-    private void CloseForm() => _showForm = false;
+    private void CloseForm() { _showForm = false; _error = null; }
 
     private async Task OnInlineKindChanged()
     {
@@ -404,7 +411,9 @@ else if (_data is not null)
             {
                 if (!_formPorts.Any()) { _error = "Add at least one port."; return; }
                 var ports = _formPorts.Select(p =>
-                    new PortCreateDto(p.Name, p.Direction, p.KindId, p.GradeId, p.QtyRuleMode, p.QtyRuleN, p.QtyRuleMin, p.QtyRuleMax, p.SortOrder)).ToList();
+                    new PortCreateDto(p.Name, p.Direction, PortType.Material,
+                        p.KindId, p.GradeId, p.QtyRuleMode, p.QtyRuleN, p.QtyRuleMin, p.QtyRuleMax,
+                        null, null, null, null, null, p.SortOrder)).ToList();
                 await Api.CreateStepTemplateAsync(new StepTemplateCreateDto(_formCode, _formName, _formDescription, _formPattern, ports));
             }
             _showForm = false; _error = null;

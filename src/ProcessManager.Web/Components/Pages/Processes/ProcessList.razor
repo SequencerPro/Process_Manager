@@ -7,9 +7,9 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h3 class="mb-0">Processes</h3>
-    <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
+    <a href="processes/builder" class="btn btn-primary btn-sm">
         <i class="bi bi-plus-lg me-1"></i> New Process
-    </button>
+    </a>
 </div>
 
 <div class="d-flex gap-3 mb-3">
@@ -64,7 +64,10 @@ else if (_data is not null)
                             }
                         </td>
                         <td>
-                            <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEdit(p)">
+                            <a href="processes/@p.Id/builder" class="btn btn-outline-primary btn-sm me-1" title="Open in Builder">
+                                <i class="bi bi-diagram-3"></i>
+                            </a>
+                            <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEdit(p)" title="Quick Edit">
                                 <i class="bi bi-pencil"></i>
                             </button>
                             <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(p.Id)">

@@ -93,6 +93,10 @@ else if (_data is not null)
                     <button type="button" class="btn-close" @onclick="CloseForm"></button>
                 </div>
                 <div class="modal-body">
+                    @if (_error is not null)
+                    {
+                        <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
+                    }
                     @if (!_editId.HasValue)
                     {
                         <div class="mb-3">
@@ -189,7 +193,7 @@ else if (_data is not null)
         _showForm = true;
     }
 
-    private void CloseForm() => _showForm = false;
+    private void CloseForm() { _showForm = false; _error = null; }
 
     private async Task Save()
     {

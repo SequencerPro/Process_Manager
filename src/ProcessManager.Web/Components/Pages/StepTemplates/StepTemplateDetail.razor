@@ -71,15 +71,21 @@ else
                     <div class="table-responsive">
                         <table class="table table-sm mb-0">
                             <thead class="table-light">
-                                <tr><th>Name</th><th>Kind / Grade</th><th>Qty Rule</th><th></th></tr>
+                                <tr><th>Name</th><th>Type</th><th>Details</th><th></th></tr>
                             </thead>
                             <tbody>
                                 @foreach (var p in InputPorts)
                                 {
                                     <tr>
                                         <td>@p.Name</td>
-                                        <td><code>@p.KindCode</code> / <code>@p.GradeCode</code></td>
-                                        <td>@FormatQtyRule(p)</td>
+                                        <td><span class="badge @PortTypeBadgeClass(p.PortType)">@p.PortType</span></td>
+                                        <td>
+                                            @PortDetails(p)
+                                            @if (p.PortType == PortType.Material)
+                                            {
+                                                <span class="text-muted ms-1 small">(@FormatQtyRule(p))</span>
+                                            }
+                                        </td>
                                         <td>
                                             <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1" @onclick="() => ShowEditPort(p)" title="Edit">
                                                 <i class="bi bi-pencil"></i>
@@ -114,15 +120,21 @@ else
                     <div class="table-responsive">
                         <table class="table table-sm mb-0">
                             <thead class="table-light">
-                                <tr><th>Name</th><th>Kind / Grade</th><th>Qty Rule</th><th></th></tr>
+                                <tr><th>Name</th><th>Type</th><th>Details</th><th></th></tr>
                             </thead>
                             <tbody>
                                 @foreach (var p in OutputPorts)
                                 {
                                     <tr>
                                         <td>@p.Name</td>
-                                        <td><code>@p.KindCode</code> / <code>@p.GradeCode</code></td>
-                                        <td>@FormatQtyRule(p)</td>
+                                        <td><span class="badge @PortTypeBadgeClass(p.PortType)">@p.PortType</span></td>
+                                        <td>
+                                            @PortDetails(p)
+                                            @if (p.PortType == PortType.Material)
+                                            {
+                                                <span class="text-muted ms-1 small">(@FormatQtyRule(p))</span>
+                                            }
+                                        </td>
                                         <td>
                                             <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1" @onclick="() => ShowEditPort(p)" title="Edit">
                                                 <i class="bi bi-pencil"></i>
@@ -198,40 +210,55 @@ else
                         <button type="button" class="btn-close" @onclick="ClosePortForm"></button>
                     </div>
                     <div class="modal-body">
+                        @if (_error is not null)
+                        {
+                            <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
+                        }
                         <div class="mb-3">
                             <label class="form-label">Name</label>
                             <input class="form-control" @bind="_portName" />
                         </div>
-                        <div class="row mb-3">
-                            <div class="col-6">
-                                <label class="form-label">Kind</label>
-                                <select class="form-select" @bind="_portKindId">
-                                    <option value="">Select...</option>
-                                    @if (_kinds is not null)
-                                    {
-                                        @foreach (var k in _kinds.Items)
-                                        {
-                                            <option value="@k.Id">@k.Name (@k.Code)</option>
-                                        }
-                                    }
-                                </select>
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label">Grade</label>
-                                <select class="form-select" @bind="_portGradeId">
-                                    <option value="">Select...</option>
-                                    @if (_grades is not null)
-                                    {
-                                        @foreach (var g in _grades)
-                                        {
-                                            <option value="@g.Id">@g.Name (@g.Code)</option>
-                                        }
-                                    }
-                                </select>
-                            </div>
+                        <div class="mb-3">
+                            <label class="form-label">Port Type</label>
+                            <select class="form-select" @bind="_portType">
+                                @foreach (var t in Enum.GetValues<PortType>())
+                                {
+                                    <option value="@t">@t</option>
+                                }
+                            </select>
                         </div>
-                        <div class="row mb-3">
-                            <div class="col-6">
+
+                        @if (_portType == PortType.Material)
+                        {
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label">Kind</label>
+                                    <select class="form-select" @bind="_portKindId">
+                                        <option value="">Select...</option>
+                                        @if (_kinds is not null)
+                                        {
+                                            @foreach (var k in _kinds.Items)
+                                            {
+                                                <option value="@k.Id">@k.Name (@k.Code)</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Grade</label>
+                                    <select class="form-select" @bind="_portGradeId">
+                                        <option value="">Select...</option>
+                                        @if (_grades is not null)
+                                        {
+                                            @foreach (var g in _grades)
+                                            {
+                                                <option value="@g.Id">@g.Name (@g.Code)</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label">Qty Rule Mode</label>
                                 <select class="form-select" @bind="_portQtyMode">
                                     @foreach (var m in Enum.GetValues<QuantityRuleMode>())
@@ -240,10 +267,51 @@ else
                                     }
                                 </select>
                             </div>
-                            <div class="col-6">
-                                <label class="form-label">Sort Order</label>
-                                <input type="number" class="form-control" @bind="_portSortOrder" />
+                        }
+
+                        @if (_portType is PortType.Parameter or PortType.Characteristic)
+                        {
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label">Data Type</label>
+                                    <select class="form-select" @bind="_portDataType">
+                                        @foreach (var dt in Enum.GetValues<DataValueType>())
+                                        {
+                                            <option value="@dt">@dt</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Units</label>
+                                    <input class="form-control" @bind="_portUnits" placeholder="e.g. RPM, °C, mm" />
+                                </div>
                             </div>
+                            <div class="row mb-3">
+                                <div class="col-4">
+                                    <label class="form-label">Nominal</label>
+                                    <input class="form-control" @bind="_portNominalValue" placeholder="Target value" />
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label">Lower Tolerance</label>
+                                    <input class="form-control" @bind="_portLowerTolerance" placeholder="e.g. -0.05" />
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label">Upper Tolerance</label>
+                                    <input class="form-control" @bind="_portUpperTolerance" placeholder="e.g. +0.05" />
+                                </div>
+                            </div>
+                        }
+
+                        @if (_portType == PortType.Condition)
+                        {
+                            <div class="alert alert-light border small mb-0">
+                                <i class="bi bi-info-circle me-1"></i>Condition ports are binary pass/fail checkpoints. No additional metadata is required.
+                            </div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label">Sort Order</label>
+                            <input type="number" class="form-control" @bind="_portSortOrder" />
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -265,9 +333,13 @@ else
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Edit Step Template</h5>
-                        <button type="button" class="btn-close" @onclick="() => _showEditForm = false"></button>
+                        <button type="button" class="btn-close" @onclick="() => { _showEditForm = false; _error = null; }"></button>
                     </div>
                     <div class="modal-body">
+                        @if (_error is not null)
+                        {
+                            <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
+                        }
                         <div class="mb-3">
                             <label class="form-label">Name</label>
                             <input class="form-control" @bind="_editName" />
@@ -291,7 +363,7 @@ else
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button class="btn btn-secondary" @onclick="() => _showEditForm = false">Cancel</button>
+                        <button class="btn btn-secondary" @onclick="() => { _showEditForm = false; _error = null; }">Cancel</button>
                         <button class="btn btn-primary" @onclick="SaveEdit">Update</button>
                     </div>
                 </div>
@@ -317,9 +389,17 @@ else
     private Guid? _editPortId;
     private PortDirection _portDirection;
     private string _portName = "";
+    private PortType _portType = PortType.Material;
+    // Material fields
     private string _portKindId = "";
     private string _portGradeId = "";
     private QuantityRuleMode _portQtyMode = QuantityRuleMode.Exactly;
+    // Parameter / Characteristic fields
+    private DataValueType _portDataType = DataValueType.Decimal;
+    private string _portUnits = "";
+    private string _portNominalValue = "";
+    private string _portLowerTolerance = "";
+    private string _portUpperTolerance = "";
     private int _portSortOrder;
 
     // Edit template form state
@@ -372,9 +452,15 @@ else
         _editPortId = null;
         _portDirection = direction;
         _portName = "";
+        _portType = PortType.Material;
         _portKindId = "";
         _portGradeId = "";
         _portQtyMode = QuantityRuleMode.Exactly;
+        _portDataType = DataValueType.Decimal;
+        _portUnits = "";
+        _portNominalValue = "";
+        _portLowerTolerance = "";
+        _portUpperTolerance = "";
         _portSortOrder = 0;
         _showPortForm = true;
         _ = LoadLookups();
@@ -385,9 +471,15 @@ else
         _editPortId = p.Id;
         _portDirection = p.Direction;
         _portName = p.Name;
-        _portKindId = p.KindId.ToString();
-        _portGradeId = p.GradeId.ToString();
-        _portQtyMode = p.QtyRuleMode;
+        _portType = p.PortType;
+        _portKindId = p.KindId?.ToString() ?? "";
+        _portGradeId = p.GradeId?.ToString() ?? "";
+        _portQtyMode = p.QtyRuleMode ?? QuantityRuleMode.Exactly;
+        _portDataType = p.DataType ?? DataValueType.Decimal;
+        _portUnits = p.Units ?? "";
+        _portNominalValue = p.NominalValue ?? "";
+        _portLowerTolerance = p.LowerTolerance ?? "";
+        _portUpperTolerance = p.UpperTolerance ?? "";
         _portSortOrder = p.SortOrder;
         _showPortForm = true;
         _ = LoadLookups();
@@ -412,22 +504,39 @@ else
     {
         try
         {
-            if (!Guid.TryParse(_portKindId, out var kindId) || !Guid.TryParse(_portGradeId, out var gradeId))
+            Guid? kindId = Guid.TryParse(_portKindId, out var k) ? k : null;
+            Guid? gradeId = Guid.TryParse(_portGradeId, out var g) ? g : null;
+
+            if (_portType == PortType.Material && (kindId is null || gradeId is null))
             {
-                _error = "Please select both a Kind and a Grade.";
+                _error = "Please select both a Kind and a Grade for Material ports.";
                 return;
             }
 
+            DataValueType? dataType = _portType is PortType.Parameter or PortType.Characteristic
+                ? _portDataType : null;
+            string? units = _portType is PortType.Parameter or PortType.Characteristic
+                ? (string.IsNullOrEmpty(_portUnits) ? null : _portUnits) : null;
+            string? nominal = _portType is PortType.Parameter or PortType.Characteristic
+                ? (string.IsNullOrEmpty(_portNominalValue) ? null : _portNominalValue) : null;
+            string? lower = _portType is PortType.Parameter or PortType.Characteristic
+                ? (string.IsNullOrEmpty(_portLowerTolerance) ? null : _portLowerTolerance) : null;
+            string? upper = _portType is PortType.Parameter or PortType.Characteristic
+                ? (string.IsNullOrEmpty(_portUpperTolerance) ? null : _portUpperTolerance) : null;
+            QuantityRuleMode? qtyMode = _portType == PortType.Material ? _portQtyMode : null;
+
             if (_editPortId.HasValue)
             {
-                // Update existing port
-                var dto = new PortUpdateDto(_portName, kindId, gradeId, _portQtyMode, null, null, null, _portSortOrder);
+                var dto = new PortUpdateDto(_portName, _portType,
+                    kindId, gradeId, qtyMode, null, null, null,
+                    dataType, units, nominal, lower, upper, _portSortOrder);
                 await Api.UpdatePortAsync(Id, _editPortId.Value, dto);
             }
             else
             {
-                // Create new port
-                var dto = new PortCreateDto(_portName, _portDirection, kindId, gradeId, _portQtyMode, null, null, null, _portSortOrder);
+                var dto = new PortCreateDto(_portName, _portDirection, _portType,
+                    kindId, gradeId, qtyMode, null, null, null,
+                    dataType, units, nominal, lower, upper, _portSortOrder);
                 await Api.CreatePortAsync(Id, dto);
             }
             _showPortForm = false;
@@ -475,13 +584,32 @@ else
 
     private string FormatQtyRule(PortResponseDto p)
     {
+        if (p.QtyRuleMode is null) return string.Empty;
         return p.QtyRuleMode switch
         {
             QuantityRuleMode.Exactly => $"= {p.QtyRuleN}",
             QuantityRuleMode.ZeroOrN => $"0 or {p.QtyRuleN}",
             QuantityRuleMode.Range => $"{p.QtyRuleMin}\u2013{p.QtyRuleMax}",
             QuantityRuleMode.Unbounded => $">= {p.QtyRuleMin}",
-            _ => p.QtyRuleMode.ToString()
+            _ => p.QtyRuleMode.ToString() ?? ""
         };
     }
+
+    private static string PortDetails(PortResponseDto p) => p.PortType switch
+    {
+        PortType.Material => $"{p.KindCode}/{p.GradeCode}",
+        PortType.Parameter or PortType.Characteristic =>
+            string.IsNullOrEmpty(p.Units) ? $"{p.DataType}" : $"{p.DataType} ({p.Units})",
+        PortType.Condition => "Pass / Fail",
+        _ => ""
+    };
+
+    private static string PortTypeBadgeClass(PortType t) => t switch
+    {
+        PortType.Material => "bg-secondary",
+        PortType.Parameter => "bg-warning text-dark",
+        PortType.Characteristic => "bg-info text-dark",
+        PortType.Condition => "bg-light text-dark border",
+        _ => "bg-secondary"
+    };
 }

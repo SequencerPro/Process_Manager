@@ -74,11 +74,6 @@ else if (_data is not null)
            OnPageChanged="OnPageChanged" />
 }
 
-@if (_error is not null)
-{
-    <div class="alert alert-danger mt-3 py-2">@_error</div>
-}
-
 @if (_showForm)
 {
     <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
@@ -89,6 +84,14 @@ else if (_data is not null)
                     <button type="button" class="btn-close" @onclick="CloseForm"></button>
                 </div>
                 <div class="modal-body">
+                    @if (_error is not null)
+                    {
+                        <div class="alert alert-danger d-flex align-items-center gap-2 py-2">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <span>@_error</span>
+                            <button type="button" class="btn-close ms-auto" @onclick="() => _error = null"></button>
+                        </div>
+                    }
                     <div class="mb-3">
                         <label class="form-label">Name</label>
                         <input class="form-control" @bind="_formName" />
@@ -208,7 +211,7 @@ else if (_data is not null)
         _showForm = true;
     }
 
-    private void CloseForm() => _showForm = false;
+    private void CloseForm() { _showForm = false; _error = null; }
 
     private async Task Save()
     {

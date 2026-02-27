@@ -85,12 +85,18 @@ public class StepTemplatesController : ControllerBase
             {
                 Name = portDto.Name,
                 Direction = portDto.Direction,
+                PortType = portDto.PortType,
                 KindId = portDto.KindId,
                 GradeId = portDto.GradeId,
                 QtyRuleMode = portDto.QtyRuleMode,
                 QtyRuleN = portDto.QtyRuleN,
                 QtyRuleMin = portDto.QtyRuleMin,
                 QtyRuleMax = portDto.QtyRuleMax,
+                DataType = portDto.DataType,
+                Units = portDto.Units,
+                NominalValue = portDto.NominalValue,
+                LowerTolerance = portDto.LowerTolerance,
+                UpperTolerance = portDto.UpperTolerance,
                 SortOrder = portDto.SortOrder
             });
         }
@@ -160,12 +166,18 @@ public class StepTemplatesController : ControllerBase
             StepTemplateId = stepTemplateId,
             Name = dto.Name,
             Direction = dto.Direction,
+            PortType = dto.PortType,
             KindId = dto.KindId,
             GradeId = dto.GradeId,
             QtyRuleMode = dto.QtyRuleMode,
             QtyRuleN = dto.QtyRuleN,
             QtyRuleMin = dto.QtyRuleMin,
             QtyRuleMax = dto.QtyRuleMax,
+            DataType = dto.DataType,
+            Units = dto.Units,
+            NominalValue = dto.NominalValue,
+            LowerTolerance = dto.LowerTolerance,
+            UpperTolerance = dto.UpperTolerance,
             SortOrder = dto.SortOrder
         };
 
@@ -192,18 +204,57 @@ public class StepTemplatesController : ControllerBase
 
         if (port is null) return NotFound();
 
-        // Validate grade belongs to kind
-        var gradeValid = await _db.Grades.AnyAsync(g => g.Id == dto.GradeId && g.KindId == dto.KindId);
-        if (!gradeValid)
-            return BadRequest("Grade does not belong to the specified Kind.");
-
         port.Name = dto.Name;
-        port.KindId = dto.KindId;
-        port.GradeId = dto.GradeId;
-        port.QtyRuleMode = dto.QtyRuleMode;
-        port.QtyRuleN = dto.QtyRuleN;
-        port.QtyRuleMin = dto.QtyRuleMin;
-        port.QtyRuleMax = dto.QtyRuleMax;
+        port.PortType = dto.PortType;
+
+        if (dto.PortType == PortType.Material)
+        {
+            // Validate grade belongs to kind
+            var gradeValid = await _db.Grades.AnyAsync(g => g.Id == dto.GradeId && g.KindId == dto.KindId);
+            if (!gradeValid)
+                return BadRequest("Grade does not belong to the specified Kind.");
+
+            port.KindId = dto.KindId;
+            port.GradeId = dto.GradeId;
+            port.QtyRuleMode = dto.QtyRuleMode;
+            port.QtyRuleN = dto.QtyRuleN;
+            port.QtyRuleMin = dto.QtyRuleMin;
+            port.QtyRuleMax = dto.QtyRuleMax;
+            port.DataType = null;
+            port.Units = null;
+            port.NominalValue = null;
+            port.LowerTolerance = null;
+            port.UpperTolerance = null;
+        }
+        else if (dto.PortType is PortType.Parameter or PortType.Characteristic)
+        {
+            port.KindId = null;
+            port.GradeId = null;
+            port.QtyRuleMode = null;
+            port.QtyRuleN = null;
+            port.QtyRuleMin = null;
+            port.QtyRuleMax = null;
+            port.DataType = dto.DataType;
+            port.Units = dto.Units;
+            port.NominalValue = dto.NominalValue;
+            port.LowerTolerance = dto.LowerTolerance;
+            port.UpperTolerance = dto.UpperTolerance;
+        }
+        else // Condition
+        {
+            port.KindId = null;
+            port.GradeId = null;
+            port.QtyRuleMode = null;
+            port.QtyRuleN = null;
+            port.QtyRuleMin = null;
+            port.QtyRuleMax = null;
+            port.DataType = null;
+            port.Units = null;
+            port.NominalValue = null;
+            port.LowerTolerance = null;
+            port.UpperTolerance = null;
+        }
+
         port.SortOrder = dto.SortOrder;
 
         // Bump step version
@@ -296,8 +347,9 @@ public class StepTemplatesController : ControllerBase
     {
         var errors = new List<string>();
 
-        var inputCount = ports.Count(p => p.Direction == PortDirection.Input);
-        var outputCount = ports.Count(p => p.Direction == PortDirection.Output);
+        // Pattern checks apply to Material ports only
+        var inputCount = ports.Count(p => p.Direction == PortDirection.Input && p.PortType == PortType.Material);
+        var outputCount = ports.Count(p => p.Direction == PortDirection.Output && p.PortType == PortType.Material);
 
         switch (pattern)
         {
@@ -328,35 +380,39 @@ public class StepTemplatesController : ControllerBase
     {
         var errors = new List<string>();
 
-        // Kind must exist
-        if (!await _db.Kinds.AnyAsync(k => k.Id == dto.KindId))
+        // Kind/Grade and quantity-rule validation only apply to Material ports
+        if (dto.PortType == PortType.Material)
         {
-            errors.Add($"Kind {dto.KindId} not found.");
-            return errors; // Can't validate grade without kind
-        }
+            // Kind must exist
+            if (dto.KindId is null || !await _db.Kinds.AnyAsync(k => k.Id == dto.KindId))
+            {
+                errors.Add($"Port '{dto.Name}': KindId is required for Material ports and must exist.");
+                return errors; // Can't validate grade without kind
+            }
 
-        // Grade must exist and belong to the kind
-        if (!await _db.Grades.AnyAsync(g => g.Id == dto.GradeId && g.KindId == dto.KindId))
-            errors.Add($"Grade {dto.GradeId} does not belong to Kind {dto.KindId}.");
+            // Grade must exist and belong to the kind
+            if (!await _db.Grades.AnyAsync(g => g.Id == dto.GradeId && g.KindId == dto.KindId))
+                errors.Add($"Port '{dto.Name}': Grade {dto.GradeId} does not belong to Kind {dto.KindId}.");
 
-        // Quantity rule validation
-        switch (dto.QtyRuleMode)
-        {
-            case QuantityRuleMode.Exactly:
-            case QuantityRuleMode.ZeroOrN:
-                if (dto.QtyRuleN is null or <= 0)
-                    errors.Add($"Port '{dto.Name}': {dto.QtyRuleMode} mode requires QtyRuleN > 0.");
-                break;
-            case QuantityRuleMode.Range:
-                if (dto.QtyRuleMin is null || dto.QtyRuleMax is null)
-                    errors.Add($"Port '{dto.Name}': Range mode requires both QtyRuleMin and QtyRuleMax.");
-                else if (dto.QtyRuleMin > dto.QtyRuleMax)
-                    errors.Add($"Port '{dto.Name}': QtyRuleMin must be ≤ QtyRuleMax.");
-                break;
-            case QuantityRuleMode.Unbounded:
-                if (dto.QtyRuleMin is null)
-                    errors.Add($"Port '{dto.Name}': Unbounded mode requires QtyRuleMin.");
-                break;
+            // Quantity rule validation
+            switch (dto.QtyRuleMode)
+            {
+                case QuantityRuleMode.Exactly:
+                case QuantityRuleMode.ZeroOrN:
+                    if (dto.QtyRuleN is null or <= 0)
+                        errors.Add($"Port '{dto.Name}': {dto.QtyRuleMode} mode requires QtyRuleN > 0.");
+                    break;
+                case QuantityRuleMode.Range:
+                    if (dto.QtyRuleMin is null || dto.QtyRuleMax is null)
+                        errors.Add($"Port '{dto.Name}': Range mode requires both QtyRuleMin and QtyRuleMax.");
+                    else if (dto.QtyRuleMin > dto.QtyRuleMax)
+                        errors.Add($"Port '{dto.Name}': QtyRuleMin must be ≤ QtyRuleMax.");
+                    break;
+                case QuantityRuleMode.Unbounded:
+                    if (dto.QtyRuleMin is null)
+                        errors.Add($"Port '{dto.Name}': Unbounded mode requires QtyRuleMin.");
+                    break;
+            }
         }
 
         return errors;
@@ -374,9 +430,11 @@ public class StepTemplatesController : ControllerBase
 
     private static PortResponseDto MapPortToDto(Port port) => new(
         port.Id, port.StepTemplateId, port.Name, port.Direction,
-        port.KindId, port.Kind.Code, port.Kind.Name,
-        port.GradeId, port.Grade.Code, port.Grade.Name,
+        port.PortType,
+        port.KindId, port.Kind?.Code, port.Kind?.Name,
+        port.GradeId, port.Grade?.Code, port.Grade?.Name,
         port.QtyRuleMode, port.QtyRuleN, port.QtyRuleMin, port.QtyRuleMax,
+        port.DataType, port.Units, port.NominalValue, port.LowerTolerance, port.UpperTolerance,
         port.SortOrder, port.CreatedAt, port.UpdatedAt
     );
 

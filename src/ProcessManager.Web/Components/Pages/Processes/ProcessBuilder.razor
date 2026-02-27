@@ -531,7 +531,7 @@ else
                                             <i class="bi bi-plus-lg me-1"></i>Add Block
                                         </button>
                                         <button class="btn btn-sm btn-secondary"
-                                                @onclick="() => { _addingTextBlock = false; _newTextBody = ""; }">
+                                                @onclick="() => { _addingTextBlock = false; _newTextBody = string.Empty; }">
                                             Cancel
                                         </button>
                                     </div>
@@ -543,7 +543,7 @@ else
                             {
                                 <div class="d-flex gap-2 flex-wrap">
                                     <button class="btn btn-outline-secondary btn-sm"
-                                            @onclick="() => { _addingTextBlock = true; _newTextBody = ""; }">
+                                            @onclick="() => { _addingTextBlock = true; _newTextBody = string.Empty; }">
                                         <i class="bi bi-text-paragraph me-1"></i>Add Text Block
                                     </button>
                                     <label class="btn btn-outline-secondary btn-sm mb-0" style="cursor:pointer">

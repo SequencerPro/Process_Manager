@@ -216,6 +216,63 @@ public class ApiClient
     public Task<ProcessValidationResultDto?> ValidateProcessAsync(Guid processId)
         => _http.GetFromJsonAsync<ProcessValidationResultDto>($"api/processes/{processId}/validate", _json);
 
+    // ── Step Content ──
+
+    public Task<List<ProcessStepContentResponseDto>?> GetStepContentAsync(Guid processId, Guid stepId)
+        => _http.GetFromJsonAsync<List<ProcessStepContentResponseDto>>(
+            $"api/processes/{processId}/steps/{stepId}/content", _json);
+
+    public async Task<ProcessStepContentResponseDto?> AddTextBlockAsync(
+        Guid processId, Guid stepId, AddTextBlockDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync(
+            $"api/processes/{processId}/steps/{stepId}/content/text", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ProcessStepContentResponseDto>(_json);
+    }
+
+    public async Task<ProcessStepContentResponseDto?> UploadStepContentImageAsync(
+        Guid processId, Guid stepId, IBrowserFile file)
+    {
+        using var ms = new MemoryStream();
+        await file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).CopyToAsync(ms);
+        ms.Position = 0;
+
+        using var content = new MultipartFormDataContent();
+        var sc = new StreamContent(ms);
+        sc.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
+        content.Add(sc, "file", file.Name);
+
+        var resp = await _http.PostAsync(
+            $"api/processes/{processId}/steps/{stepId}/content/image", content);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ProcessStepContentResponseDto>(_json);
+    }
+
+    public async Task<ProcessStepContentResponseDto?> UpdateTextBlockAsync(
+        Guid processId, Guid stepId, Guid contentId, UpdateTextBlockDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync(
+            $"api/processes/{processId}/steps/{stepId}/content/{contentId}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ProcessStepContentResponseDto>(_json);
+    }
+
+    public async Task ReorderStepContentAsync(
+        Guid processId, Guid stepId, ReorderContentBlocksDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync(
+            $"api/processes/{processId}/steps/{stepId}/content/reorder", dto, _json);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteStepContentBlockAsync(Guid processId, Guid stepId, Guid contentId)
+    {
+        var resp = await _http.DeleteAsync(
+            $"api/processes/{processId}/steps/{stepId}/content/{contentId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
     // ═══════════════════ Jobs ═══════════════════
 
     public Task<PaginatedResponse<JobResponseDto>?> GetJobsAsync(

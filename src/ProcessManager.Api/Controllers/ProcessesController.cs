@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Api.Data;
 using ProcessManager.Api.DTOs;
+using ProcessManager.Api.Services;
 using ProcessManager.Domain.Enums;
 using Process = ProcessManager.Domain.Entities.Process;
 using ProcessManager.Domain.Entities;
@@ -292,6 +293,141 @@ public class ProcessesController : ControllerBase
         return NoContent();
     }
 
+    // ──────────── ProcessStepContent sub-resources ────────────
+
+    [HttpGet("{processId:guid}/steps/{stepId:guid}/content")]
+    public async Task<ActionResult<List<ProcessStepContentResponseDto>>> GetStepContent(
+        Guid processId, Guid stepId)
+    {
+        var step = await _db.ProcessSteps
+            .Include(ps => ps.Contents)
+            .FirstOrDefaultAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (step is null) return NotFound();
+
+        return step.Contents
+            .OrderBy(c => c.SortOrder)
+            .Select(MapContentToDto)
+            .ToList();
+    }
+
+    [HttpPost("{processId:guid}/steps/{stepId:guid}/content/text")]
+    public async Task<ActionResult<ProcessStepContentResponseDto>> AddTextBlock(
+        Guid processId, Guid stepId, AddTextBlockDto dto)
+    {
+        var step = await _db.ProcessSteps
+            .Include(ps => ps.Contents)
+            .FirstOrDefaultAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (step is null) return NotFound();
+
+        var sortOrder = step.Contents.Any() ? step.Contents.Max(c => c.SortOrder) + 1 : 0;
+        var block = new ProcessStepContent
+        {
+            ProcessStepId = stepId,
+            ContentType = StepContentType.Text,
+            SortOrder = sortOrder,
+            Body = dto.Body
+        };
+
+        _db.ProcessStepContents.Add(block);
+        await _db.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetStepContent), new { processId, stepId }, MapContentToDto(block));
+    }
+
+    [HttpPost("{processId:guid}/steps/{stepId:guid}/content/image")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ProcessStepContentResponseDto>> AddImageBlock(
+        Guid processId, Guid stepId,
+        [FromForm] ImageUploadRequest request,
+        [FromServices] IImageStorageService imageStorage)
+    {
+        var step = await _db.ProcessSteps
+            .Include(ps => ps.Contents)
+            .FirstOrDefaultAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (step is null) return NotFound();
+
+        var file = request.File;
+        if (file is null) return BadRequest("No file was provided.");
+
+        var (fileName, _) = await imageStorage.SaveAsync(file, "process-steps");
+
+        var sortOrder = step.Contents.Any() ? step.Contents.Max(c => c.SortOrder) + 1 : 0;
+        var block = new ProcessStepContent
+        {
+            ProcessStepId = stepId,
+            ContentType = StepContentType.Image,
+            SortOrder = sortOrder,
+            FileName = fileName,
+            OriginalFileName = file.FileName,
+            MimeType = file.ContentType
+        };
+
+        _db.ProcessStepContents.Add(block);
+        await _db.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetStepContent), new { processId, stepId }, MapContentToDto(block));
+    }
+
+    [HttpPut("{processId:guid}/steps/{stepId:guid}/content/{contentId:guid}")]
+    public async Task<ActionResult<ProcessStepContentResponseDto>> UpdateTextBlock(
+        Guid processId, Guid stepId, Guid contentId, UpdateTextBlockDto dto)
+    {
+        var stepExists = await _db.ProcessSteps
+            .AnyAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (!stepExists) return NotFound();
+
+        var block = await _db.ProcessStepContents
+            .FirstOrDefaultAsync(c => c.Id == contentId && c.ProcessStepId == stepId);
+        if (block is null) return NotFound();
+        if (block.ContentType != StepContentType.Text)
+            return BadRequest("Only Text blocks can be updated via this endpoint.");
+
+        block.Body = dto.Body;
+        await _db.SaveChangesAsync();
+        return MapContentToDto(block);
+    }
+
+    [HttpPut("{processId:guid}/steps/{stepId:guid}/content/reorder")]
+    public async Task<IActionResult> ReorderContent(
+        Guid processId, Guid stepId, ReorderContentBlocksDto dto)
+    {
+        var stepExists = await _db.ProcessSteps
+            .AnyAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (!stepExists) return NotFound();
+
+        var blocks = await _db.ProcessStepContents
+            .Where(c => c.ProcessStepId == stepId)
+            .ToListAsync();
+
+        for (int i = 0; i < dto.OrderedIds.Count; i++)
+        {
+            var block = blocks.FirstOrDefault(c => c.Id == dto.OrderedIds[i]);
+            if (block is not null) block.SortOrder = i;
+        }
+
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpDelete("{processId:guid}/steps/{stepId:guid}/content/{contentId:guid}")]
+    public async Task<IActionResult> DeleteContentBlock(
+        Guid processId, Guid stepId, Guid contentId,
+        [FromServices] IImageStorageService imageStorage)
+    {
+        var stepExists = await _db.ProcessSteps
+            .AnyAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (!stepExists) return NotFound();
+
+        var block = await _db.ProcessStepContents
+            .FirstOrDefaultAsync(c => c.Id == contentId && c.ProcessStepId == stepId);
+        if (block is null) return NotFound();
+
+        if (block.ContentType == StepContentType.Image && block.FileName is not null)
+            await imageStorage.DeleteAsync($"uploads/process-steps/{block.FileName}");
+
+        _db.ProcessStepContents.Remove(block);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // ──────────── Validation Endpoint ────────────
 
     [HttpGet("{processId:guid}/validate")]
@@ -388,5 +524,17 @@ public class ProcessesController : ControllerBase
         f.SourceProcessStepId, f.SourcePortId, f.SourcePort.Name,
         f.TargetProcessStepId, f.TargetPortId, f.TargetPort.Name,
         f.CreatedAt, f.UpdatedAt
+    );
+
+    private static ProcessStepContentResponseDto MapContentToDto(ProcessStepContent c) => new(
+        c.Id, c.ProcessStepId,
+        c.ContentType.ToString(),
+        c.SortOrder,
+        c.Body,
+        c.FileName, c.OriginalFileName, c.MimeType,
+        c.ContentType == StepContentType.Image && c.FileName is not null
+            ? $"uploads/process-steps/{c.FileName}"
+            : null,
+        c.CreatedAt
     );
 }

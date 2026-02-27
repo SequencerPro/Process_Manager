@@ -156,8 +156,8 @@ else
                                 @onclick="() => MoveStep(stepIdx, 1)">
                             <i class="bi bi-arrow-down"></i>
                         </button>
-                        <button class="btn btn-outline-secondary btn-sm py-0 px-2" title="Rename / override step name"
-                                @onclick="() => ShowRenameStep(stepIdx)">
+                        <button class="btn btn-outline-secondary btn-sm py-0 px-2" title="Edit step"
+                                @onclick="() => ShowEditStep(stepIdx)">
                             <i class="bi bi-pencil"></i>
                         </button>
                         <button class="btn btn-outline-danger btn-sm py-0 px-2" title="Remove step"
@@ -385,26 +385,181 @@ else
 }
 
 @* ══════════════════════════════════════════
-   Rename step modal
+   Edit step modal
    ══════════════════════════════════════════ *@
-@if (_showRenameModal && _renameIndex < _steps.Count)
+@if (_showEditStepModal && _editStepIndex < _steps.Count)
 {
+    var editStep = _steps[_editStepIndex];
     <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);z-index:1060">
-        <div class="modal-dialog modal-sm">
+        <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header py-2">
-                    <h6 class="modal-title mb-0">Override Step Name</h6>
-                    <button class="btn-close" @onclick="() => _showRenameModal = false"></button>
+                    <h6 class="modal-title mb-0">
+                        <i class="bi bi-pencil me-2"></i>Edit Step
+                        @if (editStep.Template is not null)
+                        {
+                            <span class="text-muted fw-normal ms-1 small">— @editStep.Template!.Name <code class="ms-1">@editStep.Template!.Code</code></span>
+                        }
+                    </h6>
+                    <button class="btn-close" @onclick="CloseEditStepModal"></button>
                 </div>
-                <div class="modal-body">
-                    <label class="form-label small fw-semibold">Display Name</label>
-                    <input class="form-control" @bind="_renameValue"
-                           placeholder="@(_steps[_renameIndex].Template?.Name ?? "Step name")" />
-                    <div class="form-text">Leave blank to use the template's default name.</div>
+                <div class="modal-body" style="max-height:75vh;overflow-y:auto">
+
+                    @* ── Identity fields ── *@
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Display Name <span class="text-muted fw-normal">(optional)</span></label>
+                        <input class="form-control" @bind="_editNameValue"
+                               placeholder="@(editStep.Template?.Name ?? "Step name")" />
+                        <div class="form-text">Leave blank to use the template’s default name.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Short Description <span class="text-muted fw-normal">(optional)</span></label>
+                        <textarea class="form-control" rows="3" @bind="_editDescriptionValue"
+                                  placeholder="Brief description or summary of this step’s purpose in this process…"></textarea>
+                        <div class="form-text">Overrides the template’s default description.</div>
+                    </div>
+
+                    <hr class="my-3" />
+
+                    @* ── Content Blocks ── *@
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <h6 class="mb-0">
+                            <i class="bi bi-list-ul me-1 text-primary"></i>Work Instructions
+                            <span class="badge bg-info text-dark ms-2 small fw-normal">saved immediately</span>
+                        </h6>
+                    </div>
+
+                    @if (!editStep.ServerId.HasValue)
+                    {
+                        <div class="alert alert-info py-2 small mb-0">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Save the process first to add content blocks to this step.
+                        </div>
+                    }
+                    else
+                    {
+                        @if (_contentLoading)
+                        {
+                            <div class="text-center py-3">
+                                <div class="spinner-border spinner-border-sm text-primary"></div>
+                            </div>
+                        }
+                        else
+                        {
+                            @if (_contentError is not null)
+                            {
+                                <div class="alert alert-danger alert-dismissible py-2 small mb-2">
+                                    @_contentError
+                                    <button type="button" class="btn-close btn-sm" @onclick="() => _contentError = null"></button>
+                                </div>
+                            }
+
+                            @* Block list *@
+                            @if (!_contentBlocks.Any())
+                            {
+                                <div class="text-muted text-center small fst-italic py-2">No content blocks yet. Add text or images below.</div>
+                            }
+                            @for (int ci = 0; ci < _contentBlocks.Count; ci++)
+                            {
+                                var block = _contentBlocks[ci];
+                                var blockIdx = ci;
+                                <div class="border rounded-2 mb-2 p-2" @key="block.Id">
+                                    <div class="d-flex justify-content-between align-items-start gap-2">
+                                        <div class="flex-grow-1">
+                                            @if (block.ContentType == "Text")
+                                            {
+                                                @if (_editingTextBlockId == block.Id)
+                                                {
+                                                    <textarea class="form-control form-control-sm" rows="5"
+                                                              @bind="_editingTextBody"></textarea>
+                                                    <div class="mt-1 d-flex gap-1">
+                                                        <button class="btn btn-sm btn-primary" @onclick="SaveTextEdit">
+                                                            <i class="bi bi-check-lg me-1"></i>Save
+                                                        </button>
+                                                        <button class="btn btn-sm btn-secondary" @onclick="() => _editingTextBlockId = null">Cancel</button>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="small" style="white-space:pre-wrap;word-break:break-word">@block.Body</div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <img src="@Api.GetImageUrl(block.ImageUrl!)" alt="@block.OriginalFileName"
+                                                     class="img-fluid rounded" style="max-height:200px;object-fit:contain" />
+                                                <div class="text-muted small mt-1">@block.OriginalFileName</div>
+                                            }
+                                        </div>
+                                        <div class="d-flex flex-column gap-1" style="flex-shrink:0">
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Move up"
+                                                    disabled="@(blockIdx == 0)"
+                                                    @onclick="() => MoveContentBlockAsync(block.Id, -1)">
+                                                <i class="bi bi-arrow-up" style="font-size:.75rem"></i>
+                                            </button>
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Move down"
+                                                    disabled="@(blockIdx == _contentBlocks.Count - 1)"
+                                                    @onclick="() => MoveContentBlockAsync(block.Id, 1)">
+                                                <i class="bi bi-arrow-down" style="font-size:.75rem"></i>
+                                            </button>
+                                            @if (block.ContentType == "Text" && _editingTextBlockId != block.Id)
+                                            {
+                                                <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Edit text"
+                                                        @onclick="() => StartEditText(block)">
+                                                    <i class="bi bi-pencil" style="font-size:.75rem"></i>
+                                                </button>
+                                            }
+                                            <button class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete block"
+                                                    @onclick="() => DeleteContentBlockAsync(block.Id)">
+                                                <i class="bi bi-trash" style="font-size:.75rem"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            @* Add text block *@
+                            @if (_addingTextBlock)
+                            {
+                                <div class="border rounded-2 mb-2 p-2 border-primary">
+                                    <label class="form-label small fw-semibold">New Text Block</label>
+                                    <textarea class="form-control form-control-sm" rows="5"
+                                              @bind="_newTextBody"
+                                              placeholder="Enter instructions, notes, or any text for the operator…"></textarea>
+                                    <div class="mt-2 d-flex gap-2">
+                                        <button class="btn btn-sm btn-primary" @onclick="AddTextBlockAsync">
+                                            <i class="bi bi-plus-lg me-1"></i>Add Block
+                                        </button>
+                                        <button class="btn btn-sm btn-secondary"
+                                                @onclick="() => { _addingTextBlock = false; _newTextBody = ""; }">
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+
+                            @* Add buttons *@
+                            @if (!_addingTextBlock)
+                            {
+                                <div class="d-flex gap-2 flex-wrap">
+                                    <button class="btn btn-outline-secondary btn-sm"
+                                            @onclick="() => { _addingTextBlock = true; _newTextBody = ""; }">
+                                        <i class="bi bi-text-paragraph me-1"></i>Add Text Block
+                                    </button>
+                                    <label class="btn btn-outline-secondary btn-sm mb-0" style="cursor:pointer">
+                                        <i class="bi bi-image me-1"></i>Add Image
+                                        <InputFile accept="image/*" style="display:none"
+                                                   OnChange="UploadImageBlock" />
+                                    </label>
+                                </div>
+                            }
+                        }
+                    }
                 </div>
                 <div class="modal-footer py-2">
-                    <button class="btn btn-secondary btn-sm" @onclick="() => _showRenameModal = false">Cancel</button>
-                    <button class="btn btn-primary btn-sm" @onclick="ApplyRename">Apply</button>
+                    <span class="text-muted small me-auto">Name &amp; description changes apply on Save.</span>
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseEditStepModal">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="ApplyStepEdit"><i class="bi bi-check-lg me-1"></i>Apply</button>
                 </div>
             </div>
         </div>
@@ -438,10 +593,19 @@ else
     private PaginatedResponse<StepTemplateResponseDto>? _pickerTemplates;
     private System.Threading.CancellationTokenSource? _searchCts;
 
-    // ── Rename modal ──
-    private bool _showRenameModal;
-    private int _renameIndex;
-    private string _renameValue = "";
+    // ── Edit step modal ──
+    private bool _showEditStepModal;
+    private int _editStepIndex;
+    private string _editNameValue = "";
+    private string _editDescriptionValue = "";
+    // ── Edit step content blocks ──
+    private bool _contentLoading;
+    private string? _contentError;
+    private List<ProcessStepContentResponseDto> _contentBlocks = new();
+    private bool _addingTextBlock;
+    private string _newTextBody = "";
+    private Guid? _editingTextBlockId;
+    private string _editingTextBody = "";
 
     // ──────────────────────────────────────────────
     // Initialization
@@ -465,7 +629,8 @@ else
                         ServerId = s.Id,
                         Sequence = s.Sequence,
                         StepTemplateId = s.StepTemplateId,
-                        NameOverride = s.NameOverride
+                        NameOverride = s.NameOverride,
+                        DescriptionOverride = s.DescriptionOverride
                     });
                 }
 
@@ -636,17 +801,154 @@ else
         _validation = null;
     }
 
-    private void ShowRenameStep(int index)
+    private async Task ShowEditStep(int index)
     {
-        _renameIndex = index;
-        _renameValue = _steps[index].NameOverride ?? "";
-        _showRenameModal = true;
+        _editStepIndex = index;
+        _editNameValue = _steps[index].NameOverride ?? "";
+        _editDescriptionValue = _steps[index].DescriptionOverride ?? "";
+        _contentBlocks.Clear();
+        _addingTextBlock = false;
+        _editingTextBlockId = null;
+        _newTextBody = "";
+        _editingTextBody = "";
+        _contentError = null;
+        _showEditStepModal = true;
+        StateHasChanged();
+        if (_steps[index].ServerId.HasValue && Id.HasValue)
+            await LoadStepContent();
     }
 
-    private void ApplyRename()
+    private void CloseEditStepModal()
     {
-        _steps[_renameIndex].NameOverride = string.IsNullOrWhiteSpace(_renameValue) ? null : _renameValue.Trim();
-        _showRenameModal = false;
+        _showEditStepModal = false;
+        _addingTextBlock = false;
+        _editingTextBlockId = null;
+        _contentError = null;
+    }
+
+    private void ApplyStepEdit()
+    {
+        _steps[_editStepIndex].NameOverride = string.IsNullOrWhiteSpace(_editNameValue) ? null : _editNameValue.Trim();
+        _steps[_editStepIndex].DescriptionOverride = string.IsNullOrWhiteSpace(_editDescriptionValue) ? null : _editDescriptionValue.Trim();
+        CloseEditStepModal();
+    }
+
+    private async Task LoadStepContent()
+    {
+        _contentLoading = true;
+        _contentError = null;
+        StateHasChanged();
+        try
+        {
+            var blocks = await Api.GetStepContentAsync(
+                Id!.Value, _steps[_editStepIndex].ServerId!.Value);
+            _contentBlocks = blocks ?? new();
+        }
+        catch (Exception ex)
+        {
+            _contentError = ex.Message;
+        }
+        finally
+        {
+            _contentLoading = false;
+        }
+    }
+
+    private async Task AddTextBlockAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newTextBody)) return;
+        _contentError = null;
+        try
+        {
+            var block = await Api.AddTextBlockAsync(
+                Id!.Value, _steps[_editStepIndex].ServerId!.Value,
+                new AddTextBlockDto(_newTextBody.Trim()));
+            if (block is not null) _contentBlocks.Add(block);
+            _newTextBody = "";
+            _addingTextBlock = false;
+        }
+        catch (Exception ex)
+        {
+            _contentError = ex.Message;
+        }
+    }
+
+    private async Task UploadImageBlock(InputFileChangeEventArgs e)
+    {
+        _contentError = null;
+        try
+        {
+            var block = await Api.UploadStepContentImageAsync(
+                Id!.Value, _steps[_editStepIndex].ServerId!.Value, e.File);
+            if (block is not null) _contentBlocks.Add(block);
+        }
+        catch (Exception ex)
+        {
+            _contentError = ex.Message;
+        }
+    }
+
+    private void StartEditText(ProcessStepContentResponseDto block)
+    {
+        _editingTextBlockId = block.Id;
+        _editingTextBody = block.Body ?? "";
+    }
+
+    private async Task SaveTextEdit()
+    {
+        if (_editingTextBlockId is null) return;
+        _contentError = null;
+        try
+        {
+            var updated = await Api.UpdateTextBlockAsync(
+                Id!.Value, _steps[_editStepIndex].ServerId!.Value,
+                _editingTextBlockId.Value,
+                new UpdateTextBlockDto(_editingTextBody.Trim()));
+            if (updated is not null)
+            {
+                var idx = _contentBlocks.FindIndex(c => c.Id == updated.Id);
+                if (idx >= 0) _contentBlocks[idx] = updated;
+            }
+            _editingTextBlockId = null;
+        }
+        catch (Exception ex)
+        {
+            _contentError = ex.Message;
+        }
+    }
+
+    private async Task DeleteContentBlockAsync(Guid contentId)
+    {
+        _contentError = null;
+        try
+        {
+            await Api.DeleteStepContentBlockAsync(
+                Id!.Value, _steps[_editStepIndex].ServerId!.Value, contentId);
+            _contentBlocks.RemoveAll(c => c.Id == contentId);
+        }
+        catch (Exception ex)
+        {
+            _contentError = ex.Message;
+        }
+    }
+
+    private async Task MoveContentBlockAsync(Guid contentId, int direction)
+    {
+        var idx = _contentBlocks.FindIndex(c => c.Id == contentId);
+        var newIdx = idx + direction;
+        if (newIdx < 0 || newIdx >= _contentBlocks.Count) return;
+        (_contentBlocks[idx], _contentBlocks[newIdx]) = (_contentBlocks[newIdx], _contentBlocks[idx]);
+        _contentError = null;
+        try
+        {
+            await Api.ReorderStepContentAsync(
+                Id!.Value, _steps[_editStepIndex].ServerId!.Value,
+                new ReorderContentBlocksDto(_contentBlocks.Select(c => c.Id).ToList()));
+        }
+        catch (Exception ex)
+        {
+            _contentError = ex.Message;
+        }
     }
 
     // ──────────────────────────────────────────────
@@ -702,15 +1004,15 @@ else
                 if (!step.ServerId.HasValue)
                 {
                     var added = await Api.AddProcessStepAsync(processId,
-                        new ProcessStepCreateDto(step.StepTemplateId, step.Sequence, step.NameOverride, null));
+                        new ProcessStepCreateDto(step.StepTemplateId, step.Sequence, step.NameOverride, step.DescriptionOverride));
                     if (added is not null) step.ServerId = added.Id;
                 }
                 else
                 {
                     var orig = _origProc?.Steps.FirstOrDefault(s => s.Id == step.ServerId);
-                    if (orig is not null && (orig.Sequence != step.Sequence || orig.NameOverride != step.NameOverride))
+                    if (orig is not null && (orig.Sequence != step.Sequence || orig.NameOverride != step.NameOverride || orig.DescriptionOverride != step.DescriptionOverride))
                         await Api.UpdateProcessStepAsync(processId, step.ServerId.Value,
-                            new ProcessStepUpdateDto(step.Sequence, step.NameOverride, orig.DescriptionOverride));
+                            new ProcessStepUpdateDto(step.Sequence, step.NameOverride, step.DescriptionOverride));
                 }
             }
 
@@ -757,6 +1059,7 @@ else
         public Guid StepTemplateId { get; set; }
         public StepTemplateResponseDto? Template { get; set; }
         public string? NameOverride { get; set; }
+        public string? DescriptionOverride { get; set; }
     }
 
     private sealed class Connection

@@ -77,6 +77,33 @@ public record ProcessStepResponseDto(
     DateTime UpdatedAt
 );
 
+// ──────────────────── ProcessStepContent ────────────────────
+
+public record ProcessStepContentResponseDto(
+    Guid Id,
+    Guid ProcessStepId,
+    string ContentType,
+    int SortOrder,
+    string? Body,
+    string? FileName,
+    string? OriginalFileName,
+    string? MimeType,
+    string? ImageUrl,
+    DateTime CreatedAt
+);
+
+public record AddTextBlockDto(
+    [Required, StringLength(10000, MinimumLength = 1)] string Body
+);
+
+public record UpdateTextBlockDto(
+    [Required, StringLength(10000, MinimumLength = 1)] string Body
+);
+
+public record ReorderContentBlocksDto(
+    List<Guid> OrderedIds
+);
+
 // ──────────────────── Flow ────────────────────
 
 public record FlowCreateDto(

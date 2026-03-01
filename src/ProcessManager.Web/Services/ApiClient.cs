@@ -702,4 +702,28 @@ public class ApiClient
         var resp = await _http.DeleteAsync($"api/domainvocabularies/{id}");
         resp.EnsureSuccessStatusCode();
     }
+
+    // ══════════════════ Users (Admin) ═══════════════════════════════════════
+
+    public Task<List<UserResponseDto>?> GetUsersAsync()
+        => _http.GetFromJsonAsync<List<UserResponseDto>>("api/auth/users", _json);
+
+    public async Task<UserResponseDto?> RegisterUserAsync(RegisterRequestDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/auth/register", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<UserResponseDto>(_json);
+    }
+
+    public async Task DeleteUserAsync(string id)
+    {
+        var resp = await _http.DeleteAsync($"api/auth/users/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task ChangePasswordAsync(ChangePasswordRequestDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/auth/change-password", dto, _json);
+        resp.EnsureSuccessStatusCode();
+    }
 }

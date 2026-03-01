@@ -67,6 +67,17 @@
                 <i class="bi bi-translate me-2"></i> Vocabulary
             </NavLink>
         </li>
+
+        @if (TokenService.Role == "Admin")
+        {
+            <li class="nav-section-header mt-3 mb-1 ps-3 text-uppercase small text-secondary">Admin</li>
+
+            <li class="nav-item">
+                <NavLink class="nav-link text-white" href="admin/users">
+                    <i class="bi bi-people me-2"></i> Users
+                </NavLink>
+            </li>
+        }
     </ul>
 
     <hr class="mt-auto" />
@@ -76,7 +87,10 @@
             <div class="text-white fw-medium text-truncate">@(TokenService.DisplayName ?? TokenService.UserName)</div>
             <div class="text-white-50 small text-truncate">@TokenService.Role</div>
         </div>
-        <a href="/account/logout" class="btn btn-sm btn-outline-light ms-2" title="Sign out">
+        <a href="/account/change-password" class="btn btn-sm btn-outline-light ms-1" title="Change password">
+            <i class="bi bi-key"></i>
+        </a>
+        <a href="/account/logout" class="btn btn-sm btn-outline-light ms-1" title="Sign out">
             <i class="bi bi-box-arrow-right"></i>
         </a>
     </div>

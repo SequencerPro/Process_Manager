@@ -15,12 +15,12 @@
 <div class="d-flex gap-3 mb-3 flex-wrap">
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search jobs..." />
     <select class="form-select form-select-sm" style="width:auto" @onchange="OnStatusFilter">
-        <option value="">All Statuses</option>
-        <option value="Created">Created</option>
-        <option value="InProgress">In Progress</option>
-        <option value="OnHold">On Hold</option>
-        <option value="Completed">Completed</option>
-        <option value="Cancelled">Cancelled</option>
+        <option value="" selected="@(_status is null)">All Statuses</option>
+        <option value="Created"    selected="@(_status == "Created")">Created</option>
+        <option value="InProgress" selected="@(_status == "InProgress")">In Progress</option>
+        <option value="OnHold"     selected="@(_status == "OnHold")">On Hold</option>
+        <option value="Completed"  selected="@(_status == "Completed")">Completed</option>
+        <option value="Cancelled"  selected="@(_status == "Cancelled")">Cancelled</option>
     </select>
 </div>
 
@@ -143,6 +143,8 @@ else if (_data is not null)
 }
 
 @code {
+    [Parameter][SupplyParameterFromQuery(Name = "status")] public string? StatusQuery { get; set; }
+
     private PaginatedResponse<JobResponseDto>? _data;
     private bool _loading = true;
     private string _search = "";
@@ -161,7 +163,11 @@ else if (_data is not null)
     private int _formPriority;
     private PaginatedResponse<ProcessSummaryResponseDto>? _processes;
 
-    protected override async Task OnInitializedAsync() => await LoadData();
+    protected override async Task OnInitializedAsync()
+    {
+        _status = StatusQuery;
+        await LoadData();
+    }
 
     private async Task LoadData()
     {

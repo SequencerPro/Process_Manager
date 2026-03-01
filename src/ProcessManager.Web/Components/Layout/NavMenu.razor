@@ -1,5 +1,7 @@
 @rendermode InteractiveServer
 @inject TokenService TokenService
+@inject AuthenticationStateProvider AuthState
+@using System.Security.Claims
 
 <nav class="d-flex flex-column flex-shrink-0 p-3 text-white bg-dark sidebar" style="width: 250px;">
     <a href="/" class="d-flex align-items-center mb-3 text-white text-decoration-none">
@@ -68,8 +70,7 @@
             </NavLink>
         </li>
 
-        @if (TokenService.Role == "Admin")
-        {
+        <AuthorizeView Roles="Admin">
             <li class="nav-section-header mt-3 mb-1 ps-3 text-uppercase small text-secondary">Admin</li>
 
             <li class="nav-item">
@@ -77,15 +78,15 @@
                     <i class="bi bi-people me-2"></i> Users
                 </NavLink>
             </li>
-        }
+        </AuthorizeView>
     </ul>
 
     <hr class="mt-auto" />
     <div class="d-flex align-items-center text-white-50 small">
         <i class="bi bi-person-circle me-2 fs-5 text-white"></i>
         <div class="flex-grow-1 overflow-hidden">
-            <div class="text-white fw-medium text-truncate">@(TokenService.DisplayName ?? TokenService.UserName)</div>
-            <div class="text-white-50 small text-truncate">@TokenService.Role</div>
+            <div class="text-white fw-medium text-truncate">@(_displayName)</div>
+            <div class="text-white-50 small text-truncate">@(_role)</div>
         </div>
         <a href="/account/change-password" class="btn btn-sm btn-outline-light ms-1" title="Change password">
             <i class="bi bi-key"></i>
@@ -95,3 +96,17 @@
         </a>
     </div>
 </nav>
+
+@code {
+    private string? _displayName;
+    private string? _role;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var user  = state.User;
+        _displayName = user.FindFirst("display_name")?.Value
+                       ?? user.Identity?.Name;
+        _role        = user.FindFirst(ClaimTypes.Role)?.Value;
+    }
+}

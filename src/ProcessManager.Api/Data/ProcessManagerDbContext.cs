@@ -1,9 +1,10 @@
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Domain.Entities;
 
 namespace ProcessManager.Api.Data;
 
-public class ProcessManagerDbContext : DbContext
+public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
 {
     public ProcessManagerDbContext(DbContextOptions<ProcessManagerDbContext> options)
         : base(options)

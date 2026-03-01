@@ -21,7 +21,7 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
 
     protected IntegrationTestBase(TestWebApplicationFactory factory)
     {
-        Client = factory.CreateClient();
+        Client = factory.CreateAuthenticatedClient();
     }
 
     // ──────────── Kind helpers ────────────

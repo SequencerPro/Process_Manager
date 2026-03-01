@@ -14,10 +14,15 @@ public class ApiClient
     private readonly HttpClient _http;
     private readonly JsonSerializerOptions _json;
 
-    public ApiClient(HttpClient http, JsonSerializerOptions json)
+    public ApiClient(HttpClient http, JsonSerializerOptions json, TokenService tokenService)
     {
         _http = http;
         _json = json;
+
+        // Attach the JWT bearer token on every outbound API request
+        if (!string.IsNullOrEmpty(tokenService.AccessToken))
+            _http.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", tokenService.AccessToken);
     }
 
     // ═══════════════════ Kinds ═══════════════════

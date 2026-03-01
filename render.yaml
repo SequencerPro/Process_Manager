@@ -1,0 +1,62 @@
+# render.yaml — Infrastructure-as-Code for Render.com
+# Docs: https://render.com/docs/blueprint-spec
+#
+# After your first deploy, set these secrets in the Render dashboard
+# (service → Environment → Add Secret):
+#   • Jwt__Key  — a long random string (32+ chars)
+
+services:
+
+  # ── API ──────────────────────────────────────────────────────────────────────
+  - type: web
+    name: process-manager-api
+    runtime: docker
+    dockerfilePath: ./src/ProcessManager.Api/Dockerfile
+    dockerContext: .          # repo root — Dockerfile paths are relative to this
+    branch: main              # auto-deploy when this branch is pushed
+    plan: starter             # ~$7/month; supports multiple concurrent connections
+
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Jwt__Issuer
+        value: ProcessManager.Api
+      - key: Jwt__Audience
+        value: ProcessManager
+      - key: Jwt__ExpiryMinutes
+        value: 480
+      # Set Jwt__Key in the Render dashboard — never commit secrets
+      - key: Jwt__Key
+        sync: false
+      # Render injects DATABASE_URL automatically when a database is linked.
+      # We map it to the connection string name the app expects.
+      - key: ConnectionStrings__Default
+        fromDatabase:
+          name: process-manager-db
+          property: connectionString
+
+  # ── Web (Blazor Server) ───────────────────────────────────────────────────────
+  - type: web
+    name: process-manager-web
+    runtime: docker
+    dockerfilePath: ./src/ProcessManager.Web/Dockerfile
+    dockerContext: .
+    branch: main
+    plan: starter
+
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      # Set this to the public URL of process-manager-api after it is deployed,
+      # e.g. https://process-manager-api.onrender.com
+      - key: ApiBaseUrl
+        sync: false
+
+databases:
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  - name: process-manager-db
+    databaseName: processmanager
+    user: processmanager
+    plan: starter             # ~$7/month; 1 GB storage, automated backups
+

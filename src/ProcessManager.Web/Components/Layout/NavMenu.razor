@@ -1,4 +1,5 @@
 @rendermode InteractiveServer
+@inject TokenService TokenService
 
 <nav class="d-flex flex-column flex-shrink-0 p-3 text-white bg-dark sidebar" style="width: 250px;">
     <a href="/" class="d-flex align-items-center mb-3 text-white text-decoration-none">
@@ -67,4 +68,16 @@
             </NavLink>
         </li>
     </ul>
+
+    <hr class="mt-auto" />
+    <div class="d-flex align-items-center text-white-50 small">
+        <i class="bi bi-person-circle me-2 fs-5 text-white"></i>
+        <div class="flex-grow-1 overflow-hidden">
+            <div class="text-white fw-medium text-truncate">@(TokenService.DisplayName ?? TokenService.UserName)</div>
+            <div class="text-white-50 small text-truncate">@TokenService.Role</div>
+        </div>
+        <a href="/account/logout" class="btn btn-sm btn-outline-light ms-2" title="Sign out">
+            <i class="bi bi-box-arrow-right"></i>
+        </a>
+    </div>
 </nav>

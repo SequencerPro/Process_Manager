@@ -11,8 +11,8 @@ public static class DataSeeder
 {
     public static async Task SeedAsync(ProcessManagerDbContext db)
     {
-        // Idempotent — skip if any domain data already exists.
-        if (db.Kinds.Any()) return;
+        // Idempotent — skip if the seeded processes already exist.
+        if (db.Processes.Any(p => p.Code == "WDG-MFG-01" || p.Code == "PCB-ASSY-01")) return;
 
         // ── Vocabularies ─────────────────────────────────────────────────────
         var vocabGeneral = new DomainVocabulary

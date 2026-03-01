@@ -15,6 +15,7 @@ services:
     dockerContext: .          # repo root — Dockerfile paths are relative to this
     branch: master              # auto-deploy when this branch is pushed
     plan: starter             # ~$7/month; supports multiple concurrent connections
+    healthCheckPath: /health
 
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
@@ -43,6 +44,7 @@ services:
     dockerContext: .
     branch: master
     plan: starter
+    healthCheckPath: /
 
     envVars:
       - key: ASPNETCORE_ENVIRONMENT

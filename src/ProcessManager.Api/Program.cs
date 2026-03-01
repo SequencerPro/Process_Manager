@@ -162,6 +162,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 
+// Health check — Render probes this to determine service readiness
+app.MapGet("/health", () => Results.Ok(new { status = "ok", utc = DateTime.UtcNow }));
+
 app.Run();
 
 // Marker class for WebApplicationFactory<T> in integration tests

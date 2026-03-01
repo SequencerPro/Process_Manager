@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.HttpOverrides;
 using ProcessManager.Web.Components;
 using ProcessManager.Web.Services;
 
@@ -26,6 +27,10 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.AccessDeniedPath = "/account/access-denied";
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.SlidingExpiration = true;
+        // Render terminates TLS at the load balancer; the container sees plain HTTP.
+        // Always mark cookies Secure so browsers send them over the HTTPS connection.
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        options.Cookie.SameSite = SameSiteMode.Strict;
     });
 
 builder.Services.AddAuthorization();
@@ -45,6 +50,13 @@ builder.Services.AddSingleton(new JsonSerializerOptions
 var app = builder.Build();
 
 // ── HTTP pipeline ─────────────────────────────────────────────────────────────
+// Trust X-Forwarded-Proto/For set by Render's load balancer so that the app
+// correctly sees HTTPS as the scheme — required for antiforgery and cookies.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);

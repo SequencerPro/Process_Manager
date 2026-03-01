@@ -3,13 +3,13 @@
 @inject AuthenticationStateProvider AuthState
 @using System.Security.Claims
 
-<nav class="d-flex flex-column flex-shrink-0 p-3 text-white bg-dark sidebar" style="width: 250px;">
+<nav class="d-flex flex-column flex-shrink-0 p-3 text-white bg-dark sidebar" style="width: 250px; height: 100vh; overflow: hidden;">
     <a href="/" class="d-flex align-items-center mb-3 text-white text-decoration-none">
         <i class="bi bi-gear-wide-connected me-2 fs-4"></i>
         <span class="fs-5 fw-semibold">Process Manager</span>
     </a>
     <hr />
-    <ul class="nav nav-pills flex-column mb-auto">
+    <ul class="nav nav-pills flex-column mb-auto" style="overflow-y: auto; flex: 1 1 0; min-height: 0;">
         <li class="nav-item">
             <NavLink class="nav-link text-white" href="" Match="NavLinkMatch.All">
                 <i class="bi bi-house-door me-2"></i> Home
@@ -71,13 +71,15 @@
         </li>
 
         <AuthorizeView Roles="Admin">
-            <li class="nav-section-header mt-3 mb-1 ps-3 text-uppercase small text-secondary">Admin</li>
+            <Authorized>
+                <li class="nav-section-header mt-3 mb-1 ps-3 text-uppercase small text-secondary">Admin</li>
 
-            <li class="nav-item">
-                <NavLink class="nav-link text-white" href="admin/users">
-                    <i class="bi bi-people me-2"></i> Users
-                </NavLink>
-            </li>
+                <li class="nav-item">
+                    <NavLink class="nav-link text-white" href="admin/users">
+                        <i class="bi bi-people me-2"></i> Users
+                    </NavLink>
+                </li>
+            </Authorized>
         </AuthorizeView>
     </ul>
 

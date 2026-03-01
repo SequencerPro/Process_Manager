@@ -723,4 +723,21 @@ public class ApiClient
         var resp = await _http.PostAsJsonAsync("api/auth/change-password", dto, _json);
         resp.EnsureSuccessStatusCode();
     }
+
+    // ══════════════════ Reports ══════════════════════════════════════════════
+
+    public Task<ReportSummaryDto?> GetReportSummaryAsync()
+        => _http.GetFromJsonAsync<ReportSummaryDto>("api/reports/summary", _json);
+
+    public Task<List<JobStatusBreakdownDto>?> GetJobStatusBreakdownAsync()
+        => _http.GetFromJsonAsync<List<JobStatusBreakdownDto>>("api/reports/job-status-breakdown", _json);
+
+    public Task<List<StepPerformanceDto>?> GetStepPerformanceAsync()
+        => _http.GetFromJsonAsync<List<StepPerformanceDto>>("api/reports/step-performance", _json);
+
+    public Task<List<RecentCompletionDto>?> GetRecentCompletionsAsync(int count = 10)
+        => _http.GetFromJsonAsync<List<RecentCompletionDto>>($"api/reports/recent-completions?count={count}", _json);
+
+    public Task<List<ThroughputPointDto>?> GetThroughputAsync(int days = 30)
+        => _http.GetFromJsonAsync<List<ThroughputPointDto>>($"api/reports/throughput?days={days}", _json);
 }

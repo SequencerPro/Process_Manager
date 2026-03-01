@@ -144,6 +144,8 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ── HTTP pipeline ─────────────────────────────────────────────────────────────
+// Basic-auth gate on /swagger — set Swagger__Password in Render dashboard
+app.UseMiddleware<ProcessManager.Api.Middleware.SwaggerBasicAuthMiddleware>();
 app.UseSwagger();
 app.UseSwaggerUI();
 

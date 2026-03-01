@@ -29,6 +29,9 @@ services:
       # Set Jwt__Key in the Render dashboard — never commit secrets
       - key: Jwt__Key
         sync: false
+      # Set Swagger__Password in the Render dashboard to enable basic auth on /swagger
+      - key: Swagger__Password
+        sync: false
       # Render injects DATABASE_URL automatically when a database is linked.
       # We map it to the connection string name the app expects.
       - key: ConnectionStrings__Default

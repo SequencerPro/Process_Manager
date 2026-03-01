@@ -56,13 +56,23 @@
 
     private async Task HandleLogin()
     {
+        ErrorMessage = null;
         var context = HttpContextAccessor.HttpContext!;
 
         var apiBase = Config["ApiBaseUrl"] ?? "http://localhost:5100";
         using var http = new HttpClient { BaseAddress = new Uri(apiBase) };
 
-        using var response = await http.PostAsJsonAsync("api/auth/login",
-            new { Input.UserName, Input.Password });
+        HttpResponseMessage response;
+        try
+        {
+            response = await http.PostAsJsonAsync("api/auth/login",
+                new { Input.UserName, Input.Password });
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Could not reach the API ({apiBase}). Details: {ex.Message}";
+            return;
+        }
 
         if (!response.IsSuccessStatusCode)
         {

@@ -58,5 +58,5 @@ databases:
   - name: process-manager-db
     databaseName: processmanager
     user: processmanager
-    plan: starter             # ~$7/month; 1 GB storage, automated backups
+    plan: basic-1gb             # ~$20/month; 15 GB storage, automated backups
 

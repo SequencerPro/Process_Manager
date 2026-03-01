@@ -679,8 +679,18 @@ else
     private async Task LoadData()
     {
         _loading = true;
-        _st = await Api.GetStepTemplateAsync(Id);
-        _loading = false;
+        try
+        {
+            _st = await Api.GetStepTemplateAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
         _ = LoadContent();
     }
 
@@ -758,15 +768,25 @@ else
 
     private async Task LoadLookups()
     {
-        _kinds = await Api.GetKindsAsync("", 1, 100);
-        _grades = new();
-        // Pre-load grades for the selected kind
-        if (Guid.TryParse(_portKindId, out var kindId))
+        try
         {
-            var kind = await Api.GetKindAsync(kindId);
-            _grades = kind?.Grades?.ToList() ?? new();
+            _kinds = await Api.GetKindsAsync("", 1, 100);
+            _grades = new();
+            // Pre-load grades for the selected kind
+            if (Guid.TryParse(_portKindId, out var kindId))
+            {
+                var kind = await Api.GetKindAsync(kindId);
+                _grades = kind?.Grades?.ToList() ?? new();
+            }
         }
-        StateHasChanged();
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load lookups: {ex.Message}");
+        }
+        finally
+        {
+            StateHasChanged();
+        }
     }
 
     private void ClosePortForm() => _showPortForm = false;

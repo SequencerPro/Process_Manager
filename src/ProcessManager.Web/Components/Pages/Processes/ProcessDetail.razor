@@ -370,8 +370,18 @@ else
     private async Task LoadData()
     {
         _loading = true;
-        _proc = await Api.GetProcessAsync(Id);
-        _loading = false;
+        try
+        {
+            _proc = await Api.GetProcessAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task Validate()

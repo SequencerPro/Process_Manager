@@ -898,8 +898,18 @@ else
     {
         _pickerLoading = true;
         StateHasChanged();
-        _pickerTemplates = await Api.GetStepTemplatesAsync(_pickerSearch, true, 1, 20);
-        _pickerLoading = false;
+        try
+        {
+            _pickerTemplates = await Api.GetStepTemplatesAsync(_pickerSearch, true, 1, 20);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load templates: {ex.Message}");
+        }
+        finally
+        {
+            _pickerLoading = false;
+        }
     }
 
     private void AddStep(StepTemplateResponseDto template)

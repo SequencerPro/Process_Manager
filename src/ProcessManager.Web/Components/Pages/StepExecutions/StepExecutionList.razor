@@ -96,8 +96,18 @@ else if (_data is not null)
     private async Task LoadData()
     {
         _loading = true;
-        _data = await Api.GetStepExecutionsAsync(jobId: _jobId, status: _status, page: _page, pageSize: _pageSize);
-        _loading = false;
+        try
+        {
+            _data = await Api.GetStepExecutionsAsync(jobId: _jobId, status: _status, page: _page, pageSize: _pageSize);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task OnPageChanged(int p) { _page = p; await LoadData(); }

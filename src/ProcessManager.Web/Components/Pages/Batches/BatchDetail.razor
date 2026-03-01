@@ -297,13 +297,23 @@ else
     private async Task LoadAll()
     {
         _loading = true;
-        _batch = await Api.GetBatchAsync(Id);
-        if (_batch is not null)
+        try
         {
-            _items = await Api.GetBatchItemsAsync(Id);
-            _data = await Api.GetBatchDataAsync(Id);
+            _batch = await Api.GetBatchAsync(Id);
+            if (_batch is not null)
+            {
+                _items = await Api.GetBatchItemsAsync(Id);
+                _data = await Api.GetBatchDataAsync(Id);
+            }
         }
-        _loading = false;
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task CloseBatch()

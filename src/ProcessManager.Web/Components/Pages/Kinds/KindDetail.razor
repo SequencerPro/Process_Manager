@@ -156,8 +156,18 @@ else
     private async Task LoadData()
     {
         _loading = true;
-        _kind = await Api.GetKindAsync(Id);
-        _loading = false;
+        try
+        {
+            _kind = await Api.GetKindAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private void ShowGradeForm()

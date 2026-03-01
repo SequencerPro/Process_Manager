@@ -208,10 +208,20 @@ else
     private async Task LoadAll()
     {
         _loading = true;
-        _item = await Api.GetItemAsync(Id);
-        if (_item is not null)
-            _data = await Api.GetItemDataAsync(Id);
-        _loading = false;
+        try
+        {
+            _item = await Api.GetItemAsync(Id);
+            if (_item is not null)
+                _data = await Api.GetItemDataAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private void ShowDataForm()

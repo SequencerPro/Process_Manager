@@ -294,9 +294,19 @@ else
     private async Task LoadAll()
     {
         _loading = true;
-        _job = await Api.GetJobAsync(Id);
-        await LoadSubResources();
-        _loading = false;
+        try
+        {
+            _job = await Api.GetJobAsync(Id);
+            await LoadSubResources();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task LoadSubResources()

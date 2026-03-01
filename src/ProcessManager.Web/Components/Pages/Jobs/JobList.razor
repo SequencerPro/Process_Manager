@@ -162,8 +162,18 @@ else if (_data is not null)
     private async Task LoadData()
     {
         _loading = true;
-        _data = await Api.GetJobsAsync(_search, _status, null, _page, _pageSize);
-        _loading = false;
+        try
+        {
+            _data = await Api.GetJobsAsync(_search, _status, null, _page, _pageSize);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task OnSearch(string v) { _search = v; _page = 1; await LoadData(); }

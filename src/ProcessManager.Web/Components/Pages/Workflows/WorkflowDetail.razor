@@ -458,8 +458,18 @@ else
     private async Task LoadData()
     {
         _loading = true;
-        _wf = await Api.GetWorkflowAsync(Id);
-        _loading = false;
+        try
+        {
+            _wf = await Api.GetWorkflowAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     // --- Validate ---

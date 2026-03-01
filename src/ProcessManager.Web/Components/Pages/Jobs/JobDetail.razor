@@ -88,32 +88,79 @@ else
         <div class="alert alert-danger py-2">@_error</div>
     }
 
-    <!-- Step Executions -->
+    <!-- Step Executions — visual progress tracker -->
     <div class="card mb-4">
-        <div class="card-header">
-            <i class="bi bi-list-check me-1"></i> Step Executions (@(_job.StepExecutions?.Count ?? 0))
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-list-check me-1"></i> Steps (@(_job.StepExecutions?.Count ?? 0))</span>
+            @{
+                var done    = _job.StepExecutions?.Count(s => s.Status is "Completed" or "Skipped") ?? 0;
+                var total   = _job.StepExecutions?.Count ?? 0;
+                var pct     = total > 0 ? (int)((done / (double)total) * 100) : 0;
+            }
+            <small class="text-muted">@done / @total complete</small>
         </div>
         @if (_job.StepExecutions?.Any() == true)
         {
-            <div class="table-responsive">
-                <table class="table table-sm mb-0 align-middle">
-                    <thead class="table-light">
-                        <tr><th>#</th><th>Step Name</th><th>Status</th><th>Started</th><th>Completed</th><th>Notes</th></tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var se in _job.StepExecutions.OrderBy(s => s.Sequence))
-                        {
-                            <tr>
-                                <td><a href="step-executions/@se.Id">@se.Sequence</a></td>
-                                <td><a href="step-executions/@se.Id">@se.StepName</a></td>
-                                <td><StatusBadge Status="@se.Status" /></td>
-                                <td>@(se.StartedAt?.ToString("g") ?? "—")</td>
-                                <td>@(se.CompletedAt?.ToString("g") ?? "—")</td>
-                                <td class="small">@(se.Notes ?? "")</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+            <div class="px-2 py-1">
+                <div class="progress mb-0" style="height:4px;border-radius:0">
+                    <div class="progress-bar bg-success" style="width:@pct%"></div>
+                </div>
+            </div>
+            <div class="list-group list-group-flush">
+                @foreach (var se in _job.StepExecutions.OrderBy(s => s.Sequence))
+                {
+                    var (iconClass, badgeClass) = se.Status switch
+                    {
+                        "Completed" => ("bi-check-circle-fill text-success",   "bg-success"),
+                        "InProgress"=> ("bi-play-circle-fill text-primary",    "bg-primary"),
+                        "Failed"    => ("bi-x-circle-fill text-danger",        "bg-danger"),
+                        "Skipped"   => ("bi-skip-forward-fill text-secondary", "bg-secondary"),
+                        _           => ("bi-circle text-secondary",            "bg-light text-dark border"),
+                    };
+                    var canWork = se.Status is "Pending" or "InProgress";
+                    <div class="list-group-item d-flex align-items-center gap-3 py-3">
+                        <div class="d-flex align-items-center justify-content-center rounded-circle border fw-bold text-muted"
+                             style="width:2rem;height:2rem;flex-shrink:0;font-size:.8rem">
+                            @se.Sequence
+                        </div>
+                        <i class="bi @iconClass fs-5" style="flex-shrink:0"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-medium">@se.StepName</div>
+                            <div class="small text-muted">
+                                @if (se.StartedAt.HasValue && se.CompletedAt.HasValue)
+                                {
+                                    var dur = se.CompletedAt.Value - se.StartedAt.Value;
+                                    <text>@se.StartedAt.Value.ToString("g") — @(dur.TotalMinutes < 60
+                                        ? $"{(int)dur.TotalMinutes}m {dur.Seconds}s"
+                                        : $"{(int)dur.TotalHours}h {dur.Minutes}m")</text>
+                                }
+                                else if (se.StartedAt.HasValue)
+                                {
+                                    <text>Started @se.StartedAt.Value.ToString("g")</text>
+                                }
+                                else if (!string.IsNullOrEmpty(se.Notes))
+                                {
+                                    <text>@se.Notes</text>
+                                }
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 align-items-center" style="flex-shrink:0">
+                            <span class="badge @badgeClass">@se.Status</span>
+                            @if (canWork && _job.Status == "InProgress")
+                            {
+                                <a href="step-executions/@se.Id" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-play-fill me-1"></i>Work
+                                </a>
+                            }
+                            else
+                            {
+                                <a href="step-executions/@se.Id" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-eye me-1"></i>View
+                                </a>
+                            }
+                        </div>
+                    </div>
+                }
             </div>
         }
         else

@@ -11,18 +11,29 @@ namespace ProcessManager.Web.Services;
 /// </summary>
 public class ApiClient
 {
-    private readonly HttpClient _http;
+    private readonly HttpClient _httpClient;
     private readonly JsonSerializerOptions _json;
+    private readonly TokenService _tokenService;
+
+    // Re-read the token on every access so the circuit-scope TokenService
+    // can be populated asynchronously (e.g. from AuthenticationStateProvider
+    // in MainLayout) without needing a new ApiClient instance.
+    private HttpClient _http
+    {
+        get
+        {
+            _httpClient.DefaultRequestHeaders.Authorization =
+                string.IsNullOrEmpty(_tokenService.AccessToken) ? null
+                : new AuthenticationHeaderValue("Bearer", _tokenService.AccessToken);
+            return _httpClient;
+        }
+    }
 
     public ApiClient(HttpClient http, JsonSerializerOptions json, TokenService tokenService)
     {
-        _http = http;
+        _httpClient = http;
         _json = json;
-
-        // Attach the JWT bearer token on every outbound API request
-        if (!string.IsNullOrEmpty(tokenService.AccessToken))
-            _http.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", tokenService.AccessToken);
+        _tokenService = tokenService;
     }
 
     // ═══════════════════ Kinds ═══════════════════

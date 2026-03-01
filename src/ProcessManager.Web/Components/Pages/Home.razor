@@ -316,6 +316,11 @@
             _kpis["stepsPending"]     = stepPendResult?.TotalCount  ?? 0;
             _kpis["stepsFailed"]      = failedResult?.TotalCount    ?? 0;
         }
+        catch
+        {
+            // API unreachable or auth failure — show zeroes rather than
+            // crashing the Blazor circuit with an unhandled exception.
+        }
         finally
         {
             _loading = false;

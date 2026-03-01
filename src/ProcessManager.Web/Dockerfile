@@ -19,7 +19,8 @@ COPY src/ProcessManager.Web/    src/ProcessManager.Web/
 RUN dotnet publish src/ProcessManager.Web/ProcessManager.Web.csproj \
     -c Release \
     -o /app/publish \
-    --no-restore
+    --no-restore \
+    -p:ErrorOnDuplicatePublishOutputFiles=false
 
 # ── Stage 2: Runtime ────────────────────────────────────────────────────────────
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime

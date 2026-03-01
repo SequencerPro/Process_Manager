@@ -144,11 +144,8 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ── HTTP pipeline ─────────────────────────────────────────────────────────────
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // Trust the X-Forwarded-Proto header set by Render's load balancer so that
 // UseHttpsRedirection sees the original HTTPS scheme and doesn't redirect loop.

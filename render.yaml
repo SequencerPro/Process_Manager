@@ -13,7 +13,7 @@ services:
     runtime: docker
     dockerfilePath: ./src/ProcessManager.Api/Dockerfile
     dockerContext: .          # repo root — Dockerfile paths are relative to this
-    branch: main              # auto-deploy when this branch is pushed
+    branch: master              # auto-deploy when this branch is pushed
     plan: starter             # ~$7/month; supports multiple concurrent connections
 
     envVars:
@@ -41,7 +41,7 @@ services:
     runtime: docker
     dockerfilePath: ./src/ProcessManager.Web/Dockerfile
     dockerContext: .
-    branch: main
+    branch: master
     plan: starter
 
     envVars:

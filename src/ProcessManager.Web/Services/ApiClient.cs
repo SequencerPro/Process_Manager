@@ -11,29 +11,15 @@ namespace ProcessManager.Web.Services;
 /// </summary>
 public class ApiClient
 {
-    private readonly HttpClient _httpClient;
+    private readonly HttpClient _http;
     private readonly JsonSerializerOptions _json;
-    private readonly TokenService _tokenService;
 
-    // Re-read the token on every access so the circuit-scope TokenService
-    // can be populated asynchronously (e.g. from AuthenticationStateProvider
-    // in MainLayout) without needing a new ApiClient instance.
-    private HttpClient _http
+    // Auth header is injected per-request by TokenHandler — no manual
+    // header management needed here.
+    public ApiClient(HttpClient http, JsonSerializerOptions json)
     {
-        get
-        {
-            _httpClient.DefaultRequestHeaders.Authorization =
-                string.IsNullOrEmpty(_tokenService.AccessToken) ? null
-                : new AuthenticationHeaderValue("Bearer", _tokenService.AccessToken);
-            return _httpClient;
-        }
-    }
-
-    public ApiClient(HttpClient http, JsonSerializerOptions json, TokenService tokenService)
-    {
-        _httpClient = http;
+        _http = http;
         _json = json;
-        _tokenService = tokenService;
     }
 
     // ═══════════════════ Kinds ═══════════════════

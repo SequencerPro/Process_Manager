@@ -36,10 +36,13 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddAuthorization();
 
 // ── API client ────────────────────────────────────────────────────────────────
+// TokenHandler is scoped so it can depend on the circuit-scoped services
+// (TokenService, AuthenticationStateProvider).
+builder.Services.AddScoped<TokenHandler>();
 builder.Services.AddHttpClient<ApiClient>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5100");
-}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler());
+}).AddHttpMessageHandler<TokenHandler>();
 
 builder.Services.AddSingleton(new JsonSerializerOptions
 {

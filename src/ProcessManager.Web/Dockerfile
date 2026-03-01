@@ -27,7 +27,8 @@ WORKDIR /app
 
 COPY --from=build /app/publish .
 
-ENV ASPNETCORE_URLS="http://+:8080"
-EXPOSE 8080
+# Render injects PORT=10000; fall back to 10000 for local runs.
+ENV ASPNETCORE_URLS=""
+EXPOSE 10000
 
-ENTRYPOINT ["dotnet", "ProcessManager.Web.dll"]
+ENTRYPOINT ["sh", "-c", "ASPNETCORE_URLS=http://+:${PORT:-10000} dotnet ProcessManager.Web.dll"]

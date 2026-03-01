@@ -10,9 +10,31 @@ using ProcessManager.Api.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // ── Database ──────────────────────────────────────────────────────────────────
+// Render injects the connection string as a postgresql:// URL.
+// Npgsql's connection string builder can segfault parsing that format on Linux,
+// so we convert it to key-value format explicitly.
+var rawConnStr = builder.Configuration.GetConnectionString("Default")
+    ?? throw new InvalidOperationException("Connection string 'Default' not configured.");
+
+static string ToNpgsqlConnectionString(string raw)
+{
+    if (!raw.StartsWith("postgresql://") && !raw.StartsWith("postgres://"))
+        return raw; // already key-value format (local dev)
+
+    var uri = new Uri(raw);
+    var userInfo = uri.UserInfo.Split(':', 2);
+    var host     = uri.Host;
+    var port     = uri.IsDefaultPort ? 5432 : uri.Port;
+    var database = uri.AbsolutePath.TrimStart('/');
+    var user     = Uri.UnescapeDataString(userInfo[0]);
+    var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+    return $"Host={host};Port={port};Database={database};Username={user};Password={password};SSL Mode=Require;Trust Server Certificate=true";
+}
+
+var connStr = ToNpgsqlConnectionString(rawConnStr);
+
 builder.Services.AddDbContext<ProcessManagerDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Default")
-        ?? throw new InvalidOperationException("Connection string 'Default' not configured.")));
+    options.UseNpgsql(connStr));
 
 // ── ASP.NET Core Identity ─────────────────────────────────────────────────────
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>

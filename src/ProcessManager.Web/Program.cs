@@ -18,6 +18,7 @@ builder.Services.AddCascadingAuthenticationState();
 // ── Auth ──────────────────────────────────────────────────────────────────────
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<TokenService>();
+builder.Services.AddScoped<ToastService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>

@@ -72,11 +72,6 @@ else
         </div>
     </div>
 
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger py-2">@_error</div>
-    }
-
     <!-- Items in Batch -->
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -280,7 +275,6 @@ else
     private List<ItemResponseDto>? _items;
     private List<ExecutionDataResponseDto>? _data;
     private bool _loading = true;
-    private string? _error;
 
     // Data form
     private bool _showDataForm;
@@ -302,7 +296,7 @@ else
 
     private async Task LoadAll()
     {
-        _loading = true; _error = null;
+        _loading = true;
         _batch = await Api.GetBatchAsync(Id);
         if (_batch is not null)
         {
@@ -317,9 +311,8 @@ else
         try
         {
             _batch = await Api.CloseBatchAsync(Id);
-            _error = null;
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task RemoveItem(Guid itemId)
@@ -328,11 +321,10 @@ else
         try
         {
             await Api.RemoveBatchItemAsync(Id, itemId);
-            _error = null;
             _items = await Api.GetBatchItemsAsync(Id);
             _batch = await Api.GetBatchAsync(Id);
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private void ShowDataForm()
@@ -349,10 +341,10 @@ else
         {
             var dataType = Enum.Parse<ProcessManager.Domain.Enums.DataValueType>(_dataType);
             await Api.AddBatchDataAsync(Id, new CreateExecutionDataDto(_dataKey, _dataValue, dataType, _dataUnit));
-            _showDataForm = false; _error = null;
+            _showDataForm = false;
             _data = await Api.GetBatchDataAsync(Id);
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task Delete()
@@ -363,7 +355,7 @@ else
             await Api.DeleteBatchAsync(Id);
             Nav.NavigateTo("batches");
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Edit Batch ---
@@ -378,10 +370,10 @@ else
         try
         {
             await Api.UpdateBatchAsync(Id, new UpdateBatchDto(_editQty));
-            _showEditForm = false; _error = null;
+            _showEditForm = false;
             await LoadAll();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Add Item to Batch ---
@@ -398,12 +390,12 @@ else
     {
         try
         {
-            if (!Guid.TryParse(_addItemId, out var itemId)) { _error = "Select an item."; return; }
+            if (!Guid.TryParse(_addItemId, out var itemId)) { Toast.ShowError("Select an item."); return; }
             await Api.AddBatchItemAsync(Id, itemId);
-            _showAddItemForm = false; _error = null;
+            _showAddItemForm = false;
             _items = await Api.GetBatchItemsAsync(Id);
             _batch = await Api.GetBatchAsync(Id);
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 }

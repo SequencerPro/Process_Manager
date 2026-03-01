@@ -50,11 +50,6 @@ else
         </div>
     </div>
 
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger py-2">@_error</div>
-    }
-
     <!-- Input Ports -->
 
     <div class="row">
@@ -455,10 +450,6 @@ else
                         <button type="button" class="btn-close" @onclick="ClosePortForm"></button>
                     </div>
                     <div class="modal-body">
-                        @if (_error is not null)
-                        {
-                            <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
-                        }
                         <div class="mb-3">
                             <label class="form-label">Name</label>
                             <input class="form-control" @bind="_portName" />
@@ -578,13 +569,9 @@ else
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Edit Step Template</h5>
-                        <button type="button" class="btn-close" @onclick="() => { _showEditForm = false; _error = null; }"></button>
+                        <button type="button" class="btn-close" @onclick="() => _showEditForm = false"></button>
                     </div>
                     <div class="modal-body">
-                        @if (_error is not null)
-                        {
-                            <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
-                        }
                         <div class="mb-3">
                             <label class="form-label">Name</label>
                             <input class="form-control" @bind="_editName" />
@@ -608,7 +595,7 @@ else
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button class="btn btn-secondary" @onclick="() => { _showEditForm = false; _error = null; }">Cancel</button>
+                        <button class="btn btn-secondary" @onclick="() => _showEditForm = false">Cancel</button>
                         <button class="btn btn-primary" @onclick="SaveEdit">Update</button>
                     </div>
                 </div>
@@ -622,7 +609,6 @@ else
 
     private StepTemplateResponseDto? _st;
     private bool _loading = true;
-    private string? _error;
 
     private List<PortResponseDto> InputPorts =>
         _st?.Ports?.Where(p => p.Direction == PortDirection.Input).OrderBy(p => p.SortOrder).ToList() ?? new();
@@ -725,10 +711,10 @@ else
         try
         {
             await Api.UpdateStepTemplateAsync(Id, new StepTemplateUpdateDto(_editName, _editDescription, _editPattern, _editIsActive));
-            _showEditForm = false; _error = null;
+            _showEditForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Add / Edit Port ---
@@ -794,7 +780,7 @@ else
 
             if (_portType == PortType.Material && (kindId is null || gradeId is null))
             {
-                _error = "Please select both a Kind and a Grade for Material ports.";
+                Toast.ShowError("Please select both a Kind and a Grade for Material ports.");
                 return;
             }
 
@@ -825,24 +811,23 @@ else
                 await Api.CreatePortAsync(Id, dto);
             }
             _showPortForm = false;
-            _error = null;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task DeletePort(PortResponseDto p)
     {
         if (!await JS.InvokeAsync<bool>("confirm", $"Delete port '{p.Name}'?")) return;
         try { await Api.DeletePortAsync(Id, p.Id); await LoadData(); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task Delete()
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Delete this step template? This cannot be undone.")) return;
         try { await Api.DeleteStepTemplateAsync(_st!.Id); Nav.NavigateTo("step-templates"); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Images ---
@@ -850,13 +835,12 @@ else
     private async Task UploadImage(InputFileChangeEventArgs e)
     {
         _uploadingImage = true;
-        _error = null;
         try
         {
             await Api.UploadStepTemplateImageAsync(Id, e.File);
             await LoadData();
         }
-        catch (Exception ex) { _error = ex.Message; }
+        catch (Exception ex) { Toast.ShowError(ex.Message); }
         finally { _uploadingImage = false; }
     }
 
@@ -864,7 +848,7 @@ else
     {
         if (!await JS.InvokeAsync<bool>("confirm", $"Delete image '{img.OriginalFileName}'?")) return;
         try { await Api.DeleteStepTemplateImageAsync(Id, img.Id); await LoadData(); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Content Blocks ---

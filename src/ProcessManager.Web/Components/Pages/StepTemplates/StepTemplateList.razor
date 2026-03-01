@@ -88,11 +88,6 @@ else if (_data is not null)
            OnPageChanged="OnPageChanged" />
 }
 
-@if (_error is not null)
-{
-    <div class="alert alert-danger mt-3 py-2">@_error</div>
-}
-
 @* Create / Edit Modal *@
 @if (_showForm)
 {
@@ -104,10 +99,6 @@ else if (_data is not null)
                     <button type="button" class="btn-close" @onclick="CloseForm"></button>
                 </div>
                 <div class="modal-body">
-                    @if (_error is not null)
-                    {
-                        <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
-                    }
                     @if (!_isEdit)
                     {
                         <div class="mb-3">
@@ -278,7 +269,6 @@ else if (_data is not null)
     private bool? _active;
     private int _page = 1;
     private int _pageSize = 25;
-    private string? _error;
 
     // Form state
     private bool _showForm;
@@ -316,7 +306,6 @@ else if (_data is not null)
     private async Task LoadData()
     {
         _loading = true;
-        _error = null;
         _data = await Api.GetStepTemplatesAsync(_search, _active, _page, _pageSize);
         _loading = false;
     }
@@ -353,7 +342,7 @@ else if (_data is not null)
         _showForm = true;
     }
 
-    private void CloseForm() { _showForm = false; _error = null; }
+    private void CloseForm() { _showForm = false; }
 
     private async Task OnInlineKindChanged()
     {
@@ -370,21 +359,20 @@ else if (_data is not null)
     {
         if (string.IsNullOrWhiteSpace(_ipName) || !Guid.TryParse(_ipKindId, out var kid) || !Guid.TryParse(_ipGradeId, out var gid))
         {
-            _error = "Port name, kind, and grade are required."; return;
+            Toast.ShowError("Port name, kind, and grade are required."); return;
         }
         if ((_ipQtyMode == QuantityRuleMode.Exactly || _ipQtyMode == QuantityRuleMode.ZeroOrN) && (_ipQtyN is null or <= 0))
         {
-            _error = $"{_ipQtyMode} mode requires N > 0."; return;
+            Toast.ShowError($"{_ipQtyMode} mode requires N > 0."); return;
         }
         if (_ipQtyMode == QuantityRuleMode.Range && (_ipQtyMin is null || _ipQtyMax is null))
         {
-            _error = "Range mode requires both Min and Max."; return;
+            Toast.ShowError("Range mode requires both Min and Max."); return;
         }
         if (_ipQtyMode == QuantityRuleMode.Unbounded && _ipQtyMin is null)
         {
-            _error = "Unbounded mode requires Min."; return;
+            Toast.ShowError("Unbounded mode requires Min."); return;
         }
-        _error = null;
         var gradeCode = _ipGrades?.FirstOrDefault(g => g.Id == gid)?.Code ?? gid.ToString()[..8];
         _formPorts.Add(new InlinePort(_ipName, _ipDirection, kid, gid, gradeCode, _ipQtyMode, _ipQtyN, _ipQtyMin, _ipQtyMax, _ipSortOrder));
         _ipSortOrder++;
@@ -409,23 +397,23 @@ else if (_data is not null)
             }
             else
             {
-                if (!_formPorts.Any()) { _error = "Add at least one port."; return; }
+                if (!_formPorts.Any()) { Toast.ShowError("Add at least one port."); return; }
                 var ports = _formPorts.Select(p =>
                     new PortCreateDto(p.Name, p.Direction, PortType.Material,
                         p.KindId, p.GradeId, p.QtyRuleMode, p.QtyRuleN, p.QtyRuleMin, p.QtyRuleMax,
                         null, null, null, null, null, p.SortOrder)).ToList();
                 await Api.CreateStepTemplateAsync(new StepTemplateCreateDto(_formCode, _formName, _formDescription, _formPattern, ports));
             }
-            _showForm = false; _error = null;
+            _showForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task Delete(StepTemplateResponseDto st)
     {
         if (!await JS.InvokeAsync<bool>("confirm", $"Delete step template '{st.Name}'?")) return;
         try { await Api.DeleteStepTemplateAsync(st.Id); await LoadData(); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 }

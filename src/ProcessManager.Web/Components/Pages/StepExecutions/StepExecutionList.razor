@@ -74,11 +74,6 @@ else if (_data is not null)
            OnPageChanged="OnPageChanged" />
 }
 
-@if (_error is not null)
-{
-    <div class="alert alert-danger mt-3 py-2">@_error</div>
-}
-
 @code {
     private PaginatedResponse<StepExecutionResponseDto>? _data;
     private bool _loading = true;
@@ -88,7 +83,6 @@ else if (_data is not null)
     private Guid? _jobId;
     private int _page = 1;
     private int _pageSize = 25;
-    private string? _error;
     private List<JobResponseDto>? _jobs;
 
     protected override async Task OnInitializedAsync()
@@ -101,7 +95,7 @@ else if (_data is not null)
 
     private async Task LoadData()
     {
-        _loading = true; _error = null;
+        _loading = true;
         _data = await Api.GetStepExecutionsAsync(jobId: _jobId, status: _status, page: _page, pageSize: _pageSize);
         _loading = false;
     }

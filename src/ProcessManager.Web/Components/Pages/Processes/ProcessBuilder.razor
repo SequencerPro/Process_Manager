@@ -45,15 +45,6 @@
 }
 else
 {
-    @* ── Error banner ── *@
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger alert-dismissible py-2 mb-3">
-            <i class="bi bi-exclamation-triangle-fill me-1"></i>@_error
-            <button type="button" class="btn-close" @onclick="() => _error = null"></button>
-        </div>
-    }
-
     @* ── Validation results ── *@
     @if (_validation is not null)
     {
@@ -708,7 +699,6 @@ else
     // ── Page state ──
     private bool _loading = true;
     private bool _saving;
-    private string? _error;
     private ProcessValidationResultDto? _validation;
 
     // ── Step picker ──
@@ -1197,9 +1187,8 @@ else
 
     private async Task Save()
     {
-        _error = null;
-        if (string.IsNullOrWhiteSpace(_code)) { _error = "Code is required."; return; }
-        if (string.IsNullOrWhiteSpace(_name)) { _error = "Name is required."; return; }
+        if (string.IsNullOrWhiteSpace(_code)) { Toast.ShowError("Code is required."); return; }
+        if (string.IsNullOrWhiteSpace(_name)) { Toast.ShowError("Name is required."); return; }
 
         _saving = true;
         try
@@ -1211,7 +1200,7 @@ else
             {
                 var created = await Api.CreateProcessAsync(
                     new ProcessCreateDto(_code.Trim(), _name.Trim(), _description));
-                if (created is null) { _error = "Failed to create process."; return; }
+                if (created is null) { Toast.ShowError("Failed to create process."); return; }
                 processId = created.Id;
             }
             else
@@ -1269,7 +1258,7 @@ else
         }
         catch (HttpRequestException ex)
         {
-            _error = ex.Message;
+            Toast.ShowError(ex.Message);
         }
         finally
         {

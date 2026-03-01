@@ -83,11 +83,6 @@ else
         </div>
     </div>
 
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger py-2">@_error</div>
-    }
-
     <!-- Step Executions — visual progress tracker -->
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -254,10 +249,6 @@ else
                         <button type="button" class="btn-close" @onclick="CloseEditJobForm"></button>
                     </div>
                     <div class="modal-body">
-                        @if (_error is not null)
-                        {
-                            <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
-                        }
                         <div class="mb-3">
                             <label class="form-label">Name</label>
                             <input class="form-control" @bind="_editName" />
@@ -286,7 +277,6 @@ else
 
     private JobResponseDto? _job;
     private bool _loading = true;
-    private string? _error;
     private string _activeTab = "items";
 
     // Sub-resources loaded from flat endpoints
@@ -303,7 +293,7 @@ else
 
     private async Task LoadAll()
     {
-        _loading = true; _error = null;
+        _loading = true;
         _job = await Api.GetJobAsync(Id);
         await LoadSubResources();
         _loading = false;
@@ -322,10 +312,9 @@ else
         try
         {
             _job = await Api.JobTransitionAsync(Id, action);
-            _error = null;
             await LoadSubResources();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private void SwitchTab(string tab) => _activeTab = tab;
@@ -339,23 +328,23 @@ else
         _showEditForm = true;
     }
 
-    private void CloseEditJobForm() { _showEditForm = false; _error = null; }
+    private void CloseEditJobForm() { _showEditForm = false; }
 
     private async Task SaveEdit()
     {
         try
         {
             await Api.UpdateJobAsync(Id, new UpdateJobDto(_editName, _editDescription, _editPriority));
-            _showEditForm = false; _error = null;
+            _showEditForm = false;
             await LoadAll();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task DeleteJob()
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Delete this job? This cannot be undone.")) return;
         try { await Api.DeleteJobAsync(Id); Nav.NavigateTo("jobs"); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 }

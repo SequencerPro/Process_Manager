@@ -52,11 +52,6 @@ else
         </div>
     </div>
 
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger py-2">@_error</div>
-    }
-
     @if (_validation is not null)
     {
         <div class="alert @(_validation.IsValid ? "alert-success" : "alert-warning") py-2">
@@ -193,13 +188,9 @@ else
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Add Process</h5>
-                        <button type="button" class="btn-close" @onclick="() => { _showProcessForm = false; _error = null; }"></button>
+                        <button type="button" class="btn-close" @onclick="() => _showProcessForm = false"></button>
                     </div>
                     <div class="modal-body">
-                        @if (_error is not null)
-                        {
-                            <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
-                        }
                         <div class="mb-3">
                             <label class="form-label">Process</label>
                             <select class="form-select" @bind="_wpProcessId">
@@ -223,7 +214,7 @@ else
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button class="btn btn-secondary" @onclick="() => { _showProcessForm = false; _error = null; }">Cancel</button>
+                        <button class="btn btn-secondary" @onclick="() => _showProcessForm = false">Cancel</button>
                         <button class="btn btn-primary" @onclick="SaveProcess">Save</button>
                     </div>
                 </div>
@@ -239,13 +230,9 @@ else
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Add Link</h5>
-                        <button type="button" class="btn-close" @onclick="() => { _showLinkForm = false; _error = null; }"></button>
+                        <button type="button" class="btn-close" @onclick="() => _showLinkForm = false"></button>
                     </div>
                     <div class="modal-body">
-                        @if (_error is not null)
-                        {
-                            <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
-                        }
                         <div class="mb-3">
                             <label class="form-label">Source Process</label>
                             <select class="form-select" @bind="_lkSourceId">
@@ -287,7 +274,7 @@ else
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button class="btn btn-secondary" @onclick="() => { _showLinkForm = false; _error = null; }">Cancel</button>
+                        <button class="btn btn-secondary" @onclick="() => _showLinkForm = false">Cancel</button>
                         <button class="btn btn-primary" @onclick="SaveLink">Save</button>
                     </div>
                 </div>
@@ -303,13 +290,9 @@ else
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Edit Workflow</h5>
-                        <button type="button" class="btn-close" @onclick="() => { _showEditForm = false; _error = null; }"></button>
+                        <button type="button" class="btn-close" @onclick="() => _showEditForm = false"></button>
                     </div>
                     <div class="modal-body">
-                        @if (_error is not null)
-                        {
-                            <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
-                        }
                         <div class="mb-3">
                             <label class="form-label">Name</label>
                             <input class="form-control" @bind="_editName" />
@@ -324,7 +307,7 @@ else
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button class="btn btn-secondary" @onclick="() => { _showEditForm = false; _error = null; }">Cancel</button>
+                        <button class="btn btn-secondary" @onclick="() => _showEditForm = false">Cancel</button>
                         <button class="btn btn-primary" @onclick="SaveEdit">Update</button>
                     </div>
                 </div>
@@ -340,13 +323,9 @@ else
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Edit Workflow Process</h5>
-                        <button type="button" class="btn-close" @onclick="() => { _showEditWpForm = false; _error = null; }"></button>
+                        <button type="button" class="btn-close" @onclick="() => _showEditWpForm = false"></button>
                     </div>
                     <div class="modal-body">
-                        @if (_error is not null)
-                        {
-                            <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
-                        }
                         <div class="form-check mb-3">
                             <input type="checkbox" class="form-check-input" id="editWpEntry" @bind="_editWpIsEntry" />
                             <label class="form-check-label" for="editWpEntry">Is Entry Point</label>
@@ -357,7 +336,7 @@ else
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button class="btn btn-secondary" @onclick="() => { _showEditWpForm = false; _error = null; }">Cancel</button>
+                        <button class="btn btn-secondary" @onclick="() => _showEditWpForm = false">Cancel</button>
                         <button class="btn btn-primary" @onclick="SaveEditWfProcess">Update</button>
                     </div>
                 </div>
@@ -373,13 +352,9 @@ else
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Edit Link</h5>
-                        <button type="button" class="btn-close" @onclick="() => { _showEditLinkForm = false; _error = null; }"></button>
+                        <button type="button" class="btn-close" @onclick="() => _showEditLinkForm = false"></button>
                     </div>
                     <div class="modal-body">
-                        @if (_error is not null)
-                        {
-                            <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
-                        }
                         <div class="mb-3">
                             <label class="form-label">Name</label>
                             <input class="form-control" @bind="_editLinkName" placeholder="Optional" />
@@ -390,7 +365,7 @@ else
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button class="btn btn-secondary" @onclick="() => { _showEditLinkForm = false; _error = null; }">Cancel</button>
+                        <button class="btn btn-secondary" @onclick="() => _showEditLinkForm = false">Cancel</button>
                         <button class="btn btn-primary" @onclick="SaveEditLink">Update</button>
                     </div>
                 </div>
@@ -406,13 +381,9 @@ else
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Add Condition</h5>
-                        <button type="button" class="btn-close" @onclick="() => { _showConditionForm = false; _error = null; }"></button>
+                        <button type="button" class="btn-close" @onclick="() => _showConditionForm = false"></button>
                     </div>
                     <div class="modal-body">
-                        @if (_error is not null)
-                        {
-                            <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
-                        }
                         <div class="mb-3">
                             <label class="form-label">Grade</label>
                             <select class="form-select" @bind="_condGradeId">
@@ -428,7 +399,7 @@ else
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button class="btn btn-secondary" @onclick="() => { _showConditionForm = false; _error = null; }">Cancel</button>
+                        <button class="btn btn-secondary" @onclick="() => _showConditionForm = false">Cancel</button>
                         <button class="btn btn-primary" @onclick="SaveCondition">Add</button>
                     </div>
                 </div>
@@ -442,7 +413,6 @@ else
 
     private WorkflowResponseDto? _wf;
     private bool _loading = true;
-    private string? _error;
     private WorkflowValidationResultDto? _validation;
 
     // Add Process form
@@ -487,7 +457,7 @@ else
 
     private async Task LoadData()
     {
-        _loading = true; _error = null;
+        _loading = true;
         _wf = await Api.GetWorkflowAsync(Id);
         _loading = false;
     }
@@ -498,9 +468,8 @@ else
         try
         {
             _validation = await Api.ValidateWorkflowAsync(Id);
-            _error = null;
         }
-        catch (HttpRequestException ex) { _error = ex.Message; _validation = null; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); _validation = null; }
     }
 
     // --- Process CRUD ---
@@ -516,12 +485,12 @@ else
     {
         try
         {
-            if (!Guid.TryParse(_wpProcessId, out var pid)) { _error = "Select a process."; return; }
+            if (!Guid.TryParse(_wpProcessId, out var pid)) { Toast.ShowError("Select a process."); return; }
             await Api.AddWorkflowProcessAsync(Id, new AddWorkflowProcessDto(pid, _wpIsEntry, _wpSortOrder));
-            _showProcessForm = false; _error = null;
+            _showProcessForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private void ShowEditWfProcess(WorkflowProcessResponseDto wp)
@@ -537,17 +506,17 @@ else
         try
         {
             await Api.UpdateWorkflowProcessAsync(Id, _editWpId, new UpdateWorkflowProcessDto(_editWpIsEntry, _editWpSortOrder));
-            _showEditWpForm = false; _error = null;
+            _showEditWpForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task DeleteWfProcess(Guid wpId)
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Remove this process from the workflow?")) return;
         try { await Api.DeleteWorkflowProcessAsync(Id, wpId); await LoadData(); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Link CRUD ---
@@ -562,14 +531,14 @@ else
         try
         {
             if (!Guid.TryParse(_lkSourceId, out var src) || !Guid.TryParse(_lkTargetId, out var tgt))
-            { _error = "Select both source and target processes."; return; }
+            { Toast.ShowError("Select both source and target processes."); return; }
             var dto = new CreateWorkflowLinkDto(src, tgt, _lkRoutingType,
                 string.IsNullOrWhiteSpace(_lkName) ? null : _lkName);
             await Api.AddWorkflowLinkAsync(Id, dto);
-            _showLinkForm = false; _error = null;
+            _showLinkForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private void ShowEditLink(WorkflowLinkResponseDto lk)
@@ -586,17 +555,17 @@ else
         {
             await Api.UpdateWorkflowLinkAsync(Id, _editLinkId,
                 new UpdateWorkflowLinkDto(string.IsNullOrWhiteSpace(_editLinkName) ? null : _editLinkName, _editLinkSortOrder));
-            _showEditLinkForm = false; _error = null;
+            _showEditLinkForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task DeleteLink(Guid linkId)
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Delete this link?")) return;
         try { await Api.DeleteWorkflowLinkAsync(Id, linkId); await LoadData(); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Conditions ---
@@ -623,19 +592,19 @@ else
     {
         try
         {
-            if (!Guid.TryParse(_condGradeId, out var gid)) { _error = "Select a grade."; return; }
+            if (!Guid.TryParse(_condGradeId, out var gid)) { Toast.ShowError("Select a grade."); return; }
             await Api.AddWorkflowLinkConditionAsync(Id, _condLinkId, new AddWorkflowLinkConditionDto(gid));
-            _showConditionForm = false; _error = null;
+            _showConditionForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task RemoveCondition(Guid linkId, Guid conditionId)
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Remove this condition?")) return;
         try { await Api.DeleteWorkflowLinkConditionAsync(Id, linkId, conditionId); await LoadData(); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Delete Workflow ---
@@ -643,7 +612,7 @@ else
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Delete this workflow? This cannot be undone.")) return;
         try { await Api.DeleteWorkflowAsync(Id); Nav.NavigateTo("workflows"); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Edit Workflow ---
@@ -660,9 +629,9 @@ else
         try
         {
             await Api.UpdateWorkflowAsync(Id, new UpdateWorkflowDto(_editName, _editDescription, _editIsActive));
-            _showEditForm = false; _error = null;
+            _showEditForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 }

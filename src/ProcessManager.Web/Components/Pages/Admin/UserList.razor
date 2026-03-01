@@ -19,21 +19,6 @@
     </button>
 </div>
 
-@if (ErrorMessage is not null)
-{
-    <div class="alert alert-danger alert-dismissible">
-        <i class="bi bi-exclamation-triangle me-2"></i>@ErrorMessage
-        <button type="button" class="btn-close" @onclick="() => ErrorMessage = null"></button>
-    </div>
-}
-@if (SuccessMessage is not null)
-{
-    <div class="alert alert-success alert-dismissible">
-        <i class="bi bi-check-circle me-2"></i>@SuccessMessage
-        <button type="button" class="btn-close" @onclick="() => SuccessMessage = null"></button>
-    </div>
-}
-
 <div class="card shadow-sm">
     <div class="table-responsive">
         <table class="table table-hover mb-0">
@@ -107,10 +92,6 @@
                 <EditForm Model="NewUser" OnValidSubmit="HandleAddUser">
                     <DataAnnotationsValidator />
                     <div class="modal-body">
-                        @if (AddError is not null)
-                        {
-                            <div class="alert alert-danger py-2">@AddError</div>
-                        }
                         <div class="mb-3">
                         <label class="form-label fw-medium">Username <span class="text-danger">*</span></label>
                         <InputText class="form-control" @bind-Value="NewUser.UserName" />
@@ -185,13 +166,10 @@
     }
 
     private List<UserResponseDto>? Users;
-    private string? ErrorMessage;
-    private string? SuccessMessage;
 
     // Add modal
     private bool ShowAddModal;
     private bool AddSaving;
-    private string? AddError;
     private NewUserModel NewUser = new();
 
     // Delete modal
@@ -203,7 +181,7 @@
     private async Task LoadUsers()
     {
         try { Users = await Api.GetUsersAsync(); }
-        catch (Exception ex) { ErrorMessage = $"Failed to load users: {ex.Message}"; }
+        catch (Exception ex) { Toast.ShowError($"Failed to load users: {ex.Message}"); }
     }
 
     private void ConfirmDelete(UserResponseDto user) { UserToDelete = user; }
@@ -215,35 +193,33 @@
         try
         {
             await Api.DeleteUserAsync(UserToDelete.Id);
-            SuccessMessage = $"User '{UserToDelete.UserName}' deleted.";
+            Toast.ShowSuccess($"User '{UserToDelete.UserName}' deleted.");
             UserToDelete = null;
             await LoadUsers();
         }
-        catch (Exception ex) { ErrorMessage = $"Delete failed: {ex.Message}"; }
+        catch (Exception ex) { Toast.ShowError($"Delete failed: {ex.Message}"); }
         finally { DeleteSaving = false; }
     }
 
     private void CloseAddModal()
     {
         ShowAddModal = false;
-        AddError = null;
         NewUser = new();
     }
 
     private async Task HandleAddUser()
     {
         AddSaving = true;
-        AddError = null;
         try
         {
             var dto = new RegisterRequestDto(NewUser.UserName, NewUser.Email, NewUser.Password, NewUser.Role);
             await Api.RegisterUserAsync(dto);
-            SuccessMessage = $"User '{NewUser.UserName}' created.";
+            Toast.ShowSuccess($"User '{NewUser.UserName}' created.");
             CloseAddModal();
             await LoadUsers();
         }
-        catch (HttpRequestException ex) { AddError = $"Failed to create user: {ex.Message}"; }
-        catch (Exception ex) { AddError = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError($"Failed to create user: {ex.Message}"); }
+        catch (Exception ex) { Toast.ShowError(ex.Message); }
         finally { AddSaving = false; }
     }
 }

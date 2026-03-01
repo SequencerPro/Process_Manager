@@ -80,11 +80,6 @@ else
         </div>
     </div>
 
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger py-2">@_error</div>
-    }
-
     <!-- Tabs: Instructions / Port Transactions / Execution Data -->
     <ul class="nav nav-tabs mb-3">
         <li class="nav-item">
@@ -367,10 +362,6 @@ else
                     <button type="button" class="btn-close" @onclick="CloseDataForm"></button>
                 </div>
                 <div class="modal-body">
-                    @if (_error is not null)
-                    {
-                        <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
-                    }
                     <div class="mb-3">
                         <label class="form-label">Key</label>
                         <input class="form-control" @bind="_dataKey" />
@@ -409,13 +400,9 @@ else
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Add Port Transaction</h5>
-                    <button type="button" class="btn-close" @onclick="() => { _showPortTxnForm = false; _error = null; }"></button>
+                    <button type="button" class="btn-close" @onclick="() => _showPortTxnForm = false"></button>
                 </div>
                 <div class="modal-body">
-                    @if (_error is not null)
-                    {
-                        <div class="alert alert-danger py-2 mb-3">@_error <button type="button" class="btn-close float-end py-0" @onclick='() => _error = null'></button></div>
-                    }
                     <div class="mb-3">
                         <label class="form-label">Port</label>
                         <select class="form-select" @bind="_ptPortId">
@@ -461,7 +448,7 @@ else
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="() => { _showPortTxnForm = false; _error = null; }">Cancel</button>
+                    <button class="btn btn-secondary" @onclick="() => _showPortTxnForm = false">Cancel</button>
                     <button class="btn btn-primary" @onclick="SavePortTxn">Save</button>
                 </div>
             </div>
@@ -476,7 +463,6 @@ else
     private List<PortTransactionResponseDto>? _transactions;
     private List<ExecutionDataResponseDto>? _data;
     private bool _loading = true;
-    private string? _error;
     private string _activeTab = "instructions";
     private string _notes = "";
 
@@ -517,7 +503,7 @@ else
 
     private async Task LoadAll()
     {
-        _loading = true; _error = null;
+        _loading = true;
         _exec = await Api.GetStepExecutionAsync(Id);
         if (_exec is not null)
         {
@@ -642,10 +628,9 @@ else
         try
         {
             _exec = await Api.StepExecutionTransitionAsync(Id, action);
-            _error = null;
             _transactions = await Api.GetStepExecutionPortTransactionsAsync(Id);
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task SaveNotes()
@@ -653,9 +638,8 @@ else
         try
         {
             _exec = await Api.UpdateStepExecutionNotesAsync(Id, new UpdateStepExecutionNotesDto(_notes));
-            _error = null;
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private void ShowDataForm()
@@ -664,7 +648,7 @@ else
         _showDataForm = true;
     }
 
-    private void CloseDataForm() { _showDataForm = false; _error = null; }
+    private void CloseDataForm() { _showDataForm = false; }
 
     private async Task SaveData()
     {
@@ -672,10 +656,10 @@ else
         {
             var dataType = Enum.Parse<ProcessManager.Domain.Enums.DataValueType>(_dataType);
             await Api.AddStepExecutionDataAsync(Id, new CreateExecutionDataDto(_dataKey, _dataValue, dataType, _dataUnit));
-            _showDataForm = false; _error = null;
+            _showDataForm = false;
             _data = await Api.GetStepExecutionDataAsync(Id);
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Port Transaction ---
@@ -684,7 +668,6 @@ else
         _ptPortId = ""; _ptItemId = ""; _ptBatchId = ""; _ptQuantity = 1;
         _stepPorts = null; _jobItems = null; _jobBatches = null;
         _showPortTxnForm = true;
-        _error = null;
 
         try
         {
@@ -709,7 +692,7 @@ else
                 _jobBatches = batchResult?.Items?.ToList();
             }
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
 
         StateHasChanged();
     }
@@ -718,16 +701,16 @@ else
     {
         try
         {
-            if (!Guid.TryParse(_ptPortId, out var portId)) { _error = "Select a port."; return; }
+            if (!Guid.TryParse(_ptPortId, out var portId)) { Toast.ShowError("Select a port."); return; }
             Guid? itemId = Guid.TryParse(_ptItemId, out var iid) ? iid : null;
             Guid? batchId = Guid.TryParse(_ptBatchId, out var bid) ? bid : null;
 
             await Api.AddStepExecutionPortTransactionAsync(Id,
                 new CreatePortTransactionDto(portId, itemId, batchId, _ptQuantity));
 
-            _showPortTxnForm = false; _error = null;
+            _showPortTxnForm = false;
             _transactions = await Api.GetStepExecutionPortTransactionsAsync(Id);
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 }

@@ -67,11 +67,6 @@ else
         </div>
     }
 
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger py-2">@_error</div>
-    }
-
     <!-- Steps -->
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -340,7 +335,6 @@ else
     private ProcessResponseDto? _proc;
     private ProcessValidationResultDto? _validation;
     private bool _loading = true;
-    private string? _error;
 
     // Step form
     private bool _showStepForm;
@@ -376,7 +370,6 @@ else
     private async Task LoadData()
     {
         _loading = true;
-        _error = null;
         _proc = await Api.GetProcessAsync(Id);
         _loading = false;
     }
@@ -398,14 +391,14 @@ else
     {
         try
         {
-            if (!Guid.TryParse(_stepTemplateId, out var tid)) { _error = "Select a step template."; return; }
+            if (!Guid.TryParse(_stepTemplateId, out var tid)) { Toast.ShowError("Select a step template."); return; }
             var dto = new ProcessStepCreateDto(tid, _stepSequence, 
                 string.IsNullOrWhiteSpace(_stepNameOverride) ? null : _stepNameOverride, null);
             await Api.AddProcessStepAsync(Id, dto);
-            _showStepForm = false; _error = null;
+            _showStepForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private void ShowEditStep(ProcessStepResponseDto s)
@@ -426,17 +419,17 @@ else
                 string.IsNullOrWhiteSpace(_editStepName) ? null : _editStepName,
                 string.IsNullOrWhiteSpace(_editStepDesc) ? null : _editStepDesc);
             await Api.UpdateProcessStepAsync(Id, _editStepId, dto);
-            _showEditStepForm = false; _error = null;
+            _showEditStepForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task DeleteStep(Guid stepId)
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Delete this step?")) return;
         try { await Api.DeleteProcessStepAsync(Id, stepId); await LoadData(); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private void ShowAddFlow()
@@ -481,27 +474,27 @@ else
             if (!Guid.TryParse(_flowSrcStepId, out var ss) || !Guid.TryParse(_flowSrcPortId, out var sp)
                 || !Guid.TryParse(_flowTgtStepId, out var ts) || !Guid.TryParse(_flowTgtPortId, out var tp))
             {
-                _error = "All flow fields are required."; return;
+                Toast.ShowError("All flow fields are required."); return;
             }
             await Api.AddFlowAsync(Id, new FlowCreateDto(ss, sp, ts, tp));
-            _showFlowForm = false; _error = null;
+            _showFlowForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task DeleteFlow(Guid flowId)
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Delete this flow?")) return;
         try { await Api.DeleteFlowAsync(Id, flowId); await LoadData(); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task Delete()
     {
         if (!await JS.InvokeAsync<bool>("confirm", $"Delete process '{_proc!.Name}'? This cannot be undone.")) return;
         try { await Api.DeleteProcessAsync(Id); Nav.NavigateTo("processes"); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Edit Process ---
@@ -518,9 +511,9 @@ else
         try
         {
             await Api.UpdateProcessAsync(Id, new ProcessUpdateDto(_editName, _editDescription, _editIsActive));
-            _showEditForm = false; _error = null;
+            _showEditForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 }

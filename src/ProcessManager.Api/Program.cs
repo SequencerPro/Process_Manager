@@ -141,6 +141,9 @@ using (var scope = app.Services.CreateScope())
         if (result.Succeeded)
             await userManager.AddToRoleAsync(adminUser, "Admin");
     }
+
+    // Seed example domain data (skips automatically if data already exists)
+    await DataSeeder.SeedAsync(db);
 }
 
 // ── HTTP pipeline ─────────────────────────────────────────────────────────────

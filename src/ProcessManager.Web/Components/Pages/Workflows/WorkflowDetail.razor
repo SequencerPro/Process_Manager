@@ -261,13 +261,47 @@ else
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Routing Type</label>
-                            <select class="form-select" @bind="_lkRoutingType">
+                            <select class="form-select" @bind="_lkRoutingType" @bind:after="OnLinkRoutingTypeChanged">
                                 @foreach (var rt in Enum.GetValues<RoutingType>())
                                 {
                                     <option value="@rt">@rt</option>
                                 }
                             </select>
                         </div>
+                        @if (_lkRoutingType == RoutingType.GradeBased)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Condition Grades</label>
+                                @if (_lkAvailableGrades is null)
+                                {
+                                    <div class="text-muted small">Loading grades...</div>
+                                }
+                                else if (!_lkAvailableGrades.Any())
+                                {
+                                    <div class="text-warning small">No grades available. Create grades on a Kind first.</div>
+                                }
+                                else
+                                {
+                                    <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                                        @foreach (var g in _lkAvailableGrades)
+                                        {
+                                            <div class="form-check">
+                                                <input type="checkbox" class="form-check-input" id="grade-@g.Id"
+                                                       checked="@(_lkSelectedGradeIds.Contains(g.Id))"
+                                                       @onchange="e => ToggleLinkGrade(g.Id, (bool)e.Value!)" />
+                                                <label class="form-check-label" for="grade-@g.Id">
+                                                    @g.Code — @g.Name
+                                                </label>
+                                            </div>
+                                        }
+                                    </div>
+                                    @if (!_lkSelectedGradeIds.Any())
+                                    {
+                                        <small class="text-danger">At least one grade must be selected.</small>
+                                    }
+                                }
+                            </div>
+                        }
                         <div class="mb-3">
                             <label class="form-label">Name</label>
                             <input class="form-control" @bind="_lkName" placeholder="Optional" />
@@ -428,6 +462,8 @@ else
     private string _lkTargetId = "";
     private RoutingType _lkRoutingType = RoutingType.Always;
     private string _lkName = "";
+    private List<GradeResponseDto>? _lkAvailableGrades;
+    private List<Guid> _lkSelectedGradeIds = new();
 
     // Edit workflow form
     private bool _showEditForm;
@@ -530,10 +566,45 @@ else
     }
 
     // --- Link CRUD ---
-    private void ShowAddLink()
+    private async Task ShowAddLink()
     {
         _lkSourceId = ""; _lkTargetId = ""; _lkRoutingType = RoutingType.Always; _lkName = "";
+        _lkSelectedGradeIds = new();
         _showLinkForm = true;
+        if (_allGrades is null)
+        {
+            await LoadAllGrades();
+        }
+        _lkAvailableGrades = _allGrades;
+        StateHasChanged();
+    }
+
+    private async Task OnLinkRoutingTypeChanged()
+    {
+        if (_lkRoutingType == RoutingType.GradeBased)
+        {
+            if (_allGrades is null)
+            {
+                await LoadAllGrades();
+            }
+            _lkAvailableGrades = _allGrades;
+        }
+        else
+        {
+            _lkSelectedGradeIds = new();
+        }
+    }
+
+    private void ToggleLinkGrade(Guid gradeId, bool isChecked)
+    {
+        if (isChecked && !_lkSelectedGradeIds.Contains(gradeId))
+        {
+            _lkSelectedGradeIds.Add(gradeId);
+        }
+        else if (!isChecked)
+        {
+            _lkSelectedGradeIds.Remove(gradeId);
+        }
     }
 
     private async Task SaveLink()
@@ -542,8 +613,12 @@ else
         {
             if (!Guid.TryParse(_lkSourceId, out var src) || !Guid.TryParse(_lkTargetId, out var tgt))
             { Toast.ShowError("Select both source and target processes."); return; }
+            if (_lkRoutingType == RoutingType.GradeBased && !_lkSelectedGradeIds.Any())
+            { Toast.ShowError("GradeBased links must have at least one condition grade."); return; }
             var dto = new CreateWorkflowLinkDto(src, tgt, _lkRoutingType,
-                string.IsNullOrWhiteSpace(_lkName) ? null : _lkName);
+                string.IsNullOrWhiteSpace(_lkName) ? null : _lkName,
+                0,
+                _lkRoutingType == RoutingType.GradeBased ? _lkSelectedGradeIds : null);
             await Api.AddWorkflowLinkAsync(Id, dto);
             _showLinkForm = false;
             await LoadData();
@@ -579,21 +654,25 @@ else
     }
 
     // --- Conditions ---
+    private async Task LoadAllGrades()
+    {
+        try
+        {
+            var kindsResult = await Api.GetKindsAsync(page: 1, pageSize: 100);
+            _allGrades = kindsResult?.Items?.SelectMany(k => k.Grades).OrderBy(g => g.Code).ToList() ?? new();
+        }
+        catch { _allGrades = new(); }
+    }
+
     private async Task ShowAddCondition(WorkflowLinkResponseDto lk)
     {
         _condLinkId = lk.Id;
         _condGradeId = "";
         _showConditionForm = true;
 
-        // Load all grades (from all kinds)
         if (_allGrades is null)
         {
-            try
-            {
-                var kindsResult = await Api.GetKindsAsync(page: 1, pageSize: 100);
-                _allGrades = kindsResult?.Items?.SelectMany(k => k.Grades).OrderBy(g => g.Code).ToList() ?? new();
-            }
-            catch { _allGrades = new(); }
+            await LoadAllGrades();
         }
         StateHasChanged();
     }

@@ -117,7 +117,11 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<ProcessManagerDbContext>();
     // Migrate() creates the DB if needed and applies any pending migrations.
     // This replaces EnsureCreated() so that the migrations history is respected.
-    db.Database.Migrate();
+    // Skip Migrate() for non-relational providers (e.g. InMemory used in tests).
+    if (db.Database.IsRelational())
+        db.Database.Migrate();
+    else
+        db.Database.EnsureCreated();
 
     // Seed roles
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();

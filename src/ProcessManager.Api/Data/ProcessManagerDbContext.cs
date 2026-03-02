@@ -50,6 +50,15 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<WorkflowLink> WorkflowLinks => Set<WorkflowLink>();
     public DbSet<WorkflowLinkCondition> WorkflowLinkConditions => Set<WorkflowLinkCondition>();
 
+    // Phase 7: Quality Engineering Tools
+    public DbSet<Pfmea> Pfmeas => Set<Pfmea>();
+    public DbSet<PfmeaFailureMode> PfmeaFailureModes => Set<PfmeaFailureMode>();
+    public DbSet<PfmeaAction> PfmeaActions => Set<PfmeaAction>();
+    public DbSet<CeMatrix> CeMatrices => Set<CeMatrix>();
+    public DbSet<CeInput> CeInputs => Set<CeInput>();
+    public DbSet<CeOutput> CeOutputs => Set<CeOutput>();
+    public DbSet<CeCorrelation> CeCorrelations => Set<CeCorrelation>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -502,6 +511,131 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne(ed => ed.Item)
                 .WithMany(i => i.ExecutionData)
                 .HasForeignKey(ed => ed.ItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── Phase 7: Quality Engineering Tools ──────────────────────────────
+
+        // --- Pfmea ---
+        modelBuilder.Entity<Pfmea>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.HasIndex(p => p.Code).IsUnique();
+            e.Property(p => p.Code).HasMaxLength(100).IsRequired();
+            e.Property(p => p.Name).HasMaxLength(200).IsRequired();
+
+            e.HasOne(p => p.Process)
+                .WithMany()
+                .HasForeignKey(p => p.ProcessId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- PfmeaFailureMode ---
+        modelBuilder.Entity<PfmeaFailureMode>(e =>
+        {
+            e.HasKey(f => f.Id);
+            e.Property(f => f.StepFunction).HasMaxLength(500).IsRequired();
+            e.Property(f => f.FailureMode).HasMaxLength(500).IsRequired();
+            e.Property(f => f.FailureEffect).HasMaxLength(500).IsRequired();
+            e.Property(f => f.FailureCause).HasMaxLength(500);
+            e.Property(f => f.PreventionControls).HasMaxLength(1000);
+            e.Property(f => f.DetectionControls).HasMaxLength(1000);
+            // RPN is computed in entity, not stored
+            e.Ignore(f => f.Rpn);
+
+            e.HasOne(f => f.Pfmea)
+                .WithMany(p => p.FailureModes)
+                .HasForeignKey(f => f.PfmeaId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(f => f.ProcessStep)
+                .WithMany()
+                .HasForeignKey(f => f.ProcessStepId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- PfmeaAction ---
+        modelBuilder.Entity<PfmeaAction>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.Description).HasMaxLength(1000).IsRequired();
+            e.Property(a => a.ResponsiblePerson).HasMaxLength(200);
+            e.Property(a => a.CompletionNotes).HasMaxLength(2000);
+            e.Property(a => a.Status).HasConversion<string>().HasMaxLength(20);
+            // RevisedRpn is computed in entity, not stored
+            e.Ignore(a => a.RevisedRpn);
+
+            e.HasOne(a => a.FailureMode)
+                .WithMany(f => f.Actions)
+                .HasForeignKey(a => a.FailureModeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- CeMatrix ---
+        modelBuilder.Entity<CeMatrix>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.Property(m => m.Name).HasMaxLength(200).IsRequired();
+
+            e.HasOne(m => m.ProcessStep)
+                .WithMany()
+                .HasForeignKey(m => m.ProcessStepId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- CeInput ---
+        modelBuilder.Entity<CeInput>(e =>
+        {
+            e.HasKey(i => i.Id);
+            e.Property(i => i.Name).HasMaxLength(200).IsRequired();
+            e.Property(i => i.Category).HasConversion<string>().HasMaxLength(30);
+
+            e.HasOne(i => i.CeMatrix)
+                .WithMany(m => m.Inputs)
+                .HasForeignKey(i => i.CeMatrixId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(i => i.Port)
+                .WithMany()
+                .HasForeignKey(i => i.PortId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .IsRequired(false);
+        });
+
+        // --- CeOutput ---
+        modelBuilder.Entity<CeOutput>(e =>
+        {
+            e.HasKey(o => o.Id);
+            e.Property(o => o.Name).HasMaxLength(200).IsRequired();
+            e.Property(o => o.Category).HasConversion<string>().HasMaxLength(30);
+
+            e.HasOne(o => o.CeMatrix)
+                .WithMany(m => m.Outputs)
+                .HasForeignKey(o => o.CeMatrixId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(o => o.Port)
+                .WithMany()
+                .HasForeignKey(o => o.PortId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .IsRequired(false);
+        });
+
+        // --- CeCorrelation ---
+        modelBuilder.Entity<CeCorrelation>(e =>
+        {
+            e.HasKey(c => c.Id);
+            // Unique constraint: one score per input/output pair
+            e.HasIndex(c => new { c.CeInputId, c.CeOutputId }).IsUnique();
+
+            e.HasOne(c => c.Input)
+                .WithMany(i => i.Correlations)
+                .HasForeignKey(c => c.CeInputId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(c => c.Output)
+                .WithMany(o => o.Correlations)
+                .HasForeignKey(c => c.CeOutputId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

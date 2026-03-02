@@ -40,7 +40,7 @@ public class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "1.2";
+    private const string ServerVersion   = "1.4";
 
     public McpController(ProcessManagerDbContext db) => _db = db;
 
@@ -117,6 +117,20 @@ public class McpController : ControllerBase
             Tool("get_job_status",
                  "Get the current status and step-by-step execution progress of a specific job. Requires authentication.",
                  Schema(("code", "string", "Job code (exact match)"))),
+
+            Tool("get_pfmea",
+                 "Get a PFMEA (Failure Mode &amp; Effects Analysis) by code or name, including all failure modes with Severity×Occurrence×Detection RPN scores and open actions. Requires authentication.",
+                 Schema(("query", "string", "PFMEA code or name (partial match supported)"))),
+
+            Tool("list_high_rpn_failure_modes",
+                 "List the highest-risk PFMEA failure modes ranked by RPN (Severity×Occurrence×Detection). Useful for prioritising corrective actions. Requires authentication.",
+                 Schema(
+                     ("top", "number", "Maximum number of failure modes to return (default 20)"),
+                     ("min_rpn", "number", "Only include failure modes with RPN >= this value (default 100)"))),
+
+            Tool("get_ce_matrix",
+                 "Get a Cause &amp; Effect (Fishbone / C&amp;E) matrix by name or process step, showing input-to-output correlation scores and computed priority scores. Requires authentication.",
+                 Schema(("query", "string", "Matrix name or process step name (partial match)"))),
         }
     };
 
@@ -183,12 +197,15 @@ public class McpController : ControllerBase
 
         return toolName switch
         {
-            "list_processes"      => OkResponse(id, TextContent(await ToolListProcesses())),
-            "get_process"         => OkResponse(id, TextContent(await ToolGetProcess(args))),
-            "list_step_templates" => OkResponse(id, TextContent(await ToolListStepTemplates())),
-            "list_active_jobs"    => OkResponse(id, TextContent(await ToolListActiveJobs())),
-            "get_job_status"      => OkResponse(id, TextContent(await ToolGetJobStatus(args))),
-            _                     => ErrorResponse(id, -32602, $"Unknown tool: {toolName}")
+            "list_processes"             => OkResponse(id, TextContent(await ToolListProcesses())),
+            "get_process"                => OkResponse(id, TextContent(await ToolGetProcess(args))),
+            "list_step_templates"        => OkResponse(id, TextContent(await ToolListStepTemplates())),
+            "list_active_jobs"           => OkResponse(id, TextContent(await ToolListActiveJobs())),
+            "get_job_status"             => OkResponse(id, TextContent(await ToolGetJobStatus(args))),
+            "get_pfmea"                  => OkResponse(id, TextContent(await ToolGetPfmea(args))),
+            "list_high_rpn_failure_modes" => OkResponse(id, TextContent(await ToolListHighRpnFailureModes(args))),
+            "get_ce_matrix"              => OkResponse(id, TextContent(await ToolGetCeMatrix(args))),
+            _                            => ErrorResponse(id, -32602, $"Unknown tool: {toolName}")
         };
     }
 
@@ -337,6 +354,152 @@ public class McpController : ControllerBase
                 sb.AppendLine($"{se.Sequence}. [{StatusEmoji(se.Status)}] **{name}** — {se.Status}{dur}");
             }
         }
+        return sb.ToString();
+    }
+
+    // ─── Phase 7: Quality Engineering Tools ─────────────────────────────────
+
+    private async Task<string> ToolGetPfmea(JsonElement args)
+    {
+        var query = args.TryGetProperty("query", out var q) ? q.GetString()?.Trim() : null;
+        if (string.IsNullOrEmpty(query))
+            return "Please provide a 'query' argument with the PFMEA code or name.";
+
+        var pfmea = await _db.Pfmeas
+            .AsNoTracking()
+            .Include(p => p.FailureModes)
+                .ThenInclude(fm => fm.Actions)
+            .FirstOrDefaultAsync(p =>
+                p.Code.ToLower().Contains(query.ToLower()) ||
+                p.Name.ToLower().Contains(query.ToLower()));
+
+        if (pfmea is null)
+            return $"No PFMEA found matching '{query}'.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## PFMEA: {pfmea.Name} (`{pfmea.Code}`) — v{pfmea.Version}\n");
+        if (!string.IsNullOrEmpty(pfmea.Description))
+            sb.AppendLine($"*{pfmea.Description}*\n");
+
+        if (!pfmea.FailureModes.Any())
+        {
+            sb.AppendLine("No failure modes defined.");
+            return sb.ToString();
+        }
+
+        sb.AppendLine($"| # | Failure Mode | Effect | SEV | OCC | DET | RPN | Open Actions |");
+        sb.AppendLine($"|---|---|---|:---:|:---:|:---:|:---:|:---:|");
+
+        int i = 1;
+        foreach (var fm in pfmea.FailureModes.OrderByDescending(f => f.Severity * f.Occurrence * f.Detection))
+        {
+            var rpn = fm.Severity * fm.Occurrence * fm.Detection;
+            var open = fm.Actions.Count(a => a.Status == Domain.Enums.PfmeaActionStatus.Open ||
+                                             a.Status == Domain.Enums.PfmeaActionStatus.InProgress);
+            sb.AppendLine($"| {i++} | {fm.FailureMode} | {fm.FailureEffect} | {fm.Severity} | {fm.Occurrence} | {fm.Detection} | **{rpn}** | {(open > 0 ? $"{open} open" : "—")} |");
+        }
+
+        var highCount = pfmea.FailureModes.Count(f => f.Severity * f.Occurrence * f.Detection >= 200);
+        if (highCount > 0)
+            sb.AppendLine($"\n⚠️ **{highCount} failure mode(s) with RPN ≥ 200** require immediate attention.");
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolListHighRpnFailureModes(JsonElement args)
+    {
+        int top = 20, minRpn = 100;
+        if (args.TryGetProperty("top", out var t) && t.TryGetInt32(out var tv)) top = tv;
+        if (args.TryGetProperty("min_rpn", out var mr) && mr.TryGetInt32(out var mrv)) minRpn = mrv;
+
+        // Load all and filter in memory (RPN is computed, not stored)
+        var allModes = await _db.PfmeaFailureModes
+            .AsNoTracking()
+            .Include(fm => fm.Pfmea)
+            .Include(fm => fm.Actions)
+            .ToListAsync();
+
+        var filtered = allModes
+            .Select(fm => new { fm, rpn = fm.Severity * fm.Occurrence * fm.Detection })
+            .Where(x => x.rpn >= minRpn)
+            .OrderByDescending(x => x.rpn)
+            .Take(top)
+            .ToList();
+
+        if (!filtered.Any())
+            return $"No failure modes found with RPN ≥ {minRpn}.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Top Failure Modes by RPN (≥ {minRpn}, showing {filtered.Count})\n");
+        sb.AppendLine($"| # | PFMEA | Failure Mode | SEV | OCC | DET | RPN | Open Actions |");
+        sb.AppendLine($"|---|---|---|:---:|:---:|:---:|:---:|:---:|");
+
+        int i = 1;
+        foreach (var x in filtered)
+        {
+            var fm = x.fm;
+            var open = fm.Actions.Count(a => a.Status == Domain.Enums.PfmeaActionStatus.Open ||
+                                             a.Status == Domain.Enums.PfmeaActionStatus.InProgress);
+            sb.AppendLine($"| {i++} | {fm.Pfmea?.Name ?? "—"} | {fm.FailureMode} | {fm.Severity} | {fm.Occurrence} | {fm.Detection} | **{x.rpn}** | {(open > 0 ? $"{open} open" : "—")} |");
+        }
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolGetCeMatrix(JsonElement args)
+    {
+        var query = args.TryGetProperty("query", out var q) ? q.GetString()?.Trim() : null;
+        if (string.IsNullOrEmpty(query))
+            return "Please provide a 'query' argument with the matrix name or process step name.";
+
+        var matrix = await _db.CeMatrices
+            .AsNoTracking()
+            .Include(m => m.Inputs)
+            .Include(m => m.Outputs)
+            .Include(m => m.Correlations)
+            .FirstOrDefaultAsync(m =>
+                m.Name.ToLower().Contains(query.ToLower()));
+
+        if (matrix is null)
+            return $"No C\u0026E matrix found matching '{query}'.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## C\u0026E Matrix: {matrix.Name}\n");
+        if (!string.IsNullOrEmpty(matrix.Description))
+            sb.AppendLine($"*{matrix.Description}*\n");
+
+        var outputs = matrix.Outputs.OrderBy(o => o.SortOrder).ToList();
+        var scoreMap = matrix.Correlations.ToDictionary(c => (c.CeInputId, c.CeOutputId), c => c.Score);
+
+        if (!outputs.Any())
+        {
+            sb.AppendLine("No outputs defined.");
+            return sb.ToString();
+        }
+
+        // Header
+        sb.Append("| Input | Category |");
+        foreach (var o in outputs) sb.Append($" {o.Name} (Imp:{o.Importance}) |");
+        sb.AppendLine(" Priority |");
+
+        sb.Append("| --- | --- |");
+        foreach (var _ in outputs) sb.Append(" :---: |");
+        sb.AppendLine(" :---: |");
+
+        var inputs = matrix.Inputs.OrderBy(i => i.SortOrder).ToList();
+        foreach (var inp in inputs)
+        {
+            var priority = outputs.Sum(o => scoreMap.GetValueOrDefault((inp.Id, o.Id), 0) * o.Importance);
+            sb.Append($"| {inp.Name} | {inp.Category} |");
+            foreach (var o in outputs)
+            {
+                var score = scoreMap.GetValueOrDefault((inp.Id, o.Id), 0);
+                sb.Append($" {(score == 0 ? "" : score.ToString())} |");
+            }
+            sb.AppendLine($" **{priority}** |");
+        }
+
+        sb.AppendLine($"\n*Importance weights — " + string.Join(", ", outputs.Select(o => $"{o.Name}: {o.Importance}")) + "*");
         return sb.ToString();
     }
 

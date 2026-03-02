@@ -792,4 +792,162 @@ public class ApiClient
 
     public Task<AlertCountDto?> GetOutOfRangeAlertCountAsync(int days = 7)
         => _http.GetFromJsonAsync<AlertCountDto>($"api/alerts/out-of-range/count?days={days}", _json);
+
+    // ══════════════════ Phase 7 — PFMEAs ═════════════════════════════════════
+
+    public Task<PaginatedResponse<PfmeaSummaryDto>?> GetPfmeasAsync(
+            string? search = null, Guid? processId = null, bool? active = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<PfmeaSummaryDto>>(
+            $"api/pfmeas?search={search}&processId={processId}&active={active}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<PfmeaResponseDto?> GetPfmeaAsync(Guid id)
+        => _http.GetFromJsonAsync<PfmeaResponseDto>($"api/pfmeas/{id}", _json);
+
+    public async Task<PfmeaResponseDto?> CreatePfmeaAsync(PfmeaCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/pfmeas", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PfmeaResponseDto>(_json);
+    }
+
+    public async Task<PfmeaResponseDto?> UpdatePfmeaAsync(Guid id, PfmeaUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/pfmeas/{id}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PfmeaResponseDto>(_json);
+    }
+
+    public async Task DeletePfmeaAsync(Guid id)
+    {
+        var r = await _http.DeleteAsync($"api/pfmeas/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    public async Task<PfmeaResponseDto?> BranchPfmeaAsync(Guid id)
+    {
+        var r = await _http.PostAsync($"api/pfmeas/{id}/branch", null);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PfmeaResponseDto>(_json);
+    }
+
+    public async Task<PfmeaResponseDto?> AddFailureModeAsync(Guid pfmeaId, PfmeaFailureModeCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/pfmeas/{pfmeaId}/failure-modes", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PfmeaResponseDto>(_json);
+    }
+
+    public async Task<PfmeaResponseDto?> UpdateFailureModeAsync(Guid pfmeaId, Guid fmId, PfmeaFailureModeUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/pfmeas/{pfmeaId}/failure-modes/{fmId}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PfmeaResponseDto>(_json);
+    }
+
+    public async Task<PfmeaResponseDto?> DeleteFailureModeAsync(Guid pfmeaId, Guid fmId)
+    {
+        var r = await _http.DeleteAsync($"api/pfmeas/{pfmeaId}/failure-modes/{fmId}");
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PfmeaResponseDto>(_json);
+    }
+
+    public async Task<PfmeaResponseDto?> AddPfmeaActionAsync(Guid pfmeaId, Guid fmId, PfmeaActionCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/pfmeas/{pfmeaId}/failure-modes/{fmId}/actions", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PfmeaResponseDto>(_json);
+    }
+
+    public async Task<PfmeaResponseDto?> UpdatePfmeaActionAsync(Guid pfmeaId, Guid fmId, Guid actionId, PfmeaActionUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/pfmeas/{pfmeaId}/failure-modes/{fmId}/actions/{actionId}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PfmeaResponseDto>(_json);
+    }
+
+    public async Task<PfmeaResponseDto?> DeletePfmeaActionAsync(Guid pfmeaId, Guid fmId, Guid actionId)
+    {
+        var r = await _http.DeleteAsync($"api/pfmeas/{pfmeaId}/failure-modes/{fmId}/actions/{actionId}");
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PfmeaResponseDto>(_json);
+    }
+
+    // ══════════════════ Phase 7 — C&E Matrices ═══════════════════════════════
+
+    public Task<PaginatedResponse<CeMatrixSummaryDto>?> GetCeMatricesAsync(
+            string? search = null, Guid? processStepId = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<CeMatrixSummaryDto>>(
+            $"api/cematrices?search={search}&processStepId={processStepId}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<CeMatrixResponseDto?> GetCeMatrixAsync(Guid id)
+        => _http.GetFromJsonAsync<CeMatrixResponseDto>($"api/cematrices/{id}", _json);
+
+    public async Task<CeMatrixResponseDto?> CreateCeMatrixAsync(CeMatrixCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/cematrices", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<CeMatrixResponseDto>(_json);
+    }
+
+    public async Task<CeMatrixResponseDto?> UpdateCeMatrixAsync(Guid id, CeMatrixUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/cematrices/{id}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<CeMatrixResponseDto>(_json);
+    }
+
+    public async Task DeleteCeMatrixAsync(Guid id)
+    {
+        var r = await _http.DeleteAsync($"api/cematrices/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    public async Task<CeMatrixResponseDto?> AddCeInputAsync(Guid matrixId, CeInputCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/cematrices/{matrixId}/inputs", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<CeMatrixResponseDto>(_json);
+    }
+
+    public async Task<CeMatrixResponseDto?> UpdateCeInputAsync(Guid matrixId, Guid inputId, CeInputUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/cematrices/{matrixId}/inputs/{inputId}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<CeMatrixResponseDto>(_json);
+    }
+
+    public async Task<CeMatrixResponseDto?> DeleteCeInputAsync(Guid matrixId, Guid inputId)
+    {
+        var r = await _http.DeleteAsync($"api/cematrices/{matrixId}/inputs/{inputId}");
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<CeMatrixResponseDto>(_json);
+    }
+
+    public async Task<CeMatrixResponseDto?> AddCeOutputAsync(Guid matrixId, CeOutputCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/cematrices/{matrixId}/outputs", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<CeMatrixResponseDto>(_json);
+    }
+
+    public async Task<CeMatrixResponseDto?> UpdateCeOutputAsync(Guid matrixId, Guid outputId, CeOutputUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/cematrices/{matrixId}/outputs/{outputId}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<CeMatrixResponseDto>(_json);
+    }
+
+    public async Task<CeMatrixResponseDto?> DeleteCeOutputAsync(Guid matrixId, Guid outputId)
+    {
+        var r = await _http.DeleteAsync($"api/cematrices/{matrixId}/outputs/{outputId}");
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<CeMatrixResponseDto>(_json);
+    }
+
+    public async Task<CeMatrixResponseDto?> UpsertCorrelationAsync(Guid matrixId, CeCorrelationUpsertDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/cematrices/{matrixId}/correlations", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<CeMatrixResponseDto>(_json);
+    }
 }

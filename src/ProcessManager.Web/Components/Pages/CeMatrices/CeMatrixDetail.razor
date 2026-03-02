@@ -1,0 +1,445 @@
+@page "/ce-matrices/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>@(_matrix?.Name ?? "C&E Matrix")</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_matrix is null)
+{
+    <div class="alert alert-warning">Matrix not found.</div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-2">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="ce-matrices">C&amp;E Matrices</a></li>
+            <li class="breadcrumb-item active">@_matrix.Name</li>
+        </ol>
+    </nav>
+
+    <!-- Header card -->
+    <div class="card mb-3">
+        <div class="card-body py-2 d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="mb-0">@_matrix.Name</h5>
+                <small class="text-muted">
+                    <span class="badge bg-secondary me-1">Step @_matrix.ProcessStepSequence</span>
+                    @_matrix.ProcessStepName
+                    @if (!string.IsNullOrEmpty(_matrix.Description)) { <span> — @_matrix.Description</span> }
+                </small>
+            </div>
+            <div class="d-flex gap-1">
+                <a href="/api/cematrices/@_matrix.Id/export" target="_blank" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-download me-1"></i>CSV
+                </a>
+                <button class="btn btn-outline-primary btn-sm" @onclick="() => ShowEditMatrix()">
+                    <i class="bi bi-pencil me-1"></i>Edit
+                </button>
+                <button class="btn btn-outline-danger btn-sm" @onclick="DeleteMatrix">
+                    <i class="bi bi-trash me-1"></i>Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (_matrix.Inputs.Count == 0 && _matrix.Outputs.Count == 0)
+    {
+        <div class="alert alert-info">
+            No inputs or outputs yet. Add outputs (quality characteristics / port outputs) and inputs (port inputs, control factors, noise factors) to build the matrix.
+        </div>
+    }
+
+    <!-- Toolbar -->
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+        <button class="btn btn-sm btn-outline-primary" @onclick="() => ShowAddInput()">
+            <i class="bi bi-plus-lg me-1"></i>Add Input
+        </button>
+        <button class="btn btn-sm btn-outline-primary" @onclick="() => ShowAddOutput()">
+            <i class="bi bi-plus-lg me-1"></i>Add Output
+        </button>
+        <span class="text-muted small align-self-center">Click a cell to cycle score: 0 → 1 → 3 → 9</span>
+    </div>
+
+    <!-- Matrix grid -->
+    @if (_matrix.Inputs.Count > 0 || _matrix.Outputs.Count > 0)
+    {
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm align-middle ce-matrix-table">
+                <thead>
+                    <!-- Output names row -->
+                    <tr>
+                        <th class="text-muted small" style="min-width:180px">Input \ Output</th>
+                        @foreach (var o in SortedOutputs)
+                        {
+                            <th class="text-center" style="max-width:110px; word-break:break-word; font-size:.8rem">
+                                <div>@o.Name</div>
+                                <div class="badge @OutputCategoryClass(o.Category) mb-1">@o.Category</div>
+                            </th>
+                        }
+                        <th class="text-center bg-light" style="min-width:80px">Priority</th>
+                        <th style="width:40px"></th>
+                    </tr>
+                    <!-- Importance row -->
+                    <tr class="table-secondary">
+                        <th class="small text-muted">Importance</th>
+                        @foreach (var o in SortedOutputs)
+                        {
+                            <td class="text-center p-1">
+                                <input type="number" min="1" max="10"
+                                       class="form-control form-control-sm text-center p-0"
+                                       style="width:50px;margin:auto"
+                                       value="@o.Importance"
+                                       @onchange="e => OnImportanceChange(o, e)"
+                                       title="Importance (1-10)" />
+                            </td>
+                        }
+                        <td></td>
+                        <td></td>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var input in SortedInputs)
+                    {
+                        <tr>
+                            <td style="max-width:180px; word-break:break-word">
+                                <div class="fw-semibold small">@input.Name</div>
+                                <span class="badge @InputCategoryClass(input.Category) small">@input.Category</span>
+                            </td>
+                            @foreach (var o in SortedOutputs)
+                            {
+                                var score = GetScore(input.Id, o.Id);
+                                <td class="text-center p-1">
+                                    <button class="btn btn-sm @CellClass(score)"
+                                            style="width:36px;font-size:.8rem"
+                                            @onclick="() => CycleScore(input.Id, o.Id)"
+                                            disabled="@_updating"
+                                            title="Score: @score — click to change">
+                                        @(score == 0 ? "" : score.ToString())
+                                    </button>
+                                </td>
+                            }
+                            <td class="text-center fw-bold">
+                                @{ var pri = GetPriority(input.Id); }
+                                <span class="badge @PriorityClass(pri)">@pri</span>
+                            </td>
+                            <td class="text-center">
+                                <button class="btn btn-outline-danger btn-sm p-0 px-1" @onclick="() => DeleteInput(input.Id)" title="Remove input">
+                                    <i class="bi bi-x-lg" style="font-size:.7rem"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <!-- Output delete row -->
+                <tfoot>
+                    <tr>
+                        <td class="text-muted small">Remove</td>
+                        @foreach (var o in SortedOutputs)
+                        {
+                            <td class="text-center p-1">
+                                <button class="btn btn-outline-danger btn-sm p-0 px-1" @onclick="() => DeleteOutput(o.Id)" title="Remove output">
+                                    <i class="bi bi-x-lg" style="font-size:.7rem"></i>
+                                </button>
+                            </td>
+                        }
+                        <td></td><td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    }
+}
+
+<!-- Edit Matrix modal -->
+@if (_showEditMatrix)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Matrix</h5>
+                    <button class="btn-close" @onclick="() => _showEditMatrix = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" @bind="_formName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control form-control-sm" rows="2" @bind="_formDescription"></textarea>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_formError)) { <div class="alert alert-danger py-2">@_formError</div> }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showEditMatrix = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveEditMatrix" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> } Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Add Input modal -->
+@if (_showAddInput)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Input</h5>
+                    <button class="btn-close" @onclick="() => _showAddInput = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" @bind="_inputName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        <select class="form-select form-select-sm" @bind="_inputCategory">
+                            <option value="PortInput">Port Input</option>
+                            <option value="ControlFactor">Control Factor</option>
+                            <option value="NoiseFactor">Noise Factor</option>
+                        </select>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_formError)) { <div class="alert alert-danger py-2">@_formError</div> }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showAddInput = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveInput" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> } Add
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Add Output modal -->
+@if (_showAddOutput)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Output</h5>
+                    <button class="btn-close" @onclick="() => _showAddOutput = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" @bind="_outputName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Category</label>
+                        <select class="form-select form-select-sm" @bind="_outputCategory">
+                            <option value="PortOutput">Port Output</option>
+                            <option value="QualityCharacteristic">Quality Characteristic</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Importance (1–10)</label>
+                        <input type="number" min="1" max="10" class="form-control form-control-sm" @bind="_outputImportance" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(_formError)) { <div class="alert alert-danger py-2">@_formError</div> }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showAddOutput = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveOutput" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> } Add
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    CeMatrixResponseDto? _matrix;
+    bool _loading = true, _saving, _updating;
+
+    // Correlation state: (inputId, outputId) -> score
+    Dictionary<(Guid, Guid), int> _scores = [];
+
+    // Form flags
+    bool _showEditMatrix, _showAddInput, _showAddOutput;
+    string _formName = "", _formDescription = "", _formError = "";
+    string _inputName = "", _inputCategory = "ControlFactor";
+    string _outputName = "", _outputCategory = "QualityCharacteristic";
+    int _outputImportance = 5;
+
+    IOrderedEnumerable<CeInputResponseDto> SortedInputs =>
+        (_matrix?.Inputs ?? []).OrderByDescending(i => GetPriority(i.Id));
+
+    IOrderedEnumerable<CeOutputResponseDto> SortedOutputs =>
+        (_matrix?.Outputs ?? []).OrderBy(o => o.SortOrder);
+
+    protected override async Task OnParametersSetAsync() => await LoadMatrix();
+
+    async Task LoadMatrix()
+    {
+        _loading = true;
+        _matrix = await Api.GetCeMatrixAsync(Id);
+        if (_matrix is not null) RebuildScores();
+        _loading = false;
+    }
+
+    void RebuildScores()
+    {
+        _scores = _matrix!.Correlations
+            .ToDictionary(c => (c.CeInputId, c.CeOutputId), c => c.Score);
+    }
+
+    int GetScore(Guid inputId, Guid outputId) =>
+        _scores.GetValueOrDefault((inputId, outputId), 0);
+
+    int GetPriority(Guid inputId) =>
+        (_matrix?.Outputs ?? []).Sum(o => GetScore(inputId, o.Id) * o.Importance);
+
+    static readonly int[] ScoreCycle = [0, 1, 3, 9];
+
+    async Task CycleScore(Guid inputId, Guid outputId)
+    {
+        if (_updating) return;
+        var cur = GetScore(inputId, outputId);
+        var idx = Array.IndexOf(ScoreCycle, cur);
+        var next = ScoreCycle[(idx + 1) % ScoreCycle.Length];
+        // Optimistic update
+        _scores[(inputId, outputId)] = next;
+        _updating = true;
+        try
+        {
+            var result = await Api.UpsertCorrelationAsync(Id, new(inputId, outputId, next));
+            if (result is not null) { _matrix = result; RebuildScores(); }
+        }
+        finally { _updating = false; }
+    }
+
+    async Task OnImportanceChange(CeOutputResponseDto output, ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var val) || val < 1 || val > 10) return;
+        var result = await Api.UpdateCeOutputAsync(Id, output.Id,
+            new(output.Name, Enum.Parse<ProcessManager.Domain.Enums.CeOutputCategory>(output.Category), val, output.SortOrder));
+        if (result is not null) { _matrix = result; RebuildScores(); }
+    }
+
+    // Matrix edit
+    void ShowEditMatrix()
+    {
+        _formName = _matrix!.Name; _formDescription = _matrix.Description ?? "";
+        _formError = ""; _showEditMatrix = true;
+    }
+
+    async Task SaveEditMatrix()
+    {
+        if (string.IsNullOrWhiteSpace(_formName)) { _formError = "Name is required."; return; }
+        _saving = true; _formError = "";
+        try
+        {
+            var result = await Api.UpdateCeMatrixAsync(Id, new(_formName, _formDescription));
+            if (result is not null) { _matrix = result; RebuildScores(); }
+            _showEditMatrix = false;
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    async Task DeleteMatrix()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete matrix '{_matrix?.Name}'? All correlations will be lost.")) return;
+        await Api.DeleteCeMatrixAsync(Id);
+        Nav.NavigateTo("/ce-matrices");
+    }
+
+    // Input
+    void ShowAddInput() { _inputName = ""; _inputCategory = "ControlFactor"; _formError = ""; _showAddInput = true; }
+
+    async Task SaveInput()
+    {
+        if (string.IsNullOrWhiteSpace(_inputName)) { _formError = "Name is required."; return; }
+        _saving = true; _formError = "";
+        try
+        {
+            var cat = Enum.Parse<ProcessManager.Domain.Enums.CeInputCategory>(_inputCategory);
+            var result = await Api.AddCeInputAsync(Id, new(_inputName, cat, null, (_matrix?.Inputs.Count ?? 0) + 1));
+            if (result is not null) { _matrix = result; RebuildScores(); }
+            _showAddInput = false;
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    async Task DeleteInput(Guid inputId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Remove this input from the matrix?")) return;
+        var result = await Api.DeleteCeInputAsync(Id, inputId);
+        if (result is not null) { _matrix = result; RebuildScores(); }
+    }
+
+    // Output
+    void ShowAddOutput() { _outputName = ""; _outputCategory = "QualityCharacteristic"; _outputImportance = 5; _formError = ""; _showAddOutput = true; }
+
+    async Task SaveOutput()
+    {
+        if (string.IsNullOrWhiteSpace(_outputName)) { _formError = "Name is required."; return; }
+        _saving = true; _formError = "";
+        try
+        {
+            var cat = Enum.Parse<ProcessManager.Domain.Enums.CeOutputCategory>(_outputCategory);
+            var result = await Api.AddCeOutputAsync(Id, new(_outputName, cat, _outputImportance, null, (_matrix?.Outputs.Count ?? 0) + 1));
+            if (result is not null) { _matrix = result; RebuildScores(); }
+            _showAddOutput = false;
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    async Task DeleteOutput(Guid outputId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Remove this output from the matrix?")) return;
+        var result = await Api.DeleteCeOutputAsync(Id, outputId);
+        if (result is not null) { _matrix = result; RebuildScores(); }
+    }
+
+    // Styling helpers
+    static string CellClass(int score) => score switch
+    {
+        9 => "btn-danger",
+        3 => "btn-primary",
+        1 => "btn-info",
+        _ => "btn-outline-secondary"
+    };
+
+    static string PriorityClass(int priority) => priority switch
+    {
+        >= 50 => "bg-danger text-white",
+        >= 20 => "bg-warning text-dark",
+        > 0 => "bg-info text-dark",
+        _ => "bg-light text-muted border"
+    };
+
+    static string InputCategoryClass(string cat) => cat switch
+    {
+        "PortInput" => "bg-primary",
+        "ControlFactor" => "bg-success",
+        "NoiseFactor" => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
+    static string OutputCategoryClass(string cat) => cat switch
+    {
+        "PortOutput" => "bg-primary",
+        _ => "bg-warning text-dark"
+    };
+}

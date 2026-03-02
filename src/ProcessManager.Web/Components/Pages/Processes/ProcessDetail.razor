@@ -87,7 +87,12 @@ else
                         {
                             <tr>
                                 <td>@s.Sequence</td>
-                                <td><code>@s.StepTemplateCode</code> — @s.StepTemplateName</td>
+                                <td>
+                                    <a href="step-templates/@s.StepTemplateId" title="Open step template editor">
+                                        <code>@s.StepTemplateCode</code>
+                                    </a>
+                                    — @s.StepTemplateName
+                                </td>
                                 <td>@(s.NameOverride ?? "—")</td>
                                 <td class="small text-truncate" style="max-width:200px">@(s.DescriptionOverride ?? "—")</td>
                                 <td>

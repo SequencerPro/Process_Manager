@@ -529,6 +529,119 @@ public class StepTemplatesController : ControllerBase
         return NoContent();
     }
 
+    // ──────────── Run Chart Widgets ────────────
+
+    [HttpGet("{id:guid}/runcharts")]
+    public async Task<ActionResult<List<RunChartWidgetResponseDto>>> GetRunChartWidgets(Guid id)
+    {
+        var stExists = await _db.StepTemplates.AnyAsync(s => s.Id == id);
+        if (!stExists) return NotFound();
+
+        var widgets = await _db.RunChartWidgets
+            .Include(w => w.SourceContent).ThenInclude(c => c.StepTemplate)
+            .Where(w => w.StepTemplateId == id)
+            .OrderBy(w => w.DisplayOrder)
+            .ToListAsync();
+
+        return widgets.Select(MapRunChartWidgetToDto).ToList();
+    }
+
+    [HttpPost("{id:guid}/runcharts")]
+    public async Task<ActionResult<RunChartWidgetResponseDto>> AddRunChartWidget(
+        Guid id, RunChartWidgetCreateDto dto)
+    {
+        var stExists = await _db.StepTemplates.AnyAsync(s => s.Id == id);
+        if (!stExists) return NotFound("StepTemplate not found.");
+
+        var source = await _db.StepTemplateContents
+            .Include(c => c.StepTemplate)
+            .FirstOrDefaultAsync(c => c.Id == dto.SourceContentId);
+        if (source is null) return BadRequest("SourceContentId does not reference a known content block.");
+        if (source.ContentType != ProcessManager.Domain.Enums.StepContentType.Prompt ||
+            source.PromptType != ProcessManager.Domain.Enums.PromptType.NumericEntry)
+            return BadRequest("Source content block must be a NumericEntry prompt.");
+
+        var widget = new ProcessManager.Domain.Entities.RunChartWidget
+        {
+            StepTemplateId = id,
+            SourceContentId = dto.SourceContentId,
+            Label = dto.Label,
+            ChartWindowSize = dto.ChartWindowSize,
+            SpecMin = dto.SpecMin,
+            SpecMax = dto.SpecMax,
+            DisplayOrder = dto.DisplayOrder
+        };
+
+        _db.RunChartWidgets.Add(widget);
+        await _db.SaveChangesAsync();
+
+        widget.SourceContent = source;
+        return CreatedAtAction(nameof(GetRunChartWidgets), new { id }, MapRunChartWidgetToDto(widget));
+    }
+
+    [HttpPut("{id:guid}/runcharts/{widgetId:guid}")]
+    public async Task<ActionResult<RunChartWidgetResponseDto>> UpdateRunChartWidget(
+        Guid id, Guid widgetId, RunChartWidgetUpdateDto dto)
+    {
+        var widget = await _db.RunChartWidgets
+            .Include(w => w.SourceContent).ThenInclude(c => c.StepTemplate)
+            .FirstOrDefaultAsync(w => w.Id == widgetId && w.StepTemplateId == id);
+        if (widget is null) return NotFound();
+
+        widget.Label = dto.Label;
+        widget.ChartWindowSize = dto.ChartWindowSize;
+        widget.SpecMin = dto.SpecMin;
+        widget.SpecMax = dto.SpecMax;
+        widget.DisplayOrder = dto.DisplayOrder;
+        await _db.SaveChangesAsync();
+
+        return MapRunChartWidgetToDto(widget);
+    }
+
+    [HttpDelete("{id:guid}/runcharts/{widgetId:guid}")]
+    public async Task<IActionResult> DeleteRunChartWidget(Guid id, Guid widgetId)
+    {
+        var widget = await _db.RunChartWidgets
+            .FirstOrDefaultAsync(w => w.Id == widgetId && w.StepTemplateId == id);
+        if (widget is null) return NotFound();
+
+        _db.RunChartWidgets.Remove(widget);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ──────────── Prompt History ────────────
+
+    [HttpGet("{id:guid}/content/{contentId:guid}/prompt-history")]
+    public async Task<ActionResult<List<PromptHistoryPointDto>>> GetPromptHistory(
+        Guid id, Guid contentId, [FromQuery] int limit = 30)
+    {
+        var stExists = await _db.StepTemplates.AnyAsync(s => s.Id == id);
+        if (!stExists) return NotFound("StepTemplate not found.");
+
+        var contentExists = await _db.StepTemplateContents.AnyAsync(c => c.Id == contentId);
+        if (!contentExists) return NotFound("Content block not found.");
+
+        var points = await _db.PromptResponses
+            .Where(r => r.StepTemplateContentId == contentId)
+            .OrderByDescending(r => r.CreatedAt)
+            .Take(limit)
+            .Select(r => new { r.CreatedAt, r.ResponseValue, r.IsOutOfRange })
+            .ToListAsync();
+
+        var result = points
+            .Where(p => double.TryParse(p.ResponseValue, System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out _))
+            .Select(p => new PromptHistoryPointDto(
+                p.CreatedAt,
+                double.Parse(p.ResponseValue, System.Globalization.CultureInfo.InvariantCulture),
+                p.IsOutOfRange))
+            .OrderBy(p => p.Timestamp)
+            .ToList();
+
+        return result;
+    }
+
     // ──────────── Validation ────────────
 
     private async Task<List<string>> ValidatePorts(List<PortCreateDto> ports, StepPattern pattern)
@@ -607,6 +720,20 @@ public class StepTemplatesController : ControllerBase
     }
 
     // ──────────── Mapping ────────────
+
+    private static RunChartWidgetResponseDto MapRunChartWidgetToDto(
+        ProcessManager.Domain.Entities.RunChartWidget w) => new(
+        w.Id, w.StepTemplateId, w.SourceContentId,
+        w.SourceContent?.StepTemplateId ?? Guid.Empty,
+        w.SourceContent?.StepTemplate?.Code ?? "",
+        w.SourceContent?.StepTemplate?.Name ?? "",
+        w.SourceContent?.Label,
+        w.SourceContent?.Units,
+        w.SourceContent?.MinValue,
+        w.SourceContent?.MaxValue,
+        w.Label, w.ChartWindowSize, w.SpecMin, w.SpecMax, w.DisplayOrder,
+        w.CreatedAt, w.UpdatedAt
+    );
 
     private static StepTemplateResponseDto MapToDto(StepTemplate step) => new(
         step.Id, step.Code, step.Name, step.Description,

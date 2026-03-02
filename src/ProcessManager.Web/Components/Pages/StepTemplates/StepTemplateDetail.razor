@@ -152,48 +152,6 @@ else
         </div>
     </div>
 
-    <!-- Images -->
-    <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-images me-1"></i> Images (@(_st.Images?.Count ?? 0))</span>
-            <label class="btn btn-outline-secondary btn-sm mb-0" style="cursor:pointer" title="Upload image">
-                <i class="bi bi-upload me-1"></i>Upload
-                <InputFile OnChange="UploadImage" accept="image/*" class="d-none" />
-            </label>
-        </div>
-        @if (_uploadingImage)
-        {
-            <div class="card-body"><span class="spinner-border spinner-border-sm text-secondary me-2"></span>Uploading...</div>
-        }
-        else if (_st.Images?.Any() == true)
-        {
-            <div class="card-body">
-                <div class="d-flex flex-wrap gap-3">
-                    @foreach (var img in _st.Images.OrderBy(i => i.SortOrder))
-                    {
-                        <div class="position-relative" style="width:140px">
-                            <img src="@Api.GetImageUrl(img.Url)"
-                                 class="img-thumbnail"
-                                 style="width:140px;height:100px;object-fit:cover"
-                                 alt="@img.OriginalFileName" />
-                            <button class="btn btn-danger btn-sm position-absolute top-0 end-0 py-0 px-1"
-                                    style="line-height:1.4"
-                                    @onclick="() => DeleteImage(img)"
-                                    title="Delete image">
-                                <i class="bi bi-x"></i>
-                            </button>
-                            <div class="text-muted small text-truncate mt-1" title="@img.OriginalFileName">@img.OriginalFileName</div>
-                        </div>
-                    }
-                </div>
-            </div>
-        }
-        else
-        {
-            <div class="card-body text-muted small">No images uploaded yet.</div>
-        }
-    </div>
-
     @* Work Instructions *@
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -439,6 +397,78 @@ else
         </div>
     </div>
 
+    @* Run Charts *@
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-graph-up me-1"></i> Run Charts (@_runChartWidgets.Count)</span>
+            <button class="btn btn-outline-primary btn-sm" @onclick="ShowAddChartPicker">
+                <i class="bi bi-plus-lg"></i>
+            </button>
+        </div>
+        <div class="card-body">
+            @if (_chartsLoading)
+            {
+                <div class="text-center py-3"><span class="spinner-border spinner-border-sm"></span></div>
+            }
+            else if (_runChartWidgets.Count == 0)
+            {
+                <p class="text-muted small mb-0">No run charts configured. Add one so operators can see trend data from any numeric prompt during step execution — including data collected in a different step or process.</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Label</th>
+                                <th>Source</th>
+                                <th>Window</th>
+                                <th>Spec Limits</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var w in _runChartWidgets)
+                            {
+                                <tr>
+                                    <td><strong>@w.Label</strong></td>
+                                    <td>
+                                        <span class="small">
+                                            <code>@w.SourceStepTemplateCode</code> — @w.SourceStepTemplateName
+                                            <br /><span class="text-muted">@w.SourcePromptLabel @(!string.IsNullOrEmpty(w.SourceUnits) ? $"({w.SourceUnits})" : "")</span>
+                                        </span>
+                                    </td>
+                                    <td>@w.ChartWindowSize</td>
+                                    <td>
+                                        @if (w.SpecMin.HasValue || w.SpecMax.HasValue)
+                                        {
+                                            <span>@(w.SpecMin?.ToString() ?? "—") – @(w.SpecMax?.ToString() ?? "—")</span>
+                                        }
+                                        else if (w.SourceSpecMin.HasValue || w.SourceSpecMax.HasValue)
+                                        {
+                                            <span class="text-muted small">@(w.SourceSpecMin?.ToString() ?? "—") – @(w.SourceSpecMax?.ToString() ?? "—") <em>(inherited)</em></span>
+                                        }
+                                        else { <span class="text-muted">—</span> }
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1"
+                                                @onclick="() => ShowEditChart(w)" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm py-0 px-1"
+                                                @onclick="() => DeleteChart(w)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
     @* Add / Edit Port Modal *@
     @if (_showPortForm)
     {
@@ -632,6 +662,104 @@ else
             </div>
         </div>
     }
+    @* Add / Edit Run Chart Modal *@
+    @if (_showChartForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">@(_editChartId.HasValue ? "Edit Run Chart" : "Add Run Chart")</h5>
+                        <button type="button" class="btn-close" @onclick="CloseChartForm"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (!_editChartId.HasValue)
+                        {
+                            <h6 class="fw-semibold mb-3"><span class="badge bg-secondary me-2">1</span>Select source prompt</h6>
+                            <div class="mb-3">
+                                <label class="form-label">Process</label>
+                                @if (_pickerProcesses is null)
+                                {
+                                    <div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading processes…</div>
+                                }
+                                else
+                                {
+                                    <select class="form-select" @bind="_pickerProcessId" @bind:after="OnPickerProcessChanged">
+                                        <option value="">Select a process…</option>
+                                        @foreach (var p in _pickerProcesses)
+                                        {
+                                            <option value="@p.Id">@p.Code — @p.Name</option>
+                                        }
+                                    </select>
+                                }
+                            </div>
+                            @if (_pickerSteps is not null)
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label">Step (step template)</label>
+                                    <select class="form-select" @bind="_pickerStepTemplateId" @bind:after="OnPickerStepChanged">
+                                        <option value="">Select a step…</option>
+                                        @foreach (var s in _pickerSteps)
+                                        {
+                                            <option value="@s.StepTemplateId">@s.Sequence. [@s.StepTemplateCode] @s.StepTemplateName</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
+                            @if (_pickerPrompts is not null)
+                            {
+                                @if (_pickerPrompts.Count == 0)
+                                {
+                                    <div class="alert alert-warning py-2 small">This step has no NumericEntry prompts.</div>
+                                }
+                                else
+                                {
+                                    <div class="mb-3">
+                                        <label class="form-label">Numeric Prompt</label>
+                                        <select class="form-select" @bind="_pickerContentId" @bind:after="OnPickerPromptChanged">
+                                            <option value="">Select a prompt…</option>
+                                            @foreach (var pt in _pickerPrompts)
+                                            {
+                                                <option value="@pt.Id">@pt.Label @(!string.IsNullOrEmpty(pt.Units) ? $"({pt.Units})" : "")</option>
+                                            }
+                                        </select>
+                                    </div>
+                                }
+                            }
+                            <hr class="my-3" />
+                        }
+                        <h6 class="fw-semibold mb-3"><span class="badge bg-secondary me-2">@(_editChartId.HasValue ? "" : "2")</span>Chart settings</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Chart label <span class="text-danger">*</span></label>
+                            <input class="form-control" @bind="_chartLabel" placeholder="e.g. DI Water Resistivity" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Window size <span class="text-muted small fw-normal">(last N observations shown)</span></label>
+                            <input type="number" class="form-control" @bind="_chartWindowSize" min="5" max="500" />
+                        </div>
+                        <div class="row">
+                            <div class="col-6">
+                                <label class="form-label">Spec Lower Limit (LSL)</label>
+                                <input type="number" step="any" class="form-control" @bind="_chartSpecMin"
+                                       placeholder="inherit from prompt" />
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Spec Upper Limit (USL)</label>
+                                <input type="number" step="any" class="form-control" @bind="_chartSpecMax"
+                                       placeholder="inherit from prompt" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="CloseChartForm">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveChart">
+                            @(_editChartId.HasValue ? "Update" : "Add Chart")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -673,9 +801,6 @@ else
     private StepPattern _editPattern;
     private bool _editIsActive;
 
-    // Image upload state
-    private bool _uploadingImage;
-
     // Content block state
     private bool _contentLoading;
     private string? _contentError;
@@ -703,6 +828,23 @@ else
     private string _editPromptMax = string.Empty;
     private string _editPromptChoicesRaw = string.Empty;
 
+    // Run chart widget state
+    private bool _chartsLoading;
+    private List<RunChartWidgetResponseDto> _runChartWidgets = new();
+    private bool _showChartForm;
+    private Guid? _editChartId;
+    private string _chartLabel = "";
+    private int _chartWindowSize = 30;
+    private decimal? _chartSpecMin;
+    private decimal? _chartSpecMax;
+    // Picker state
+    private List<ProcessSummaryResponseDto>? _pickerProcesses;
+    private string _pickerProcessId = "";
+    private List<ProcessStepResponseDto>? _pickerSteps;
+    private string _pickerStepTemplateId = "";
+    private List<StepTemplateContentResponseDto>? _pickerPrompts;
+    private string _pickerContentId = "";
+
     // Lookup data
     private PaginatedResponse<KindResponseDto>? _kinds;
     private List<GradeResponseDto>? _grades = new();
@@ -725,6 +867,7 @@ else
             _loading = false;
         }
         _ = LoadContent();
+        _ = LoadCharts();
     }
 
     private async Task LoadContent()
@@ -737,6 +880,121 @@ else
         }
         catch (Exception ex) { _contentError = ex.Message; }
         finally { _contentLoading = false; StateHasChanged(); }
+    }
+
+    // --- Run Charts ---
+
+    private async Task LoadCharts()
+    {
+        _chartsLoading = true;
+        try { _runChartWidgets = await Api.GetRunChartWidgetsAsync(Id); }
+        catch (Exception ex) { Toast.ShowError($"Failed to load run charts: {ex.Message}"); }
+        finally { _chartsLoading = false; StateHasChanged(); }
+    }
+
+    private async Task ShowAddChartPicker()
+    {
+        _editChartId = null;
+        _chartLabel = ""; _chartWindowSize = 30; _chartSpecMin = null; _chartSpecMax = null;
+        _pickerProcessId = ""; _pickerSteps = null; _pickerStepTemplateId = "";
+        _pickerPrompts = null; _pickerContentId = "";
+        _pickerProcesses = null;
+        _showChartForm = true;
+        try
+        {
+            _pickerProcesses = (await Api.GetProcessesAsync(pageSize: 200))?.Items?.ToList();
+        }
+        catch (Exception ex) { Toast.ShowError($"Failed to load processes: {ex.Message}"); }
+        StateHasChanged();
+    }
+
+    private async Task OnPickerProcessChanged()
+    {
+        _pickerSteps = null; _pickerStepTemplateId = ""; _pickerPrompts = null; _pickerContentId = "";
+        if (!Guid.TryParse(_pickerProcessId, out var pid)) return;
+        try
+        {
+            var process = await Api.GetProcessAsync(pid);
+            _pickerSteps = process?.Steps.OrderBy(s => s.Sequence).ToList();
+        }
+        catch (Exception ex) { Toast.ShowError($"Failed to load steps: {ex.Message}"); }
+        StateHasChanged();
+    }
+
+    private async Task OnPickerStepChanged()
+    {
+        _pickerPrompts = null; _pickerContentId = "";
+        if (!Guid.TryParse(_pickerStepTemplateId, out var stId)) return;
+        try
+        {
+            var contents = await Api.GetStepTemplateContentAsync(stId);
+            _pickerPrompts = contents
+                .Where(c => c.ContentType == "Prompt" && c.PromptType == "NumericEntry")
+                .ToList();
+            // Auto-select and auto-fill if exactly one numeric prompt
+            if (_pickerPrompts.Count == 1)
+            {
+                _pickerContentId = _pickerPrompts[0].Id.ToString();
+                if (string.IsNullOrWhiteSpace(_chartLabel)) _chartLabel = _pickerPrompts[0].Label ?? "";
+                if (_chartSpecMin is null) _chartSpecMin = _pickerPrompts[0].MinValue;
+                if (_chartSpecMax is null) _chartSpecMax = _pickerPrompts[0].MaxValue;
+            }
+        }
+        catch (Exception ex) { Toast.ShowError($"Failed to load prompts: {ex.Message}"); }
+        StateHasChanged();
+    }
+
+    private void OnPickerPromptChanged()
+    {
+        if (!Guid.TryParse(_pickerContentId, out var cid)) return;
+        var prompt = _pickerPrompts?.FirstOrDefault(p => p.Id == cid);
+        if (prompt is null) return;
+        if (string.IsNullOrWhiteSpace(_chartLabel)) _chartLabel = prompt.Label ?? "";
+        if (_chartSpecMin is null) _chartSpecMin = prompt.MinValue;
+        if (_chartSpecMax is null) _chartSpecMax = prompt.MaxValue;
+    }
+
+    private void ShowEditChart(RunChartWidgetResponseDto w)
+    {
+        _editChartId = w.Id;
+        _chartLabel = w.Label;
+        _chartWindowSize = w.ChartWindowSize;
+        _chartSpecMin = w.SpecMin;
+        _chartSpecMax = w.SpecMax;
+        _showChartForm = true;
+    }
+
+    private void CloseChartForm() { _showChartForm = false; _editChartId = null; }
+
+    private async Task SaveChart()
+    {
+        if (string.IsNullOrWhiteSpace(_chartLabel)) { Toast.ShowError("Chart label is required."); return; }
+        try
+        {
+            if (_editChartId.HasValue)
+            {
+                await Api.UpdateRunChartWidgetAsync(Id, _editChartId.Value,
+                    new RunChartWidgetUpdateDto(_chartLabel, _chartWindowSize, _chartSpecMin, _chartSpecMax, 0));
+            }
+            else
+            {
+                if (!Guid.TryParse(_pickerContentId, out var contentId))
+                { Toast.ShowError("Please select a source prompt."); return; }
+                await Api.CreateRunChartWidgetAsync(Id,
+                    new RunChartWidgetCreateDto(contentId, _chartLabel, _chartWindowSize, _chartSpecMin, _chartSpecMax, 0));
+            }
+            _showChartForm = false;
+            _editChartId = null;
+            await LoadCharts();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task DeleteChart(RunChartWidgetResponseDto w)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete run chart '{w.Label}'?")) return;
+        try { await Api.DeleteRunChartWidgetAsync(Id, w.Id); await LoadCharts(); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Edit Template ---
@@ -891,27 +1149,6 @@ else
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Delete this step template? This cannot be undone.")) return;
         try { await Api.DeleteStepTemplateAsync(_st!.Id); Nav.NavigateTo("step-templates"); }
-        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
-    }
-
-    // --- Images ---
-
-    private async Task UploadImage(InputFileChangeEventArgs e)
-    {
-        _uploadingImage = true;
-        try
-        {
-            await Api.UploadStepTemplateImageAsync(Id, e.File);
-            await LoadData();
-        }
-        catch (Exception ex) { Toast.ShowError(ex.Message); }
-        finally { _uploadingImage = false; }
-    }
-
-    private async Task DeleteImage(StepTemplateImageResponseDto img)
-    {
-        if (!await JS.InvokeAsync<bool>("confirm", $"Delete image '{img.OriginalFileName}'?")) return;
-        try { await Api.DeleteStepTemplateImageAsync(Id, img.Id); await LoadData(); }
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 

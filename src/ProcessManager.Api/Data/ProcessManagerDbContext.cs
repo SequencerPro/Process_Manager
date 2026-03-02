@@ -26,6 +26,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<StepTemplate> StepTemplates => Set<StepTemplate>();
     public DbSet<Port> Ports => Set<Port>();
     public DbSet<StepTemplateImage> StepTemplateImages => Set<StepTemplateImage>();
+    public DbSet<RunChartWidget> RunChartWidgets => Set<RunChartWidget>();
 
     // Phase 3: Process Composition
     public DbSet<Process> Processes => Set<Process>();
@@ -177,6 +178,26 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(ps => ps.StepTemplateId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- RunChartWidget ---
+        modelBuilder.Entity<RunChartWidget>(e =>
+        {
+            e.HasKey(w => w.Id);
+            e.Property(w => w.Label).HasMaxLength(300).IsRequired();
+
+            e.HasOne(w => w.StepTemplate)
+                .WithMany(st => st.RunChartWidgets)
+                .HasForeignKey(w => w.StepTemplateId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Preserve widgets if the source prompt is deleted (set null handled in app layer)
+            e.HasOne(w => w.SourceContent)
+                .WithMany()
+                .HasForeignKey(w => w.SourceContentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasIndex(w => w.StepTemplateId);
         });
 
         // --- StepTemplateContent ---

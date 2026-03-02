@@ -204,6 +204,41 @@ public class ApiClient
     public string GetImageUrl(string relativePath)
         => $"{_http.BaseAddress?.ToString().TrimEnd('/')}/{relativePath.TrimStart('/')}";
 
+    // ─── Run Chart Widgets ───
+
+    public async Task<List<RunChartWidgetResponseDto>> GetRunChartWidgetsAsync(Guid stepTemplateId)
+        => await _http.GetFromJsonAsync<List<RunChartWidgetResponseDto>>(
+            $"api/steptemplates/{stepTemplateId}/runcharts", _json) ?? new();
+
+    public async Task<RunChartWidgetResponseDto?> CreateRunChartWidgetAsync(
+        Guid stepTemplateId, RunChartWidgetCreateDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/steptemplates/{stepTemplateId}/runcharts", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<RunChartWidgetResponseDto>(_json);
+    }
+
+    public async Task<RunChartWidgetResponseDto?> UpdateRunChartWidgetAsync(
+        Guid stepTemplateId, Guid widgetId, RunChartWidgetUpdateDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync(
+            $"api/steptemplates/{stepTemplateId}/runcharts/{widgetId}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<RunChartWidgetResponseDto>(_json);
+    }
+
+    public async Task DeleteRunChartWidgetAsync(Guid stepTemplateId, Guid widgetId)
+    {
+        var resp = await _http.DeleteAsync($"api/steptemplates/{stepTemplateId}/runcharts/{widgetId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<List<PromptHistoryPointDto>> GetPromptHistoryAsync(
+        Guid stepTemplateId, Guid contentId, int limit = 30)
+        => await _http.GetFromJsonAsync<List<PromptHistoryPointDto>>(
+            $"api/steptemplates/{stepTemplateId}/content/{contentId}/prompt-history?limit={limit}", _json)
+           ?? new();
+
     // ═══════════════════ Ports ═══════════════════
 
     public async Task<PortResponseDto?> CreatePortAsync(Guid stepTemplateId, PortCreateDto dto)

@@ -9,6 +9,7 @@
 | 0.3     | 2026-02-21 | API fixes (IsActive toggle, Workflow versioning), Blazor detail pages for Items/Batches/StepExecutions |
 | 0.4     | 2026-02-21 | CRUD modals on all detail pages, 17 Blazor pages complete |
 | 0.5     | 2026-02-22 | Full UI polish: cascading port dropdowns, workflow validation UI, port transaction forms, delete confirmations on all pages, empty-state messages, display name fixes (JobName/BatchCode), StepExecution job filter, WorkflowDetail link condition management |
+| 0.6     | 2026-03-02 | Audit trail wired up (CreatedBy/UpdatedBy via IHttpContextAccessor); multi-tenancy architecture decision documented |
 
 ---
 
@@ -153,15 +154,52 @@ A system that treats manufacturing (and other business) process designs as the c
 
 ---
 
-### Phase 6 — Production Infrastructure (planned)
+### Phase 6 — Production Infrastructure (in progress)
 
 **Goal:** Make the system deployable in real multi-user environments.
 
-**Planned work:**
-- **Database provider abstraction:** Replace the current SQLite-only setup with a configurable provider selected at deployment time. Target providers: PostgreSQL (preferred for open-source deployments), SQL Server (enterprise/Windows environments), with Oracle and others as secondary targets. The EF Core provider is read from `appsettings.json` (`"DatabaseProvider": "PostgreSQL"`) and branched in `Program.cs`. SQLite remains available for development and single-user embedded use.
-- **EF Core Migrations:** Replace `Database.EnsureCreated()` with a proper migrations pipeline so schema changes can be applied to live databases without data loss.
-- **Authentication & Authorization:** User identity, role-based access (e.g., operator vs. engineer vs. admin), and audit trails tied to specific users.
-- **Multi-tenancy:** Namespace isolation so multiple factories or business units can share a single deployment.
+**Completed:**
+- **PostgreSQL:** SQLite replaced with PostgreSQL (Npgsql 8.0.11). `Program.cs` includes a `ToNpgsqlConnectionString()` helper that converts the `postgresql://` URL injected by Render into an Npgsql-compatible connection string. `appsettings.json` carries a localhost default for development; the production connection string is supplied via environment variable.
+- **EF Core Migrations:** `Database.EnsureCreated()` replaced with a proper migrations pipeline. `20260301175025_InitialCreate` covers the full initial schema with Npgsql identity column annotations.
+- **Authentication & Authorization:** JWT-based auth with Admin and Engineer roles. Full user management UI (list, add, delete) in the Blazor admin panel.
+- **Audit Trail:** `ProcessManagerDbContext.SetAuditFields()` automatically populates `CreatedAt`, `UpdatedAt`, `CreatedBy`, and `UpdatedBy` on every `SaveChanges`/`SaveChangesAsync` call, using `IHttpContextAccessor` to resolve the current user's username from the JWT principal. All four fields are already in `BaseEntity` and covered by the `InitialCreate` migration — no schema change required.
+
+**Remaining:**
+- **Multi-tenancy:** See architecture decision below.
+
+---
+
+## Architecture Decision: Multi-Tenancy (2026-03-02)
+
+### Deployment Models
+
+The system must support two deployment scenarios:
+1. **SaaS** — hosted on Render, serving multiple independent companies from the same deployment.
+2. **On-premises** — a single company runs the system on their own hardware with their own database.
+
+### Decision: Database-per-Tenant (Option B), deferred until a second real tenant exists
+
+Three options were evaluated:
+
+| Option | Description | Verdict |
+|---|---|---|
+| A: Row-level tenancy | `TenantId` column on every table; single shared database | Rejected for now — invasive to implement, data leakage risk, premature at current scale |
+| B: Database-per-tenant | Each tenant gets their own PostgreSQL database; middleware resolves connection string per request | **Selected** — strong isolation, no schema changes, natural fit for both deployment models |
+| C: Deployment-per-tenant | Separate Render service + DB per customer (current state) | Fine now, but operationally unscalable beyond a handful of customers |
+
+### How It Works
+
+- A lightweight "management" database holds a `Tenants` table mapping subdomains/identifiers to connection strings.
+- A tenant resolver middleware reads the request hostname, looks up the tenant, and selects the appropriate connection string before the request hits any controller.
+- Migrations run independently per tenant database using the same migration pipeline already in place.
+- On-premises customers provision one database and set `TenancyMode: SingleTenant` in `appsettings.json` — the middleware is bypassed and the connection string comes directly from config.
+- **No changes to any entity, query, or migration are required.** The same binaries and Docker image serve both deployment models.
+
+### When to Build It
+
+Do not build multi-tenancy infrastructure until a second real SaaS tenant is being onboarded. The current single-deployment model (Option C) is sufficient until then. If database-per-tenant ever becomes operationally unmanageable at scale (many dozens of tenants), revisit Option A.
+
+---
 
 ### Phase 7+ — Integrations (future)
 
@@ -179,9 +217,9 @@ Each integration is a consumer of execution data shaped by the process model. Th
 
 ---
 
-## Current State (as of 2026-02-22)
+## Current State (as of 2026-03-02)
 
-All five phases are fully implemented. The system is working end-to-end in a single-developer local environment.
+All five phases are fully implemented. Phase 6 is in progress — PostgreSQL, EF Core migrations, authentication/authorization, and audit trail are complete. The system is deployable to Render.com.
 
 ### Technology Stack
 
@@ -190,7 +228,7 @@ All five phases are fully implemented. The system is working end-to-end in a sin
 | API | ASP.NET Core 8 Web API |
 | Frontend | Blazor Server (SSR + InteractiveServer render mode) |
 | ORM | Entity Framework Core 8 |
-| Database | SQLite (development) |
+| Database | PostgreSQL (production/development via Npgsql); in-memory SQLite for tests |
 | Test framework | xUnit with `WebApplicationFactory` integration tests |
 | Styling | Bootstrap 5 + Bootstrap Icons |
 | Version control | Git / GitHub (SequencerPro/Process_Manager) |
@@ -215,8 +253,5 @@ All five phases are fully implemented. The system is working end-to-end in a sin
 
 ### Known Limitations / Next Steps
 
-- SQLite is used for all environments; not suitable for multi-user production (see Phase 6)
-- No authentication or authorization
-- No EF Core migrations (uses `EnsureCreated` — fine for dev, not for live schema updates)
 - Port quantity rule fields (QtyRuleN/Min/Max) not yet exposed in UI forms
-- No toast/notification system — errors shown as inline alerts
+- Multi-tenancy deferred until second SaaS tenant is onboarded (database-per-tenant approach selected — see Architecture Decision above)

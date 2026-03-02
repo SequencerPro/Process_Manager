@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Domain.Entities;
@@ -6,9 +7,14 @@ namespace ProcessManager.Api.Data;
 
 public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
 {
-    public ProcessManagerDbContext(DbContextOptions<ProcessManagerDbContext> options)
+    private readonly IHttpContextAccessor? _httpContextAccessor;
+
+    public ProcessManagerDbContext(
+        DbContextOptions<ProcessManagerDbContext> options,
+        IHttpContextAccessor? httpContextAccessor = null)
         : base(options)
     {
+        _httpContextAccessor = httpContextAccessor;
     }
 
     // Phase 1: Type System
@@ -493,21 +499,24 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
 
     private void SetAuditFields()
     {
-        var entries = ChangeTracker.Entries<BaseEntity>();
-        var now = DateTime.UtcNow;
+        var now  = DateTime.UtcNow;
+        var user = _httpContextAccessor?.HttpContext?.User?.Identity?.Name;
 
-        foreach (var entry in entries)
+        foreach (var entry in ChangeTracker.Entries<BaseEntity>())
         {
             if (entry.State == EntityState.Added)
             {
                 entry.Entity.CreatedAt = now;
                 entry.Entity.UpdatedAt = now;
+                entry.Entity.CreatedBy = user;
+                entry.Entity.UpdatedBy = user;
                 if (entry.Entity.Id == Guid.Empty)
                     entry.Entity.Id = Guid.NewGuid();
             }
             else if (entry.State == EntityState.Modified)
             {
                 entry.Entity.UpdatedAt = now;
+                entry.Entity.UpdatedBy = user;
             }
         }
     }

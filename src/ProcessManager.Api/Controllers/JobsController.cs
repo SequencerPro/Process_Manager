@@ -330,7 +330,9 @@ public class JobsController : ControllerBase
             se.UpdatedAt,
             includePortTransactions
                 ? se.PortTransactions.Select(MapPortTransactionToDto).ToList()
-                : null);
+                : null,
+            se.Job?.Code,
+            se.Job?.Name);
     }
 
     internal static PortTransactionResponseDto MapPortTransactionToDto(PortTransaction pt)

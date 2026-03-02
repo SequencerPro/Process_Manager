@@ -159,7 +159,10 @@
     // ── Mutable form model (records are init-only; Blazor bind needs setters) ──
     private class NewUserModel
     {
-        [Required][StringLength(50)] public string UserName { get; set; } = "";
+        [Required]
+        [StringLength(50)]
+        [RegularExpression(@"^\S+$", ErrorMessage = "Username cannot contain spaces.")]
+        public string UserName { get; set; } = "";
         [Required][EmailAddress]     public string Email    { get; set; } = "";
         [Required][StringLength(100, MinimumLength = 8)] public string Password { get; set; } = "";
         [Required]                   public string Role     { get; set; } = "Engineer";

@@ -503,6 +503,36 @@ else
                                     }
                                 </select>
                             </div>
+                            @if (_portQtyMode is QuantityRuleMode.Exactly or QuantityRuleMode.ZeroOrN)
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label">N <span class="text-muted small">(@(_portQtyMode == QuantityRuleMode.Exactly ? "must be exactly N" : "zero or N"))</span></label>
+                                    <input type="number" class="form-control" min="1" @bind="_portQtyRuleN" placeholder="1" />
+                                </div>
+                            }
+                            @if (_portQtyMode is QuantityRuleMode.Range or QuantityRuleMode.Unbounded)
+                            {
+                                <div class="row mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label">Min</label>
+                                        <input type="number" class="form-control" min="0" @bind="_portQtyRuleMin" placeholder="0" />
+                                    </div>
+                                    @if (_portQtyMode == QuantityRuleMode.Range)
+                                    {
+                                        <div class="col-6">
+                                            <label class="form-label">Max</label>
+                                            <input type="number" class="form-control" min="1" @bind="_portQtyRuleMax" placeholder="e.g. 10" />
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="col-6">
+                                            <label class="form-label text-muted">Max</label>
+                                            <input class="form-control" disabled value="unlimited" />
+                                        </div>
+                                    }
+                                </div>
+                            }
                         }
 
                         @if (_portType is PortType.Parameter or PortType.Characteristic)
@@ -625,6 +655,9 @@ else
     private string _portKindId = "";
     private string _portGradeId = "";
     private QuantityRuleMode _portQtyMode = QuantityRuleMode.Exactly;
+    private int? _portQtyRuleN;
+    private int? _portQtyRuleMin;
+    private int? _portQtyRuleMax;
     // Parameter / Characteristic fields
     private DataValueType _portDataType = DataValueType.Decimal;
     private string _portUnits = "";
@@ -737,6 +770,9 @@ else
         _portKindId = "";
         _portGradeId = "";
         _portQtyMode = QuantityRuleMode.Exactly;
+        _portQtyRuleN = 1;
+        _portQtyRuleMin = null;
+        _portQtyRuleMax = null;
         _portDataType = DataValueType.Decimal;
         _portUnits = "";
         _portNominalValue = "";
@@ -756,6 +792,9 @@ else
         _portKindId = p.KindId?.ToString() ?? "";
         _portGradeId = p.GradeId?.ToString() ?? "";
         _portQtyMode = p.QtyRuleMode ?? QuantityRuleMode.Exactly;
+        _portQtyRuleN = p.QtyRuleN;
+        _portQtyRuleMin = p.QtyRuleMin;
+        _portQtyRuleMax = p.QtyRuleMax;
         _portDataType = p.DataType ?? DataValueType.Decimal;
         _portUnits = p.Units ?? "";
         _portNominalValue = p.NominalValue ?? "";
@@ -816,17 +855,22 @@ else
                 ? (string.IsNullOrEmpty(_portUpperTolerance) ? null : _portUpperTolerance) : null;
             QuantityRuleMode? qtyMode = _portType == PortType.Material ? _portQtyMode : null;
 
+            // Resolve qty rule numeric fields based on mode
+            int? qtyN   = qtyMode is QuantityRuleMode.Exactly or QuantityRuleMode.ZeroOrN ? _portQtyRuleN : null;
+            int? qtyMin = qtyMode is QuantityRuleMode.Range or QuantityRuleMode.Unbounded ? _portQtyRuleMin : null;
+            int? qtyMax = qtyMode == QuantityRuleMode.Range ? _portQtyRuleMax : null;
+
             if (_editPortId.HasValue)
             {
                 var dto = new PortUpdateDto(_portName, _portType,
-                    kindId, gradeId, qtyMode, null, null, null,
+                    kindId, gradeId, qtyMode, qtyN, qtyMin, qtyMax,
                     dataType, units, nominal, lower, upper, _portSortOrder);
                 await Api.UpdatePortAsync(Id, _editPortId.Value, dto);
             }
             else
             {
                 var dto = new PortCreateDto(_portName, _portDirection, _portType,
-                    kindId, gradeId, qtyMode, null, null, null,
+                    kindId, gradeId, qtyMode, qtyN, qtyMin, qtyMax,
                     dataType, units, nominal, lower, upper, _portSortOrder);
                 await Api.CreatePortAsync(Id, dto);
             }

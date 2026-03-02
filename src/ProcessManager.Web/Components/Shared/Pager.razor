@@ -1,0 +1,42 @@
+@* Reusable pagination controls *@
+@if (TotalPages > 1)
+{
+    <nav aria-label="Page navigation" class="mt-3">
+        <div class="d-flex justify-content-between align-items-center">
+            <small class="text-muted">
+                Showing @(((Page - 1) * PageSize) + 1)–@Math.Min(Page * PageSize, TotalCount) of @TotalCount
+            </small>
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(Page <= 1 ? "disabled" : "")">
+                    <a class="page-link" href="javascript:void(0)" @onclick="() => OnPageChanged.InvokeAsync(Page - 1)">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+                @for (int i = StartPage; i <= EndPage; i++)
+                {
+                    var p = i;
+                    <li class="page-item @(p == Page ? "active" : "")">
+                        <a class="page-link" href="javascript:void(0)" @onclick="() => OnPageChanged.InvokeAsync(p)">@p</a>
+                    </li>
+                }
+                <li class="page-item @(Page >= TotalPages ? "disabled" : "")">
+                    <a class="page-link" href="javascript:void(0)" @onclick="() => OnPageChanged.InvokeAsync(Page + 1)">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+}
+
+@code {
+    [Parameter] public int Page { get; set; }
+    [Parameter] public int PageSize { get; set; }
+    [Parameter] public int TotalCount { get; set; }
+    [Parameter] public EventCallback<int> OnPageChanged { get; set; }
+
+    private int TotalPages => PageSize > 0 ? (int)Math.Ceiling((double)TotalCount / PageSize) : 0;
+
+    private int StartPage => Math.Max(1, Page - 2);
+    private int EndPage => Math.Min(TotalPages, Page + 2);
+}

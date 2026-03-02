@@ -1,0 +1,716 @@
+@page "/step-executions/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Step Execution Detail</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_exec is null)
+{
+    <div class="alert alert-warning">Step Execution not found.</div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="step-executions">Step Executions</a></li>
+            <li class="breadcrumb-item active">@_exec.StepName #@_exec.Sequence</li>
+        </ol>
+    </nav>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h4 class="mb-1">@_exec.StepName <span class="text-muted fs-6">#@_exec.Sequence</span></h4>
+                    <StatusBadge Status="@_exec.Status" />
+                </div>
+                <div class="d-flex gap-1 flex-wrap">
+                    @if (_exec.Status == "Pending")
+                    {
+                        <button class="btn btn-success btn-sm" @onclick='() => Transition("start")'>
+                            <i class="bi bi-play-fill me-1"></i>Start
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" @onclick='() => Transition("skip")'>Skip</button>
+                    }
+                    else if (_exec.Status == "InProgress")
+                    {
+                        <button class="btn btn-primary btn-sm" @onclick='() => Transition("complete")'>
+                            <i class="bi bi-check-lg me-1"></i>Complete
+                        </button>
+                        <button class="btn btn-danger btn-sm" @onclick='() => Transition("fail")'>
+                            <i class="bi bi-x-lg me-1"></i>Fail
+                        </button>
+                    }
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Job</dt>
+                        <dd class="col-sm-8"><a href="jobs/@_exec.JobId">View Job</a></dd>
+                        <dt class="col-sm-4">Started</dt>
+                        <dd class="col-sm-8">@(_exec.StartedAt?.ToString("g") ?? "—")</dd>
+                        <dt class="col-sm-4">Completed</dt>
+                        <dd class="col-sm-8">@(_exec.CompletedAt?.ToString("g") ?? "—")</dd>
+                    </dl>
+                </div>
+                <div class="col-md-6">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Created</dt>
+                        <dd class="col-sm-8">@_exec.CreatedAt.ToString("g")</dd>
+                        <dt class="col-sm-4">Updated</dt>
+                        <dd class="col-sm-8">@_exec.UpdatedAt.ToString("g")</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="mt-3">
+                <label class="form-label fw-bold">Notes</label>
+                <div class="input-group">
+                    <input class="form-control" @bind="_notes" placeholder="Add notes..." />
+                    <button class="btn btn-outline-primary" @onclick="SaveNotes">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs: Instructions / Port Transactions / Execution Data -->
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <button class="nav-link @(_activeTab == "instructions" ? "active" : "")"
+                    @onclick='() => _activeTab = "instructions"'>
+                <i class="bi bi-card-text me-1"></i>Instructions & Prompts
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(_activeTab == "transactions" ? "active" : "")"
+                    @onclick='() => _activeTab = "transactions"'>
+                Port Transactions (@(_transactions?.Count ?? 0))
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(_activeTab == "data" ? "active" : "")"
+                    @onclick='() => _activeTab = "data"'>
+                Execution Data (@(_data?.Count ?? 0))
+            </button>
+        </li>
+    </ul>
+
+    @* ── Instructions & Prompts tab ────────────────────────────────────── *@
+    @if (_activeTab == "instructions")
+    {
+        @if (_contentLoading)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                <span class="text-muted">Loading instructions…</span>
+            </div>
+        }
+        else if (!_allContentBlocks.Any())
+        {
+            <p class="text-muted fst-italic py-3">No work instructions defined for this step.</p>
+        }
+        else
+        {
+            @foreach (var block in _allContentBlocks)
+            {
+                if (block.ContentType == "Text")
+                {
+                    <div class="mb-4 p-3 bg-light rounded border-start border-4 border-primary">
+                        <p class="mb-0" style="white-space:pre-wrap">@block.Body</p>
+                    </div>
+                }
+                else if (block.ContentType == "Image")
+                {
+                    <div class="mb-4 text-center">
+                        <img src="@block.ImageUrl" class="img-fluid rounded shadow-sm" style="max-height:400px" alt="@block.OriginalFileName" />
+                        @if (!string.IsNullOrEmpty(block.OriginalFileName))
+                        {
+                            <div class="text-muted small mt-1">@block.OriginalFileName</div>
+                        }
+                    </div>
+                }
+                else if (block.ContentType == "Prompt")
+                {
+                    var key  = block.Id.ToString();
+                    var pval = GetPromptValue(key);
+                    var existing     = _promptResponses.FirstOrDefault(r =>
+                        r.ProcessStepContentId == block.Id || r.StepTemplateContentId == block.Id);
+                    var isOutOfRange = existing?.IsOutOfRange == true;
+
+                    <div class="card mb-3 @(isOutOfRange ? "border-warning" : "")">
+                        <div class="card-body">
+                            <label class="form-label fw-medium">
+                                @block.Label
+                                @if (block.IsRequired) { <span class="text-danger">*</span> }
+                                @if (!string.IsNullOrEmpty(block.Units))
+                                { <span class="text-muted ms-1 fw-normal">(@block.Units)</span> }
+                                <span class="badge bg-secondary ms-2 fw-normal" style="font-size:.7rem">@block.PromptType</span>
+                            </label>
+
+                            @if (block.PromptType == "NumericEntry")
+                            {
+                                <input type="number" step="any"
+                                       class="form-control @(isOutOfRange ? "border-warning" : "")"
+                                       value="@pval"
+                                       @oninput="e => SetPromptValue(key, e.Value?.ToString())" />
+                                @if (block.MinValue.HasValue || block.MaxValue.HasValue)
+                                {
+                                    <div class="form-text">
+                                        Range: @(block.MinValue?.ToString() ?? "—") to @(block.MaxValue?.ToString() ?? "—")
+                                        @if (!string.IsNullOrEmpty(block.Units)) { <text> @block.Units</text> }
+                                    </div>
+                                }
+                            }
+                            else if (block.PromptType == "TextEntry")
+                            {
+                                <textarea class="form-control" rows="3"
+                                          @oninput="e => SetPromptValue(key, e.Value?.ToString())">@pval</textarea>
+                            }
+                            else if (block.PromptType == "Checkbox")
+                            {
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="chk-@block.Id"
+                                           checked="@(pval == "true")"
+                                           @onchange="e => SetBoolPromptValue(key, (bool)e.Value!)" />
+                                    <label class="form-check-label" for="chk-@block.Id">Confirmed</label>
+                                </div>
+                            }
+                            else if (block.PromptType == "SingleChoice")
+                            {
+                                var sc = block.Choices?.Split(',',
+                                    StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                                    ?? Array.Empty<string>();
+                                <select class="form-select"
+                                        @onchange="e => SetPromptValue(key, e.Value?.ToString())">
+                                    <option value="">Select…</option>
+                                    @foreach (var c in sc)
+                                    {
+                                        <option value="@c" selected="@(pval == c)">@c</option>
+                                    }
+                                </select>
+                            }
+                            else if (block.PromptType == "MultipleChoice")
+                            {
+                                var mc      = block.Choices?.Split(',',
+                                    StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                                    ?? Array.Empty<string>();
+                                var selset  = pval.Split(',',
+                                    StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                                    .ToHashSet();
+                                @foreach (var c in mc)
+                                {
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="mc-@(block.Id)-@c"
+                                               checked="@selset.Contains(c)"
+                                               @onchange="e => ToggleMultiChoice(key, c, (bool)e.Value!)" />
+                                        <label class="form-check-label" for="mc-@(block.Id)-@c">@c</label>
+                                    </div>
+                                }
+                            }
+
+                            @if (isOutOfRange)
+                            {
+                                <div class="text-warning mt-1 small">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>Value is out of specified range.
+                                    @if (!string.IsNullOrEmpty(existing?.OverrideNote))
+                                    { <text> Note: @existing.OverrideNote</text> }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+
+            @if (_allContentBlocks.Any(b => b.ContentType == "Prompt"))
+            {
+                <div class="d-flex align-items-center gap-3 mt-1 mb-4">
+                    <button class="btn btn-primary" @onclick="SavePromptResponses" disabled="@_promptSaving">
+                        @if (_promptSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi bi-save me-1"></i> Save Responses
+                    </button>
+                    @if (_promptsSaved)
+                    {
+                        <span class="text-success"><i class="bi bi-check-circle me-1"></i>Saved</span>
+                    }
+                    @if (_promptError is not null)
+                    {
+                        <span class="text-danger small">@_promptError</span>
+                    }
+                </div>
+            }
+        }
+    }
+
+    @* ── Port Transactions tab ─────────────────────────────────────────── *@
+    @if (_activeTab == "transactions")
+    {
+        <div class="d-flex justify-content-end mb-2">
+            <button class="btn btn-primary btn-sm" @onclick="ShowPortTxnForm">
+                <i class="bi bi-plus-lg me-1"></i> Add Transaction
+            </button>
+        </div>
+
+        @if (_transactions?.Any() == true)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Port</th>
+                            <th>Direction</th>
+                            <th>Item</th>
+                            <th>Batch</th>
+                            <th>Quantity</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var pt in _transactions)
+                        {
+                            <tr>
+                                <td>@pt.PortName</td>
+                                <td>
+                                    <span class="badge @(pt.PortDirection == "Input" ? "bg-info text-dark" : "bg-warning text-dark")">
+                                        @pt.PortDirection
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (pt.ItemId.HasValue)
+                                    {
+                                        <a href="items/@pt.ItemId"><code>@(pt.ItemSerialNumber ?? pt.ItemId.Value.ToString()[..8])</code></a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (pt.BatchId.HasValue)
+                                    {
+                                        <a href="batches/@pt.BatchId"><code>@(pt.BatchCode ?? pt.BatchId.Value.ToString()[..8])</code></a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td>@pt.Quantity</td>
+                                <td>@pt.CreatedAt.ToString("g")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted small">No port transactions recorded.</p>
+        }
+    }
+
+    @if (_activeTab == "data")
+    {
+        <div class="d-flex justify-content-end mb-2">
+            <button class="btn btn-primary btn-sm" @onclick="ShowDataForm">
+                <i class="bi bi-plus-lg me-1"></i> Add Data
+            </button>
+        </div>
+
+        @if (_data?.Any() == true)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead class="table-light">
+                        <tr><th>Key</th><th>Value</th><th>Type</th><th>Unit</th><th>Created</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in _data)
+                        {
+                            <tr>
+                                <td><strong>@d.Key</strong></td>
+                                <td>@d.Value</td>
+                                <td><span class="badge bg-secondary">@d.DataType</span></td>
+                                <td>@(d.UnitOfMeasure ?? "—")</td>
+                                <td>@d.CreatedAt.ToString("g")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted small">No execution data recorded.</p>
+        }
+    }
+}
+
+@if (_showDataForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Execution Data</h5>
+                    <button type="button" class="btn-close" @onclick="CloseDataForm"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Key</label>
+                        <input class="form-control" @bind="_dataKey" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Value</label>
+                        <input class="form-control" @bind="_dataValue" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Data Type</label>
+                        <select class="form-select" @bind="_dataType">
+                            <option value="String">String</option>
+                            <option value="Number">Number</option>
+                            <option value="Boolean">Boolean</option>
+                            <option value="DateTime">DateTime</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Unit of Measure</label>
+                        <input class="form-control" @bind="_dataUnit" placeholder="e.g., mm, kg, °C" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseDataForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveData">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_showPortTxnForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Port Transaction</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showPortTxnForm = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Port</label>
+                        <select class="form-select" @bind="_ptPortId">
+                            <option value="">Select port...</option>
+                            @if (_stepPorts is not null)
+                            {
+                                @foreach (var p in _stepPorts)
+                                {
+                                    <option value="@p.Id">@(p.Direction == PortDirection.Input ? "⬇" : "⬆") @p.Name (@p.KindCode / @p.GradeCode)</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Item (optional)</label>
+                        <select class="form-select" @bind="_ptItemId">
+                            <option value="">None</option>
+                            @if (_jobItems is not null)
+                            {
+                                @foreach (var item in _jobItems)
+                                {
+                                    <option value="@item.Id">@(item.SerialNumber ?? item.Id.ToString()[..8]) — @item.KindName/@item.GradeName</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Batch (optional)</label>
+                        <select class="form-select" @bind="_ptBatchId">
+                            <option value="">None</option>
+                            @if (_jobBatches is not null)
+                            {
+                                @foreach (var b in _jobBatches)
+                                {
+                                    <option value="@b.Id">@b.Code — @b.KindName/@b.GradeName</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" class="form-control" @bind="_ptQuantity" min="1" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showPortTxnForm = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SavePortTxn">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private StepExecutionResponseDto? _exec;
+    private List<PortTransactionResponseDto>? _transactions;
+    private List<ExecutionDataResponseDto>? _data;
+    private bool _loading = true;
+    private string _activeTab = "instructions";
+    private string _notes = "";
+
+    // Instructions & Prompts
+    private bool _contentLoading;
+    private List<ContentBlockViewModel> _allContentBlocks = new();
+    private List<PromptResponseDto> _promptResponses = new();
+    private readonly Dictionary<string, string> _promptValues = new();
+    private bool _promptSaving;
+    private bool _promptsSaved;
+    private string? _promptError;
+
+    private record ContentBlockViewModel(
+        Guid Id, string ContentType, int SortOrder,
+        string? Body, string? ImageUrl, string? OriginalFileName,
+        string? PromptType, string? Label, bool IsRequired,
+        string? Units, decimal? MinValue, decimal? MaxValue,
+        string? Choices, bool IsFromTemplate);
+
+    // Data form
+    private bool _showDataForm;
+    private string _dataKey = "";
+    private string _dataValue = "";
+    private string _dataType = "String";
+    private string? _dataUnit;
+
+    // Port Transaction form
+    private bool _showPortTxnForm;
+    private string _ptPortId = "";
+    private string _ptItemId = "";
+    private string _ptBatchId = "";
+    private int _ptQuantity = 1;
+    private List<PortResponseDto>? _stepPorts;
+    private List<ItemResponseDto>? _jobItems;
+    private List<BatchResponseDto>? _jobBatches;
+
+    protected override async Task OnInitializedAsync() => await LoadAll();
+
+    private async Task LoadAll()
+    {
+        _loading = true;
+        _exec = await Api.GetStepExecutionAsync(Id);
+        if (_exec is not null)
+        {
+            _notes = _exec.Notes ?? "";
+            _transactions = await Api.GetStepExecutionPortTransactionsAsync(Id);
+            _data = await Api.GetStepExecutionDataAsync(Id);
+            _ = LoadInstructions();
+        }
+        _loading = false;
+    }
+
+    private async Task LoadInstructions()
+    {
+        if (_exec is null) return;
+        _contentLoading = true;
+        StateHasChanged();
+        try
+        {
+            var job = await Api.GetJobAsync(_exec.JobId);
+            if (job is null) return;
+
+            // Prefer process-step-level content; fall back to template content
+            var processContent = await Api.GetStepContentAsync(job.ProcessId, _exec.ProcessStepId);
+            if (processContent?.Any() == true)
+            {
+                _allContentBlocks = processContent
+                    .OrderBy(c => c.SortOrder)
+                    .Select(c => new ContentBlockViewModel(
+                        c.Id, c.ContentType, c.SortOrder, c.Body, c.ImageUrl, c.OriginalFileName,
+                        c.PromptType, c.Label, c.IsRequired, c.Units, c.MinValue, c.MaxValue,
+                        c.Choices, false))
+                    .ToList();
+            }
+            else
+            {
+                var process = await Api.GetProcessAsync(job.ProcessId);
+                var step = process?.Steps.FirstOrDefault(s => s.Id == _exec.ProcessStepId);
+                if (step is not null)
+                {
+                    var tplContent = await Api.GetStepTemplateContentAsync(step.StepTemplateId);
+                    _allContentBlocks = tplContent
+                        .OrderBy(c => c.SortOrder)
+                        .Select(c => new ContentBlockViewModel(
+                            c.Id, c.ContentType, c.SortOrder, c.Body, c.ImageUrl, c.OriginalFileName,
+                            c.PromptType, c.Label, c.IsRequired, c.Units, c.MinValue, c.MaxValue,
+                            c.Choices, true))
+                        .ToList();
+                }
+            }
+
+            // Load existing prompt responses and pre-populate values
+            _promptResponses = await Api.GetPromptResponsesAsync(_exec.Id);
+            foreach (var r in _promptResponses)
+            {
+                var blockId = (r.ProcessStepContentId ?? r.StepTemplateContentId)?.ToString();
+                if (blockId is not null)
+                    _promptValues[blockId] = r.ResponseValue;
+            }
+        }
+        finally
+        {
+            _contentLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GetPromptValue(string key) =>
+        _promptValues.TryGetValue(key, out var v) ? v : "";
+
+    private void SetPromptValue(string key, string? value)
+    {
+        _promptValues[key] = value ?? "";
+        _promptsSaved = false;
+    }
+
+    private void SetBoolPromptValue(string key, bool isChecked) =>
+        SetPromptValue(key, isChecked ? "true" : "false");
+
+    private void ToggleMultiChoice(string key, string choice, bool add)
+    {
+        var current = GetPromptValue(key)
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .ToHashSet();
+        if (add) current.Add(choice); else current.Remove(choice);
+        SetPromptValue(key, string.Join(", ", current));
+    }
+
+    private async Task SavePromptResponses()
+    {
+        if (_exec is null) return;
+        _promptSaving = true; _promptError = null; _promptsSaved = false;
+        try
+        {
+            var items = _allContentBlocks
+                .Where(b => b.ContentType == "Prompt")
+                .Select(b =>
+                {
+                    var val = GetPromptValue(b.Id.ToString());
+                    if (string.IsNullOrEmpty(val)) return null;
+                    return new PromptResponseItemDto(
+                        b.IsFromTemplate ? null : b.Id,
+                        b.IsFromTemplate ? b.Id : null,
+                        val);
+                })
+                .Where(x => x is not null)
+                .Cast<PromptResponseItemDto>()
+                .ToList();
+
+            if (items.Any())
+            {
+                await Api.SavePromptResponsesAsync(_exec.Id, new SavePromptResponsesDto(items));
+                _promptResponses = await Api.GetPromptResponsesAsync(_exec.Id);
+                _promptsSaved = true;
+            }
+        }
+        catch (Exception ex) { _promptError = ex.Message; }
+        finally { _promptSaving = false; }
+    }
+
+    private async Task Transition(string action)
+    {
+        try
+        {
+            _exec = await Api.StepExecutionTransitionAsync(Id, action);
+            _transactions = await Api.GetStepExecutionPortTransactionsAsync(Id);
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task SaveNotes()
+    {
+        try
+        {
+            _exec = await Api.UpdateStepExecutionNotesAsync(Id, new UpdateStepExecutionNotesDto(_notes));
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private void ShowDataForm()
+    {
+        _dataKey = ""; _dataValue = ""; _dataType = "String"; _dataUnit = null;
+        _showDataForm = true;
+    }
+
+    private void CloseDataForm() { _showDataForm = false; }
+
+    private async Task SaveData()
+    {
+        try
+        {
+            var dataType = Enum.Parse<ProcessManager.Domain.Enums.DataValueType>(_dataType);
+            await Api.AddStepExecutionDataAsync(Id, new CreateExecutionDataDto(_dataKey, _dataValue, dataType, _dataUnit));
+            _showDataForm = false;
+            _data = await Api.GetStepExecutionDataAsync(Id);
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    // --- Port Transaction ---
+    private async Task ShowPortTxnForm()
+    {
+        _ptPortId = ""; _ptItemId = ""; _ptBatchId = ""; _ptQuantity = 1;
+        _stepPorts = null; _jobItems = null; _jobBatches = null;
+        _showPortTxnForm = true;
+
+        try
+        {
+            // Load the step's ports via its template
+            var job = await Api.GetJobAsync(_exec!.JobId);
+            if (job is not null)
+            {
+                var process = await Api.GetProcessAsync(job.ProcessId);
+                if (process is not null)
+                {
+                    var step = process.Steps.FirstOrDefault(s => s.Id == _exec.ProcessStepId);
+                    if (step is not null)
+                    {
+                        var tpl = await Api.GetStepTemplateAsync(step.StepTemplateId);
+                        _stepPorts = tpl?.Ports?.OrderBy(p => p.Direction).ThenBy(p => p.SortOrder).ToList();
+                    }
+                }
+                // Load items and batches for the job
+                var itemResult = await Api.GetItemsAsync(jobId: job.Id, page: 1, pageSize: 200);
+                _jobItems = itemResult?.Items?.ToList();
+                var batchResult = await Api.GetBatchesAsync(jobId: job.Id, page: 1, pageSize: 200);
+                _jobBatches = batchResult?.Items?.ToList();
+            }
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+
+        StateHasChanged();
+    }
+
+    private async Task SavePortTxn()
+    {
+        try
+        {
+            if (!Guid.TryParse(_ptPortId, out var portId)) { Toast.ShowError("Select a port."); return; }
+            Guid? itemId = Guid.TryParse(_ptItemId, out var iid) ? iid : null;
+            Guid? batchId = Guid.TryParse(_ptBatchId, out var bid) ? bid : null;
+
+            await Api.AddStepExecutionPortTransactionAsync(Id,
+                new CreatePortTransactionDto(portId, itemId, batchId, _ptQuantity));
+
+            _showPortTxnForm = false;
+            _transactions = await Api.GetStepExecutionPortTransactionsAsync(Id);
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+}

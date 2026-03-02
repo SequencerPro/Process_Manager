@@ -1,0 +1,10 @@
+**/.git
+**/.gitignore
+**/bin
+**/obj
+**/Dockerfile
+**/*.user
+**/*.suo
+**/.vs
+**/TestResults
+**/build_output.txt

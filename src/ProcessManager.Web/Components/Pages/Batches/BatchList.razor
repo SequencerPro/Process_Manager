@@ -1,0 +1,236 @@
+@page "/batches"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject IJSRuntime JS
+
+<PageTitle>Batches</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Batches</h3>
+    <button class="btn btn-primary btn-sm" @onclick="ShowCreateForm">
+        <i class="bi bi-plus-lg me-1"></i> New Batch
+    </button>
+</div>
+
+<div class="d-flex gap-3 mb-3 flex-wrap">
+    <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search by code..." />
+    <select class="form-select form-select-sm" style="width:auto" @onchange="OnStatusFilter">
+        <option value="">All Statuses</option>
+        <option value="Open">Open</option>
+        <option value="Closed">Closed</option>
+    </select>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_data is not null)
+{
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Kind</th>
+                    <th>Grade</th>
+                    <th>Quantity</th>
+                    <th>Items</th>
+                    <th>Status</th>
+                    <th>Job</th>
+                    <th>Created</th>
+                    <th style="width:80px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!_data.Items.Any())
+                {
+                    <tr><td colspan="9" class="text-center text-muted py-3">No batches found.</td></tr>
+                }
+                else
+                {
+                    @foreach (var b in _data.Items)
+                    {
+                        <tr>
+                            <td><a href="batches/@b.Id"><code>@b.Code</code></a></td>
+                            <td>@b.KindName</td>
+                            <td>@b.GradeName</td>
+                            <td>@b.Quantity</td>
+                            <td><span class="badge bg-secondary">@b.ItemCount</span></td>
+                            <td><StatusBadge Status="@b.Status" /></td>
+                            <td><a href="jobs/@b.JobId">@b.JobName</a></td>
+                            <td>@b.CreatedAt.ToString("g")</td>
+                            <td>
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(b.Id)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <Pager Page="_page" PageSize="_pageSize" TotalCount="_data.TotalCount"
+           OnPageChanged="OnPageChanged" />
+}
+
+@* Create Batch Modal *@
+@if (_showForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">New Batch</h5>
+                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Code</label>
+                        <input class="form-control" @bind="_formCode" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Job</label>
+                        <select class="form-select" @bind="_formJobId">
+                            <option value="">Select job...</option>
+                            @if (_jobs is not null)
+                            {
+                                @foreach (var j in _jobs.Items)
+                                {
+                                    <option value="@j.Id">@j.Name (@j.Code)</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Kind</label>
+                        <select class="form-select" @bind="_formKindId" @bind:after="OnFormKindChanged">
+                            <option value="">Select kind...</option>
+                            @if (_kinds is not null)
+                            {
+                                @foreach (var k in _kinds.Items)
+                                {
+                                    <option value="@k.Id">@k.Name (@k.Code)</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Grade</label>
+                        <select class="form-select" @bind="_formGradeId">
+                            <option value="">Select grade...</option>
+                            @if (_formGrades is not null)
+                            {
+                                @foreach (var g in _formGrades)
+                                {
+                                    <option value="@g.Id">@g.Name (@g.Code)</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" class="form-control" @bind="_formQty" min="0" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveForm">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResponse<BatchResponseDto>? _data;
+    private bool _loading = true;
+    private string _search = "";
+    private string? _status;
+    private int _page = 1;
+    private int _pageSize = 25;
+
+    // Create form
+    private bool _showForm;
+    private string _formCode = "";
+    private string _formJobId = "";
+    private string _formKindId = "";
+    private string _formGradeId = "";
+    private int _formQty;
+    private PaginatedResponse<JobResponseDto>? _jobs;
+    private PaginatedResponse<KindResponseDto>? _kinds;
+    private List<GradeResponseDto>? _formGrades;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            _data = await Api.GetBatchesAsync(_search, status: _status, page: _page, pageSize: _pageSize);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnSearch(string v) { _search = v; _page = 1; await LoadData(); }
+    private async Task OnPageChanged(int p) { _page = p; await LoadData(); }
+
+    private async Task OnStatusFilter(ChangeEventArgs e)
+    {
+        _status = string.IsNullOrEmpty(e.Value?.ToString()) ? null : e.Value.ToString();
+        _page = 1; await LoadData();
+    }
+
+    private async Task ShowCreateForm()
+    {
+        _formCode = ""; _formJobId = ""; _formKindId = ""; _formGradeId = ""; _formQty = 0;
+        _formGrades = null;
+        _showForm = true;
+        _jobs = await Api.GetJobsAsync(page: 1, pageSize: 100);
+        _kinds = await Api.GetKindsAsync("", 1, 100);
+        StateHasChanged();
+    }
+
+    private void CloseForm() => _showForm = false;
+
+    private async Task OnFormKindChanged()
+    {
+        _formGrades = null; _formGradeId = "";
+        if (Guid.TryParse(_formKindId, out var kindId))
+        {
+            var kind = await Api.GetKindAsync(kindId);
+            _formGrades = kind?.Grades?.ToList();
+        }
+    }
+
+    private async Task SaveForm()
+    {
+        try
+        {
+            if (!Guid.TryParse(_formJobId, out var jobId)) { Toast.ShowError("Select a job."); return; }
+            if (!Guid.TryParse(_formKindId, out var kindId)) { Toast.ShowError("Select a kind."); return; }
+            if (!Guid.TryParse(_formGradeId, out var gradeId)) { Toast.ShowError("Select a grade."); return; }
+            await Api.CreateBatchAsync(new CreateBatchDto(_formCode, kindId, gradeId, jobId, _formQty));
+            _showForm = false;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task Delete(Guid id)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this batch?")) return;
+        try { await Api.DeleteBatchAsync(id); await LoadData(); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+}

@@ -1,0 +1,319 @@
+@page "/reports"
+@rendermode InteractiveServer
+@inject ApiClient Api
+
+<PageTitle>Reports — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-bar-chart-line me-2 text-primary"></i>Reports</h3>
+        <p class="text-muted small mb-0">Operational analytics</p>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadAll" disabled="@_loading">
+        <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+    </button>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading report data…
+    </div>
+}
+else
+{
+    @* ── KPI row ──────────────────────────────────────────────────────────── *@
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-3 d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value text-primary">@(_summary?.TotalJobs ?? 0)</div>
+                        <div class="stat-label">Total Jobs</div>
+                    </div>
+                    <i class="bi bi-briefcase-fill fs-3 text-primary opacity-25"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-3 d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value text-success">@(_summary?.CompletedThisMonth ?? 0)</div>
+                        <div class="stat-label">Completed This Month</div>
+                    </div>
+                    <i class="bi bi-check-circle-fill fs-3 text-success opacity-25"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-3 d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value @(_summary?.FailedStepsAllTime > 0 ? "text-danger" : "text-secondary")">
+                            @(_summary?.FailedStepsAllTime ?? 0)
+                        </div>
+                        <div class="stat-label">Steps Failed (All Time)</div>
+                    </div>
+                    <i class="bi bi-x-circle-fill fs-3 text-danger opacity-25"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-xl-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-3 d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value text-info">
+                            @(_summary?.AvgJobDurationHours.HasValue == true
+                                ? FormatHours(_summary.AvgJobDurationHours.Value)
+                                : "—")
+                        </div>
+                        <div class="stat-label">Avg Job Duration</div>
+                    </div>
+                    <i class="bi bi-stopwatch-fill fs-3 text-info opacity-25"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+
+        @* ── Job Status Breakdown ─────────────────────────────────────────── *@
+        <div class="col-12 col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-transparent fw-semibold">
+                    <i class="bi bi-pie-chart me-2 text-primary"></i>Job Status Breakdown
+                </div>
+                <div class="card-body">
+                    @if (_statusBreakdown is null || !_statusBreakdown.Any())
+                    {
+                        <p class="text-muted fst-italic small">No jobs yet.</p>
+                    }
+                    else
+                    {
+                        var total = _statusBreakdown.Sum(s => s.Count);
+                        @foreach (var row in _statusBreakdown.OrderByDescending(r => r.Count))
+                        {
+                            var pct  = total > 0 ? (row.Count * 100.0 / total) : 0;
+                            var color = StatusColor(row.Status);
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span><span class="badge @color me-1">@row.Status</span></span>
+                                    <span class="text-muted">@row.Count <span class="text-muted">(@pct.ToString("0")%)</span></span>
+                                </div>
+                                <div class="progress" style="height:8px">
+                                    <div class="progress-bar @color" style="width:@pct.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)%"></div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* ── Throughput (30-day bar chart) ────────────────────────────────── *@
+        <div class="col-12 col-lg-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold"><i class="bi bi-graph-up me-2 text-success"></i>Job Throughput — Last 30 Days</span>
+                </div>
+                <div class="card-body pb-2 overflow-auto">
+                    @if (_throughput is null || _throughput.All(t => t.Created == 0 && t.Completed == 0))
+                    {
+                        <p class="text-muted fst-italic small">No activity in the last 30 days.</p>
+                    }
+                    else
+                    {
+                        var maxVal = Math.Max(1, _throughput.Max(t => Math.Max(t.Created, t.Completed)));
+                        <div class="d-flex align-items-end gap-1" style="height:140px; min-width:580px;">
+                            @foreach (var pt in _throughput)
+                            {
+                                var cH = (int)(pt.Created   * 120 / maxVal);
+                                var dH = (int)(pt.Completed * 120 / maxVal);
+                                <div class="d-flex flex-column align-items-center flex-grow-1" style="min-width:14px" title="@pt.Date.ToString("MMM d"): @pt.Created created, @pt.Completed completed">
+                                    <div class="w-100 rounded-top bg-primary opacity-75" style="height:@(cH)px; min-height:@(pt.Created>0?2:0)px;"></div>
+                                    <div class="w-100 rounded-top bg-success opacity-75 mt-1" style="height:@(dH)px; min-height:@(pt.Completed>0?2:0)px;"></div>
+                                    @if (pt.Date.Day == 1 || pt.Date.Day == 15)
+                                    {
+                                        <span class="text-muted" style="font-size:9px; white-space:nowrap;">@pt.Date.ToString("MMM d")</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                        <div class="d-flex gap-3 mt-2 small text-muted">
+                            <span><span class="badge bg-primary opacity-75 me-1">&nbsp;</span>Created</span>
+                            <span><span class="badge bg-success opacity-75 me-1">&nbsp;</span>Completed</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+
+        @* ── Step Performance Table ────────────────────────────────────────── *@
+        <div class="col-12 col-lg-7">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-transparent fw-semibold">
+                    <i class="bi bi-table me-2 text-info"></i>Step Performance
+                </div>
+                @if (_stepPerformance is null || !_stepPerformance.Any())
+                {
+                    <div class="card-body">
+                        <p class="text-muted fst-italic small">No step executions recorded yet.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0 small">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Step</th>
+                                    <th class="text-end">Total</th>
+                                    <th class="text-end">Done</th>
+                                    <th class="text-end">Failed</th>
+                                    <th class="text-end">Fail %</th>
+                                    <th class="text-end">Avg Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in _stepPerformance)
+                                {
+                                    var failPct = row.Total > 0 ? row.Failed * 100.0 / row.Total : 0;
+                                    <tr>
+                                        <td class="fw-medium text-truncate" style="max-width:180px" title="@row.StepName">@row.StepName</td>
+                                        <td class="text-end">@row.Total</td>
+                                        <td class="text-end text-success">@row.Completed</td>
+                                        <td class="text-end @(row.Failed > 0 ? "text-danger fw-medium" : "text-secondary")">@row.Failed</td>
+                                        <td class="text-end">
+                                            <span class="@(failPct > 10 ? "text-danger" : failPct > 0 ? "text-warning" : "text-secondary")">
+                                                @failPct.ToString("0")%
+                                            </span>
+                                        </td>
+                                        <td class="text-end text-muted">
+                                            @(row.AvgDurationMinutes.HasValue ? FormatMins(row.AvgDurationMinutes.Value) : "—")
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* ── Recent Completions ────────────────────────────────────────────── *@
+        <div class="col-12 col-lg-5">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-transparent fw-semibold">
+                    <i class="bi bi-check2-all me-2 text-success"></i>Recent Completions
+                </div>
+                @if (_recentCompletions is null || !_recentCompletions.Any())
+                {
+                    <div class="card-body">
+                        <p class="text-muted fst-italic small">No completed jobs yet.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="list-group list-group-flush">
+                        @foreach (var job in _recentCompletions)
+                        {
+                            <a href="jobs/@job.JobId" class="list-group-item list-group-item-action px-3 py-2">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <div class="fw-medium small">@job.Name</div>
+                                        <div class="text-muted" style="font-size:.75rem">
+                                            <code>@job.Code</code> · @job.ProcessName
+                                        </div>
+                                    </div>
+                                    <div class="text-end ms-2 text-nowrap">
+                                        @if (job.DurationHours.HasValue)
+                                        {
+                                            <span class="badge bg-light text-dark border">@FormatHours(job.DurationHours.Value)</span>
+                                        }
+                                        <div class="text-muted mt-1" style="font-size:.7rem">
+                                            @job.CompletedAt.ToLocalTime().ToString("MMM d, HH:mm")
+                                        </div>
+                                    </div>
+                                </div>
+                            </a>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .stat-value { font-size: 2rem; font-weight: 700; line-height: 1; }
+    .stat-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: #6c757d; margin-top: .25rem; }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+    .spin { display: inline-block; animation: spin .8s linear infinite; }
+</style>
+
+@code {
+    private bool _loading = true;
+    private ReportSummaryDto? _summary;
+    private List<JobStatusBreakdownDto>? _statusBreakdown;
+    private List<StepPerformanceDto>? _stepPerformance;
+    private List<RecentCompletionDto>? _recentCompletions;
+    private List<ThroughputPointDto>? _throughput;
+
+    protected override async Task OnInitializedAsync() => await LoadAll();
+
+    private async Task LoadAll()
+    {
+        _loading = true;
+        StateHasChanged();
+        try
+        {
+            var t1 = Api.GetReportSummaryAsync();
+            var t2 = Api.GetJobStatusBreakdownAsync();
+            var t3 = Api.GetStepPerformanceAsync();
+            var t4 = Api.GetRecentCompletionsAsync(10);
+            var t5 = Api.GetThroughputAsync(30);
+            await Task.WhenAll(t1, t2, t3, t4, t5);
+            _summary           = await t1;
+            _statusBreakdown   = await t2;
+            _stepPerformance   = await t3;
+            _recentCompletions = await t4;
+            _throughput        = await t5;
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load report data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string StatusColor(string status) => status switch
+    {
+        "InProgress" => "bg-primary",
+        "Completed"  => "bg-success",
+        "OnHold"     => "bg-warning text-dark",
+        "Cancelled"  => "bg-secondary",
+        "Created"    => "bg-light text-dark border",
+        _            => "bg-secondary"
+    };
+
+    private static string FormatHours(double hours)
+    {
+        if (hours < 1)   return $"{(int)(hours * 60)}m";
+        if (hours < 24)  return $"{hours:0.#}h";
+        return $"{(int)(hours / 24)}d {(int)(hours % 24)}h";
+    }
+
+    private static string FormatMins(double mins)
+    {
+        if (mins < 1)    return $"{(int)(mins * 60)}s";
+        if (mins < 60)   return $"{mins:0.#}m";
+        return $"{(int)(mins / 60)}h {(int)(mins % 60)}m";
+    }
+}

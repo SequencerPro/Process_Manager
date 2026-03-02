@@ -1,0 +1,26 @@
+@* Status badge helper *@
+<span class="badge @CssClass">@Status</span>
+
+@code {
+    [Parameter] public string Status { get; set; } = "";
+
+    private string CssClass => Status switch
+    {
+        "Created" => "bg-secondary",
+        "InProgress" => "bg-primary",
+        "OnHold" => "bg-warning text-dark",
+        "Completed" => "bg-success",
+        "Cancelled" => "bg-danger",
+        "Pending" => "bg-secondary",
+        "Running" => "bg-primary",
+        "Skipped" => "bg-info text-dark",
+        "Failed" => "bg-danger",
+        "Available" => "bg-success",
+        "Consumed" => "bg-info text-dark",
+        "Scrapped" => "bg-danger",
+        "Quarantined" => "bg-warning text-dark",
+        "Open" => "bg-primary",
+        "Closed" => "bg-success",
+        _ => "bg-secondary"
+    };
+}

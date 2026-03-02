@@ -1,0 +1,1075 @@
+@page "/step-templates/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Step Template Detail</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_st is null)
+{
+    <div class="alert alert-warning">Step template not found.</div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="step-templates">Step Templates</a></li>
+            <li class="breadcrumb-item active">@_st.Name</li>
+        </ol>
+    </nav>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <h4 class="mb-1">@_st.Name</h4>
+                    <span class="text-muted me-3"><code>@_st.Code</code></span>
+                    <span class="badge bg-info text-dark me-1">@_st.Pattern</span>
+                    <span class="badge me-1 @(_st.IsActive ? "bg-success" : "bg-secondary")">@(_st.IsActive ? "Active" : "Inactive")</span>
+                    <span class="badge bg-dark">v@_st.Version</span>
+                </div>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ShowEditForm">
+                        <i class="bi bi-pencil me-1"></i>Edit
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(_st.Description))
+            {
+                <p class="mb-2">@_st.Description</p>
+            }
+            <small class="text-muted">Created @_st.CreatedAt.ToString("g") &bull; Updated @_st.UpdatedAt.ToString("g")</small>
+        </div>
+    </div>
+
+    <!-- Input Ports -->
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-box-arrow-in-right text-success me-1"></i> Input Ports (@InputPorts.Count)</span>
+                    <button class="btn btn-success btn-sm" @onclick='() => ShowPortForm(PortDirection.Input)'>
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+                @if (InputPorts.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr><th>Name</th><th>Type</th><th>Details</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var p in InputPorts)
+                                {
+                                    <tr>
+                                        <td>@p.Name</td>
+                                        <td><span class="badge @PortTypeBadgeClass(p.PortType)">@p.PortType</span></td>
+                                        <td>
+                                            @PortDetails(p)
+                                            @if (p.PortType == PortType.Material)
+                                            {
+                                                <span class="text-muted ms-1 small">(@FormatQtyRule(p))</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1" @onclick="() => ShowEditPort(p)" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => DeletePort(p)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="card-body text-muted small">No input ports defined.</div>
+                }
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-box-arrow-right text-primary me-1"></i> Output Ports (@OutputPorts.Count)</span>
+                    <button class="btn btn-primary btn-sm" @onclick='() => ShowPortForm(PortDirection.Output)'>
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+                @if (OutputPorts.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr><th>Name</th><th>Type</th><th>Details</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var p in OutputPorts)
+                                {
+                                    <tr>
+                                        <td>@p.Name</td>
+                                        <td><span class="badge @PortTypeBadgeClass(p.PortType)">@p.PortType</span></td>
+                                        <td>
+                                            @PortDetails(p)
+                                            @if (p.PortType == PortType.Material)
+                                            {
+                                                <span class="text-muted ms-1 small">(@FormatQtyRule(p))</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1" @onclick="() => ShowEditPort(p)" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => DeletePort(p)">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="card-body text-muted small">No output ports defined.</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Images -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-images me-1"></i> Images (@(_st.Images?.Count ?? 0))</span>
+            <label class="btn btn-outline-secondary btn-sm mb-0" style="cursor:pointer" title="Upload image">
+                <i class="bi bi-upload me-1"></i>Upload
+                <InputFile OnChange="UploadImage" accept="image/*" class="d-none" />
+            </label>
+        </div>
+        @if (_uploadingImage)
+        {
+            <div class="card-body"><span class="spinner-border spinner-border-sm text-secondary me-2"></span>Uploading...</div>
+        }
+        else if (_st.Images?.Any() == true)
+        {
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-3">
+                    @foreach (var img in _st.Images.OrderBy(i => i.SortOrder))
+                    {
+                        <div class="position-relative" style="width:140px">
+                            <img src="@Api.GetImageUrl(img.Url)"
+                                 class="img-thumbnail"
+                                 style="width:140px;height:100px;object-fit:cover"
+                                 alt="@img.OriginalFileName" />
+                            <button class="btn btn-danger btn-sm position-absolute top-0 end-0 py-0 px-1"
+                                    style="line-height:1.4"
+                                    @onclick="() => DeleteImage(img)"
+                                    title="Delete image">
+                                <i class="bi bi-x"></i>
+                            </button>
+                            <div class="text-muted small text-truncate mt-1" title="@img.OriginalFileName">@img.OriginalFileName</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="card-body text-muted small">No images uploaded yet.</div>
+        }
+    </div>
+
+    @* Work Instructions *@
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-card-text me-1"></i> Work Instructions (@_contentBlocks.Count)</span>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" @onclick="StartAddTextBlock"
+                        disabled="@(_addingTextBlock || _addingPromptBlock)">
+                    <i class="bi bi-text-paragraph me-1"></i>Add Text
+                </button>
+                <button class="btn btn-outline-primary btn-sm" @onclick="StartAddPromptBlock"
+                        disabled="@(_addingTextBlock || _addingPromptBlock)">
+                    <i class="bi bi-input-cursor-text me-1"></i>Add Prompt
+                </button>
+                <label class="btn btn-outline-secondary btn-sm mb-0" style="cursor:pointer" title="Add image block">
+                    <i class="bi bi-image me-1"></i>Add Image
+                    <InputFile OnChange="AddImageBlock" accept="image/*" class="d-none" />
+                </label>
+            </div>
+        </div>
+
+        <div class="card-body">
+            @if (_contentLoading)
+            {
+                <div class="text-center py-3"><span class="spinner-border spinner-border-sm text-secondary me-2"></span>Loading…</div>
+            }
+            else
+            {
+                @if (_contentError is not null)
+                {
+                    <div class="alert alert-danger py-2 mb-3">@_contentError
+                        <button type="button" class="btn-close float-end py-0" @onclick='() => _contentError = null'></button>
+                    </div>
+                }
+
+                @if (_contentBlocks.Count == 0 && !_addingTextBlock && !_addingPromptBlock)
+                {
+                    <p class="text-muted small mb-0">No instructions added yet. Use the buttons above to add text or image blocks.</p>
+                }
+
+                @foreach (var block in _contentBlocks.OrderBy(b => b.SortOrder))
+                {
+                    var isFirst = block.SortOrder == _contentBlocks.Min(b => b.SortOrder);
+                    var isLast = block.SortOrder == _contentBlocks.Max(b => b.SortOrder);
+
+                    <div class="border rounded p-2 mb-2 bg-white">
+                        <div class="d-flex align-items-start gap-2">
+                            <div class="flex-grow-1">
+                                @if (block.ContentType == "Text")
+                                {
+                                    @if (_editingTextBlockId == block.Id)
+                                    {
+                                        <textarea class="form-control form-control-sm mb-1" rows="4"
+                                                  @bind="_editingTextBody"></textarea>
+                                        <div class="d-flex gap-1">
+                                            <button class="btn btn-primary btn-sm" @onclick="SaveEditedTextBlock">Save</button>
+                                            <button class="btn btn-outline-secondary btn-sm" @onclick="CancelEditTextBlock">Cancel</button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <p class="mb-0" style="white-space: pre-wrap">@block.Body</p>
+                                    }
+                                }
+                                else if (block.ContentType == "Image")
+                                {
+                                    <div class="d-flex align-items-center gap-2">
+                                        <img src="@Api.GetImageUrl(block.ImageUrl!)"
+                                             style="height:64px;width:auto;object-fit:cover;border-radius:4px"
+                                             alt="@block.OriginalFileName" />
+                                        <span class="text-muted small text-truncate" style="max-width:200px"
+                                              title="@block.OriginalFileName">@block.OriginalFileName</span>
+                                    </div>
+                                }
+                                else if (block.ContentType == "Prompt")
+                                {
+                                    @if (_editingPromptBlockId == block.Id)
+                                    {
+                                        <div class="mb-2">
+                                            <label class="form-label form-label-sm fw-semibold">Question / Label</label>
+                                            <input class="form-control form-control-sm" @bind="_editPromptLabel" />
+                                        </div>
+                                        @if (_editPromptType == "NumericEntry")
+                                        {
+                                            <div class="row g-2 mb-2">
+                                                <div class="col-4">
+                                                    <label class="form-label form-label-sm">Min</label>
+                                                    <input class="form-control form-control-sm" @bind="_editPromptMin" placeholder="no min" />
+                                                </div>
+                                                <div class="col-4">
+                                                    <label class="form-label form-label-sm">Max</label>
+                                                    <input class="form-control form-control-sm" @bind="_editPromptMax" placeholder="no max" />
+                                                </div>
+                                                <div class="col-4">
+                                                    <label class="form-label form-label-sm">Units</label>
+                                                    <input class="form-control form-control-sm" @bind="_editPromptUnits" placeholder="mm, rpm…" />
+                                                </div>
+                                            </div>
+                                        }
+                                        @if (_editPromptType == "MultipleChoice")
+                                        {
+                                            <div class="mb-2">
+                                                <label class="form-label form-label-sm">Choices <span class="text-muted">(one per line)</span></label>
+                                                <textarea class="form-control form-control-sm" rows="3" @bind="_editPromptChoicesRaw"></textarea>
+                                            </div>
+                                        }
+                                        <div class="form-check mb-2">
+                                            <input type="checkbox" class="form-check-input" @bind="_editPromptRequired" />
+                                            <label class="form-check-label small">Required</label>
+                                        </div>
+                                        <div class="d-flex gap-1">
+                                            <button class="btn btn-primary btn-sm" @onclick="SaveEditedPromptBlock">Save</button>
+                                            <button class="btn btn-outline-secondary btn-sm" @onclick="CancelEditPromptBlock">Cancel</button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-flex align-items-start gap-2">
+                                            <i class="bi bi-input-cursor-text text-primary mt-1" style="font-size:1.1rem;flex-shrink:0"></i>
+                                            <div>
+                                                <div class="fw-semibold">@block.Label</div>
+                                                <div class="d-flex flex-wrap gap-1 mt-1">
+                                                    <span class="badge bg-info text-dark">@block.PromptType</span>
+                                                    @if (block.IsRequired)
+                                                    {
+                                                        <span class="badge bg-warning text-dark">Required</span>
+                                                    }
+                                                    @if (!string.IsNullOrEmpty(block.Units))
+                                                    {
+                                                        <span class="badge bg-light text-dark border">@block.Units</span>
+                                                    }
+                                                    @if (block.MinValue.HasValue || block.MaxValue.HasValue)
+                                                    {
+                                                        <span class="badge bg-light text-dark border">@block.MinValue – @block.MaxValue</span>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                            <div class="d-flex flex-column gap-1 ms-2 flex-shrink-0">
+                                @if (block.ContentType == "Text" && _editingTextBlockId != block.Id)
+                                {
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Edit"
+                                            @onclick="() => StartEditTextBlock(block)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                }
+                                @if (block.ContentType == "Prompt" && _editingPromptBlockId != block.Id)
+                                {
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Edit prompt"
+                                            @onclick="() => StartEditPromptBlock(block)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                }
+                                <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Move up"
+                                        disabled="@isFirst"
+                                        @onclick="() => MoveBlock(block, -1)">
+                                    <i class="bi bi-arrow-up"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Move down"
+                                        disabled="@isLast"
+                                        @onclick="() => MoveBlock(block, 1)">
+                                    <i class="bi bi-arrow-down"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete"
+                                        @onclick="() => DeleteContentBlock(block)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (_addingTextBlock)
+                {
+                    <div class="border rounded p-2 bg-light mt-2">
+                        <label class="form-label small fw-semibold mb-1">New Text Block</label>
+                        <textarea class="form-control form-control-sm mb-2" rows="4"
+                                  @bind="_newTextBody" placeholder="Enter instructions…"></textarea>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-primary btn-sm" @onclick="SaveNewTextBlock">Add Block</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => { _addingTextBlock = false; _newTextBody = string.Empty; }">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @if (_addingPromptBlock)
+                {
+                    <div class="border border-primary rounded p-2 bg-light mt-2">
+                        <label class="form-label small fw-semibold mb-2"><i class="bi bi-input-cursor-text me-1 text-primary"></i>New Prompt Block</label>
+                        <div class="mb-2">
+                            <label class="form-label form-label-sm">Question / Label <span class="text-danger">*</span></label>
+                            <input class="form-control form-control-sm" @bind="_newPromptLabel" placeholder="e.g. Measure outer diameter at point A" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label form-label-sm">Prompt Type</label>
+                            <select class="form-select form-select-sm" @bind="_newPromptType">
+                                <option value="NumericEntry">Numeric Entry (number + optional bounds)</option>
+                                <option value="PassFail">Pass / Fail</option>
+                                <option value="MultipleChoice">Multiple Choice</option>
+                                <option value="TextEntry">Text Entry (free form)</option>
+                                <option value="Checkbox">Checkbox (tick)</option>
+                                <option value="Scan">Scan (barcode / serial)</option>
+                            </select>
+                        </div>
+                        @if (_newPromptType == "NumericEntry")
+                        {
+                            <div class="row g-2 mb-2">
+                                <div class="col-4">
+                                    <label class="form-label form-label-sm">Min</label>
+                                    <input class="form-control form-control-sm" @bind="_newPromptMin" placeholder="no min" />
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label form-label-sm">Max</label>
+                                    <input class="form-control form-control-sm" @bind="_newPromptMax" placeholder="no max" />
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label form-label-sm">Units</label>
+                                    <input class="form-control form-control-sm" @bind="_newPromptUnits" placeholder="mm, rpm…" />
+                                </div>
+                            </div>
+                        }
+                        @if (_newPromptType == "MultipleChoice")
+                        {
+                            <div class="mb-2">
+                                <label class="form-label form-label-sm">Choices <span class="text-muted">(one per line)</span></label>
+                                <textarea class="form-control form-control-sm" rows="3" @bind="_newPromptChoicesRaw"
+                                          placeholder="Option A&#10;Option B&#10;Option C"></textarea>
+                            </div>
+                        }
+                        <div class="form-check mb-2">
+                            <input type="checkbox" class="form-check-input" @bind="_newPromptRequired" />
+                            <label class="form-check-label small">Required (operator must answer before completing step)</label>
+                        </div>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-primary btn-sm" @onclick="SaveNewPromptBlock">Add Prompt</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => _addingPromptBlock = false">Cancel</button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    @* Add / Edit Port Modal *@
+    @if (_showPortForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">@(_editPortId.HasValue ? "Edit" : "Add @_portDirection") Port</h5>
+                        <button type="button" class="btn-close" @onclick="ClosePortForm"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="_portName" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Port Type</label>
+                            <select class="form-select" @bind="_portType">
+                                @foreach (var t in Enum.GetValues<PortType>())
+                                {
+                                    <option value="@t">@t</option>
+                                }
+                            </select>
+                        </div>
+
+                        @if (_portType == PortType.Material)
+                        {
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label">Kind</label>
+                                    <select class="form-select" @bind="_portKindId">
+                                        <option value="">Select...</option>
+                                        @if (_kinds is not null)
+                                        {
+                                            @foreach (var k in _kinds.Items)
+                                            {
+                                                <option value="@k.Id">@k.Name (@k.Code)</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Grade</label>
+                                    <select class="form-select" @bind="_portGradeId">
+                                        <option value="">Select...</option>
+                                        @if (_grades is not null)
+                                        {
+                                            @foreach (var g in _grades)
+                                            {
+                                                <option value="@g.Id">@g.Name (@g.Code)</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Qty Rule Mode</label>
+                                <select class="form-select" @bind="_portQtyMode">
+                                    @foreach (var m in Enum.GetValues<QuantityRuleMode>())
+                                    {
+                                        <option value="@m">@m</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+
+                        @if (_portType is PortType.Parameter or PortType.Characteristic)
+                        {
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <label class="form-label">Data Type</label>
+                                    <select class="form-select" @bind="_portDataType">
+                                        @foreach (var dt in Enum.GetValues<DataValueType>())
+                                        {
+                                            <option value="@dt">@dt</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Units</label>
+                                    <input class="form-control" @bind="_portUnits" placeholder="e.g. RPM, °C, mm" />
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-4">
+                                    <label class="form-label">Nominal</label>
+                                    <input class="form-control" @bind="_portNominalValue" placeholder="Target value" />
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label">Lower Tolerance</label>
+                                    <input class="form-control" @bind="_portLowerTolerance" placeholder="e.g. -0.05" />
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label">Upper Tolerance</label>
+                                    <input class="form-control" @bind="_portUpperTolerance" placeholder="e.g. +0.05" />
+                                </div>
+                            </div>
+                        }
+
+                        @if (_portType == PortType.Condition)
+                        {
+                            <div class="alert alert-light border small mb-0">
+                                <i class="bi bi-info-circle me-1"></i>Condition ports are binary pass/fail checkpoints. No additional metadata is required.
+                            </div>
+                        }
+
+                        <div class="mb-3">
+                            <label class="form-label">Sort Order</label>
+                            <input type="number" class="form-control" @bind="_portSortOrder" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="ClosePortForm">Cancel</button>
+                        <button type="button" class="btn btn-primary" @onclick="SavePort">
+                            @(_editPortId.HasValue ? "Update" : "Save Port")
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Edit Template Modal *@
+    @if (_showEditForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Step Template</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showEditForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="_editName" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" rows="3" @bind="_editDescription"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Pattern</label>
+                            <select class="form-select" @bind="_editPattern">
+                                @foreach (var p in Enum.GetValues<StepPattern>())
+                                {
+                                    <option value="@p">@p</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="editIsActive" @bind="_editIsActive" />
+                            <label class="form-check-label" for="editIsActive">Active</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showEditForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveEdit">Update</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private StepTemplateResponseDto? _st;
+    private bool _loading = true;
+
+    private List<PortResponseDto> InputPorts =>
+        _st?.Ports?.Where(p => p.Direction == PortDirection.Input).OrderBy(p => p.SortOrder).ToList() ?? new();
+    private List<PortResponseDto> OutputPorts =>
+        _st?.Ports?.Where(p => p.Direction == PortDirection.Output).OrderBy(p => p.SortOrder).ToList() ?? new();
+
+    // Port form state
+    private bool _showPortForm;
+    private Guid? _editPortId;
+    private PortDirection _portDirection;
+    private string _portName = "";
+    private PortType _portType = PortType.Material;
+    // Material fields
+    private string _portKindId = "";
+    private string _portGradeId = "";
+    private QuantityRuleMode _portQtyMode = QuantityRuleMode.Exactly;
+    // Parameter / Characteristic fields
+    private DataValueType _portDataType = DataValueType.Decimal;
+    private string _portUnits = "";
+    private string _portNominalValue = "";
+    private string _portLowerTolerance = "";
+    private string _portUpperTolerance = "";
+    private int _portSortOrder;
+
+    // Edit template form state
+    private bool _showEditForm;
+    private string _editName = "";
+    private string? _editDescription;
+    private StepPattern _editPattern;
+    private bool _editIsActive;
+
+    // Image upload state
+    private bool _uploadingImage;
+
+    // Content block state
+    private bool _contentLoading;
+    private string? _contentError;
+    private List<StepTemplateContentResponseDto> _contentBlocks = new();
+    private bool _addingTextBlock;
+    private string _newTextBody = string.Empty;
+    private Guid? _editingTextBlockId;
+    private string _editingTextBody = string.Empty;
+
+    // Prompt block state
+    private bool _addingPromptBlock;
+    private string _newPromptLabel = string.Empty;
+    private string _newPromptType = "NumericEntry";
+    private bool _newPromptRequired = true;
+    private string _newPromptUnits = string.Empty;
+    private string _newPromptMin = string.Empty;
+    private string _newPromptMax = string.Empty;
+    private string _newPromptChoicesRaw = string.Empty;
+    private Guid? _editingPromptBlockId;
+    private string _editPromptLabel = string.Empty;
+    private string _editPromptType = "NumericEntry";
+    private bool _editPromptRequired = true;
+    private string _editPromptUnits = string.Empty;
+    private string _editPromptMin = string.Empty;
+    private string _editPromptMax = string.Empty;
+    private string _editPromptChoicesRaw = string.Empty;
+
+    // Lookup data
+    private PaginatedResponse<KindResponseDto>? _kinds;
+    private List<GradeResponseDto>? _grades = new();
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            _st = await Api.GetStepTemplateAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+        _ = LoadContent();
+    }
+
+    private async Task LoadContent()
+    {
+        _contentLoading = true;
+        _contentError = null;
+        try
+        {
+            _contentBlocks = await Api.GetStepTemplateContentAsync(Id);
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
+        finally { _contentLoading = false; StateHasChanged(); }
+    }
+
+    // --- Edit Template ---
+    private void ShowEditForm()
+    {
+        _editName = _st!.Name;
+        _editDescription = _st.Description;
+        _editPattern = _st.Pattern;
+        _editIsActive = _st.IsActive;
+        _showEditForm = true;
+    }
+
+    private async Task SaveEdit()
+    {
+        try
+        {
+            await Api.UpdateStepTemplateAsync(Id, new StepTemplateUpdateDto(_editName, _editDescription, _editPattern, _editIsActive));
+            _showEditForm = false;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    // --- Add / Edit Port ---
+    private void ShowPortForm(PortDirection direction)
+    {
+        _editPortId = null;
+        _portDirection = direction;
+        _portName = "";
+        _portType = PortType.Material;
+        _portKindId = "";
+        _portGradeId = "";
+        _portQtyMode = QuantityRuleMode.Exactly;
+        _portDataType = DataValueType.Decimal;
+        _portUnits = "";
+        _portNominalValue = "";
+        _portLowerTolerance = "";
+        _portUpperTolerance = "";
+        _portSortOrder = 0;
+        _showPortForm = true;
+        _ = LoadLookups();
+    }
+
+    private void ShowEditPort(PortResponseDto p)
+    {
+        _editPortId = p.Id;
+        _portDirection = p.Direction;
+        _portName = p.Name;
+        _portType = p.PortType;
+        _portKindId = p.KindId?.ToString() ?? "";
+        _portGradeId = p.GradeId?.ToString() ?? "";
+        _portQtyMode = p.QtyRuleMode ?? QuantityRuleMode.Exactly;
+        _portDataType = p.DataType ?? DataValueType.Decimal;
+        _portUnits = p.Units ?? "";
+        _portNominalValue = p.NominalValue ?? "";
+        _portLowerTolerance = p.LowerTolerance ?? "";
+        _portUpperTolerance = p.UpperTolerance ?? "";
+        _portSortOrder = p.SortOrder;
+        _showPortForm = true;
+        _ = LoadLookups();
+    }
+
+    private async Task LoadLookups()
+    {
+        try
+        {
+            _kinds = await Api.GetKindsAsync("", 1, 100);
+            _grades = new();
+            // Pre-load grades for the selected kind
+            if (Guid.TryParse(_portKindId, out var kindId))
+            {
+                var kind = await Api.GetKindAsync(kindId);
+                _grades = kind?.Grades?.ToList() ?? new();
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load lookups: {ex.Message}");
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private void ClosePortForm() => _showPortForm = false;
+
+    private async Task SavePort()
+    {
+        try
+        {
+            Guid? kindId = Guid.TryParse(_portKindId, out var k) ? k : null;
+            Guid? gradeId = Guid.TryParse(_portGradeId, out var g) ? g : null;
+
+            if (_portType == PortType.Material && (kindId is null || gradeId is null))
+            {
+                Toast.ShowError("Please select both a Kind and a Grade for Material ports.");
+                return;
+            }
+
+            DataValueType? dataType = _portType is PortType.Parameter or PortType.Characteristic
+                ? _portDataType : null;
+            string? units = _portType is PortType.Parameter or PortType.Characteristic
+                ? (string.IsNullOrEmpty(_portUnits) ? null : _portUnits) : null;
+            string? nominal = _portType is PortType.Parameter or PortType.Characteristic
+                ? (string.IsNullOrEmpty(_portNominalValue) ? null : _portNominalValue) : null;
+            string? lower = _portType is PortType.Parameter or PortType.Characteristic
+                ? (string.IsNullOrEmpty(_portLowerTolerance) ? null : _portLowerTolerance) : null;
+            string? upper = _portType is PortType.Parameter or PortType.Characteristic
+                ? (string.IsNullOrEmpty(_portUpperTolerance) ? null : _portUpperTolerance) : null;
+            QuantityRuleMode? qtyMode = _portType == PortType.Material ? _portQtyMode : null;
+
+            if (_editPortId.HasValue)
+            {
+                var dto = new PortUpdateDto(_portName, _portType,
+                    kindId, gradeId, qtyMode, null, null, null,
+                    dataType, units, nominal, lower, upper, _portSortOrder);
+                await Api.UpdatePortAsync(Id, _editPortId.Value, dto);
+            }
+            else
+            {
+                var dto = new PortCreateDto(_portName, _portDirection, _portType,
+                    kindId, gradeId, qtyMode, null, null, null,
+                    dataType, units, nominal, lower, upper, _portSortOrder);
+                await Api.CreatePortAsync(Id, dto);
+            }
+            _showPortForm = false;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task DeletePort(PortResponseDto p)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete port '{p.Name}'?")) return;
+        try { await Api.DeletePortAsync(Id, p.Id); await LoadData(); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task Delete()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this step template? This cannot be undone.")) return;
+        try { await Api.DeleteStepTemplateAsync(_st!.Id); Nav.NavigateTo("step-templates"); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    // --- Images ---
+
+    private async Task UploadImage(InputFileChangeEventArgs e)
+    {
+        _uploadingImage = true;
+        try
+        {
+            await Api.UploadStepTemplateImageAsync(Id, e.File);
+            await LoadData();
+        }
+        catch (Exception ex) { Toast.ShowError(ex.Message); }
+        finally { _uploadingImage = false; }
+    }
+
+    private async Task DeleteImage(StepTemplateImageResponseDto img)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete image '{img.OriginalFileName}'?")) return;
+        try { await Api.DeleteStepTemplateImageAsync(Id, img.Id); await LoadData(); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    // --- Content Blocks ---
+
+    private void StartAddTextBlock() { _addingTextBlock = true; _newTextBody = string.Empty; }
+
+    private async Task SaveNewTextBlock()
+    {
+        if (string.IsNullOrWhiteSpace(_newTextBody)) return;
+        _contentError = null;
+        try
+        {
+            await Api.AddStepTemplateTextBlockAsync(Id, new AddStepTemplateTextBlockDto(_newTextBody));
+            _addingTextBlock = false;
+            _newTextBody = string.Empty;
+            await LoadContent();
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
+    }
+
+    private void StartEditTextBlock(StepTemplateContentResponseDto block)
+    {
+        _editingTextBlockId = block.Id;
+        _editingTextBody = block.Body ?? string.Empty;
+    }
+
+    private void CancelEditTextBlock()
+    {
+        _editingTextBlockId = null;
+        _editingTextBody = string.Empty;
+    }
+
+    private async Task SaveEditedTextBlock()
+    {
+        if (_editingTextBlockId is null) return;
+        _contentError = null;
+        try
+        {
+            await Api.UpdateStepTemplateTextBlockAsync(Id, _editingTextBlockId.Value,
+                new UpdateStepTemplateTextBlockDto(_editingTextBody));
+            _editingTextBlockId = null;
+            _editingTextBody = string.Empty;
+            await LoadContent();
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
+    }
+
+    private async Task AddImageBlock(InputFileChangeEventArgs e)
+    {
+        _contentError = null;
+        try
+        {
+            await Api.UploadStepTemplateContentImageAsync(Id, e.File);
+            await LoadContent();
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
+    }
+
+    private async Task MoveBlock(StepTemplateContentResponseDto block, int direction)
+    {
+        _contentError = null;
+        try
+        {
+            var ordered = _contentBlocks.OrderBy(b => b.SortOrder).ToList();
+            var idx = ordered.IndexOf(block);
+            var newIdx = idx + direction;
+            if (newIdx < 0 || newIdx >= ordered.Count) return;
+            ordered.RemoveAt(idx);
+            ordered.Insert(newIdx, block);
+            var dto = new ReorderStepTemplateContentBlocksDto(ordered.Select(b => b.Id).ToList());
+            await Api.ReorderStepTemplateContentAsync(Id, dto);
+            await LoadContent();
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
+    }
+
+    private async Task DeleteContentBlock(StepTemplateContentResponseDto block)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this content block?")) return;
+        _contentError = null;
+        try
+        {
+            await Api.DeleteStepTemplateContentBlockAsync(Id, block.Id);
+            await LoadContent();
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
+    }
+
+    // --- Prompt Blocks ---
+
+    private void StartAddPromptBlock()
+    {
+        _addingPromptBlock = true;
+        _newPromptLabel = string.Empty;
+        _newPromptType = "NumericEntry";
+        _newPromptRequired = true;
+        _newPromptUnits = string.Empty;
+        _newPromptMin = string.Empty;
+        _newPromptMax = string.Empty;
+        _newPromptChoicesRaw = string.Empty;
+    }
+
+    private async Task SaveNewPromptBlock()
+    {
+        if (string.IsNullOrWhiteSpace(_newPromptLabel)) return;
+        _contentError = null;
+        try
+        {
+            decimal? min = decimal.TryParse(_newPromptMin, out var mn) ? mn : null;
+            decimal? max = decimal.TryParse(_newPromptMax, out var mx) ? mx : null;
+            string? choices = _newPromptType == "MultipleChoice" ? SerializeChoices(_newPromptChoicesRaw) : null;
+            await Api.AddStepTemplatePromptBlockAsync(Id, new AddStepTemplatePromptBlockDto(
+                _newPromptLabel, _newPromptType, _newPromptRequired,
+                string.IsNullOrWhiteSpace(_newPromptUnits) ? null : _newPromptUnits,
+                min, max, choices));
+            _addingPromptBlock = false;
+            await LoadContent();
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
+    }
+
+    private void StartEditPromptBlock(StepTemplateContentResponseDto block)
+    {
+        _editingPromptBlockId = block.Id;
+        _editPromptLabel = block.Label ?? string.Empty;
+        _editPromptType = block.PromptType ?? "NumericEntry";
+        _editPromptRequired = block.IsRequired;
+        _editPromptUnits = block.Units ?? string.Empty;
+        _editPromptMin = block.MinValue?.ToString() ?? string.Empty;
+        _editPromptMax = block.MaxValue?.ToString() ?? string.Empty;
+        _editPromptChoicesRaw = DeserializeChoices(block.Choices);
+    }
+
+    private void CancelEditPromptBlock()
+    {
+        _editingPromptBlockId = null;
+    }
+
+    private async Task SaveEditedPromptBlock()
+    {
+        if (_editingPromptBlockId is null) return;
+        _contentError = null;
+        try
+        {
+            decimal? min = decimal.TryParse(_editPromptMin, out var mn) ? mn : null;
+            decimal? max = decimal.TryParse(_editPromptMax, out var mx) ? mx : null;
+            string? choices = _editPromptType == "MultipleChoice" ? SerializeChoices(_editPromptChoicesRaw) : null;
+            await Api.UpdateStepTemplatePromptBlockAsync(Id, _editingPromptBlockId.Value,
+                new UpdateStepTemplatePromptBlockDto(
+                    _editPromptLabel, _editPromptRequired,
+                    string.IsNullOrWhiteSpace(_editPromptUnits) ? null : _editPromptUnits,
+                    min, max, choices));
+            _editingPromptBlockId = null;
+            await LoadContent();
+        }
+        catch (Exception ex) { _contentError = ex.Message; }
+    }
+
+    private static string SerializeChoices(string raw) =>
+        System.Text.Json.JsonSerializer.Serialize(
+            raw.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+    private static string DeserializeChoices(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return string.Empty;
+        try
+        {
+            var arr = System.Text.Json.JsonSerializer.Deserialize<string[]>(json);
+            return arr is null ? string.Empty : string.Join("\n", arr);
+        }
+        catch { return json; }
+    }
+
+    private string FormatQtyRule(PortResponseDto p)
+    {
+        if (p.QtyRuleMode is null) return string.Empty;
+        return p.QtyRuleMode switch
+        {
+            QuantityRuleMode.Exactly => $"= {p.QtyRuleN}",
+            QuantityRuleMode.ZeroOrN => $"0 or {p.QtyRuleN}",
+            QuantityRuleMode.Range => $"{p.QtyRuleMin}\u2013{p.QtyRuleMax}",
+            QuantityRuleMode.Unbounded => $">= {p.QtyRuleMin}",
+            _ => p.QtyRuleMode.ToString() ?? ""
+        };
+    }
+
+    private static string PortDetails(PortResponseDto p) => p.PortType switch
+    {
+        PortType.Material => $"{p.KindCode}/{p.GradeCode}",
+        PortType.Parameter or PortType.Characteristic =>
+            string.IsNullOrEmpty(p.Units) ? $"{p.DataType}" : $"{p.DataType} ({p.Units})",
+        PortType.Condition => "Pass / Fail",
+        _ => ""
+    };
+
+    private static string PortTypeBadgeClass(PortType t) => t switch
+    {
+        PortType.Material => "bg-secondary",
+        PortType.Parameter => "bg-warning text-dark",
+        PortType.Characteristic => "bg-info text-dark",
+        PortType.Condition => "bg-light text-dark border",
+        _ => "bg-secondary"
+    };
+}

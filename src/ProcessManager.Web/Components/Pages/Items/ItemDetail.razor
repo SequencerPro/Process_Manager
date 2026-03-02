@@ -1,0 +1,277 @@
+@page "/items/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Item Detail</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_item is null)
+{
+    <div class="alert alert-warning">Item not found.</div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="items">Items</a></li>
+            <li class="breadcrumb-item active">@(_item.SerialNumber ?? _item.Id.ToString()[..8])</li>
+        </ol>
+    </nav>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h4 class="mb-1">
+                        @if (!string.IsNullOrEmpty(_item.SerialNumber))
+                        {
+                            <code class="fs-5">@_item.SerialNumber</code>
+                        }
+                        else
+                        {
+                            <span class="text-muted">No Serial Number</span>
+                        }
+                    </h4>
+                    <StatusBadge Status="@_item.Status" />
+                </div>
+                <div>
+                    <button class="btn btn-outline-secondary btn-sm me-1" @onclick="ShowEditForm">
+                        <i class="bi bi-pencil me-1"></i>Edit
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-md-6">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Kind</dt>
+                        <dd class="col-sm-8">@_item.KindName</dd>
+                        <dt class="col-sm-4">Grade</dt>
+                        <dd class="col-sm-8">@_item.GradeName</dd>
+                        <dt class="col-sm-4">Job</dt>
+                        <dd class="col-sm-8"><a href="jobs/@_item.JobId">View Job</a></dd>
+                        <dt class="col-sm-4">Batch</dt>
+                        <dd class="col-sm-8">
+                            @if (_item.BatchId.HasValue)
+                            {
+                                <a href="batches/@_item.BatchId">View Batch</a>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </dd>
+                    </dl>
+                </div>
+                <div class="col-md-6">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Created</dt>
+                        <dd class="col-sm-8">@_item.CreatedAt.ToString("g")</dd>
+                        <dt class="col-sm-4">Updated</dt>
+                        <dd class="col-sm-8">@_item.UpdatedAt.ToString("g")</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Execution Data -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-clipboard-data me-1"></i> Execution Data (@(_data?.Count ?? 0))</span>
+            <button class="btn btn-primary btn-sm" @onclick="ShowDataForm">
+                <i class="bi bi-plus-lg me-1"></i> Add Data
+            </button>
+        </div>
+        @if (_data?.Any() == true)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr><th>Key</th><th>Value</th><th>Type</th><th>Unit</th><th>Created</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in _data)
+                        {
+                            <tr>
+                                <td><strong>@d.Key</strong></td>
+                                <td>@d.Value</td>
+                                <td><span class="badge bg-secondary">@d.DataType</span></td>
+                                <td>@(d.UnitOfMeasure ?? "—")</td>
+                                <td>@d.CreatedAt.ToString("g")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="card-body text-muted small">No execution data recorded.</div>
+        }
+    </div>
+}
+
+@if (_showDataForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Execution Data</h5>
+                    <button type="button" class="btn-close" @onclick="CloseDataForm"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Key</label>
+                        <input class="form-control" @bind="_dataKey" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Value</label>
+                        <input class="form-control" @bind="_dataValue" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Data Type</label>
+                        <select class="form-select" @bind="_dataType">
+                            <option value="String">String</option>
+                            <option value="Number">Number</option>
+                            <option value="Boolean">Boolean</option>
+                            <option value="DateTime">DateTime</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Unit of Measure</label>
+                        <input class="form-control" @bind="_dataUnit" placeholder="e.g., mm, kg, °C" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseDataForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveData">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* Edit Item Modal *@
+@if (_showEditForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Item</h5>
+                        <button type="button" class="btn-close" @onclick="CloseEditItemForm"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Serial Number</label>
+                        <input class="form-control" @bind="_editSerial" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseEditItemForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveEdit">Update</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private ItemResponseDto? _item;
+    private List<ExecutionDataResponseDto>? _data;
+    private bool _loading = true;
+
+    // Data form
+    private bool _showDataForm;
+    private string _dataKey = "";
+    private string _dataValue = "";
+    private string _dataType = "String";
+    private string? _dataUnit;
+
+    // Edit form
+    private bool _showEditForm;
+    private string _editSerial = "";
+
+    protected override async Task OnInitializedAsync() => await LoadAll();
+
+    private async Task LoadAll()
+    {
+        _loading = true;
+        try
+        {
+            _item = await Api.GetItemAsync(Id);
+            if (_item is not null)
+                _data = await Api.GetItemDataAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void ShowDataForm()
+    {
+        _dataKey = ""; _dataValue = ""; _dataType = "String"; _dataUnit = null;
+        _showDataForm = true;
+    }
+
+    private void CloseDataForm() { _showDataForm = false; }
+
+    private void CloseEditItemForm() { _showEditForm = false; }
+
+    private async Task SaveData()
+    {
+        try
+        {
+            var dataType = Enum.Parse<ProcessManager.Domain.Enums.DataValueType>(_dataType);
+            await Api.AddItemDataAsync(Id, new CreateExecutionDataDto(_dataKey, _dataValue, dataType, _dataUnit));
+            _showDataForm = false;
+            _data = await Api.GetItemDataAsync(Id);
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task Delete()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this item? This cannot be undone.")) return;
+        try
+        {
+            await Api.DeleteItemAsync(Id);
+            Nav.NavigateTo("items");
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private void ShowEditForm()
+    {
+        _editSerial = _item?.SerialNumber ?? "";
+        _showEditForm = true;
+    }
+
+    private async Task SaveEdit()
+    {
+        try
+        {
+            var serial = string.IsNullOrWhiteSpace(_editSerial) ? null : _editSerial.Trim();
+            await Api.UpdateItemAsync(Id, new UpdateItemDto(serial));
+            _showEditForm = false;
+            await LoadAll();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+}

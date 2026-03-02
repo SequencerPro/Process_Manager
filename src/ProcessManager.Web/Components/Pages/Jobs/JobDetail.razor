@@ -1,0 +1,360 @@
+@page "/jobs/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Job Detail</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_job is null)
+{
+    <div class="alert alert-warning">Job not found.</div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="jobs">Jobs</a></li>
+            <li class="breadcrumb-item active">@_job.Name</li>
+        </ol>
+    </nav>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h4 class="mb-1">@_job.Name</h4>
+                    <span class="text-muted me-3"><code>@_job.Code</code></span>
+                    <StatusBadge Status="@_job.Status" />
+                    @if (_job.Priority > 0)
+                    {
+                        <span class="badge bg-warning text-dark ms-1">Priority @_job.Priority</span>
+                    }
+                </div>
+                <div class="d-flex gap-1 flex-wrap">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ShowEditForm">
+                        <i class="bi bi-pencil me-1"></i>Edit
+                    </button>
+                    @if (_job.Status == "Created")
+                    {
+                        <button class="btn btn-success btn-sm" @onclick='() => Transition("start")'>
+                            <i class="bi bi-play-fill me-1"></i>Start
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" @onclick='() => Transition("cancel")'>Cancel</button>
+                    }
+                    else if (_job.Status == "InProgress")
+                    {
+                        <button class="btn btn-primary btn-sm" @onclick='() => Transition("complete")'>
+                            <i class="bi bi-check-lg me-1"></i>Complete
+                        </button>
+                        <button class="btn btn-warning btn-sm" @onclick='() => Transition("hold")'>
+                            <i class="bi bi-pause-fill me-1"></i>Hold
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" @onclick='() => Transition("cancel")'>Cancel</button>
+                    }
+                    else if (_job.Status == "OnHold")
+                    {
+                        <button class="btn btn-success btn-sm" @onclick='() => Transition("resume")'>
+                            <i class="bi bi-play-fill me-1"></i>Resume
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm" @onclick='() => Transition("cancel")'>Cancel</button>
+                    }
+                    <button class="btn btn-outline-danger btn-sm" @onclick="DeleteJob">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(_job.Description))
+            {
+                <p class="mt-2 mb-2">@_job.Description</p>
+            }
+            <div class="mt-2">
+                <small class="text-muted">
+                    Process: <strong>@_job.ProcessName</strong> &bull;
+                    Created @_job.CreatedAt.ToString("g")
+                    @if (_job.StartedAt.HasValue) { <text> &bull; Started @_job.StartedAt.Value.ToString("g")</text> }
+                    @if (_job.CompletedAt.HasValue) { <text> &bull; Completed @_job.CompletedAt.Value.ToString("g")</text> }
+                </small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step Executions — visual progress tracker -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-list-check me-1"></i> Steps (@(_job.StepExecutions?.Count ?? 0))</span>
+            @{
+                var done    = _job.StepExecutions?.Count(s => s.Status is "Completed" or "Skipped") ?? 0;
+                var total   = _job.StepExecutions?.Count ?? 0;
+                var pct     = total > 0 ? (int)((done / (double)total) * 100) : 0;
+            }
+            <small class="text-muted">@done / @total complete</small>
+        </div>
+        @if (_job.StepExecutions?.Any() == true)
+        {
+            <div class="px-2 py-1">
+                <div class="progress mb-0" style="height:4px;border-radius:0">
+                    <div class="progress-bar bg-success" style="width:@pct%"></div>
+                </div>
+            </div>
+            <div class="list-group list-group-flush">
+                @foreach (var se in _job.StepExecutions.OrderBy(s => s.Sequence))
+                {
+                    var (iconClass, badgeClass) = se.Status switch
+                    {
+                        "Completed" => ("bi-check-circle-fill text-success",   "bg-success"),
+                        "InProgress"=> ("bi-play-circle-fill text-primary",    "bg-primary"),
+                        "Failed"    => ("bi-x-circle-fill text-danger",        "bg-danger"),
+                        "Skipped"   => ("bi-skip-forward-fill text-secondary", "bg-secondary"),
+                        _           => ("bi-circle text-secondary",            "bg-light text-dark border"),
+                    };
+                    var canWork = se.Status is "Pending" or "InProgress";
+                    <div class="list-group-item d-flex align-items-center gap-3 py-3">
+                        <div class="d-flex align-items-center justify-content-center rounded-circle border fw-bold text-muted"
+                             style="width:2rem;height:2rem;flex-shrink:0;font-size:.8rem">
+                            @se.Sequence
+                        </div>
+                        <i class="bi @iconClass fs-5" style="flex-shrink:0"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-medium">@se.StepName</div>
+                            <div class="small text-muted">
+                                @if (se.StartedAt.HasValue && se.CompletedAt.HasValue)
+                                {
+                                    var dur = se.CompletedAt.Value - se.StartedAt.Value;
+                                    <text>@se.StartedAt.Value.ToString("g") — @(dur.TotalMinutes < 60
+                                        ? $"{(int)dur.TotalMinutes}m {dur.Seconds}s"
+                                        : $"{(int)dur.TotalHours}h {dur.Minutes}m")</text>
+                                }
+                                else if (se.StartedAt.HasValue)
+                                {
+                                    <text>Started @se.StartedAt.Value.ToString("g")</text>
+                                }
+                                else if (!string.IsNullOrEmpty(se.Notes))
+                                {
+                                    <text>@se.Notes</text>
+                                }
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 align-items-center" style="flex-shrink:0">
+                            <span class="badge @badgeClass">@se.Status</span>
+                            @if (canWork && _job.Status == "InProgress")
+                            {
+                                <a href="step-executions/@se.Id" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-play-fill me-1"></i>Work
+                                </a>
+                            }
+                            else
+                            {
+                                <a href="step-executions/@se.Id" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-eye me-1"></i>View
+                                </a>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="card-body text-muted small">No step executions yet. Start the job to generate them.</div>
+        }
+    </div>
+
+    <!-- Items & Batches tabs -->
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <button class="nav-link @(_activeTab == "items" ? "active" : "")" @onclick='() => SwitchTab("items")'>
+                Items (@(_items?.Count ?? 0))
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(_activeTab == "batches" ? "active" : "")" @onclick='() => SwitchTab("batches")'>
+                Batches (@(_batches?.Count ?? 0))
+            </button>
+        </li>
+    </ul>
+
+    @if (_activeTab == "items")
+    {
+        @if (_items?.Any() == true)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead class="table-light">
+                        <tr><th>Serial</th><th>Kind</th><th>Grade</th><th>Status</th><th>Created</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var i in _items)
+                        {
+                            <tr>
+                                <td><a href="items/@i.Id"><code>@(i.SerialNumber ?? "—")</code></a></td>
+                                <td>@i.KindName</td>
+                                <td>@i.GradeName</td>
+                                <td><StatusBadge Status="@i.Status" /></td>
+                                <td>@i.CreatedAt.ToString("g")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted small">No items for this job.</p>
+        }
+    }
+    else if (_activeTab == "batches")
+    {
+        @if (_batches?.Any() == true)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                    <thead class="table-light">
+                        <tr><th>Code</th><th>Kind</th><th>Grade</th><th>Qty</th><th>Items</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var b in _batches)
+                        {
+                            <tr>
+                                <td><a href="batches/@b.Id"><code>@b.Code</code></a></td>
+                                <td>@b.KindName</td>
+                                <td>@b.GradeName</td>
+                                <td>@b.Quantity</td>
+                                <td>@b.ItemCount</td>
+                                <td><StatusBadge Status="@b.Status" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <p class="text-muted small">No batches for this job.</p>
+        }
+    }
+
+    @* Edit Job Modal *@
+    @if (_showEditForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Job</h5>
+                        <button type="button" class="btn-close" @onclick="CloseEditJobForm"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="_editName" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" rows="3" @bind="_editDescription"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Priority</label>
+                            <input type="number" class="form-control" @bind="_editPriority" min="0" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="CloseEditJobForm">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveEdit">Update</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private JobResponseDto? _job;
+    private bool _loading = true;
+    private string _activeTab = "items";
+
+    // Sub-resources loaded from flat endpoints
+    private List<ItemResponseDto>? _items;
+    private List<BatchResponseDto>? _batches;
+
+    // Edit form
+    private bool _showEditForm;
+    private string _editName = "";
+    private string? _editDescription;
+    private int _editPriority;
+
+    protected override async Task OnInitializedAsync() => await LoadAll();
+
+    private async Task LoadAll()
+    {
+        _loading = true;
+        try
+        {
+            _job = await Api.GetJobAsync(Id);
+            await LoadSubResources();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadSubResources()
+    {
+        var itemsResult = await Api.GetItemsAsync(jobId: Id, page: 1, pageSize: 200);
+        _items = itemsResult?.Items;
+        var batchesResult = await Api.GetBatchesAsync(jobId: Id, page: 1, pageSize: 200);
+        _batches = batchesResult?.Items;
+    }
+
+    private async Task Transition(string action)
+    {
+        try
+        {
+            _job = await Api.JobTransitionAsync(Id, action);
+            await LoadSubResources();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private void SwitchTab(string tab) => _activeTab = tab;
+
+    // --- Edit Job ---
+    private void ShowEditForm()
+    {
+        _editName = _job!.Name;
+        _editDescription = _job.Description;
+        _editPriority = _job.Priority;
+        _showEditForm = true;
+    }
+
+    private void CloseEditJobForm() { _showEditForm = false; }
+
+    private async Task SaveEdit()
+    {
+        try
+        {
+            await Api.UpdateJobAsync(Id, new UpdateJobDto(_editName, _editDescription, _editPriority));
+            _showEditForm = false;
+            await LoadAll();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task DeleteJob()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this job? This cannot be undone.")) return;
+        try { await Api.DeleteJobAsync(Id); Nav.NavigateTo("jobs"); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+}

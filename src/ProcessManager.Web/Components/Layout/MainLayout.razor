@@ -1,0 +1,43 @@
+﻿@inherits LayoutComponentBase
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthState
+@inject ProcessManager.Web.Services.TokenService TokenSvc
+
+<div class="d-flex vh-100">
+    <NavMenu />
+    <main class="flex-grow-1 overflow-auto bg-light">
+        <div class="container-fluid py-3 px-4">
+            @Body
+        </div>
+    </main>
+</div>
+
+<ToastContainer />
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // In Blazor Server, HTTP middleware populates TokenService for the
+        // SSR pass but not for the interactive circuit scope.
+        // Re-populate from the persistent AuthenticationState here so every
+        // child component gets a valid bearer token on circuit reconnect.
+        if (string.IsNullOrEmpty(TokenSvc.AccessToken))
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            var user = state.User;
+            if (user.Identity?.IsAuthenticated == true)
+            {
+                TokenSvc.AccessToken  = user.FindFirst("access_token")?.Value;
+                TokenSvc.UserName     = user.Identity.Name;
+                TokenSvc.DisplayName  = user.FindFirst("display_name")?.Value;
+                TokenSvc.Role         = user.FindFirst(ClaimTypes.Role)?.Value;
+            }
+        }
+    }
+}

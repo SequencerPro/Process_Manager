@@ -1,0 +1,42 @@
+@* Search bar with debounced input *@
+<div class="input-group input-group-sm" style="max-width: 300px;">
+    <span class="input-group-text"><i class="bi bi-search"></i></span>
+    <input type="text" class="form-control" placeholder="@Placeholder"
+           value="@Value" @oninput="OnInput" />
+    @if (!string.IsNullOrEmpty(Value))
+    {
+        <button class="btn btn-outline-secondary" type="button" @onclick="Clear">
+            <i class="bi bi-x"></i>
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public string Placeholder { get; set; } = "Search...";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    private System.Timers.Timer? _debounce;
+
+    private void OnInput(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString() ?? "";
+        _debounce?.Stop();
+        _debounce?.Dispose();
+        _debounce = new System.Timers.Timer(300);
+        _debounce.Elapsed += async (_, _) =>
+        {
+            _debounce?.Stop();
+            await InvokeAsync(() => ValueChanged.InvokeAsync(val));
+        };
+        _debounce.AutoReset = false;
+        _debounce.Start();
+    }
+
+    private async Task Clear()
+    {
+        await ValueChanged.InvokeAsync("");
+    }
+
+    public void Dispose() => _debounce?.Dispose();
+}

@@ -1,0 +1,227 @@
+@page "/jobs"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject IJSRuntime JS
+
+<PageTitle>Jobs</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Jobs</h3>
+    <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
+        <i class="bi bi-plus-lg me-1"></i> New Job
+    </button>
+</div>
+
+<div class="d-flex gap-3 mb-3 flex-wrap">
+    <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search jobs..." />
+    <select class="form-select form-select-sm" style="width:auto" @onchange="OnStatusFilter">
+        <option value="" selected="@(_status is null)">All Statuses</option>
+        <option value="Created"    selected="@(_status == "Created")">Created</option>
+        <option value="InProgress" selected="@(_status == "InProgress")">In Progress</option>
+        <option value="OnHold"     selected="@(_status == "OnHold")">On Hold</option>
+        <option value="Completed"  selected="@(_status == "Completed")">Completed</option>
+        <option value="Cancelled"  selected="@(_status == "Cancelled")">Cancelled</option>
+    </select>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_data is not null)
+{
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Process</th>
+                    <th>Status</th>
+                    <th>Priority</th>
+                    <th>Created</th>
+                    <th style="width:140px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!_data.Items.Any())
+                {
+                    <tr><td colspan="7" class="text-center text-muted py-3">No jobs found.</td></tr>
+                }
+                else
+                {
+                @foreach (var j in _data.Items)
+                {
+                    <tr>
+                        <td><code>@j.Code</code></td>
+                        <td><a href="jobs/@j.Id">@j.Name</a></td>
+                        <td>@j.ProcessName</td>
+                        <td><StatusBadge Status="@j.Status" /></td>
+                        <td>@j.Priority</td>
+                        <td>@j.CreatedAt.ToString("g")</td>
+                        <td>
+                            <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEdit(j)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(j.Id)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <Pager Page="_page" PageSize="_pageSize" TotalCount="_data.TotalCount"
+           OnPageChanged="OnPageChanged" />
+}
+
+@if (_showForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "New") Job</h5>
+                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!_editId.HasValue)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Code</label>
+                            <input class="form-control" @bind="_formCode" />
+                        </div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input class="form-control" @bind="_formName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" rows="2" @bind="_formDesc"></textarea>
+                    </div>
+                    @if (!_editId.HasValue)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Process</label>
+                            <select class="form-select" @bind="_formProcessId">
+                                <option value="">Select a process...</option>
+                                @if (_processes is not null)
+                                {
+                                    @foreach (var p in _processes.Items)
+                                    {
+                                        <option value="@p.Id">@p.Name (@p.Code)</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label">Priority</label>
+                        <input type="number" class="form-control" @bind="_formPriority" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="Save">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter][SupplyParameterFromQuery(Name = "status")] public string? StatusQuery { get; set; }
+
+    private PaginatedResponse<JobResponseDto>? _data;
+    private bool _loading = true;
+    private string _search = "";
+    private string? _status;
+    private int _page = 1;
+    private int _pageSize = 25;
+
+    // Form
+    private bool _showForm;
+    private Guid? _editId;
+    private string _formCode = "";
+    private string _formName = "";
+    private string _formDesc = "";
+    private string _formProcessId = "";
+    private int _formPriority;
+    private PaginatedResponse<ProcessSummaryResponseDto>? _processes;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _status = StatusQuery;
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            _data = await Api.GetJobsAsync(_search, _status, null, _page, _pageSize);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnSearch(string v) { _search = v; _page = 1; await LoadData(); }
+    private async Task OnPageChanged(int p) { _page = p; await LoadData(); }
+
+    private async Task OnStatusFilter(ChangeEventArgs e)
+    {
+        _status = string.IsNullOrEmpty(e.Value?.ToString()) ? null : e.Value.ToString();
+        _page = 1; await LoadData();
+    }
+
+    private async Task ShowCreate()
+    {
+        _editId = null; _formCode = ""; _formName = ""; _formDesc = ""; _formProcessId = ""; _formPriority = 0;
+        _showForm = true;
+        _processes = await Api.GetProcessesAsync("", true, 1, 100);
+        StateHasChanged();
+    }
+
+    private void ShowEdit(JobResponseDto j)
+    {
+        _editId = j.Id; _formName = j.Name; _formDesc = j.Description ?? ""; _formPriority = j.Priority;
+        _showForm = true;
+    }
+
+    private void CloseForm() { _showForm = false; }
+
+    private async Task Save()
+    {
+        try
+        {
+            if (_editId.HasValue)
+                await Api.UpdateJobAsync(_editId.Value, new UpdateJobDto(_formName, _formDesc, _formPriority));
+            else
+            {
+                if (!Guid.TryParse(_formProcessId, out var pid)) { Toast.ShowError("Select a process."); return; }
+                await Api.CreateJobAsync(new CreateJobDto(_formCode, _formName, _formDesc, pid, _formPriority));
+            }
+            _showForm = false;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task Delete(Guid id)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this job?")) return;
+        try { await Api.DeleteJobAsync(id); await LoadData(); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+}

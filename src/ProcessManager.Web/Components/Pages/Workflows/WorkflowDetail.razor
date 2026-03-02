@@ -1,0 +1,726 @@
+@page "/workflows/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Workflow Detail</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_wf is null)
+{
+    <div class="alert alert-warning">Workflow not found.</div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="workflows">Workflows</a></li>
+            <li class="breadcrumb-item active">@_wf.Name</li>
+        </ol>
+    </nav>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <h4 class="mb-1">@_wf.Name</h4>
+                    <span class="text-muted me-3"><code>@_wf.Code</code></span>
+                    <span class="badge me-1 @(_wf.IsActive ? "bg-success" : "bg-secondary")">@(_wf.IsActive ? "Active" : "Inactive")</span>
+                    <span class="badge bg-dark">v@_wf.Version</span>
+                </div>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-outline-info btn-sm" @onclick="Validate">
+                        <i class="bi bi-check2-circle me-1"></i>Validate
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ShowEditForm">
+                        <i class="bi bi-pencil me-1"></i>Edit
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(_wf.Description))
+            {
+                <p class="mb-2">@_wf.Description</p>
+            }
+            <small class="text-muted">Created @_wf.CreatedAt.ToString("g") &bull; Updated @_wf.UpdatedAt.ToString("g")</small>
+        </div>
+    </div>
+
+    @if (_validation is not null)
+    {
+        <div class="alert @(_validation.IsValid ? "alert-success" : "alert-warning") py-2">
+            <strong>@(_validation.IsValid ? "Valid" : "Invalid")</strong>
+            @if (_validation.Errors.Any())
+            {
+                <ul class="mb-0 mt-1">
+                    @foreach (var e in _validation.Errors) { <li class="text-danger">@e</li> }
+                </ul>
+            }
+            @if (_validation.Warnings.Any())
+            {
+                <ul class="mb-0 mt-1">
+                    @foreach (var w in _validation.Warnings) { <li class="text-warning">@w</li> }
+                </ul>
+            }
+            @if (_validation.IsValid && !_validation.Warnings.Any())
+            {
+                <span class="ms-1">— workflow configuration is correct.</span>
+            }
+        </div>
+    }
+
+    <!-- Workflow Processes -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-diagram-3 me-1"></i> Processes (@(_wf.Processes?.Count ?? 0))</span>
+            <button class="btn btn-primary btn-sm" @onclick="ShowAddProcess">
+                <i class="bi bi-plus-lg"></i>
+            </button>
+        </div>
+        @if (_wf.Processes?.Any() == true)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr><th>Process</th><th>Code</th><th>Entry Point</th><th>Sort</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var wp in _wf.Processes.OrderBy(p => p.SortOrder))
+                        {
+                            <tr>
+                                <td><a href="processes/@wp.ProcessId">@wp.ProcessName</a></td>
+                                <td><code>@wp.ProcessCode</code></td>
+                                <td>
+                                    @if (wp.IsEntryPoint) { <i class="bi bi-flag-fill text-success"></i> }
+                                </td>
+                                <td>@wp.SortOrder</td>
+                                <td class="text-end">
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1" @onclick="() => ShowEditWfProcess(wp)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => DeleteWfProcess(wp.Id)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="card-body text-muted small">No processes added to this workflow yet.</div>
+        }
+    </div>
+
+    <!-- Workflow Links -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-arrow-left-right me-1"></i> Links (@(_wf.Links?.Count ?? 0))</span>
+            <button class="btn btn-primary btn-sm" @onclick="ShowAddLink">
+                <i class="bi bi-plus-lg"></i>
+            </button>
+        </div>
+        @if (_wf.Links?.Any() == true)
+        {
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr><th>Name</th><th>Source</th><th></th><th>Target</th><th>Routing</th><th>Conditions</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var lk in _wf.Links.OrderBy(l => l.SortOrder))
+                        {
+                            <tr>
+                                <td>@(lk.Name ?? "—")</td>
+                                <td>@lk.SourceProcessName</td>
+                                <td class="text-center"><i class="bi bi-arrow-right"></i></td>
+                                <td>@lk.TargetProcessName</td>
+                                <td><span class="badge bg-info text-dark">@lk.RoutingType</span></td>
+                                <td>
+                                    @if (lk.Conditions?.Any() == true)
+                                    {
+                                        @foreach (var c in lk.Conditions)
+                                        {
+                                            <span class="badge bg-light text-dark border me-1">
+                                                @c.GradeCode
+                                                <button type="button" class="btn-close btn-close-sm ms-1" style="font-size:.5rem"
+                                                        @onclick="() => RemoveCondition(lk.Id, c.Id)"></button>
+                                            </span>
+                                        }
+                                    }
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1" @onclick="() => ShowAddCondition(lk)">
+                                        <i class="bi bi-plus"></i>
+                                    </button>
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1" @onclick="() => ShowEditLink(lk)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => DeleteLink(lk.Id)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="card-body text-muted small">No links defined.</div>
+        }
+    </div>
+
+    <!-- Add Process Modal -->
+    @if (_showProcessForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add Process</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showProcessForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Process</label>
+                            <select class="form-select" @bind="_wpProcessId">
+                                <option value="">Select...</option>
+                                @if (_availableProcesses is not null)
+                                {
+                                    @foreach (var p in _availableProcesses.Items)
+                                    {
+                                        <option value="@p.Id">@p.Name (@p.Code)</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="isEntry" @bind="_wpIsEntry" />
+                            <label class="form-check-label" for="isEntry">Is Entry Point</label>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Sort Order</label>
+                            <input type="number" class="form-control" @bind="_wpSortOrder" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showProcessForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveProcess">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Add Link Modal -->
+    @if (_showLinkForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add Link</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showLinkForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Source Process</label>
+                            <select class="form-select" @bind="_lkSourceId">
+                                <option value="">Select...</option>
+                                @if (_wf.Processes is not null)
+                                {
+                                    @foreach (var wp in _wf.Processes.OrderBy(p => p.SortOrder))
+                                    {
+                                        <option value="@wp.Id">@wp.ProcessName</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Target Process</label>
+                            <select class="form-select" @bind="_lkTargetId">
+                                <option value="">Select...</option>
+                                @if (_wf.Processes is not null)
+                                {
+                                    @foreach (var wp in _wf.Processes.OrderBy(p => p.SortOrder))
+                                    {
+                                        <option value="@wp.Id">@wp.ProcessName</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Routing Type</label>
+                            <select class="form-select" @bind="_lkRoutingType" @bind:after="OnLinkRoutingTypeChanged">
+                                @foreach (var rt in Enum.GetValues<RoutingType>())
+                                {
+                                    <option value="@rt">@rt</option>
+                                }
+                            </select>
+                        </div>
+                        @if (_lkRoutingType == RoutingType.GradeBased)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Condition Grades</label>
+                                @if (_lkAvailableGrades is null)
+                                {
+                                    <div class="text-muted small">Loading grades...</div>
+                                }
+                                else if (!_lkAvailableGrades.Any())
+                                {
+                                    <div class="text-warning small">No grades available. Create grades on a Kind first.</div>
+                                }
+                                else
+                                {
+                                    <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                                        @foreach (var g in _lkAvailableGrades)
+                                        {
+                                            <div class="form-check">
+                                                <input type="checkbox" class="form-check-input" id="grade-@g.Id"
+                                                       checked="@(_lkSelectedGradeIds.Contains(g.Id))"
+                                                       @onchange="e => ToggleLinkGrade(g.Id, (bool)e.Value!)" />
+                                                <label class="form-check-label" for="grade-@g.Id">
+                                                    @g.Code — @g.Name
+                                                </label>
+                                            </div>
+                                        }
+                                    </div>
+                                    @if (!_lkSelectedGradeIds.Any())
+                                    {
+                                        <small class="text-danger">At least one grade must be selected.</small>
+                                    }
+                                }
+                            </div>
+                        }
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="_lkName" placeholder="Optional" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showLinkForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveLink">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Edit Workflow Modal *@
+    @if (_showEditForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Workflow</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showEditForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="_editName" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" rows="3" @bind="_editDescription"></textarea>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="wfIsActive" @bind="_editIsActive" />
+                            <label class="form-check-label" for="wfIsActive">Active</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showEditForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveEdit">Update</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Edit Workflow Process Modal *@
+    @if (_showEditWpForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Workflow Process</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showEditWpForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="editWpEntry" @bind="_editWpIsEntry" />
+                            <label class="form-check-label" for="editWpEntry">Is Entry Point</label>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Sort Order</label>
+                            <input type="number" class="form-control" @bind="_editWpSortOrder" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showEditWpForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveEditWfProcess">Update</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Edit Link Modal *@
+    @if (_showEditLinkForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Link</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showEditLinkForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="_editLinkName" placeholder="Optional" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Sort Order</label>
+                            <input type="number" class="form-control" @bind="_editLinkSortOrder" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showEditLinkForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveEditLink">Update</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Add Condition Modal *@
+    @if (_showConditionForm)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add Condition</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showConditionForm = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Grade</label>
+                            <select class="form-select" @bind="_condGradeId">
+                                <option value="">Select grade...</option>
+                                @if (_allGrades is not null)
+                                {
+                                    @foreach (var g in _allGrades)
+                                    {
+                                        <option value="@g.Id">@g.Code — @g.Name</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showConditionForm = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SaveCondition">Add</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private WorkflowResponseDto? _wf;
+    private bool _loading = true;
+    private WorkflowValidationResultDto? _validation;
+
+    // Add Process form
+    private bool _showProcessForm;
+    private string _wpProcessId = "";
+    private bool _wpIsEntry;
+    private int _wpSortOrder;
+    private PaginatedResponse<ProcessSummaryResponseDto>? _availableProcesses;
+
+    // Add Link form
+    private bool _showLinkForm;
+    private string _lkSourceId = "";
+    private string _lkTargetId = "";
+    private RoutingType _lkRoutingType = RoutingType.Always;
+    private string _lkName = "";
+    private List<GradeResponseDto>? _lkAvailableGrades;
+    private List<Guid> _lkSelectedGradeIds = new();
+
+    // Edit workflow form
+    private bool _showEditForm;
+    private string _editName = "";
+    private string? _editDescription;
+    private bool _editIsActive;
+
+    // Edit workflow process form
+    private bool _showEditWpForm;
+    private Guid _editWpId;
+    private bool _editWpIsEntry;
+    private int _editWpSortOrder;
+
+    // Edit link form
+    private bool _showEditLinkForm;
+    private Guid _editLinkId;
+    private string _editLinkName = "";
+    private int _editLinkSortOrder;
+
+    // Add condition form
+    private bool _showConditionForm;
+    private Guid _condLinkId;
+    private string _condGradeId = "";
+    private List<GradeResponseDto>? _allGrades;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            _wf = await Api.GetWorkflowAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    // --- Validate ---
+    private async Task Validate()
+    {
+        try
+        {
+            _validation = await Api.ValidateWorkflowAsync(Id);
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); _validation = null; }
+    }
+
+    // --- Process CRUD ---
+    private async Task ShowAddProcess()
+    {
+        _wpProcessId = ""; _wpIsEntry = false; _wpSortOrder = 0;
+        _showProcessForm = true;
+        _availableProcesses = await Api.GetProcessesAsync("", true, 1, 100);
+        StateHasChanged();
+    }
+
+    private async Task SaveProcess()
+    {
+        try
+        {
+            if (!Guid.TryParse(_wpProcessId, out var pid)) { Toast.ShowError("Select a process."); return; }
+            await Api.AddWorkflowProcessAsync(Id, new AddWorkflowProcessDto(pid, _wpIsEntry, _wpSortOrder));
+            _showProcessForm = false;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private void ShowEditWfProcess(WorkflowProcessResponseDto wp)
+    {
+        _editWpId = wp.Id;
+        _editWpIsEntry = wp.IsEntryPoint;
+        _editWpSortOrder = wp.SortOrder;
+        _showEditWpForm = true;
+    }
+
+    private async Task SaveEditWfProcess()
+    {
+        try
+        {
+            await Api.UpdateWorkflowProcessAsync(Id, _editWpId, new UpdateWorkflowProcessDto(_editWpIsEntry, _editWpSortOrder));
+            _showEditWpForm = false;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task DeleteWfProcess(Guid wpId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Remove this process from the workflow?")) return;
+        try { await Api.DeleteWorkflowProcessAsync(Id, wpId); await LoadData(); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    // --- Link CRUD ---
+    private async Task ShowAddLink()
+    {
+        _lkSourceId = ""; _lkTargetId = ""; _lkRoutingType = RoutingType.Always; _lkName = "";
+        _lkSelectedGradeIds = new();
+        _showLinkForm = true;
+        if (_allGrades is null)
+        {
+            await LoadAllGrades();
+        }
+        _lkAvailableGrades = _allGrades;
+        StateHasChanged();
+    }
+
+    private async Task OnLinkRoutingTypeChanged()
+    {
+        if (_lkRoutingType == RoutingType.GradeBased)
+        {
+            if (_allGrades is null)
+            {
+                await LoadAllGrades();
+            }
+            _lkAvailableGrades = _allGrades;
+        }
+        else
+        {
+            _lkSelectedGradeIds = new();
+        }
+    }
+
+    private void ToggleLinkGrade(Guid gradeId, bool isChecked)
+    {
+        if (isChecked && !_lkSelectedGradeIds.Contains(gradeId))
+        {
+            _lkSelectedGradeIds.Add(gradeId);
+        }
+        else if (!isChecked)
+        {
+            _lkSelectedGradeIds.Remove(gradeId);
+        }
+    }
+
+    private async Task SaveLink()
+    {
+        try
+        {
+            if (!Guid.TryParse(_lkSourceId, out var src) || !Guid.TryParse(_lkTargetId, out var tgt))
+            { Toast.ShowError("Select both source and target processes."); return; }
+            if (_lkRoutingType == RoutingType.GradeBased && !_lkSelectedGradeIds.Any())
+            { Toast.ShowError("GradeBased links must have at least one condition grade."); return; }
+            var dto = new CreateWorkflowLinkDto(src, tgt, _lkRoutingType,
+                string.IsNullOrWhiteSpace(_lkName) ? null : _lkName,
+                0,
+                _lkRoutingType == RoutingType.GradeBased ? _lkSelectedGradeIds : null);
+            await Api.AddWorkflowLinkAsync(Id, dto);
+            _showLinkForm = false;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private void ShowEditLink(WorkflowLinkResponseDto lk)
+    {
+        _editLinkId = lk.Id;
+        _editLinkName = lk.Name ?? "";
+        _editLinkSortOrder = lk.SortOrder;
+        _showEditLinkForm = true;
+    }
+
+    private async Task SaveEditLink()
+    {
+        try
+        {
+            await Api.UpdateWorkflowLinkAsync(Id, _editLinkId,
+                new UpdateWorkflowLinkDto(string.IsNullOrWhiteSpace(_editLinkName) ? null : _editLinkName, _editLinkSortOrder));
+            _showEditLinkForm = false;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task DeleteLink(Guid linkId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this link?")) return;
+        try { await Api.DeleteWorkflowLinkAsync(Id, linkId); await LoadData(); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    // --- Conditions ---
+    private async Task LoadAllGrades()
+    {
+        try
+        {
+            var kindsResult = await Api.GetKindsAsync(page: 1, pageSize: 100);
+            _allGrades = kindsResult?.Items?.SelectMany(k => k.Grades).OrderBy(g => g.Code).ToList() ?? new();
+        }
+        catch { _allGrades = new(); }
+    }
+
+    private async Task ShowAddCondition(WorkflowLinkResponseDto lk)
+    {
+        _condLinkId = lk.Id;
+        _condGradeId = "";
+        _showConditionForm = true;
+
+        if (_allGrades is null)
+        {
+            await LoadAllGrades();
+        }
+        StateHasChanged();
+    }
+
+    private async Task SaveCondition()
+    {
+        try
+        {
+            if (!Guid.TryParse(_condGradeId, out var gid)) { Toast.ShowError("Select a grade."); return; }
+            await Api.AddWorkflowLinkConditionAsync(Id, _condLinkId, new AddWorkflowLinkConditionDto(gid));
+            _showConditionForm = false;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task RemoveCondition(Guid linkId, Guid conditionId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Remove this condition?")) return;
+        try { await Api.DeleteWorkflowLinkConditionAsync(Id, linkId, conditionId); await LoadData(); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    // --- Delete Workflow ---
+    private async Task Delete()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this workflow? This cannot be undone.")) return;
+        try { await Api.DeleteWorkflowAsync(Id); Nav.NavigateTo("workflows"); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    // --- Edit Workflow ---
+    private void ShowEditForm()
+    {
+        _editName = _wf!.Name;
+        _editDescription = _wf.Description;
+        _editIsActive = _wf.IsActive;
+        _showEditForm = true;
+    }
+
+    private async Task SaveEdit()
+    {
+        try
+        {
+            await Api.UpdateWorkflowAsync(Id, new UpdateWorkflowDto(_editName, _editDescription, _editIsActive));
+            _showEditForm = false;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+}

@@ -10,6 +10,11 @@
 | 0.4     | 2026-02-21 | CRUD modals on all detail pages, 17 Blazor pages complete |
 | 0.5     | 2026-02-22 | Full UI polish: cascading port dropdowns, workflow validation UI, port transaction forms, delete confirmations on all pages, empty-state messages, display name fixes (JobName/BatchCode), StepExecution job filter, WorkflowDetail link condition management |
 | 0.6     | 2026-03-02 | Audit trail wired up (CreatedBy/UpdatedBy via IHttpContextAccessor); multi-tenancy architecture decision documented |
+| 0.7     | 2026-03-10 | RunChartWidget component — per-step-template run charts on StepTemplateDetail |
+| 0.8     | 2026-03-10 | Ad-hoc analytics chart builder (AnalyticsController, TimeSeriesChart.razor, Analytics page) |
+| 0.9     | 2026-03-10 | Dashboard page — KPI cards, job status breakdown, 30-day throughput, step performance, recent completions |
+| 1.0     | 2026-03-10 | Out-of-range alerting — AlertsController, Alerts page, NavMenu bell badge with live count |
+| 1.1     | 2026-03-10 | Execution Gantt timeline on JobDetail; CSV export endpoints (step executions, alerts); integration tests for Analytics and Alerts |
 
 ---
 
@@ -217,9 +222,17 @@ Each integration is a consumer of execution data shaped by the process model. Th
 
 ---
 
-## Current State (as of 2026-03-02)
+## Current State (as of 2026-03-10)
 
 All five phases are fully implemented. Phase 6 is in progress — PostgreSQL, EF Core migrations, authentication/authorization, and audit trail are complete. The system is deployable to Render.com.
+
+Additional capability added post-Phase 6:
+- **Run charts** on StepTemplateDetail for visualising measurement variability over time
+- **Ad-hoc analytics** query builder with time-series charting (any numeric prompt, any time window)
+- **Dashboard** with live KPI cards, job status breakdown, 30-day throughput trend, step-level performance, and recent completions
+- **Out-of-range alerting** with rolling-window queries, NavMenu badge, and per-alert override tracking
+- **Execution Gantt timeline** on JobDetail — SVG timeline of step executions coloured by status
+- **CSV export** endpoints for step-execution history and alerts
 
 ### Technology Stack
 
@@ -235,23 +248,28 @@ All five phases are fully implemented. Phase 6 is in progress — PostgreSQL, EF
 
 ### Test Coverage
 
-164 integration tests across all phases, all passing. Tests run against an in-memory SQLite database spun up per test run.
+167+ integration tests across all phases, all passing. Tests run against an in-memory SQLite database spun up per test run. Test files cover all controllers including Analytics and Alerts.
 
-### Blazor UI Pages (17 total)
+### Blazor UI Pages (22 total)
 
 | Page | Features |
 |---|---|
 | KindList / KindDetail | CRUD, inline grade management, delete confirmations |
-| StepTemplateList / StepTemplateDetail | CRUD, port management, pattern/qty rule display |
+| StepTemplateList / StepTemplateDetail | CRUD, port management, run chart widget, pattern/qty rule display |
 | ProcessList / ProcessDetail | CRUD, step management, cascading port dropdowns for flows, step editing, validation |
 | WorkflowList / WorkflowDetail | CRUD, process/link management, link condition add/remove (grade badges), Validate button |
-| JobList / JobDetail | CRUD, lifecycle transitions, step execution navigation |
+| JobList / JobDetail | CRUD, lifecycle transitions, step execution navigation, Gantt timeline, CSV export |
 | ItemList / ItemDetail | CRUD, filtering by job/kind/status, displays JobName and BatchCode |
 | BatchList / BatchDetail | CRUD, item membership management, lifecycle |
 | StepExecutionList / StepExecutionDetail | Filter by status and job, port transaction creation, execution data capture, notes |
 | VocabularyList | CRUD for domain vocabulary mappings |
+| Dashboard | Live KPI cards, job status breakdown, 30-day throughput trend, step performance leaderboard, recent completions |
+| Analytics | Ad-hoc time-series chart builder — any numeric prompt, any time window, up to 6 series |
+| Alerts | Out-of-range prompt response feed with rolling window filter and CSV export |
+| MyWork | Operator-focused view of in-progress step executions assigned to the current user |
 
 ### Known Limitations / Next Steps
 
-- Port quantity rule fields (QtyRuleN/Min/Max) not yet exposed in UI forms
 - Multi-tenancy deferred until second SaaS tenant is onboarded (database-per-tenant approach selected — see Architecture Decision above)
+- Email/webhook notifications for out-of-range alerts not yet implemented
+- Analytics export to CSV not yet available (step-execution and alert CSV export is implemented)

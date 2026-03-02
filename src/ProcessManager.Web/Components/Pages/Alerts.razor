@@ -26,6 +26,9 @@
             <button class="btn btn-sm btn-outline-secondary" @onclick="LoadAsync" disabled="@_loading">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
+            <a href="/api/export/alerts?days=@_days" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-download me-1"></i>Export CSV
+            </a>
         </div>
     </div>
 

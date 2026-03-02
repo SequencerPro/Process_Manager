@@ -1,0 +1,159 @@
+@page "/account/profile"
+@attribute [Authorize]
+@using System.ComponentModel.DataAnnotations
+@using System.Net.Http.Headers
+@using System.Net.Http.Json
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using Microsoft.AspNetCore.Authorization
+@inject IHttpContextAccessor HttpContextAccessor
+@inject NavigationManager Nav
+@inject IConfiguration Config
+
+<PageTitle>Profile — Process Manager</PageTitle>
+
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+
+        @if (Saved)
+        {
+            <div class="alert alert-success d-flex align-items-center gap-2 mb-3">
+                <i class="bi bi-check-circle-fill fs-5"></i>
+                <div>Profile updated.</div>
+            </div>
+        }
+        @if (ErrorMessage is not null)
+        {
+            <div class="alert alert-danger py-2 mb-3">
+                <i class="bi bi-exclamation-triangle me-2"></i>@ErrorMessage
+            </div>
+        }
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-transparent border-0 pt-4 pb-2 px-4">
+                <h4 class="mb-0"><i class="bi bi-person-gear me-2 text-primary"></i>My Profile</h4>
+                <p class="text-muted small mb-0 mt-1">Update how your name appears in the UI.</p>
+            </div>
+            <div class="card-body px-4 pb-4">
+
+                <EditForm Model="Input" OnValidSubmit="HandleSave" FormName="profile" method="post">
+                    <DataAnnotationsValidator />
+
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Username</label>
+                        <input class="form-control" value="@CurrentUserName" disabled />
+                        <div class="form-text">Username cannot be changed.</div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-medium">Display Name</label>
+                        <InputText class="form-control" @bind-Value="Input.DisplayName"
+                                   placeholder="Leave blank to show your username" />
+                        <ValidationMessage For="() => Input.DisplayName" />
+                        <div class="form-text">This is shown in the navigation sidebar.</div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-check-lg me-1"></i>Save Changes
+                    </button>
+                </EditForm>
+
+            </div>
+        </div>
+
+        <div class="mt-3 text-center">
+            <a href="/account/change-password" class="text-muted small">
+                <i class="bi bi-key me-1"></i>Change password
+            </a>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private ProfileInput Input { get; set; } = new();
+
+    private string? CurrentUserName;
+    private string? ErrorMessage;
+    private bool Saved;
+
+    protected override void OnInitialized()
+    {
+        var context = HttpContextAccessor.HttpContext!;
+        var user    = context.User;
+        CurrentUserName = user.Identity?.Name;
+        Saved = context.Request.Query.ContainsKey("saved");
+        // Pre-populate with the current display name from the cookie claim
+        if (string.IsNullOrEmpty(Input.DisplayName))
+            Input.DisplayName = user.FindFirst("display_name")?.Value;
+    }
+
+    private async Task HandleSave()
+    {
+        ErrorMessage = null;
+        var context = HttpContextAccessor.HttpContext!;
+
+        // Retrieve the JWT stored in the cookie claims
+        var accessToken = context.User.FindFirst("access_token")?.Value;
+        if (string.IsNullOrEmpty(accessToken))
+        {
+            ErrorMessage = "Session expired. Please sign in again.";
+            return;
+        }
+
+        var apiBase = Config["ApiBaseUrl"] ?? "http://localhost:5100";
+        using var http = new HttpClient { BaseAddress = new Uri(apiBase) };
+        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await http.PutAsJsonAsync("api/auth/profile",
+                new { DisplayName = string.IsNullOrWhiteSpace(Input.DisplayName) ? null : Input.DisplayName.Trim() });
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Could not reach the API. Details: {ex.Message}";
+            return;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            ErrorMessage = "Failed to update profile. Please try again.";
+            return;
+        }
+
+        var token = await response.Content.ReadFromJsonAsync<TokenResponse>(
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if (token is null) { ErrorMessage = "Unexpected error. Please try again."; return; }
+
+        // Re-issue the auth cookie with updated claims (so NavMenu updates immediately)
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.Name,  token.UserName),
+            new(ClaimTypes.Email, token.Email),
+            new(ClaimTypes.Role,  token.Role),
+            new("access_token",   token.Token)
+        };
+        if (!string.IsNullOrWhiteSpace(token.DisplayName))
+            claims.Add(new("display_name", token.DisplayName));
+
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        await context.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            new ClaimsPrincipal(identity));
+
+        // Force full reload so NavMenu picks up the new display_name claim
+        Nav.NavigateTo("/account/profile?saved=1", forceLoad: true);
+    }
+
+    private record TokenResponse(string Token, string UserName, string Email, string Role,
+        string? DisplayName, DateTime ExpiresAt);
+
+    public class ProfileInput
+    {
+        [StringLength(100, ErrorMessage = "Display name must be 100 characters or fewer.")]
+        public string? DisplayName { get; set; }
+    }
+}

@@ -153,6 +153,24 @@ public class AuthController : ControllerBase
         return NoContent();
     }
 
+    // ── PUT api/auth/profile (self) ─────────────────────────────────────
+
+    [Authorize]
+    [HttpPut("profile")]
+    public async Task<ActionResult<TokenResponseDto>> UpdateProfile(UpdateProfileRequestDto dto)
+    {
+        var user = await _userManager.FindByNameAsync(User.Identity!.Name!);
+        if (user is null) return Unauthorized();
+
+        user.DisplayName = string.IsNullOrWhiteSpace(dto.DisplayName) ? null : dto.DisplayName.Trim();
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+            return BadRequest(result.Errors.Select(e => e.Description));
+
+        var roles = await _userManager.GetRolesAsync(user);
+        return Ok(GenerateJwt(user, roles.FirstOrDefault() ?? "Engineer"));
+    }
+
     // ── Token generation ──────────────────────────────────────────────────────
 
     private TokenResponseDto GenerateJwt(ApplicationUser user, string role)

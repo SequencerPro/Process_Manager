@@ -21,6 +21,10 @@ public record ChangePasswordRequestDto(
     [Required][StringLength(100, MinimumLength = 8)] string NewPassword
 );
 
+public record UpdateProfileRequestDto(
+    [StringLength(100)] string? DisplayName
+);
+
 // ── Response DTOs ─────────────────────────────────────────────────────────────
 
 public record TokenResponseDto(

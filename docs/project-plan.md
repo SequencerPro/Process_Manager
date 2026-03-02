@@ -15,6 +15,7 @@
 | 0.9     | 2026-03-10 | Dashboard page — KPI cards, job status breakdown, 30-day throughput, step performance, recent completions |
 | 1.0     | 2026-03-10 | Out-of-range alerting — AlertsController, Alerts page, NavMenu bell badge with live count |
 | 1.1     | 2026-03-10 | Execution Gantt timeline on JobDetail; CSV export endpoints (step executions, alerts); integration tests for Analytics and Alerts |
+| 1.2     | 2026-03-02 | AI integration: `/api/help/context` public context document; `/mcp` MCP server with live-data tools for company AI assistants |
 
 ---
 
@@ -206,6 +207,49 @@ Do not build multi-tenancy infrastructure until a second real SaaS tenant is bei
 
 ---
 
+---
+
+## Architecture Decision: AI Integration (2026-03-02)
+
+### Problem
+
+Users — particularly new users — need help understanding how to configure the system (e.g., how to design a Process, what a Port is, when to use a Workflow). Building a proprietary AI chatbot would require managing API keys, costs, and a separate service. Many companies already have a licensed AI assistant (Microsoft Copilot, ChatGPT Enterprise, Claude, etc.) available on their networks.
+
+### Decision: BYOAI (Bring Your Own AI) via two integration surfaces
+
+Rather than embedding an AI, the system exposes structured integration surfaces that any external AI can consume. The company points their AI at these endpoints and it gains immediate, contextual knowledge of the system.
+
+#### Surface 1: Context Document (`GET /api/help/context`)
+
+A public, unauthenticated endpoint returning a comprehensive markdown document covering:
+- All core concepts (Kind, Grade, StepTemplate, Process, Workflow, Job, StepExecution)
+- How-to guides (building a process, setting up a workflow, recording step data)
+- Terminology quick reference
+- API endpoint overview for the most common operations
+
+Any AI can consume this by including the URL in its system prompt or having IT pre-load it. No integration work required — paste the URL and the AI understands the domain.
+
+#### Surface 2: MCP Server (`POST /mcp`)
+
+[Model Context Protocol](https://modelcontextprotocol.io/) is the emerging standard (supported by Microsoft Copilot, GitHub Copilot agent mode, Claude Desktop, and others) for exposing live-data tools to AI assistants. The MCP server exposes tools that the AI can call to answer questions about the live system state:
+
+| Tool | Auth | Description |
+|---|---|---|
+| `describe_domain` | Public | Returns the full domain context document |
+| `list_processes` | Bearer token | Lists all active process definitions |
+| `get_process` | Bearer token | Gets a process and its steps by name/code |
+| `list_step_templates` | Bearer token | Lists all active step template definitions |
+| `list_active_jobs` | Bearer token | Lists jobs currently in Created/InProgress/OnHold |
+| `get_job_status` | Bearer token | Gets current state and step progress of a specific job |
+
+MCP discovery methods (`initialize`, `tools/list`, `resources/list`) are unauthenticated. All `tools/call` with data access require a valid Bearer JWT — admins create a service account for the AI client.
+
+### When to Build More
+
+If a tool is frequently asked for by users but not yet exposed, add it to the MCP server. The architecture supports adding tools without any deployment model changes.
+
+---
+
 ### Phase 7+ — Integrations (future)
 
 **Goal:** Connect the process system to peripheral business functions.
@@ -233,6 +277,7 @@ Additional capability added post-Phase 6:
 - **Out-of-range alerting** with rolling-window queries, NavMenu badge, and per-alert override tracking
 - **Execution Gantt timeline** on JobDetail — SVG timeline of step executions coloured by status
 - **CSV export** endpoints for step-execution history and alerts
+- **AI integration** — public `/api/help/context` context document and MCP server at `/mcp` with live-data tools
 
 ### Technology Stack
 
@@ -272,4 +317,4 @@ Additional capability added post-Phase 6:
 
 - Multi-tenancy deferred until second SaaS tenant is onboarded (database-per-tenant approach selected — see Architecture Decision above)
 - Email/webhook notifications for out-of-range alerts not yet implemented
-- Analytics export to CSV not yet available (step-execution and alert CSV export is implemented)
+- MCP server uses short-lived JWT tokens; a long-lived API-key auth path would improve service-account ergonomics for AI integrations

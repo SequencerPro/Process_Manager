@@ -16,6 +16,7 @@
 | 1.0     | 2026-03-10 | Out-of-range alerting — AlertsController, Alerts page, NavMenu bell badge with live count |
 | 1.1     | 2026-03-10 | Execution Gantt timeline on JobDetail; CSV export endpoints (step executions, alerts); integration tests for Analytics and Alerts |
 | 1.2     | 2026-03-02 | AI integration: `/api/help/context` public context document; `/mcp` MCP server with live-data tools for company AI assistants |
+| 1.3     | 2026-03-02 | Project plan updated with Phase 7 design intent: PFMEA builder and C&E matrix builder |
 
 ---
 
@@ -250,7 +251,103 @@ If a tool is frequently asked for by users but not yet exposed, add it to the MC
 
 ---
 
-### Phase 7+ — Integrations (future)
+### Phase 7 — Quality Engineering Tools
+
+**Goal:** Embed risk analysis and input-control evaluation directly into the process model so that PFMEA and C&E matrices are always in sync with the process and step definitions, not living in disconnected spreadsheets.
+
+**Status:** Planned — see Architecture Decision below.
+
+#### 7a — PFMEA Builder and Repository
+
+A **Process Failure Mode and Effects Analysis (PFMEA)** identifies how each step in a process can fail, what the consequences are, and what controls are in place. The builder auto-generates a PFMEA shell from any defined Process and then provides an interface for engineering teams to complete it.
+
+**Delivers:**
+- Create a PFMEA for any Process; the system pre-populates one entry row per ProcessStep
+- For each step entry: describe the step's function, add one or more failure modes, each with:
+  - Failure mode description (how the step fails)
+  - Failure effect (consequence to the customer / next step)
+  - Failure cause (root cause or mechanism)
+  - Current prevention controls (text)
+  - Current detection controls (text)
+  - Severity (S), Occurrence (O), Detection (D) — each rated 1–10
+  - Risk Priority Number = S × O × D (computed automatically)
+- Action items per failure mode:
+  - Responsible person, target date, status (Open / InProgress / Completed / Cancelled)
+  - Completion notes
+  - Revised Occurrence and Revised Detection ratings after action completion
+  - Revised RPN = S × RevisedO × RevisedD (Severity does not change — it reflects the effect, not the control)
+- PFMEA versioning: when the underlying Process changes, a new PFMEA version can be branched from the previous one, preserving the history of risk decisions
+- Repository view: browse all PFMEAs across all processes with RPN heat-map sortable by highest current risk
+
+**Key entities:**
+- `Pfmea` (Id, ProcessId, Name, Version, IsActive)
+- `PfmeaFailureMode` (Id, PfmeaId, ProcessStepId, StepFunction, FailureMode, FailureEffect, FailureCause, PreventionControls, DetectionControls, Severity, Occurrence, Detection → RPN computed)
+- `PfmeaAction` (Id, FailureModeId, Description, ResponsiblePerson, TargetDate, Status, CompletedDate, CompletionNotes, RevisedOccurrence, RevisedDetection → RevisedRPN computed)
+
+---
+
+#### 7b — C&E Matrix Builder
+
+A **Cause and Effect (C&E) Matrix** (also known as a Cause and Effect Diagram Matrix) evaluates the degree to which each input of a process step influences each of its outputs. It produces a priority ranking of inputs so teams focus improvement effort on the inputs that most affect the things customers care about. The matrix lives at the **ProcessStep** level.
+
+**Delivers:**
+- Each ProcessStep can have one C&E matrix
+- **Inputs (rows):** two sources, combined in one list
+  - *Port inputs* — automatically linked from the step's existing input ports (the Items flowing in)
+  - *Free-form factors* — user-added control or noise factors (e.g. "spindle speed", "ambient humidity", "fixture clamping force")
+  - Each input is categorised: **Controllable Input** or **Noise Factor**
+- **Outputs (columns):** two sources, combined in one list
+  - *Port outputs* — automatically linked from the step's existing output ports (the Items flowing out)
+  - *Quality characteristics* — user-added named characteristics (e.g. "flatness", "tensile strength", "surface finish")
+  - Each output has an **Importance** weight (1–10)
+- **Correlation cells:** for every input × output pair the user scores the relationship: 0 (none), 1 (weak), 3 (moderate), 9 (strong)
+- **Computed Priority Score** per input = Σ (CorrelationScore × OutputImportance) across all outputs
+- UI sorts inputs by Priority Score descending — the top of the list is where to focus improvement energy
+- Matrix can be exported to CSV
+
+**Key entities:**
+- `CeMatrix` (Id, ProcessStepId, Name, Description)
+- `CeInput` (Id, CeMatrixId, Name, Category: PortInput/ControlFactor/NoiseFactor, PortId nullable, SortOrder)
+- `CeOutput` (Id, CeMatrixId, Name, Category: PortOutput/QualityCharacteristic, PortId nullable, Importance, SortOrder)
+- `CeCorrelation` (Id, CeInputId, CeOutputId, Score: 0/1/3/9)
+
+---
+
+## Architecture Decision: Quality Engineering Tools (2026-03-02)
+
+### Scope and Placement
+
+Quality tools are tightly coupled to the process model: a PFMEA is meaningless without the process structure it analyses, and a C&E matrix is meaningless without the step inputs and outputs it relates. Embedding them inside the same application (rather than exporting to Excel) means they stay in sync when processes are revised and their data can contribute to analytics and alerts.
+
+### PFMEA Design Decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Risk scoring standard | Custom — S × O × D = RPN (1–1000) | Avoids strict AIAG/VDA standard dependency; teams already know this format; can tighten to full AIAG compliance later |
+| Severity immutability | S never changes on actions; only O and D are revised | Severity is a property of the effect (harm to customer/next step), not the control — this is standard practice |
+| Process coupling | PFMEA linked to ProcessId; auto-populated from ProcessSteps | Auto-population removes setup burden; engineers add failure modes on top |
+| Versioning | New PFMEA version branched from previous when process changes | Preserves audit trail of risk decisions over time |
+| Action items | Simple tracking (person/date/status) + before/after risk fields | Closes the loop without requiring a full task management system |
+
+### C&E Matrix Design Decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Granularity | One matrix per ProcessStep (not per Process) | Keeps the analysis at the right level; a process-level matrix would mix different mechanisms and be too coarse |
+| Correlation scale | 0 / 1 / 3 / 9 | Standard QFD/C&E scale used across industries; the gaps (0→1→3→9) force analysts to be deliberate about distinction between weak and strong relationships |
+| Input categories | Controllable vs. Noise | Distinguishes factors the process can control from sources of variation it cannot — drives different engineering responses |
+| Port linkage | Port inputs/outputs are pre-linked but display name is editable | Keeps the matrix in sync with the process model while allowing user-friendly labels |
+| Priority formula | Σ (Score × OutputImportance) | Simple, widely understood, directly produces an actionable ranked list |
+
+### Relationship to Existing Features
+
+- A high-RPN PFMEA failure mode whose `CurrentDetectionControls` describe a measurement prompt gives engineers a path to configure an **out-of-range alert** on that prompt — connecting PFMEA risk identification to live operational detection.
+- C&E matrix priority scores are natural candidates for future **analytics overlays** (e.g. colouring run-chart series by input priority).
+- Both tools will be exposed via the **MCP server** (Phase 7 MCP tools: `get_pfmea`, `list_high_rpn_failure_modes`, `get_ce_matrix`).
+
+---
+
+### Phase 8+ — Integrations (future)
 
 **Goal:** Connect the process system to peripheral business functions.
 
@@ -318,3 +415,4 @@ Additional capability added post-Phase 6:
 - Multi-tenancy deferred until second SaaS tenant is onboarded (database-per-tenant approach selected — see Architecture Decision above)
 - Email/webhook notifications for out-of-range alerts not yet implemented
 - MCP server uses short-lived JWT tokens; a long-lived API-key auth path would improve service-account ergonomics for AI integrations
+- **Phase 7 — Quality Engineering Tools** designed but not yet built: PFMEA builder (per-process risk analysis with failure modes, S/O/D ratings, action tracking) and C&E matrix builder (per-step input prioritisation via correlation scoring)

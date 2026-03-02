@@ -239,6 +239,15 @@ public class ApiClient
             $"api/steptemplates/{stepTemplateId}/content/{contentId}/prompt-history?limit={limit}", _json)
            ?? new();
 
+    // ═══════════════════ Analytics ═══════════════════
+
+    public async Task<AnalyticsQueryResultDto?> RunAnalyticsQueryAsync(AnalyticsQueryDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/analytics/query", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AnalyticsQueryResultDto>(_json);
+    }
+
     // ═══════════════════ Ports ═══════════════════
 
     public async Task<PortResponseDto?> CreatePortAsync(Guid stepTemplateId, PortCreateDto dto)

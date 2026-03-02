@@ -1,6 +1,7 @@
 @rendermode InteractiveServer
 @inject TokenService TokenService
 @inject AuthenticationStateProvider AuthState
+@inject ApiClient Api
 @using System.Security.Claims
 
 <nav class="d-flex flex-column flex-shrink-0 p-3 text-white bg-dark sidebar" style="width: 250px; height: 100vh; overflow: hidden;">
@@ -23,6 +24,15 @@
         <li class="nav-item">
             <NavLink class="nav-link text-white" href="my-work">
                 <i class="bi bi-person-workspace me-2"></i> My Work
+            </NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link text-white d-flex align-items-center justify-content-between" href="alerts">
+                <span><i class="bi bi-bell me-2"></i> Alerts</span>
+                @if (_alertCount > 0)
+                {
+                    <span class="badge bg-danger rounded-pill" style="font-size:.68rem">@(_alertCount > 99 ? "99+" : _alertCount.ToString())</span>
+                }
             </NavLink>
         </li>
         <li class="nav-item">
@@ -125,6 +135,7 @@
 @code {
     private string? _displayName;
     private string? _role;
+    private int _alertCount;
 
     protected override async Task OnInitializedAsync()
     {
@@ -133,5 +144,12 @@
         _displayName = user.FindFirst("display_name")?.Value
                        ?? user.Identity?.Name;
         _role        = user.FindFirst(ClaimTypes.Role)?.Value;
+
+        try
+        {
+            var result = await Api.GetOutOfRangeAlertCountAsync(days: 7);
+            _alertCount = result?.Count ?? 0;
+        }
+        catch { /* badge is best-effort — never break the nav */ }
     }
 }

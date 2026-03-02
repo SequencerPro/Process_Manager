@@ -784,4 +784,12 @@ public class ApiClient
 
     public Task<List<ThroughputPointDto>?> GetThroughputAsync(int days = 30)
         => _http.GetFromJsonAsync<List<ThroughputPointDto>>($"api/reports/throughput?days={days}", _json);
+
+    // ══════════════════ Alerts ═══════════════════════════════════════════════
+
+    public Task<List<OutOfRangeAlertDto>?> GetOutOfRangeAlertsAsync(int days = 7, int limit = 100)
+        => _http.GetFromJsonAsync<List<OutOfRangeAlertDto>>($"api/alerts/out-of-range?days={days}&limit={limit}", _json);
+
+    public Task<AlertCountDto?> GetOutOfRangeAlertCountAsync(int days = 7)
+        => _http.GetFromJsonAsync<AlertCountDto>($"api/alerts/out-of-range/count?days={days}", _json);
 }

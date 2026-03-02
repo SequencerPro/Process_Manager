@@ -1,0 +1,136 @@
+@page "/alerts"
+@attribute [Authorize]
+@inject ApiClient Api
+
+<PageTitle>Out-of-Range Alerts</PageTitle>
+
+<div class="container-fluid py-3 px-4">
+
+    <div class="d-flex align-items-center mb-3 gap-3 flex-wrap">
+        <h3 class="mb-0">
+            <i class="bi bi-bell-fill me-2 text-danger"></i>Out-of-Range Alerts
+        </h3>
+        @if (_alerts is not null)
+        {
+            <span class="badge bg-danger fs-6">@_alerts.Count</span>
+        }
+        <div class="ms-auto d-flex align-items-center gap-2">
+            <label class="form-label mb-0 small">Window:</label>
+            <select class="form-select form-select-sm" style="width:auto"
+                    @bind="_days" @bind:after="LoadAsync">
+                <option value="1">Last 24 h</option>
+                <option value="7">Last 7 days</option>
+                <option value="30">Last 30 days</option>
+                <option value="0">All time</option>
+            </select>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="LoadAsync" disabled="@_loading">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="d-flex align-items-center gap-2 text-muted py-4">
+            <span class="spinner-border spinner-border-sm"></span> Loading…
+        </div>
+    }
+    else if (_alerts is null || _alerts.Count == 0)
+    {
+        <div class="alert alert-success d-flex align-items-center gap-2">
+            <i class="bi bi-check-circle-fill fs-5"></i>
+            <span>No out-of-range responses in the selected window. All clear!</span>
+        </div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>When</th>
+                            <th>Job</th>
+                            <th>Process</th>
+                            <th>Step</th>
+                            <th>Prompt</th>
+                            <th>Value</th>
+                            <th>Override Note</th>
+                            <th>Operator</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var a in _alerts)
+                        {
+                            <tr>
+                                <td class="text-nowrap small text-muted">
+                                    @a.RespondedAt.ToLocalTime().ToString("MM/dd HH:mm")
+                                </td>
+                                <td class="small">
+                                    <a href="jobs/@a.StepExecutionId" class="text-decoration-none">
+                                        <span class="fw-semibold">@a.JobCode</span>
+                                        <span class="text-muted ms-1">@a.JobName</span>
+                                    </a>
+                                </td>
+                                <td class="small text-muted">@a.ProcessName</td>
+                                <td class="small">@a.StepName</td>
+                                <td class="small fw-semibold">@a.PromptLabel</td>
+                                <td>
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle"
+                                          style="font-size:.85rem;font-weight:600">
+                                        @a.Value
+                                    </span>
+                                </td>
+                                <td class="small">
+                                    @if (!string.IsNullOrWhiteSpace(a.OverrideNote))
+                                    {
+                                        <span class="text-warning-emphasis fst-italic" title="@a.OverrideNote">
+                                            <i class="bi bi-chat-left-text me-1"></i>@Truncate(a.OverrideNote, 50)
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td class="small text-muted">@(a.RespondedBy ?? "—")</td>
+                                <td>
+                                    <a href="step-executions/@a.StepExecutionId"
+                                       class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                       title="View step execution">
+                                        <i class="bi bi-box-arrow-up-right"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="text-muted small mt-2">
+            Showing @_alerts.Count alert(s). Limit 100 — narrow the window if needed.
+        </div>
+    }
+
+</div>
+
+@code {
+    private List<OutOfRangeAlertDto>? _alerts;
+    private int  _days    = 7;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try   { _alerts = await Api.GetOutOfRangeAlertsAsync(_days) ?? new(); }
+        catch { _alerts = new(); }
+        _loading = false;
+    }
+
+    private static string Truncate(string s, int max)
+        => s.Length <= max ? s : s[..max] + "…";
+}

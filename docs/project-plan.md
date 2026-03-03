@@ -28,6 +28,7 @@
 | 1.12    | 2026-03-03 | Phase 9 API layer: ProcessStatus enum (Draft/PendingApproval/Released/Superseded/Retired), ApprovalRecord entity, PFMEA staleness fields, Job version pinning, lifecycle endpoints on ProcessesController + StepTemplatesController, ApprovalsController |
 | 1.13    | 2026-03-03 | Phase 9 EF migration Phase9_ChangeControl: Status columns (default Released), IntroducedInVersion, ProcessVersion, ApprovalRecords table |
 | 1.14    | 2026-03-03 | Phase 9 Blazor UI: ProcessList/Detail + StepTemplateList/Detail status badges, lifecycle buttons (Submit/Approve/Reject/NewRevision/Retire) with modals; ApprovalQueue page at /approval-queue; JobDetail superseded process banner; NavMenu Approval Queue link with pending badge |
+| 1.15    | 2026-03-02 | Admin: Display Name field added to Add User form; Edit User modal (Display Name + Role) on UserList; PATCH api/auth/users/{id} admin endpoint |
 
 ---
 
@@ -1014,15 +1015,16 @@ Additional capability added post-Phase 6:
 
 185 integration tests across all phases, all passing. Tests run against an in-memory SQLite database spun up per test run. Test files cover all controllers including Analytics and Alerts.
 
-### Blazor UI Pages (26 total)
+### Blazor UI Pages (31 total)
 
 | Page | Features |
 |---|---|
 | KindList / KindDetail | CRUD, inline grade management, delete confirmations |
-| StepTemplateList / StepTemplateDetail | CRUD, port management, run chart widget, pattern/qty rule display |
-| ProcessList / ProcessDetail | CRUD, step management, cascading port dropdowns for flows, step editing, validation |
+| StepTemplateList / StepTemplateDetail | CRUD, port management, run chart widget, pattern/qty rule display, lifecycle status badges + Submit/Approve/Reject/NewRevision buttons |
+| ProcessList / ProcessDetail | CRUD, step management, cascading port dropdowns for flows, step editing, validation, lifecycle status badges + Submit/Approve/Reject/NewRevision/Retire buttons |
+| ProcessBuilder | Visual drag-and-connect process builder at `/processes/{id}/builder` |
 | WorkflowList / WorkflowDetail | CRUD, process/link management, link condition add/remove (grade badges), Validate button |
-| JobList / JobDetail | CRUD, lifecycle transitions, step execution navigation, Gantt timeline, CSV export |
+| JobList / JobDetail | CRUD, lifecycle transitions, step execution navigation, Gantt timeline, CSV export, process version badge, superseded process banner |
 | ItemList / ItemDetail | CRUD, filtering by job/kind/status, displays JobName and BatchCode |
 | BatchList / BatchDetail | CRUD, item membership management, lifecycle |
 | StepExecutionList / StepExecutionDetail | Filter by status and job, port transaction creation, execution data capture, notes |
@@ -1031,8 +1033,13 @@ Additional capability added post-Phase 6:
 | Analytics | Ad-hoc time-series chart builder — any numeric prompt, any time window, up to 6 series |
 | Alerts | Out-of-range prompt response feed with rolling window filter and CSV export |
 | MyWork | Operator-focused view of in-progress step executions assigned to the current user |
+| ExecutionWizard | 5-phase guided operator UI at `/execute/{id}`: context → inputs → prompts → outputs → close-out |
 | PfmeaList / PfmeaDetail | PFMEA repository; per-process failure mode management; S/O/D/RPN badges with heat-map colouring; action tracking with before/after risk; Branch button for versioning |
 | CeMatrixList / CeMatrixDetail | C&E matrix repository; interactive correlation grid; click-to-cycle scores; live priority scores; inline importance editing; CSV export |
+| NonConformanceList | Quality non-conformance log; disposition workflow (Accept/Rework/Scrap); filtering by status |
+| ApprovalQueue | Pending approval feed for Processes and Step Templates; inline Approve/Reject modals; filterable by entity type and decision |
+| Reports | Scheduled and ad-hoc report viewer |
+| Admin / UserList | User management: add users (with Display Name), edit Display Name + Role, delete users |
 
 ### Known Limitations / Next Steps
 

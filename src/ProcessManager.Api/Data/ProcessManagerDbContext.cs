@@ -52,6 +52,9 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<WorkflowLink> WorkflowLinks => Set<WorkflowLink>();
     public DbSet<WorkflowLinkCondition> WorkflowLinkConditions => Set<WorkflowLinkCondition>();
 
+    // Power BI Dashboards
+    public DbSet<PowerBiDashboard> PowerBiDashboards => Set<PowerBiDashboard>();
+
     // Phase 7: Quality Engineering Tools
     public DbSet<Pfmea> Pfmeas => Set<Pfmea>();
     public DbSet<PfmeaFailureMode> PfmeaFailureModes => Set<PfmeaFailureMode>();
@@ -651,6 +654,16 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany(o => o.Correlations)
                 .HasForeignKey(c => c.CeOutputId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- PowerBiDashboard ---
+        modelBuilder.Entity<PowerBiDashboard>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.HasIndex(d => d.Name).IsUnique();
+            e.Property(d => d.Name).HasMaxLength(200).IsRequired();
+            e.Property(d => d.EmbedUrl).HasMaxLength(2000).IsRequired();
+            e.Property(d => d.Description).HasMaxLength(1000);
         });
 
         // --- NonConformance ---

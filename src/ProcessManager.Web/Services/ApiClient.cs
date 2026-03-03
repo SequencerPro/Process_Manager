@@ -805,6 +805,34 @@ public class ApiClient
     public Task<List<ThroughputPointDto>?> GetThroughputAsync(int days = 30)
         => _http.GetFromJsonAsync<List<ThroughputPointDto>>($"api/reports/throughput?days={days}", _json);
 
+    // ══════════════════ Power BI Dashboards ══════════════════════════════════
+
+    public Task<List<PowerBiDashboardResponseDto>?> GetPowerBiDashboardsAsync()
+        => _http.GetFromJsonAsync<List<PowerBiDashboardResponseDto>>("api/powerbi-dashboards", _json);
+
+    public Task<PowerBiDashboardResponseDto?> GetPowerBiDashboardAsync(Guid id)
+        => _http.GetFromJsonAsync<PowerBiDashboardResponseDto>($"api/powerbi-dashboards/{id}", _json);
+
+    public async Task<PowerBiDashboardResponseDto?> CreatePowerBiDashboardAsync(PowerBiDashboardCreateDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/powerbi-dashboards", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<PowerBiDashboardResponseDto>(_json);
+    }
+
+    public async Task<PowerBiDashboardResponseDto?> UpdatePowerBiDashboardAsync(Guid id, PowerBiDashboardUpdateDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/powerbi-dashboards/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<PowerBiDashboardResponseDto>(_json);
+    }
+
+    public async Task DeletePowerBiDashboardAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/powerbi-dashboards/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
     // ══════════════════ Alerts ═══════════════════════════════════════════════
 
     public Task<List<OutOfRangeAlertDto>?> GetOutOfRangeAlertsAsync(int days = 7, int limit = 100)

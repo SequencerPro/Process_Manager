@@ -43,6 +43,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PortTransaction> PortTransactions => Set<PortTransaction>();
     public DbSet<ExecutionData> ExecutionData => Set<ExecutionData>();
     public DbSet<PromptResponse> PromptResponses => Set<PromptResponse>();
+    public DbSet<NonConformance> NonConformances => Set<NonConformance>();
 
     // Phase 4: Workflow Composition
     public DbSet<Workflow> Workflows => Set<Workflow>();
@@ -222,6 +223,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(c => c.Label).HasMaxLength(500);
             e.Property(c => c.Units).HasMaxLength(50);
             e.Property(c => c.Choices).HasMaxLength(4000);
+            e.Property(c => c.ContentCategory).HasConversion<string>().HasMaxLength(20);
 
             e.HasOne(c => c.StepTemplate)
                 .WithMany(st => st.Contents)
@@ -244,6 +246,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(c => c.Label).HasMaxLength(500);
             e.Property(c => c.Units).HasMaxLength(50);
             e.Property(c => c.Choices).HasMaxLength(4000);
+            e.Property(c => c.ContentCategory).HasConversion<string>().HasMaxLength(20);
 
             e.HasOne(c => c.ProcessStep)
                 .WithMany(ps => ps.Contents)
@@ -637,6 +640,27 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany(o => o.Correlations)
                 .HasForeignKey(c => c.CeOutputId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- NonConformance ---
+        modelBuilder.Entity<NonConformance>(e =>
+        {
+            e.HasKey(nc => nc.Id);
+            e.Property(nc => nc.LimitType).HasConversion<string>().HasMaxLength(20);
+            e.Property(nc => nc.DispositionStatus).HasConversion<string>().HasMaxLength(20);
+            e.Property(nc => nc.ActualValue).HasMaxLength(500);
+            e.Property(nc => nc.DisposedBy).HasMaxLength(200);
+            e.Property(nc => nc.JustificationText).HasMaxLength(2000);
+
+            e.HasOne(nc => nc.StepExecution)
+                .WithMany(se => se.NonConformances)
+                .HasForeignKey(nc => nc.StepExecutionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(nc => nc.ContentBlock)
+                .WithMany()
+                .HasForeignKey(nc => nc.ContentBlockId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 

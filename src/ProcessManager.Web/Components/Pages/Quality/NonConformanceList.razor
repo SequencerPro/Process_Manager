@@ -1,0 +1,279 @@
+@page "/non-conformances"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Non-Conformances — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>Non-Conformances</h3>
+        <p class="text-muted small mb-0">Out-of-spec records requiring disposition</p>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadData" disabled="@_loading">
+        <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+    </button>
+</div>
+
+<!-- Filters -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Status</label>
+                <select class="form-select form-select-sm" @onchange="OnStatusFilter">
+                    <option value="">All statuses</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Rework">Rework</option>
+                    <option value="Scrap">Scrap</option>
+                    <option value="Quarantine">Quarantine</option>
+                    <option value="UseAsIs">Use As-Is</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_data is null || !_data.Items.Any())
+{
+    <div class="card">
+        <div class="card-body text-muted fst-italic small text-center py-4">
+            <i class="bi bi-check-circle text-success fs-2 d-block mb-2"></i>
+            No non-conformances found.
+        </div>
+    </div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Job</th>
+                        <th>Step</th>
+                        <th>Block / Prompt</th>
+                        <th>Actual Value</th>
+                        <th>Limit</th>
+                        <th>Status</th>
+                        <th>Raised</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var nc in _data.Items)
+                    {
+                        <tr>
+                            <td><code>@(nc.JobCode ?? "—")</code></td>
+                            <td>@(nc.StepName ?? "—")</td>
+                            <td><small>@(nc.ContentBlockLabel ?? nc.ContentBlockId.ToString("D")[..8])</small></td>
+                            <td><code>@(nc.ActualValue ?? "—")</code></td>
+                            <td><span class="badge @LimitTypeBadgeClass(nc.LimitType)">@nc.LimitType</span></td>
+                            <td>
+                                @if (nc.DispositionStatus == "Pending")
+                                {
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                }
+                                else if (nc.DispositionStatus == "Quarantine")
+                                {
+                                    <span class="badge bg-danger">Quarantine</span>
+                                }
+                                else if (nc.DispositionStatus == "Scrap")
+                                {
+                                    <span class="badge bg-dark">Scrap</span>
+                                }
+                                else if (nc.DispositionStatus == "Rework")
+                                {
+                                    <span class="badge bg-info text-dark">Rework</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">@nc.DispositionStatus</span>
+                                }
+                            </td>
+                            <td class="small text-muted">@nc.CreatedAt.ToString("g")</td>
+                            <td>
+                                @if (nc.DispositionStatus == "Pending")
+                                {
+                                    <button class="btn btn-outline-primary btn-sm py-0 px-2"
+                                            @onclick="() => OpenDisposition(nc)">
+                                        Dispose
+                                    </button>
+                                }
+                                else
+                                {
+                                    <small class="text-muted">@(nc.DisposedBy ?? "—")</small>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (_data.TotalCount > _data.PageSize)
+    {
+        <div class="d-flex justify-content-between align-items-center mt-2 small text-muted">
+            <span>Showing @((_data.Page - 1) * _data.PageSize + 1)–@Math.Min(_data.Page * _data.PageSize, _data.TotalCount) of @_data.TotalCount</span>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" @onclick="PrevPage" disabled="@(_page <= 1)">‹</button>
+                <button class="btn btn-outline-secondary" @onclick="NextPage" disabled="@(_page >= _data.TotalPages)">›</button>
+            </div>
+        </div>
+    }
+}
+
+<!-- Disposition Modal -->
+@if (_disposeNc is not null)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-clipboard-check me-2"></i>Record Disposition</h5>
+                    <button type="button" class="btn-close" @onclick="() => _disposeNc = null"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <strong>Block:</strong> @(_disposeNc.ContentBlockLabel ?? "—")<br />
+                        <strong>Step:</strong> @(_disposeNc.StepName ?? "—")<br />
+                        <strong>Job:</strong> @(_disposeNc.JobCode ?? "—")<br />
+                        <strong>Actual value:</strong> <code>@(_disposeNc.ActualValue ?? "—")</code>
+                        <strong class="ms-2">Limit:</strong> <span class="badge @LimitTypeBadgeClass(_disposeNc.LimitType)">@_disposeNc.LimitType</span>
+                    </div>
+                    <hr class="my-2" />
+                    <div class="mb-3">
+                        <label class="form-label">Disposition *</label>
+                        <div class="d-grid gap-2">
+                            @foreach (var opt in new[] { ("Rework", "info", "Return to earlier step for correction"),
+                                                          ("Scrap", "dark", "Remove from flow entirely"),
+                                                          ("Quarantine", "danger", "Hold for engineering review"),
+                                                          ("UseAsIs", "warning", "Accept with deviation — justification required") })
+                            {
+                                <label class="btn @(_disposeStatus == opt.Item1 ? $"btn-{opt.Item2}" : $"btn-outline-{opt.Item2}") text-start py-2"
+                                       style="cursor:pointer">
+                                    <input type="radio" name="disposition" value="@opt.Item1" checked="@(_disposeStatus == opt.Item1)"
+                                           @onchange="() => _disposeStatus = opt.Item1" class="d-none" />
+                                    <strong>@opt.Item1</strong>
+                                    <span class="small @(_disposeStatus == opt.Item1 ? "" : "text-muted") ms-2">@opt.Item3</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Disposed By</label>
+                        <input class="form-control" @bind="_disposeBy" placeholder="Operator / engineer name" />
+                    </div>
+                    @if (_disposeStatus == "UseAsIs")
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Justification * <span class="text-danger">required for Use As-Is</span></label>
+                            <textarea class="form-control" rows="3" @bind="_disposeJustification"
+                                      placeholder="Why is this deviation acceptable?"></textarea>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(_disposeError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_disposeError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _disposeNc = null">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveDisposition" disabled="@(string.IsNullOrEmpty(_disposeStatus) || _disposeSaving)">
+                        @if (_disposeSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save Disposition
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private PaginatedResponse<NonConformanceResponseDto>? _data;
+    private string? _statusFilter;
+    private int _page = 1;
+    private const int PageSize = 25;
+
+    // Disposition modal state
+    private NonConformanceResponseDto? _disposeNc;
+    private string _disposeStatus = "";
+    private string _disposeBy = "";
+    private string _disposeJustification = "";
+    private bool _disposeSaving;
+    private string? _disposeError;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            _data = await Api.GetNonConformancesAsync(
+                status: _statusFilter, page: _page, pageSize: PageSize);
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task OnStatusFilter(ChangeEventArgs e)
+    {
+        _statusFilter = e.Value?.ToString();
+        _page = 1;
+        await LoadData();
+    }
+
+    private async Task PrevPage() { _page--; await LoadData(); }
+    private async Task NextPage() { _page++; await LoadData(); }
+
+    private void OpenDisposition(NonConformanceResponseDto nc)
+    {
+        _disposeNc = nc;
+        _disposeStatus = "";
+        _disposeBy = "";
+        _disposeJustification = "";
+        _disposeError = null;
+    }
+
+    private async Task SaveDisposition()
+    {
+        if (string.IsNullOrEmpty(_disposeStatus)) return;
+        if (_disposeStatus == "UseAsIs" && string.IsNullOrWhiteSpace(_disposeJustification))
+        {
+            _disposeError = "Justification is required for Use As-Is disposition.";
+            return;
+        }
+
+        _disposeSaving = true;
+        _disposeError = null;
+        try
+        {
+            await Api.DisposeNonConformanceAsync(_disposeNc!.Id,
+                new DispositionNonConformanceDto(
+                    _disposeStatus,
+                    string.IsNullOrWhiteSpace(_disposeBy) ? null : _disposeBy,
+                    string.IsNullOrWhiteSpace(_disposeJustification) ? null : _disposeJustification));
+            _disposeNc = null;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { _disposeError = ex.Message; }
+        finally { _disposeSaving = false; }
+    }
+
+    private static string LimitTypeBadgeClass(string? limitType) => limitType switch
+    {
+        "LSL"        => "bg-warning text-dark",
+        "USL"        => "bg-danger",
+        "FailResult" => "bg-dark",
+        _            => "bg-secondary"
+    };
+}

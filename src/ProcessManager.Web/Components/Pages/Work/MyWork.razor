@@ -64,8 +64,8 @@ else
                                     @(se.StartedAt?.ToString("g") ?? "—")
                                 </td>
                                 <td class="align-middle text-end">
-                                    <a href="step-executions/@se.Id" class="btn btn-sm btn-primary">
-                                        <i class="bi bi-arrow-right me-1"></i>Continue
+                                    <a href="execute/@se.Id" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-play-fill me-1"></i>Execute
                                     </a>
                                 </td>
                             </tr>
@@ -168,7 +168,7 @@ else
         try
         {
             await Api.StepExecutionTransitionAsync(se.Id, "start");
-            Nav.NavigateTo($"step-executions/{se.Id}");
+            Nav.NavigateTo($"execute/{se.Id}");
         }
         catch (HttpRequestException ex)
         {

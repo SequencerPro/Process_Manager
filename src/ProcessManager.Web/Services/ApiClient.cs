@@ -200,6 +200,19 @@ public class ApiClient
         return await resp.Content.ReadFromJsonAsync<StepTemplateContentResponseDto>(_json);
     }
 
+    public async Task<StepTemplateContentResponseDto?> PatchContentCategoryAsync(
+        Guid stepTemplateId, Guid contentId, PatchContentCategoryDto dto)
+    {
+        var resp = await _http.PatchAsJsonAsync(
+            $"api/steptemplates/{stepTemplateId}/content/{contentId}/category", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<StepTemplateContentResponseDto>(_json);
+    }
+
+    public async Task<MaturityReportDto?> GetStepTemplateMaturityAsync(Guid stepTemplateId)
+        => await _http.GetFromJsonAsync<MaturityReportDto>(
+            $"api/steptemplates/{stepTemplateId}/maturity", _json);
+
     /// <summary>Returns the absolute URL for an image relative path (e.g., "uploads/steptemplates/abc.jpg").</summary>
     public string GetImageUrl(string relativePath)
         => $"{_http.BaseAddress?.ToString().TrimEnd('/')}/{relativePath.TrimStart('/')}";
@@ -949,5 +962,30 @@ public class ApiClient
         var r = await _http.PutAsJsonAsync($"api/cematrices/{matrixId}/correlations", dto, _json);
         r.EnsureSuccessStatusCode();
         return await r.Content.ReadFromJsonAsync<CeMatrixResponseDto>(_json);
+    }
+
+    // ══════════════════ Non-Conformances ══════════════════════════════════════
+
+    public Task<PaginatedResponse<NonConformanceResponseDto>?> GetNonConformancesAsync(
+        Guid? jobId = null, Guid? stepExecutionId = null, string? status = null,
+        int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<NonConformanceResponseDto>>(
+            $"api/non-conformances?jobId={jobId}&stepExecutionId={stepExecutionId}&status={status}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<NonConformanceResponseDto?> GetNonConformanceAsync(Guid id)
+        => _http.GetFromJsonAsync<NonConformanceResponseDto>($"api/non-conformances/{id}", _json);
+
+    public async Task<NonConformanceResponseDto?> CreateNonConformanceAsync(CreateNonConformanceDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/non-conformances", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<NonConformanceResponseDto>(_json);
+    }
+
+    public async Task<NonConformanceResponseDto?> DisposeNonConformanceAsync(Guid id, DispositionNonConformanceDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/non-conformances/{id}/dispose", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<NonConformanceResponseDto>(_json);
     }
 }

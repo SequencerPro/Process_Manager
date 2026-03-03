@@ -35,6 +35,7 @@ else if (_data is not null)
                     <th>Name</th>
                     <th>Pattern</th>
                     <th>Ports</th>
+                    <th>Maturity</th>
                     <th>Version</th>
                     <th>Active</th>
                     <th style="width:120px">Actions</th>
@@ -43,7 +44,7 @@ else if (_data is not null)
             <tbody>
                 @if (!_data.Items.Any())
                 {
-                    <tr><td colspan="7" class="text-center text-muted py-3">No step templates found.</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted py-3">No step templates found.</td></tr>
                 }
                 else
                 {
@@ -59,6 +60,18 @@ else if (_data is not null)
                             <span class="text-primary small">@st.Ports?.Count(p => p.Direction == PortDirection.Output) out</span>
                         </td>
                         <td>v@st.Version</td>
+                        <td>
+                            @if (st.Maturity is not null)
+                            {
+                                <span class="badge @MaturityBadgeClass(st.Maturity.Level)" title="Score @st.Maturity.Score/100">
+                                    @st.Maturity.Level
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-muted small">—</span>
+                            }
+                        </td>
                         <td>
                             @if (st.IsActive)
                             {
@@ -426,4 +439,12 @@ else if (_data is not null)
         try { await Api.DeleteStepTemplateAsync(st.Id); await LoadData(); }
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
+
+    private string MaturityBadgeClass(MaturityLevel level) => level switch
+    {
+        MaturityLevel.Optimised  => "bg-success",
+        MaturityLevel.Defined    => "bg-primary",
+        MaturityLevel.Developing => "bg-warning text-dark",
+        _                        => "bg-secondary"
+    };
 }

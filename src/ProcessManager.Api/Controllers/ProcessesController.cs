@@ -554,7 +554,7 @@ public class ProcessesController : ControllerBase
     private async Task<Process?> LoadProcess(Guid id)
     {
         return await _db.Processes
-            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.StepTemplate)
+            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.StepTemplate).ThenInclude(st => st.Contents)
             .Include(p => p.Flows).ThenInclude(f => f.SourcePort)
             .Include(p => p.Flows).ThenInclude(f => f.TargetPort)
             .FirstOrDefaultAsync(p => p.Id == id);
@@ -574,7 +574,8 @@ public class ProcessesController : ControllerBase
         ps.Id, ps.ProcessId, ps.StepTemplateId,
         ps.StepTemplate.Code, ps.StepTemplate.Name,
         ps.Sequence, ps.NameOverride, ps.DescriptionOverride,
-        ps.CreatedAt, ps.UpdatedAt
+        ps.CreatedAt, ps.UpdatedAt,
+        MaturityScoringService.Summarise(ps.StepTemplate)
     );
 
     private static FlowResponseDto MapFlowToDto(Flow f) => new(
@@ -594,6 +595,7 @@ public class ProcessesController : ControllerBase
             ? $"uploads/process-steps/{c.FileName}"
             : null,
         c.CreatedAt,
-        c.PromptType?.ToString(), c.Label, c.IsRequired, c.Units, c.MinValue, c.MaxValue, c.Choices
+        c.PromptType?.ToString(), c.Label, c.IsRequired, c.Units, c.MinValue, c.MaxValue, c.Choices,
+        c.ContentCategory?.ToString(), c.AcknowledgmentRequired, c.NominalValue, c.IsHardLimit
     );
 }

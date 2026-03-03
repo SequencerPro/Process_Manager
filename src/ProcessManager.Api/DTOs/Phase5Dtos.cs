@@ -103,7 +103,8 @@ public record StepExecutionResponseDto(
     DateTime UpdatedAt,
     List<PortTransactionResponseDto>? PortTransactions = null,
     string? JobCode = null,
-    string? JobName = null);
+    string? JobName = null,
+    Guid? ProcessId = null);
 
 public record UpdateStepExecutionNotesDto(
     string? Notes);

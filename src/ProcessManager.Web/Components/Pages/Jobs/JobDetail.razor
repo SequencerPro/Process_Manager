@@ -143,8 +143,8 @@ else
                             <span class="badge @badgeClass">@se.Status</span>
                             @if (canWork && _job.Status == "InProgress")
                             {
-                                <a href="step-executions/@se.Id" class="btn btn-sm btn-primary">
-                                    <i class="bi bi-play-fill me-1"></i>Work
+                                <a href="execute/@se.Id" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-play-fill me-1"></i>Execute
                                 </a>
                             }
                             else

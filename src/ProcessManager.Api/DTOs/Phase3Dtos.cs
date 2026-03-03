@@ -74,7 +74,8 @@ public record ProcessStepResponseDto(
     string? NameOverride,
     string? DescriptionOverride,
     DateTime CreatedAt,
-    DateTime UpdatedAt
+    DateTime UpdatedAt,
+    MaturitySummaryDto? StepTemplateMaturity = null
 );
 
 // ──────────────────── ProcessStepContent ────────────────────
@@ -97,7 +98,12 @@ public record ProcessStepContentResponseDto(
     string? Units,
     decimal? MinValue,
     decimal? MaxValue,
-    string? Choices
+    string? Choices,
+    // Phase 8a fields
+    string? ContentCategory = null,
+    bool AcknowledgmentRequired = false,
+    decimal? NominalValue = null,
+    bool IsHardLimit = false
 );
 
 public record AddTextBlockDto(

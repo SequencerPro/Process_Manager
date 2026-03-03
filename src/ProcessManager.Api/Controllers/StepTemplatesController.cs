@@ -29,6 +29,7 @@ public class StepTemplatesController : ControllerBase
             .Include(s => s.Ports).ThenInclude(p => p.Kind)
             .Include(s => s.Ports).ThenInclude(p => p.Grade)
             .Include(s => s.Images)
+            .Include(s => s.Contents)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -56,6 +57,7 @@ public class StepTemplatesController : ControllerBase
             .Include(s => s.Ports).ThenInclude(p => p.Kind)
             .Include(s => s.Ports).ThenInclude(p => p.Grade)
             .Include(s => s.Images)
+            .Include(s => s.Contents)
             .FirstOrDefaultAsync(s => s.Id == id);
 
         if (step is null) return NotFound();
@@ -111,6 +113,7 @@ public class StepTemplatesController : ControllerBase
             .Include(s => s.Ports).ThenInclude(p => p.Kind)
             .Include(s => s.Ports).ThenInclude(p => p.Grade)
             .Include(s => s.Images)
+            .Include(s => s.Contents)
             .FirstAsync(s => s.Id == step.Id);
 
         return CreatedAtAction(nameof(GetById), new { id = step.Id }, MapToDto(result));
@@ -123,6 +126,7 @@ public class StepTemplatesController : ControllerBase
             .Include(s => s.Ports).ThenInclude(p => p.Kind)
             .Include(s => s.Ports).ThenInclude(p => p.Grade)
             .Include(s => s.Images)
+            .Include(s => s.Contents)
             .FirstOrDefaultAsync(s => s.Id == id);
 
         if (step is null) return NotFound();
@@ -369,12 +373,20 @@ public class StepTemplatesController : ControllerBase
         if (st is null) return NotFound();
 
         var sortOrder = st.Contents.Any() ? st.Contents.Max(c => c.SortOrder) + 1 : 0;
+
+        ContentCategory? category = null;
+        if (dto.ContentCategory is not null &&
+            Enum.TryParse<ContentCategory>(dto.ContentCategory, ignoreCase: true, out var parsedCat))
+            category = parsedCat;
+
         var block = new StepTemplateContent
         {
             StepTemplateId = id,
             ContentType = StepContentType.Text,
             SortOrder = sortOrder,
-            Body = dto.Body
+            Body = dto.Body,
+            ContentCategory = category,
+            AcknowledgmentRequired = category == ContentCategory.Safety
         };
 
         _db.StepTemplateContents.Add(block);
@@ -429,6 +441,14 @@ public class StepTemplatesController : ControllerBase
             return BadRequest("Only Text blocks can be updated via this endpoint.");
 
         block.Body = dto.Body;
+
+        if (dto.ContentCategory is not null &&
+            Enum.TryParse<ContentCategory>(dto.ContentCategory, ignoreCase: true, out var parsedCat))
+        {
+            block.ContentCategory = parsedCat;
+            if (parsedCat == ContentCategory.Safety) block.AcknowledgmentRequired = true;
+        }
+
         await _db.SaveChangesAsync();
         return MapStepTemplateContentToDto(block);
     }
@@ -445,6 +465,11 @@ public class StepTemplatesController : ControllerBase
         if (!Enum.TryParse<PromptType>(dto.PromptType, ignoreCase: true, out var promptType))
             return BadRequest($"Unknown PromptType '{dto.PromptType}'.");
 
+        ContentCategory? category = null;
+        if (dto.ContentCategory is not null &&
+            Enum.TryParse<ContentCategory>(dto.ContentCategory, ignoreCase: true, out var parsedCat))
+            category = parsedCat;
+
         var sortOrder = st.Contents.Any() ? st.Contents.Max(c => c.SortOrder) + 1 : 0;
         var block = new StepTemplateContent
         {
@@ -457,7 +482,11 @@ public class StepTemplatesController : ControllerBase
             Units = dto.Units,
             MinValue = dto.MinValue,
             MaxValue = dto.MaxValue,
-            Choices = dto.Choices
+            Choices = dto.Choices,
+            ContentCategory = category,
+            AcknowledgmentRequired = category == ContentCategory.Safety,
+            NominalValue = dto.NominalValue,
+            IsHardLimit = dto.IsHardLimit
         };
 
         _db.StepTemplateContents.Add(block);
@@ -484,6 +513,48 @@ public class StepTemplatesController : ControllerBase
         block.MinValue = dto.MinValue;
         block.MaxValue = dto.MaxValue;
         block.Choices = dto.Choices;
+
+        if (dto.ContentCategory is not null &&
+            Enum.TryParse<ContentCategory>(dto.ContentCategory, ignoreCase: true, out var parsedCat))
+        {
+            block.ContentCategory = parsedCat;
+            if (parsedCat == ContentCategory.Safety) block.AcknowledgmentRequired = true;
+        }
+
+        block.NominalValue = dto.NominalValue;
+        block.IsHardLimit = dto.IsHardLimit;
+
+        await _db.SaveChangesAsync();
+        return MapStepTemplateContentToDto(block);
+    }
+
+    // PATCH: update ContentCategory (and optionally AcknowledgmentRequired) on any block type
+    [HttpPatch("{id:guid}/content/{contentId:guid}/category")]
+    public async Task<ActionResult<StepTemplateContentResponseDto>> PatchContentCategory(
+        Guid id, Guid contentId, PatchContentCategoryDto dto)
+    {
+        var stExists = await _db.StepTemplates.AnyAsync(s => s.Id == id);
+        if (!stExists) return NotFound();
+
+        var block = await _db.StepTemplateContents
+            .FirstOrDefaultAsync(c => c.Id == contentId && c.StepTemplateId == id);
+        if (block is null) return NotFound();
+
+        if (dto.ContentCategory is null)
+        {
+            block.ContentCategory = null;
+            block.AcknowledgmentRequired = false;
+        }
+        else
+        {
+            if (!Enum.TryParse<ContentCategory>(dto.ContentCategory, ignoreCase: true, out var cat))
+                return BadRequest($"Unknown ContentCategory '{dto.ContentCategory}'.");
+            block.ContentCategory = cat;
+            // Safety blocks always require acknowledgment; others use the explicit flag if provided
+            block.AcknowledgmentRequired = cat == ContentCategory.Safety
+                || (dto.AcknowledgmentRequired ?? false);
+        }
+
         await _db.SaveChangesAsync();
         return MapStepTemplateContentToDto(block);
     }
@@ -642,6 +713,20 @@ public class StepTemplatesController : ControllerBase
         return result;
     }
 
+    // ──────────── Maturity Scoring (Phase 8b) ────────────
+
+    [HttpGet("{id:guid}/maturity")]
+    public async Task<ActionResult<MaturityReportDto>> GetMaturity(Guid id)
+    {
+        var step = await _db.StepTemplates
+            .Include(s => s.Contents)
+            .FirstOrDefaultAsync(s => s.Id == id);
+
+        if (step is null) return NotFound();
+
+        return MaturityScoringService.Evaluate(step);
+    }
+
     // ──────────── Validation ────────────
 
     private async Task<List<string>> ValidatePorts(List<PortCreateDto> ports, StepPattern pattern)
@@ -740,7 +825,8 @@ public class StepTemplatesController : ControllerBase
         step.Pattern, step.Version, step.IsActive,
         step.CreatedAt, step.UpdatedAt,
         step.Ports.OrderBy(p => p.Direction).ThenBy(p => p.SortOrder).Select(MapPortToDto).ToList(),
-        step.Images.OrderBy(i => i.SortOrder).Select(MapImageToDto).ToList()
+        step.Images.OrderBy(i => i.SortOrder).Select(MapImageToDto).ToList(),
+        MaturityScoringService.Summarise(step)
     );
 
     private static PortResponseDto MapPortToDto(Port port) => new(
@@ -770,7 +856,8 @@ public class StepTemplatesController : ControllerBase
             ? $"uploads/step-template-content/{c.FileName}"
             : null,
         c.CreatedAt,
-        c.PromptType?.ToString(), c.Label, c.IsRequired, c.Units, c.MinValue, c.MaxValue, c.Choices
+        c.PromptType?.ToString(), c.Label, c.IsRequired, c.Units, c.MinValue, c.MaxValue, c.Choices,
+        c.ContentCategory?.ToString(), c.AcknowledgmentRequired, c.NominalValue, c.IsHardLimit
     );
 }
 

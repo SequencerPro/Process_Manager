@@ -55,6 +55,20 @@ public class ProcessStepContent : BaseEntity
     /// <summary>JSON array of option strings for MultipleChoice prompts.</summary>
     public string? Choices { get; set; }
 
+    // ── Phase 8a fields ──
+
+    /// <summary>Classifies the purpose of this content block (Setup/Safety/Inspection/Reference/Note).</summary>
+    public ContentCategory? ContentCategory { get; set; }
+
+    /// <summary>When true, operator must explicitly acknowledge before the wizard advances.</summary>
+    public bool AcknowledgmentRequired { get; set; }
+
+    /// <summary>Target (nominal) value for NumericEntry prompts.</summary>
+    public decimal? NominalValue { get; set; }
+
+    /// <summary>When true, an out-of-spec response blocks step sign-off and triggers NC disposition.</summary>
+    public bool IsHardLimit { get; set; }
+
     // Navigation
     public ProcessStep ProcessStep { get; set; } = null!;
 }

@@ -32,6 +32,12 @@ else
                     <span class="badge bg-info text-dark me-1">@_st.Pattern</span>
                     <span class="badge me-1 @(_st.IsActive ? "bg-success" : "bg-secondary")">@(_st.IsActive ? "Active" : "Inactive")</span>
                     <span class="badge bg-dark">v@_st.Version</span>
+                    @if (_st.Maturity is not null)
+                    {
+                        <span class="badge @MaturityBadgeClass(_st.Maturity.Level) ms-1" title="Maturity score @_st.Maturity.Score/100">
+                            <i class="bi bi-clipboard-check me-1"></i>@_st.Maturity.Level (@_st.Maturity.Score)
+                        </span>
+                    }
                 </div>
                 <div class="d-flex gap-1">
                     <button class="btn btn-outline-secondary btn-sm" @onclick="ShowEditForm">
@@ -49,6 +55,63 @@ else
             <small class="text-muted">Created @_st.CreatedAt.ToString("g") &bull; Updated @_st.UpdatedAt.ToString("g")</small>
         </div>
     </div>
+
+    @* Maturity Panel *@
+    @if (_st.Maturity is not null)
+    {
+        <div class="d-flex align-items-center gap-3 flex-wrap mb-3 px-1">
+            <span class="fw-semibold small text-muted">MATURITY</span>
+            <div class="progress flex-grow-1" style="height:8px;max-width:220px">
+                <div class="progress-bar @MaturityProgressBarClass(_st.Maturity.Level)"
+                     role="progressbar" style="width:@(_st.Maturity.Score)%"></div>
+            </div>
+            <span class="small">@_st.Maturity.Score / 100</span>
+            @if (_st.Maturity.HasBlockingErrors)
+            {
+                <span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Errors present</span>
+            }
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleMaturityPanel">
+                @(_showMaturityPanel ? "Hide Report" : "Maturity Report")
+            </button>
+        </div>
+
+        @if (_showMaturityPanel)
+        {
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center py-2">
+                    <span><i class="bi bi-clipboard-check me-1"></i>Maturity Rules</span>
+                    @if (_maturityLoading) { <span class="spinner-border spinner-border-sm text-secondary"></span> }
+                </div>
+                <div class="card-body p-0">
+                    @if (_maturityReport is not null)
+                    {
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr><th style="width:36px"></th><th>Rule</th><th class="d-none d-md-table-cell">Remediation</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var rule in _maturityReport.Rules)
+                                {
+                                    <tr class="@(rule.Outcome == MaturityRuleOutcome.Fail ? "table-danger" : rule.Outcome == MaturityRuleOutcome.Warn ? "table-warning" : "")">
+                                        <td class="text-center">
+                                            @if (rule.Outcome == MaturityRuleOutcome.Pass)
+                                            { <i class="bi bi-check-circle-fill text-success"></i> }
+                                            else if (rule.Outcome == MaturityRuleOutcome.Warn)
+                                            { <i class="bi bi-exclamation-circle-fill text-warning"></i> }
+                                            else
+                                            { <i class="bi bi-x-circle-fill text-danger"></i> }
+                                        </td>
+                                        <td><small>@rule.Description</small></td>
+                                        <td class="d-none d-md-table-cell"><small class="text-muted">@rule.RemediationHint</small></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        }
+    }
 
     <!-- Input Ports -->
 
@@ -205,6 +268,17 @@ else
                                     {
                                         <textarea class="form-control form-control-sm mb-1" rows="4"
                                                   @bind="_editingTextBody"></textarea>
+                                        <div class="mb-1">
+                                            <label class="form-label form-label-sm">Category</label>
+                                            <select class="form-select form-select-sm" @bind="_editTextCategory">
+                                                <option value="">None</option>
+                                                <option value="Setup">Setup</option>
+                                                <option value="Safety">Safety</option>
+                                                <option value="Inspection">Inspection</option>
+                                                <option value="Reference">Reference</option>
+                                                <option value="Note">Note</option>
+                                            </select>
+                                        </div>
                                         <div class="d-flex gap-1">
                                             <button class="btn btn-primary btn-sm" @onclick="SaveEditedTextBlock">Save</button>
                                             <button class="btn btn-outline-secondary btn-sm" @onclick="CancelEditTextBlock">Cancel</button>
@@ -212,17 +286,33 @@ else
                                     }
                                     else
                                     {
-                                        <p class="mb-0" style="white-space: pre-wrap">@block.Body</p>
+                                        <div class="d-flex align-items-start gap-2 flex-wrap">
+                                            @if (!string.IsNullOrEmpty(block.ContentCategory))
+                                            {
+                                                <span class="badge @ContentCategoryBadgeClass(block.ContentCategory) flex-shrink-0">@block.ContentCategory</span>
+                                            }
+                                            @if (block.AcknowledgmentRequired)
+                                            {
+                                                <span class="badge bg-warning text-dark flex-shrink-0"><i class="bi bi-hand-index me-1"></i>Ack</span>
+                                            }
+                                        </div>
+                                        <p class="mb-0 mt-1" style="white-space: pre-wrap">@block.Body</p>
                                     }
                                 }
                                 else if (block.ContentType == "Image")
                                 {
-                                    <div class="d-flex align-items-center gap-2">
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
                                         <img src="@Api.GetImageUrl(block.ImageUrl!)"
                                              style="height:64px;width:auto;object-fit:cover;border-radius:4px"
                                              alt="@block.OriginalFileName" />
-                                        <span class="text-muted small text-truncate" style="max-width:200px"
-                                              title="@block.OriginalFileName">@block.OriginalFileName</span>
+                                        <div>
+                                            <span class="text-muted small text-truncate d-block" style="max-width:200px"
+                                                  title="@block.OriginalFileName">@block.OriginalFileName</span>
+                                            @if (!string.IsNullOrEmpty(block.ContentCategory))
+                                            {
+                                                <span class="badge @ContentCategoryBadgeClass(block.ContentCategory) mt-1">@block.ContentCategory</span>
+                                            }
+                                        </div>
                                     </div>
                                 }
                                 else if (block.ContentType == "Prompt")
@@ -236,18 +326,28 @@ else
                                         @if (_editPromptType == "NumericEntry")
                                         {
                                             <div class="row g-2 mb-2">
-                                                <div class="col-4">
-                                                    <label class="form-label form-label-sm">Min</label>
+                                                <div class="col-3">
+                                                    <label class="form-label form-label-sm">LSL (Min)</label>
                                                     <input class="form-control form-control-sm" @bind="_editPromptMin" placeholder="no min" />
                                                 </div>
-                                                <div class="col-4">
-                                                    <label class="form-label form-label-sm">Max</label>
+                                                <div class="col-3">
+                                                    <label class="form-label form-label-sm">Nominal</label>
+                                                    <input class="form-control form-control-sm" @bind="_editPromptNominal" placeholder="target" />
+                                                </div>
+                                                <div class="col-3">
+                                                    <label class="form-label form-label-sm">USL (Max)</label>
                                                     <input class="form-control form-control-sm" @bind="_editPromptMax" placeholder="no max" />
                                                 </div>
-                                                <div class="col-4">
+                                                <div class="col-3">
                                                     <label class="form-label form-label-sm">Units</label>
                                                     <input class="form-control form-control-sm" @bind="_editPromptUnits" placeholder="mm, rpm…" />
                                                 </div>
+                                            </div>
+                                            <div class="form-check mb-2">
+                                                <input type="checkbox" class="form-check-input" id="editHardLimit" @bind="_editPromptIsHardLimit" />
+                                                <label class="form-check-label small" for="editHardLimit">
+                                                    <span class="badge bg-danger me-1">Hard Limit</span> Block sign-off on out-of-spec response
+                                                </label>
                                             </div>
                                         }
                                         @if (_editPromptType == "MultipleChoice")
@@ -257,6 +357,17 @@ else
                                                 <textarea class="form-control form-control-sm" rows="3" @bind="_editPromptChoicesRaw"></textarea>
                                             </div>
                                         }
+                                        <div class="mb-2">
+                                            <label class="form-label form-label-sm">Category</label>
+                                            <select class="form-select form-select-sm" @bind="_editPromptCategory">
+                                                <option value="">None</option>
+                                                <option value="Setup">Setup</option>
+                                                <option value="Safety">Safety (requires acknowledgment)</option>
+                                                <option value="Inspection">Inspection</option>
+                                                <option value="Reference">Reference</option>
+                                                <option value="Note">Note</option>
+                                            </select>
+                                        </div>
                                         <div class="form-check mb-2">
                                             <input type="checkbox" class="form-check-input" @bind="_editPromptRequired" />
                                             <label class="form-check-label small">Required</label>
@@ -284,7 +395,23 @@ else
                                                     }
                                                     @if (block.MinValue.HasValue || block.MaxValue.HasValue)
                                                     {
-                                                        <span class="badge bg-light text-dark border">@block.MinValue – @block.MaxValue</span>
+                                                        <span class="badge bg-light text-dark border">LSL @block.MinValue – USL @block.MaxValue</span>
+                                                    }
+                                                    @if (block.NominalValue.HasValue)
+                                                    {
+                                                        <span class="badge bg-success text-white">Nom @block.NominalValue</span>
+                                                    }
+                                                    @if (block.IsHardLimit)
+                                                    {
+                                                        <span class="badge bg-danger">Hard Limit</span>
+                                                    }
+                                                    @if (!string.IsNullOrEmpty(block.ContentCategory))
+                                                    {
+                                                        <span class="badge @ContentCategoryBadgeClass(block.ContentCategory)">@block.ContentCategory</span>
+                                                    }
+                                                    @if (block.AcknowledgmentRequired)
+                                                    {
+                                                        <span class="badge bg-warning text-dark"><i class="bi bi-hand-index me-1"></i>Ack</span>
                                                     }
                                                 </div>
                                             </div>
@@ -332,9 +459,20 @@ else
                         <label class="form-label small fw-semibold mb-1">New Text Block</label>
                         <textarea class="form-control form-control-sm mb-2" rows="4"
                                   @bind="_newTextBody" placeholder="Enter instructions…"></textarea>
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold mb-1">Category</label>
+                            <select class="form-select form-select-sm" @bind="_newTextCategory">
+                                <option value="">None</option>
+                                <option value="Setup">Setup — preparation before work begins</option>
+                                <option value="Safety">Safety — hazards; PPE; stop conditions</option>
+                                <option value="Inspection">Inspection — visual or measurement checks</option>
+                                <option value="Reference">Reference — background information; diagrams</option>
+                                <option value="Note">Note — engineering notes and caveats</option>
+                            </select>
+                        </div>
                         <div class="d-flex gap-1">
                             <button class="btn btn-primary btn-sm" @onclick="SaveNewTextBlock">Add Block</button>
-                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => { _addingTextBlock = false; _newTextBody = string.Empty; }">Cancel</button>
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="() => { _addingTextBlock = false; _newTextBody = string.Empty; _newTextCategory = string.Empty; }">Cancel</button>
                         </div>
                     </div>
                 }
@@ -361,18 +499,28 @@ else
                         @if (_newPromptType == "NumericEntry")
                         {
                             <div class="row g-2 mb-2">
-                                <div class="col-4">
-                                    <label class="form-label form-label-sm">Min</label>
+                                <div class="col-3">
+                                    <label class="form-label form-label-sm">LSL (Min)</label>
                                     <input class="form-control form-control-sm" @bind="_newPromptMin" placeholder="no min" />
                                 </div>
-                                <div class="col-4">
-                                    <label class="form-label form-label-sm">Max</label>
+                                <div class="col-3">
+                                    <label class="form-label form-label-sm">Nominal</label>
+                                    <input class="form-control form-control-sm" @bind="_newPromptNominal" placeholder="target" />
+                                </div>
+                                <div class="col-3">
+                                    <label class="form-label form-label-sm">USL (Max)</label>
                                     <input class="form-control form-control-sm" @bind="_newPromptMax" placeholder="no max" />
                                 </div>
-                                <div class="col-4">
+                                <div class="col-3">
                                     <label class="form-label form-label-sm">Units</label>
                                     <input class="form-control form-control-sm" @bind="_newPromptUnits" placeholder="mm, rpm…" />
                                 </div>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input type="checkbox" class="form-check-input" id="newHardLimit" @bind="_newPromptIsHardLimit" />
+                                <label class="form-check-label small" for="newHardLimit">
+                                    <span class="badge bg-danger me-1">Hard Limit</span> Out-of-spec response blocks sign-off and triggers non-conformance disposition
+                                </label>
                             </div>
                         }
                         @if (_newPromptType == "MultipleChoice")
@@ -383,6 +531,17 @@ else
                                           placeholder="Option A&#10;Option B&#10;Option C"></textarea>
                             </div>
                         }
+                        <div class="mb-2">
+                            <label class="form-label form-label-sm">Category</label>
+                            <select class="form-select form-select-sm" @bind="_newPromptCategory">
+                                <option value="">None</option>
+                                <option value="Setup">Setup</option>
+                                <option value="Safety">Safety (requires acknowledgment)</option>
+                                <option value="Inspection">Inspection</option>
+                                <option value="Reference">Reference</option>
+                                <option value="Note">Note</option>
+                            </select>
+                        </div>
                         <div class="form-check mb-2">
                             <input type="checkbox" class="form-check-input" @bind="_newPromptRequired" />
                             <label class="form-check-label small">Required (operator must answer before completing step)</label>
@@ -828,6 +987,20 @@ else
     private string _editPromptMax = string.Empty;
     private string _editPromptChoicesRaw = string.Empty;
 
+    // Phase 8a — content categorisation + spec enrichment
+    private string _newTextCategory = "";
+    private string _editTextCategory = "";
+    private string _newPromptCategory = "";
+    private string _editPromptCategory = "";
+    private string _newPromptNominal = string.Empty;
+    private string _editPromptNominal = string.Empty;
+    private bool _newPromptIsHardLimit;
+    private bool _editPromptIsHardLimit;
+    // Maturity state
+    private MaturityReportDto? _maturityReport;
+    private bool _showMaturityPanel;
+    private bool _maturityLoading;
+
     // Run chart widget state
     private bool _chartsLoading;
     private List<RunChartWidgetResponseDto> _runChartWidgets = new();
@@ -1154,7 +1327,7 @@ else
 
     // --- Content Blocks ---
 
-    private void StartAddTextBlock() { _addingTextBlock = true; _newTextBody = string.Empty; }
+    private void StartAddTextBlock() { _addingTextBlock = true; _newTextBody = string.Empty; _newTextCategory = string.Empty; }
 
     private async Task SaveNewTextBlock()
     {
@@ -1162,10 +1335,13 @@ else
         _contentError = null;
         try
         {
-            await Api.AddStepTemplateTextBlockAsync(Id, new AddStepTemplateTextBlockDto(_newTextBody));
+            await Api.AddStepTemplateTextBlockAsync(Id, new AddStepTemplateTextBlockDto(
+                _newTextBody,
+                string.IsNullOrEmpty(_newTextCategory) ? null : _newTextCategory));
             _addingTextBlock = false;
             _newTextBody = string.Empty;
-            await LoadContent();
+            _newTextCategory = string.Empty;
+            await ReloadAfterContentChange();
         }
         catch (Exception ex) { _contentError = ex.Message; }
     }
@@ -1174,6 +1350,7 @@ else
     {
         _editingTextBlockId = block.Id;
         _editingTextBody = block.Body ?? string.Empty;
+        _editTextCategory = block.ContentCategory ?? string.Empty;
     }
 
     private void CancelEditTextBlock()
@@ -1189,10 +1366,13 @@ else
         try
         {
             await Api.UpdateStepTemplateTextBlockAsync(Id, _editingTextBlockId.Value,
-                new UpdateStepTemplateTextBlockDto(_editingTextBody));
+                new UpdateStepTemplateTextBlockDto(
+                    _editingTextBody,
+                    string.IsNullOrEmpty(_editTextCategory) ? null : _editTextCategory));
             _editingTextBlockId = null;
             _editingTextBody = string.Empty;
-            await LoadContent();
+            _editTextCategory = string.Empty;
+            await ReloadAfterContentChange();
         }
         catch (Exception ex) { _contentError = ex.Message; }
     }
@@ -1203,7 +1383,7 @@ else
         try
         {
             await Api.UploadStepTemplateContentImageAsync(Id, e.File);
-            await LoadContent();
+            await ReloadAfterContentChange();
         }
         catch (Exception ex) { _contentError = ex.Message; }
     }
@@ -1221,7 +1401,7 @@ else
             ordered.Insert(newIdx, block);
             var dto = new ReorderStepTemplateContentBlocksDto(ordered.Select(b => b.Id).ToList());
             await Api.ReorderStepTemplateContentAsync(Id, dto);
-            await LoadContent();
+            await ReloadAfterContentChange();
         }
         catch (Exception ex) { _contentError = ex.Message; }
     }
@@ -1233,7 +1413,7 @@ else
         try
         {
             await Api.DeleteStepTemplateContentBlockAsync(Id, block.Id);
-            await LoadContent();
+            await ReloadAfterContentChange();
         }
         catch (Exception ex) { _contentError = ex.Message; }
     }
@@ -1250,6 +1430,9 @@ else
         _newPromptMin = string.Empty;
         _newPromptMax = string.Empty;
         _newPromptChoicesRaw = string.Empty;
+        _newPromptCategory = string.Empty;
+        _newPromptNominal = string.Empty;
+        _newPromptIsHardLimit = false;
     }
 
     private async Task SaveNewPromptBlock()
@@ -1260,13 +1443,17 @@ else
         {
             decimal? min = decimal.TryParse(_newPromptMin, out var mn) ? mn : null;
             decimal? max = decimal.TryParse(_newPromptMax, out var mx) ? mx : null;
+            decimal? nominal = decimal.TryParse(_newPromptNominal, out var nm) ? nm : null;
             string? choices = _newPromptType == "MultipleChoice" ? SerializeChoices(_newPromptChoicesRaw) : null;
             await Api.AddStepTemplatePromptBlockAsync(Id, new AddStepTemplatePromptBlockDto(
                 _newPromptLabel, _newPromptType, _newPromptRequired,
                 string.IsNullOrWhiteSpace(_newPromptUnits) ? null : _newPromptUnits,
-                min, max, choices));
+                min, max, choices,
+                string.IsNullOrEmpty(_newPromptCategory) ? null : _newPromptCategory,
+                nominal,
+                _newPromptIsHardLimit));
             _addingPromptBlock = false;
-            await LoadContent();
+            await ReloadAfterContentChange();
         }
         catch (Exception ex) { _contentError = ex.Message; }
     }
@@ -1281,6 +1468,9 @@ else
         _editPromptMin = block.MinValue?.ToString() ?? string.Empty;
         _editPromptMax = block.MaxValue?.ToString() ?? string.Empty;
         _editPromptChoicesRaw = DeserializeChoices(block.Choices);
+        _editPromptCategory = block.ContentCategory ?? string.Empty;
+        _editPromptNominal = block.NominalValue?.ToString() ?? string.Empty;
+        _editPromptIsHardLimit = block.IsHardLimit;
     }
 
     private void CancelEditPromptBlock()
@@ -1296,14 +1486,18 @@ else
         {
             decimal? min = decimal.TryParse(_editPromptMin, out var mn) ? mn : null;
             decimal? max = decimal.TryParse(_editPromptMax, out var mx) ? mx : null;
+            decimal? nominal = decimal.TryParse(_editPromptNominal, out var nm) ? nm : null;
             string? choices = _editPromptType == "MultipleChoice" ? SerializeChoices(_editPromptChoicesRaw) : null;
             await Api.UpdateStepTemplatePromptBlockAsync(Id, _editingPromptBlockId.Value,
                 new UpdateStepTemplatePromptBlockDto(
                     _editPromptLabel, _editPromptRequired,
                     string.IsNullOrWhiteSpace(_editPromptUnits) ? null : _editPromptUnits,
-                    min, max, choices));
+                    min, max, choices,
+                    string.IsNullOrEmpty(_editPromptCategory) ? null : _editPromptCategory,
+                    nominal,
+                    _editPromptIsHardLimit));
             _editingPromptBlockId = null;
-            await LoadContent();
+            await ReloadAfterContentChange();
         }
         catch (Exception ex) { _contentError = ex.Message; }
     }
@@ -1322,6 +1516,62 @@ else
         }
         catch { return json; }
     }
+
+    // --- Phase 8a / 8b helpers ---
+
+    private async Task ReloadAfterContentChange()
+    {
+        await LoadContent();
+        try { _st = await Api.GetStepTemplateAsync(Id); }
+        catch { /* maturity refresh is best-effort */ }
+        // If maturity panel is open, also refresh the full report
+        if (_showMaturityPanel && _maturityReport is not null)
+            await LoadMaturityReport();
+    }
+
+    private async Task ToggleMaturityPanel()
+    {
+        _showMaturityPanel = !_showMaturityPanel;
+        if (_showMaturityPanel && _maturityReport is null)
+            await LoadMaturityReport();
+    }
+
+    private async Task LoadMaturityReport()
+    {
+        _maturityLoading = true;
+        StateHasChanged();
+        try { _maturityReport = await Api.GetStepTemplateMaturityAsync(Id); }
+        catch (Exception ex) { Toast.ShowError($"Failed to load maturity report: {ex.Message}"); }
+        finally { _maturityLoading = false; StateHasChanged(); }
+    }
+
+    private static string MaturityBadgeClass(MaturityLevel level) => level switch
+    {
+        MaturityLevel.Optimised => "bg-success",
+        MaturityLevel.Defined => "bg-primary",
+        MaturityLevel.Developing => "bg-warning text-dark",
+        MaturityLevel.Draft => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private static string MaturityProgressBarClass(MaturityLevel level) => level switch
+    {
+        MaturityLevel.Optimised => "bg-success",
+        MaturityLevel.Defined => "bg-primary",
+        MaturityLevel.Developing => "bg-warning",
+        MaturityLevel.Draft => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private static string ContentCategoryBadgeClass(string? category) => category switch
+    {
+        "Safety" => "bg-danger",
+        "Inspection" => "bg-primary",
+        "Setup" => "bg-info text-dark",
+        "Reference" => "bg-secondary",
+        "Note" => "bg-light text-dark border",
+        _ => "bg-light text-dark border"
+    };
 
     private string FormatQtyRule(PortResponseDto p)
     {

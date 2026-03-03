@@ -332,7 +332,8 @@ public class JobsController : ControllerBase
                 ? se.PortTransactions.Select(MapPortTransactionToDto).ToList()
                 : null,
             se.Job?.Code,
-            se.Job?.Name);
+            se.Job?.Name,
+            se.ProcessStep?.ProcessId);
     }
 
     internal static PortTransactionResponseDto MapPortTransactionToDto(PortTransaction pt)

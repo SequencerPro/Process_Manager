@@ -31,6 +31,17 @@ else
                     <span class="text-muted me-3"><code>@_proc.Code</code></span>
                     <span class="badge me-1 @(_proc.IsActive ? "bg-success" : "bg-secondary")">@(_proc.IsActive ? "Active" : "Inactive")</span>
                     <span class="badge bg-dark">v@_proc.Version</span>
+                    @{ var aggMaturity = AggregateMaturity(); }
+                    @if (aggMaturity is not null)
+                    {
+                        <span class="badge @MaturityBadgeClass(aggMaturity.Level) ms-1" title="Lowest step-template maturity (Score @aggMaturity.Score/100)">
+                            <i class="bi bi-bar-chart-fill me-1"></i>@aggMaturity.Level
+                        </span>
+                        @if (aggMaturity.HasBlockingErrors)
+                        {
+                            <span class="badge bg-danger ms-1" title="One or more steps have blocking maturity errors"><i class="bi bi-exclamation-triangle-fill"></i></span>
+                        }
+                    }
                 </div>
                 <div>
                     <a href="processes/@Id/builder" class="btn btn-outline-primary btn-sm me-1">
@@ -80,7 +91,7 @@ else
             <div class="table-responsive">
                 <table class="table table-sm mb-0 align-middle">
                     <thead class="table-light">
-                        <tr><th>#</th><th>Template</th><th>Name Override</th><th>Desc. Override</th><th></th></tr>
+                        <tr><th>#</th><th>Template</th><th>Name Override</th><th>Desc. Override</th><th>Maturity</th><th></th></tr>
                     </thead>
                     <tbody>
                         @foreach (var s in _proc.Steps.OrderBy(s => s.Sequence))
@@ -95,6 +106,18 @@ else
                                 </td>
                                 <td>@(s.NameOverride ?? "—")</td>
                                 <td class="small text-truncate" style="max-width:200px">@(s.DescriptionOverride ?? "—")</td>
+                                <td>
+                                    @if (s.StepTemplateMaturity is not null)
+                                    {
+                                        <span class="badge @MaturityBadgeClass(s.StepTemplateMaturity.Level)" title="Score @s.StepTemplateMaturity.Score/100">
+                                            @s.StepTemplateMaturity.Level
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">—</span>
+                                    }
+                                </td>
                                 <td>
                                     <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1" @onclick="() => ShowEditStep(s)" title="Edit">
                                         <i class="bi bi-pencil"></i>
@@ -531,4 +554,24 @@ else
         }
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
+
+    private MaturitySummaryDto? AggregateMaturity()
+    {
+        if (_proc is null || !_proc.Steps.Any()) return null;
+        var summaries = _proc.Steps
+            .Select(s => s.StepTemplateMaturity)
+            .Where(m => m is not null)
+            .ToList();
+        if (!summaries.Any()) return null;
+        // Return the worst (lowest score) summary
+        return summaries.MinBy(m => m!.Score);
+    }
+
+    private static string MaturityBadgeClass(MaturityLevel level) => level switch
+    {
+        MaturityLevel.Optimised  => "bg-success",
+        MaturityLevel.Defined    => "bg-primary",
+        MaturityLevel.Developing => "bg-warning text-dark",
+        _                        => "bg-secondary"
+    };
 }

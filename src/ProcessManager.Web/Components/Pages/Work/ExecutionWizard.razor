@@ -1,0 +1,781 @@
+@page "/execute/{StepExecutionId:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Execution Wizard — Process Manager</PageTitle>
+
+@if (_loading)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:60vh">
+        <div class="spinner-border text-primary mb-3"></div>
+        <span class="text-muted">Loading step…</span>
+    </div>
+}
+else if (_se is null)
+{
+    <div class="alert alert-warning mt-4">Step execution not found.</div>
+}
+else if (_se.Status == "Completed")
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:50vh">
+        <i class="bi bi-check-circle-fill text-success" style="font-size:4rem"></i>
+        <h4 class="mt-3 mb-1">Step Complete</h4>
+        <p class="text-muted">@_se.StepName was completed on @_se.CompletedAt?.ToString("g").</p>
+        <a href="jobs/@_se.JobId" class="btn btn-outline-primary mt-2">← Back to Job</a>
+    </div>
+}
+else
+{
+    <!-- Header progress bar -->
+    <div class="position-sticky top-0 bg-white border-bottom shadow-sm py-2 px-3 mb-3" style="z-index:100">
+        <div class="d-flex align-items-center justify-content-between">
+            <div>
+                <span class="fw-semibold">@_se.StepName</span>
+                <span class="text-muted small ms-2">@(string.IsNullOrEmpty(_se.JobCode) ? "" : $"Job {_se.JobCode}")</span>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                @for (int i = 1; i <= 5; i++)
+                {
+                    var pi = i;
+                    var label = pi switch { 1 => "Setup", 2 => "Safety", 3 => "Reference", 4 => "Execution", _ => "Sign-off" };
+                    var isActive = _phase == pi;
+                    var isDone   = _phase > pi;
+                    <button class="btn btn-sm @(isDone ? "btn-success" : isActive ? "btn-primary" : "btn-outline-secondary") d-none d-md-inline-flex align-items-center gap-1 py-1 px-2"
+                            @onclick="() => TryNavigateToPhase(pi)" title="@label"
+                            disabled="@(pi > _phase)">
+                        @if (isDone) { <i class="bi bi-check-lg"></i> }
+                        <span class="small">@label</span>
+                    </button>
+                }
+                <a href="jobs/@_se.JobId" class="btn btn-sm btn-outline-secondary ms-2">✕</a>
+            </div>
+        </div>
+        <div class="progress mt-1" style="height:3px">
+            <div class="progress-bar bg-primary" style="width:@((_phase - 1) * 25)%"></div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger py-2 mx-3 small">@_error</div>
+    }
+
+    <!-- ═══ Phase 1: Setup ═══ -->
+    @if (_phase == 1)
+    {
+        <div class="container-fluid px-3" style="max-width:800px">
+            <div class="d-flex align-items-center mb-3 gap-2">
+                <span class="badge bg-primary fs-6 px-3 py-2">1</span>
+                <h4 class="mb-0">Setup</h4>
+            </div>
+            @if (!_setupBlocks.Any())
+            {
+                <div class="alert alert-info py-2 small">No setup instructions for this step.</div>
+            }
+            else
+            {
+                @foreach (var block in _setupBlocks)
+                {
+                    @if (block.ContentType == "Text")
+                    {
+                        <div class="card mb-3 border-0 bg-light">
+                            <div class="card-body py-2 px-3"><p class="mb-0">@block.Body</p></div>
+                        </div>
+                    }
+                    else if (block.ContentType == "Image" && !string.IsNullOrEmpty(block.ImageUrl))
+                    {
+                        <div class="card mb-3 text-center">
+                            <div class="card-body p-2">
+                                <img src="@block.ImageUrl" class="img-fluid rounded" alt="@block.OriginalFileName" />
+                            </div>
+                        </div>
+                    }
+                }
+            }
+            <div class="d-flex justify-content-end mt-4">
+                <button class="btn btn-primary btn-lg px-4" @onclick="() => AdvanceTo(2)">
+                    Ready to Proceed <i class="bi bi-arrow-right ms-2"></i>
+                </button>
+            </div>
+        </div>
+    }
+
+    <!-- ═══ Phase 2: Safety ═══ -->
+    @if (_phase == 2)
+    {
+        <div class="container-fluid px-3" style="max-width:800px">
+            <div class="d-flex align-items-center mb-3 gap-2">
+                <span class="badge bg-danger fs-6 px-3 py-2">2</span>
+                <h4 class="mb-0">Safety Acknowledgment</h4>
+            </div>
+            @if (!_safetyBlocks.Any())
+            {
+                <div class="alert alert-info py-2 small">No safety requirements for this step.</div>
+                <div class="d-flex justify-content-between mt-3">
+                    <button class="btn btn-outline-secondary" @onclick="() => AdvanceTo(1)">← Back</button>
+                    <button class="btn btn-primary btn-lg px-4" @onclick="() => AdvanceTo(3)">Continue <i class="bi bi-arrow-right ms-2"></i></button>
+                </div>
+            }
+            else
+            {
+                @foreach (var block in _safetyBlocks)
+                {
+                    <div class="card mb-3 border-danger">
+                        <div class="card-body">
+                            <div class="d-flex gap-3 align-items-start">
+                                <i class="bi bi-exclamation-triangle-fill text-danger fs-4 mt-1 flex-shrink-0"></i>
+                                <div class="flex-grow-1">
+                                    @if (!string.IsNullOrEmpty(block.Body))
+                                    {
+                                        <p class="mb-2">@block.Body</p>
+                                    }
+                                    @if (!string.IsNullOrEmpty(block.ImageUrl))
+                                    {
+                                        <img src="@block.ImageUrl" class="img-fluid rounded mb-2" alt="" />
+                                    }
+                                    @if (block.AcknowledgmentRequired)
+                                    {
+                                        <div class="form-check mt-2">
+                                            <input class="form-check-input" type="checkbox" id="ack-@block.Id"
+                                                   checked="@_acknowledgedBlocks.Contains(block.Id)"
+                                                   @onchange="e => ToggleAck(block.Id, (bool)(e.Value ?? false))" />
+                                            <label class="form-check-label fw-semibold" for="ack-@block.Id">
+                                                I have read and acknowledge this safety requirement.
+                                            </label>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+                <div class="d-flex justify-content-between mt-3">
+                    <button class="btn btn-outline-secondary" @onclick="() => AdvanceTo(1)">← Back</button>
+                    <button class="btn btn-danger btn-lg px-4"
+                            disabled="@(!AllSafetyAcknowledged())"
+                            @onclick="() => AdvanceTo(3)">
+                        Acknowledge &amp; Continue <i class="bi bi-arrow-right ms-2"></i>
+                    </button>
+                </div>
+                @if (!AllSafetyAcknowledged())
+                {
+                    <p class="text-danger small text-end mt-1">Please acknowledge all safety requirements to continue.</p>
+                }
+            }
+        </div>
+    }
+
+    <!-- ═══ Phase 3: Reference ═══ -->
+    @if (_phase == 3)
+    {
+        <div class="container-fluid px-3" style="max-width:800px">
+            <div class="d-flex align-items-center mb-3 gap-2">
+                <span class="badge bg-secondary fs-6 px-3 py-2">3</span>
+                <h4 class="mb-0">Reference Information</h4>
+            </div>
+            @if (!_referenceBlocks.Any())
+            {
+                <div class="alert alert-info py-2 small">No reference material for this step.</div>
+            }
+            else
+            {
+                @foreach (var block in _referenceBlocks)
+                {
+                    @if (block.ContentType == "Text")
+                    {
+                        <div class="card mb-3 border-0 bg-light">
+                            <div class="card-body py-2 px-3"><p class="mb-0">@block.Body</p></div>
+                        </div>
+                    }
+                    else if (block.ContentType == "Image" && !string.IsNullOrEmpty(block.ImageUrl))
+                    {
+                        <div class="card mb-3 text-center">
+                            <div class="card-body p-2">
+                                <img src="@block.ImageUrl" class="img-fluid rounded" alt="@block.OriginalFileName" />
+                            </div>
+                        </div>
+                    }
+                }
+            }
+            <div class="d-flex justify-content-between mt-4">
+                <button class="btn btn-outline-secondary" @onclick="() => AdvanceTo(2)">← Back</button>
+                <button class="btn btn-primary btn-lg px-4" @onclick="() => AdvanceTo(4)">
+                    @(_referenceBlocks.Any() ? "Proceed to Execution" : "Skip") <i class="bi bi-arrow-right ms-2"></i>
+                </button>
+            </div>
+        </div>
+    }
+
+    <!-- ═══ Phase 4: Execution ═══ -->
+    @if (_phase == 4)
+    {
+        <div class="container-fluid px-3" style="max-width:800px">
+            <div class="d-flex align-items-center mb-3 gap-2">
+                <span class="badge bg-warning text-dark fs-6 px-3 py-2">4</span>
+                <h4 class="mb-0">Execution</h4>
+            </div>
+
+            @if (!_executionBlocks.Any())
+            {
+                <div class="alert alert-info py-2 small">No execution tasks for this step.</div>
+            }
+            else
+            {
+                @foreach (var block in _executionBlocks)
+                {
+                    @if (block.ContentType == "Text")
+                    {
+                        <div class="card mb-3 border-0 bg-light">
+                            <div class="card-body py-2 px-3">
+                                <p class="mb-0">@block.Body</p>
+                            </div>
+                        </div>
+                    }
+                    else if (block.ContentType == "Image" && !string.IsNullOrEmpty(block.ImageUrl))
+                    {
+                        <div class="card mb-3 text-center">
+                            <div class="card-body p-2">
+                                <img src="@block.ImageUrl" class="img-fluid rounded" alt="@block.OriginalFileName" />
+                            </div>
+                        </div>
+                    }
+                    else if (block.ContentType == "Prompt" && block.PromptType is not null)
+                    {
+                        <div class="card mb-3 @(HasHardLimitBreach(block) ? "border-danger" : "")">
+                            <div class="card-body">
+                                <div class="fw-semibold mb-2">
+                                    @block.Label
+                                    @if (block.IsRequired) { <span class="text-danger ms-1">*</span> }
+                                    @if (!string.IsNullOrEmpty(block.ContentCategory))
+                                    {
+                                        <span class="badge bg-primary ms-2 small">@block.ContentCategory</span>
+                                    }
+                                </div>
+
+                                @if (block.PromptType == "NumericEntry")
+                                {
+                                    <div class="row align-items-end g-2">
+                                        <div class="col-md-4">
+                                            <div class="input-group">
+                                                <input type="number" class="form-control form-control-lg @NumericBandClass(block)"
+                                                       value="@GetPromptValue(block.Id)"
+                                                       @oninput="e => SetPromptValue(block.Id, e.Value?.ToString() ?? string.Empty)"
+                                                       placeholder="Enter value" step="any" />
+                                                @if (!string.IsNullOrEmpty(block.Units))
+                                                {
+                                                    <span class="input-group-text">@block.Units</span>
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <div class="d-flex gap-3 flex-wrap align-items-center small">
+                                                @if (block.MinValue.HasValue)
+                                                {
+                                                    <span class="text-warning"><i class="bi bi-arrow-up-circle me-1"></i>LSL: @block.MinValue @block.Units</span>
+                                                }
+                                                @if (block.NominalValue.HasValue)
+                                                {
+                                                    <span class="text-success"><i class="bi bi-bullseye me-1"></i>Nom: @block.NominalValue @block.Units</span>
+                                                }
+                                                @if (block.MaxValue.HasValue)
+                                                {
+                                                    <span class="text-warning"><i class="bi bi-arrow-down-circle me-1"></i>USL: @block.MaxValue @block.Units</span>
+                                                }
+                                                @if (block.IsHardLimit)
+                                                {
+                                                    <span class="badge bg-danger">Hard Limit</span>
+                                                }
+                                            </div>
+                                            @if (HasHardLimitBreach(block))
+                                            {
+                                                <div class="alert alert-danger py-1 px-2 mt-1 small">
+                                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                                    Out of spec (hard limit). Disposition required.
+                                                    <button class="btn btn-sm btn-danger ms-2 py-0" @onclick="() => OpenNcModal(block)">
+                                                        Record NC
+                                                    </button>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                                else if (block.PromptType == "PassFail")
+                                {
+                                    <div class="d-flex gap-3 mt-1">
+                                        <button class="btn @(GetPromptValue(block.Id) == "Pass" ? "btn-success" : "btn-outline-success") btn-lg px-4"
+                                                @onclick='() => SetPromptValue(block.Id, "Pass")'>
+                                            <i class="bi bi-check-lg me-1"></i>Pass
+                                        </button>
+                                        <button class="btn @(GetPromptValue(block.Id) == "Fail" ? "btn-danger" : "btn-outline-danger") btn-lg px-4"
+                                                @onclick='() => HandlePassFailFail(block)'>
+                                            <i class="bi bi-x-lg me-1"></i>Fail
+                                        </button>
+                                    </div>
+                                    @if (GetPromptValue(block.Id) == "Fail" && HasPendingNcForBlock(block.Id))
+                                    {
+                                        <div class="alert alert-danger py-1 px-2 mt-2 small">
+                                            <i class="bi bi-exclamation-triangle-fill me-1"></i>Fail result. Disposition required.
+                                        </div>
+                                    }
+                                }
+                                else if (block.PromptType == "Checkbox")
+                                {
+                                    <div class="form-check form-check-lg mt-1">
+                                        <input type="checkbox" class="form-check-input" id="chk-@block.Id"
+                                               checked="@(GetPromptValue(block.Id) == "true")"
+                                               @onchange='e => SetPromptValue(block.Id, ((bool)(e.Value ?? false)) ? "true" : "false")' />
+                                        <label class="form-check-label" for="chk-@block.Id">Checked</label>
+                                    </div>
+                                }
+                                else if (block.PromptType == "MultipleChoice" && !string.IsNullOrEmpty(block.Choices))
+                                {
+                                    var choices = System.Text.Json.JsonSerializer.Deserialize<List<string>>(block.Choices) ?? new();
+                                    @foreach (var choice in choices)
+                                    {
+                                        <div class="form-check mt-1">
+                                            <input type="radio" class="form-check-input" name="mc-@block.Id"
+                                                   id="mc-@block.Id-@choice"
+                                                   value="@choice"
+                                                   checked="@(GetPromptValue(block.Id) == choice)"
+                                                   @onchange='() => SetPromptValue(block.Id, choice)' />
+                                            <label class="form-check-label" for="mc-@block.Id-@choice">@choice</label>
+                                        </div>
+                                    }
+                                }
+                                else if (block.PromptType is "TextEntry" or "Scan")
+                                {
+                                    <div class="input-group">
+                                        @if (block.PromptType == "Scan")
+                                        {
+                                            <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+                                        }
+                                        <input type="text" class="form-control"
+                                               value="@GetPromptValue(block.Id)"
+                                               @oninput="e => SetPromptValue(block.Id, e.Value?.ToString() ?? string.Empty)"
+                                               placeholder="@block.Label" />
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                }
+            }
+
+            <div class="d-flex justify-content-between mt-4">
+                <button class="btn btn-outline-secondary" @onclick="() => AdvanceTo(3)">← Back</button>
+                <button class="btn btn-primary btn-lg px-4"
+                        disabled="@(!CanAdvanceFromExecution())"
+                        @onclick="() => GoToSignOff()">
+                    Sign-Off <i class="bi bi-arrow-right ms-2"></i>
+                </button>
+            </div>
+            @if (!CanAdvanceFromExecution())
+            {
+                <p class="text-danger small text-end mt-1">
+                    @if (HasAnyPendingNc())
+                    { <text>Pending non-conformances must be resolved before sign-off.</text> }
+                    else
+                    { <text>All required prompts must be answered before proceeding.</text> }
+                </p>
+            }
+        </div>
+    }
+
+    <!-- ═══ Phase 5: Sign-Off ═══ -->
+    @if (_phase == 5)
+    {
+        <div class="container-fluid px-3" style="max-width:800px">
+            <div class="d-flex align-items-center mb-3 gap-2">
+                <span class="badge bg-success fs-6 px-3 py-2">5</span>
+                <h4 class="mb-0">Sign-Off</h4>
+            </div>
+
+            <!-- Summary of responses -->
+            @if (_promptValues.Any())
+            {
+                <div class="card mb-3">
+                    <div class="card-header small text-muted">Recorded Values</div>
+                    <ul class="list-group list-group-flush">
+                        @foreach (var block in _executionBlocks.Where(b => b.ContentType == "Prompt"))
+                        {
+                            var val = GetPromptValue(block.Id);
+                            var oor = IsOutOfRange(block, val);
+                            <li class="list-group-item d-flex justify-content-between align-items-center py-1">
+                                <span class="small">@block.Label</span>
+                                <span class="@(oor ? "text-danger fw-bold" : "text-success")">
+                                    @(string.IsNullOrEmpty(val) ? "—" : val)
+                                    @if (!string.IsNullOrEmpty(block.Units)) { <text> @block.Units</text> }
+                                    @if (oor) { <i class="bi bi-exclamation-triangle-fill ms-1"></i> }
+                                </span>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <!-- Notes -->
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Operator Notes</label>
+                <textarea class="form-control" rows="3" @bind="_notes" placeholder="Optional notes…"></textarea>
+            </div>
+
+            @if (_openNcs.Any())
+            {
+                <div class="alert alert-danger py-2">
+                    <strong><i class="bi bi-exclamation-triangle-fill me-1"></i>Pending Non-Conformances</strong>
+                    <ul class="mb-0 mt-1 small">
+                        @foreach (var nc in _openNcs.Where(n => n.DispositionStatus == "Pending"))
+                        {
+                            <li>@(nc.ContentBlockLabel ?? "Unknown block") — @nc.ActualValue (@nc.LimitType)</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="alert alert-danger py-2 small">@_error</div>
+            }
+
+            <div class="d-flex justify-content-between mt-3">
+                <button class="btn btn-outline-secondary" @onclick="() => AdvanceTo(4)">← Back to Execution</button>
+                <button class="btn btn-success btn-lg px-4"
+                        disabled="@(_saving || _openNcs.Any(n => n.DispositionStatus == "Pending"))"
+                        @onclick="CompleteStep">
+                    @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    Complete Step
+                </button>
+            </div>
+        </div>
+    }
+}
+
+<!-- ══ NC Disposition Modal ══ -->
+@if (_showNcModal)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-danger">
+                    <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle-fill me-2"></i>Non-Conformance</h5>
+                </div>
+                <div class="modal-body">
+                    <p>The value <strong>@_ncActualValue</strong> is outside the specification limit (<strong>@_ncLimitType</strong>).</p>
+                    <p class="small text-muted">Select a disposition to continue. You cannot proceed without recording a disposition for this breach.</p>
+                    <div class="d-grid gap-2">
+                        @foreach (var opt in new[] {
+                            ("Rework",     "info",    "Return to prior step for correction"),
+                            ("Scrap",      "dark",    "Remove item/batch from the production flow"),
+                            ("Quarantine", "danger",  "Hold for engineering review"),
+                            ("UseAsIs",    "warning", "Accept with deviation") })
+                        {
+                            <button class="btn btn-outline-@opt.Item2 text-start py-2" @onclick='() => SetNcDisposition(opt.Item1)'
+                                    disabled="@_ncSaving">
+                                <strong>@opt.Item1</strong> — <span class="small text-muted">@opt.Item3</span>
+                            </button>
+                        }
+                    </div>
+                    @if (_ncDispositionStatus == "UseAsIs")
+                    {
+                        <div class="mt-3">
+                            <label class="form-label">Justification *</label>
+                            <textarea class="form-control" rows="2" @bind="_ncJustification" placeholder="Why is this acceptable?"></textarea>
+                        </div>
+                    }
+                    <div class="mt-3">
+                        <label class="form-label">Your Name</label>
+                        <input class="form-control" @bind="_ncDisposedBy" placeholder="Operator name" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(_ncError)) { <div class="alert alert-danger py-1 small mt-2">@_ncError</div> }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseNcModal" disabled="@_ncSaving">Cancel</button>
+                    <button class="btn btn-primary" @onclick="ConfirmNcDisposition"
+                            disabled="@(_ncSaving || string.IsNullOrEmpty(_ncDispositionStatus))">
+                        @if (_ncSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Record Disposition
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid StepExecutionId { get; set; }
+
+    private bool _loading = true;
+    private StepExecutionResponseDto? _se;
+    private List<ProcessStepContentResponseDto> _contents = new();
+    private Dictionary<Guid, string> _promptValues = new();
+    private HashSet<Guid> _acknowledgedBlocks = new();
+    private List<NonConformanceResponseDto> _openNcs = new();
+    private int _phase = 1;
+    private bool _saving;
+    private string? _error;
+    private string _notes = "";
+
+    // Categorised content groups
+    private List<ProcessStepContentResponseDto> _setupBlocks = new();
+    private List<ProcessStepContentResponseDto> _safetyBlocks = new();
+    private List<ProcessStepContentResponseDto> _referenceBlocks = new();
+    private List<ProcessStepContentResponseDto> _executionBlocks = new();
+
+    // NC modal state
+    private bool _showNcModal;
+    private Guid _ncContentBlockId;
+    private string _ncActualValue = "";
+    private string _ncLimitType = "";
+    private string _ncDispositionStatus = "";
+    private string _ncDisposedBy = "";
+    private string _ncJustification = "";
+    private bool _ncSaving;
+    private string? _ncError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            _se = await Api.GetStepExecutionAsync(StepExecutionId);
+            if (_se is null) return;
+
+            // Auto-start if pending
+            if (_se.Status == "Pending" && _se.Status != "Completed")
+            {
+                try { _se = await Api.StepExecutionTransitionAsync(_se.Id, "start"); }
+                catch { /* ignore if already in-progress */ }
+            }
+
+            await LoadContent();
+            await LoadPromptResponses();
+            await LoadNonConformances();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    private async Task LoadContent()
+    {
+        if (_se?.ProcessId is null) return;
+        var blocks = await Api.GetStepContentAsync(_se.ProcessId.Value, _se.ProcessStepId);
+        _contents = blocks?.OrderBy(b => b.SortOrder).ToList() ?? new();
+        CategoriselBlocks();
+    }
+
+    private void CategoriselBlocks()
+    {
+        _setupBlocks     = _contents.Where(b => b.ContentCategory == "Setup").ToList();
+        _safetyBlocks    = _contents.Where(b => b.ContentCategory == "Safety").ToList();
+        _referenceBlocks = _contents.Where(b => b.ContentCategory is "Reference" or "Note").ToList();
+        _executionBlocks = _contents
+            .Where(b => b.ContentCategory is null or "" or "Inspection" ||
+                        (b.ContentType == "Prompt" && b.ContentCategory is not ("Setup" or "Safety" or "Reference" or "Note")))
+            .OrderBy(b => b.SortOrder)
+            .ToList();
+    }
+
+    private async Task LoadPromptResponses()
+    {
+        var responses = await Api.GetPromptResponsesAsync(StepExecutionId);
+        foreach (var r in responses.Where(r => r.ProcessStepContentId.HasValue))
+            _promptValues[r.ProcessStepContentId!.Value] = r.ResponseValue ?? "";
+    }
+
+    private async Task LoadNonConformances()
+    {
+        var result = await Api.GetNonConformancesAsync(stepExecutionId: StepExecutionId, pageSize: 100);
+        _openNcs = result?.Items ?? new();
+    }
+
+    private void AdvanceTo(int phase)
+    {
+        _phase = phase;
+        _error = null;
+    }
+
+    private void TryNavigateToPhase(int phase)
+    {
+        if (phase <= _phase) _phase = phase;
+    }
+
+    private void ToggleAck(Guid blockId, bool value)
+    {
+        if (value) _acknowledgedBlocks.Add(blockId);
+        else _acknowledgedBlocks.Remove(blockId);
+    }
+
+    private bool AllSafetyAcknowledged()
+        => _safetyBlocks
+            .Where(b => b.AcknowledgmentRequired)
+            .All(b => _acknowledgedBlocks.Contains(b.Id));
+
+    private string GetPromptValue(Guid blockId)
+        => _promptValues.TryGetValue(blockId, out var v) ? v : "";
+
+    private void SetPromptValue(Guid blockId, string value)
+    {
+        _promptValues[blockId] = value;
+        // Auto-save prompt responses in background
+        _ = SavePromptResponse(blockId, value);
+    }
+
+    private async Task SavePromptResponse(Guid contentBlockId, string value)
+    {
+        try
+        {
+            await Api.SavePromptResponsesAsync(StepExecutionId, new SavePromptResponsesDto(
+                new List<PromptResponseItemDto>
+                {
+                    new(ProcessStepContentId: contentBlockId,
+                        StepTemplateContentId: null,
+                        ResponseValue: value,
+                        OverrideNote: null)
+                }));
+        }
+        catch { /* best-effort auto-save */ }
+    }
+
+    private string NumericBandClass(ProcessStepContentResponseDto block)
+    {
+        var val = GetPromptValue(block.Id);
+        if (string.IsNullOrEmpty(val) || !decimal.TryParse(val, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var d))
+            return "";
+
+        var belowLsl = block.MinValue.HasValue && d < block.MinValue;
+        var aboveUsl = block.MaxValue.HasValue && d > block.MaxValue;
+
+        if (belowLsl || aboveUsl) return "border-danger text-danger";
+        return "border-success";
+    }
+
+    private bool IsOutOfRange(ProcessStepContentResponseDto block, string? val)
+    {
+        if (string.IsNullOrEmpty(val) || block.PromptType != "NumericEntry") return false;
+        if (!decimal.TryParse(val, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var d)) return false;
+        return (block.MinValue.HasValue && d < block.MinValue) ||
+               (block.MaxValue.HasValue && d > block.MaxValue);
+    }
+
+    private bool HasHardLimitBreach(ProcessStepContentResponseDto block)
+    {
+        if (!block.IsHardLimit || block.PromptType != "NumericEntry") return false;
+        var val = GetPromptValue(block.Id);
+        return IsOutOfRange(block, val) && !HasResolvedNcForBlock(block.Id);
+    }
+
+    private bool HasPendingNcForBlock(Guid blockId)
+        => _openNcs.Any(nc => nc.ContentBlockId == blockId && nc.DispositionStatus == "Pending");
+
+    private bool HasResolvedNcForBlock(Guid blockId)
+        => _openNcs.Any(nc => nc.ContentBlockId == blockId && nc.DispositionStatus != "Pending");
+
+    private bool HasAnyPendingNc()
+        => _openNcs.Any(nc => nc.DispositionStatus == "Pending");
+
+    private bool CanAdvanceFromExecution()
+    {
+        if (HasAnyPendingNc()) return false;
+        if (_executionBlocks.Any(b => HasHardLimitBreach(b))) return false;
+        // All required prompts must have values
+        return _executionBlocks
+            .Where(b => b.ContentType == "Prompt" && b.IsRequired)
+            .All(b => !string.IsNullOrEmpty(GetPromptValue(b.Id)));
+    }
+
+    private void GoToSignOff()
+    {
+        if (!string.IsNullOrEmpty(_se?.Notes)) _notes = _se.Notes;
+        AdvanceTo(5);
+    }
+
+    private void HandlePassFailFail(ProcessStepContentResponseDto block)
+    {
+        SetPromptValue(block.Id, "Fail");
+        OpenNcModal(block, "FailResult");
+    }
+
+    private void OpenNcModal(ProcessStepContentResponseDto block, string limitType = "")
+    {
+        _ncContentBlockId = block.Id;
+        _ncActualValue = GetPromptValue(block.Id);
+        if (string.IsNullOrEmpty(limitType))
+        {
+            // Determine LSL vs USL
+            if (decimal.TryParse(_ncActualValue, System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var v))
+            {
+                if (block.MinValue.HasValue && v < block.MinValue) limitType = "LSL";
+                else if (block.MaxValue.HasValue && v > block.MaxValue) limitType = "USL";
+            }
+        }
+        _ncLimitType = limitType;
+        _ncDispositionStatus = "";
+        _ncDisposedBy = "";
+        _ncJustification = "";
+        _ncError = null;
+        _showNcModal = true;
+    }
+
+    private void CloseNcModal() => _showNcModal = false;
+
+    private void SetNcDisposition(string status) => _ncDispositionStatus = status;
+
+    private async Task ConfirmNcDisposition()
+    {
+        if (string.IsNullOrEmpty(_ncDispositionStatus)) return;
+        if (_ncDispositionStatus == "UseAsIs" && string.IsNullOrWhiteSpace(_ncJustification))
+        {
+            _ncError = "Justification is required for Use As-Is.";
+            return;
+        }
+
+        _ncSaving = true;
+        _ncError = null;
+        try
+        {
+            // First create the NC record
+            var nc = await Api.CreateNonConformanceAsync(new CreateNonConformanceDto(
+                StepExecutionId, _ncContentBlockId, _ncActualValue, _ncLimitType));
+
+            if (nc is not null)
+            {
+                // Then immediately dispose it
+                await Api.DisposeNonConformanceAsync(nc.Id, new DispositionNonConformanceDto(
+                    _ncDispositionStatus,
+                    string.IsNullOrWhiteSpace(_ncDisposedBy) ? null : _ncDisposedBy,
+                    string.IsNullOrWhiteSpace(_ncJustification) ? null : _ncJustification));
+            }
+
+            _showNcModal = false;
+            await LoadNonConformances();
+        }
+        catch (Exception ex) { _ncError = ex.Message; }
+        finally { _ncSaving = false; }
+    }
+
+    private async Task CompleteStep()
+    {
+        if (HasAnyPendingNc()) return;
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(_notes))
+                await Api.UpdateStepExecutionNotesAsync(StepExecutionId, new UpdateStepExecutionNotesDto(_notes));
+
+            _se = await Api.StepExecutionTransitionAsync(StepExecutionId, "complete");
+            Nav.NavigateTo($"jobs/{_se?.JobId}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _saving = false;
+        }
+    }
+}

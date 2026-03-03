@@ -22,6 +22,7 @@ public class StepTemplatesController : ControllerBase
     public async Task<ActionResult<PaginatedResponse<StepTemplateResponseDto>>> GetAll(
         [FromQuery] string? search = null,
         [FromQuery] bool? active = null,
+        [FromQuery] string? status = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
@@ -37,6 +38,10 @@ public class StepTemplatesController : ControllerBase
 
         if (active.HasValue)
             query = query.Where(s => s.IsActive == active.Value);
+
+        if (!string.IsNullOrWhiteSpace(status) &&
+            Enum.TryParse<ProcessStatus>(status, ignoreCase: true, out var statusEnum))
+            query = query.Where(s => s.Status == statusEnum);
 
         var totalCount = await query.CountAsync();
 
@@ -131,11 +136,13 @@ public class StepTemplatesController : ControllerBase
 
         if (step is null) return NotFound();
 
+        if (step.Status == ProcessStatus.Released || step.Status == ProcessStatus.PendingApproval)
+            return BadRequest($"A {step.Status} step template cannot be edited directly. Create a new revision instead.");
+
         step.Name = dto.Name;
         step.Description = dto.Description;
         step.Pattern = dto.Pattern;
         if (dto.IsActive.HasValue) step.IsActive = dto.IsActive.Value;
-        step.Version++;
 
         await _db.SaveChangesAsync();
         return MapToDto(step);
@@ -386,7 +393,8 @@ public class StepTemplatesController : ControllerBase
             SortOrder = sortOrder,
             Body = dto.Body,
             ContentCategory = category,
-            AcknowledgmentRequired = category == ContentCategory.Safety
+            AcknowledgmentRequired = category == ContentCategory.Safety,
+            IntroducedInVersion = st.Version
         };
 
         _db.StepTemplateContents.Add(block);
@@ -486,7 +494,8 @@ public class StepTemplatesController : ControllerBase
             ContentCategory = category,
             AcknowledgmentRequired = category == ContentCategory.Safety,
             NominalValue = dto.NominalValue,
-            IsHardLimit = dto.IsHardLimit
+            IsHardLimit = dto.IsHardLimit,
+            IntroducedInVersion = st.Version
         };
 
         _db.StepTemplateContents.Add(block);
@@ -804,6 +813,179 @@ public class StepTemplatesController : ControllerBase
         return errors;
     }
 
+    // ──────────── Lifecycle ────────────
+
+    /// <summary>Submit a Draft step template for approval. Status → PendingApproval.</summary>
+    [HttpPost("{id:guid}/submit")]
+    public async Task<ActionResult<StepTemplateResponseDto>> Submit(Guid id, SubmitForApprovalDto dto)
+    {
+        var step = await _db.StepTemplates.Include(s => s.Ports).Include(s => s.Images).Include(s => s.Contents)
+            .FirstOrDefaultAsync(s => s.Id == id);
+        if (step is null) return NotFound();
+        if (step.Status != ProcessStatus.Draft)
+            return BadRequest($"Only Draft step templates can be submitted (current: {step.Status}).");
+
+        step.Status = ProcessStatus.PendingApproval;
+        _db.ApprovalRecords.Add(new ApprovalRecord
+        {
+            EntityType = "StepTemplate",
+            EntityId = step.Id,
+            StepTemplateId = step.Id,
+            EntityVersion = step.Version,
+            SubmittedBy = dto.SubmittedBy,
+            SubmittedAt = DateTime.UtcNow,
+            Decision = "Pending",
+            Notes = dto.SubmissionNotes
+        });
+        await _db.SaveChangesAsync();
+        return MapToDto(step);
+    }
+
+    /// <summary>Approve a PendingApproval step template. Status → Released.</summary>
+    [HttpPost("{id:guid}/approve")]
+    public async Task<ActionResult<StepTemplateResponseDto>> Approve(Guid id, ApproveDto dto)
+    {
+        var step = await _db.StepTemplates.Include(s => s.Ports).Include(s => s.Images).Include(s => s.Contents)
+            .FirstOrDefaultAsync(s => s.Id == id);
+        if (step is null) return NotFound();
+        if (step.Status != ProcessStatus.PendingApproval)
+            return BadRequest($"Only PendingApproval step templates can be approved (current: {step.Status}).");
+
+        // Supersede prior Released version with same code
+        var priorReleased = await _db.StepTemplates
+            .Where(s => s.Code == step.Code && s.Status == ProcessStatus.Released && s.Id != step.Id)
+            .ToListAsync();
+        foreach (var prior in priorReleased)
+            prior.Status = ProcessStatus.Superseded;
+
+        step.Status = ProcessStatus.Released;
+        var record = await _db.ApprovalRecords
+            .Where(a => a.EntityType == "StepTemplate" && a.EntityId == step.Id && a.Decision == "Pending")
+            .OrderByDescending(a => a.SubmittedAt).FirstOrDefaultAsync();
+        if (record is not null)
+        {
+            record.ReviewedBy = dto.ApprovedBy;
+            record.ReviewedAt = DateTime.UtcNow;
+            record.Decision = "Approved";
+            record.Notes ??= dto.ApprovalNotes;
+        }
+        await _db.SaveChangesAsync();
+        return MapToDto(step);
+    }
+
+    /// <summary>Reject a PendingApproval step template. Status → Draft.</summary>
+    [HttpPost("{id:guid}/reject")]
+    public async Task<ActionResult<StepTemplateResponseDto>> Reject(Guid id, RejectDto dto)
+    {
+        var step = await _db.StepTemplates.Include(s => s.Ports).Include(s => s.Images).Include(s => s.Contents)
+            .FirstOrDefaultAsync(s => s.Id == id);
+        if (step is null) return NotFound();
+        if (step.Status != ProcessStatus.PendingApproval)
+            return BadRequest($"Only PendingApproval step templates can be rejected (current: {step.Status}).");
+
+        step.Status = ProcessStatus.Draft;
+        var record = await _db.ApprovalRecords
+            .Where(a => a.EntityType == "StepTemplate" && a.EntityId == step.Id && a.Decision == "Pending")
+            .OrderByDescending(a => a.SubmittedAt).FirstOrDefaultAsync();
+        if (record is not null)
+        {
+            record.ReviewedBy = dto.RejectedBy;
+            record.ReviewedAt = DateTime.UtcNow;
+            record.Decision = "Rejected";
+            record.Notes = dto.RejectionReason;
+        }
+        await _db.SaveChangesAsync();
+        return MapToDto(step);
+    }
+
+    /// <summary>Create a new Draft revision from a Released step template, copying all contents.</summary>
+    [HttpPost("{id:guid}/new-revision")]
+    public async Task<ActionResult<StepTemplateResponseDto>> NewRevision(Guid id, NewRevisionDto dto)
+    {
+        var source = await _db.StepTemplates
+            .Include(s => s.Ports)
+            .Include(s => s.Images)
+            .Include(s => s.Contents)
+            .FirstOrDefaultAsync(s => s.Id == id);
+        if (source is null) return NotFound();
+        if (source.Status != ProcessStatus.Released)
+            return BadRequest($"Only Released step templates can have new revisions created (current: {source.Status}).");
+
+        var newVersion = source.Version + 1;
+        var newStep = new StepTemplate
+        {
+            Code = source.Code,
+            Name = source.Name,
+            Description = source.Description,
+            Pattern = source.Pattern,
+            IsActive = source.IsActive,
+            Version = newVersion,
+            Status = ProcessStatus.Draft
+        };
+        _db.StepTemplates.Add(newStep);
+        await _db.SaveChangesAsync();
+
+        // Copy ports
+        foreach (var p in source.Ports)
+        {
+            _db.Ports.Add(new Port
+            {
+                StepTemplateId = newStep.Id,
+                Name = p.Name,
+                Direction = p.Direction,
+                PortType = p.PortType,
+                KindId = p.KindId,
+                GradeId = p.GradeId,
+                QtyRuleMode = p.QtyRuleMode,
+                QtyRuleN = p.QtyRuleN,
+                QtyRuleMin = p.QtyRuleMin,
+                QtyRuleMax = p.QtyRuleMax,
+                DataType = p.DataType,
+                Units = p.Units,
+                NominalValue = p.NominalValue,
+                LowerTolerance = p.LowerTolerance,
+                UpperTolerance = p.UpperTolerance,
+                SortOrder = p.SortOrder
+            });
+        }
+
+        // Copy content blocks
+        foreach (var c in source.Contents.OrderBy(c => c.SortOrder))
+        {
+            _db.StepTemplateContents.Add(new StepTemplateContent
+            {
+                StepTemplateId = newStep.Id,
+                ContentType = c.ContentType,
+                SortOrder = c.SortOrder,
+                Body = c.Body,
+                FileName = c.FileName,
+                OriginalFileName = c.OriginalFileName,
+                MimeType = c.MimeType,
+                PromptType = c.PromptType,
+                Label = c.Label,
+                IsRequired = c.IsRequired,
+                Units = c.Units,
+                MinValue = c.MinValue,
+                MaxValue = c.MaxValue,
+                Choices = c.Choices,
+                ContentCategory = c.ContentCategory,
+                AcknowledgmentRequired = c.AcknowledgmentRequired,
+                NominalValue = c.NominalValue,
+                IsHardLimit = c.IsHardLimit,
+                IntroducedInVersion = c.IntroducedInVersion
+            });
+        }
+        await _db.SaveChangesAsync();
+
+        var result = await _db.StepTemplates
+            .Include(s => s.Ports).ThenInclude(p => p.Kind)
+            .Include(s => s.Ports).ThenInclude(p => p.Grade)
+            .Include(s => s.Images)
+            .Include(s => s.Contents)
+            .FirstOrDefaultAsync(s => s.Id == newStep.Id);
+        return CreatedAtAction(nameof(GetById), new { id = newStep.Id }, MapToDto(result!));
+    }
+
     // ──────────── Mapping ────────────
 
     private static RunChartWidgetResponseDto MapRunChartWidgetToDto(
@@ -822,7 +1004,7 @@ public class StepTemplatesController : ControllerBase
 
     private static StepTemplateResponseDto MapToDto(StepTemplate step) => new(
         step.Id, step.Code, step.Name, step.Description,
-        step.Pattern, step.Version, step.IsActive,
+        step.Pattern, step.Version, step.Status.ToString(), step.IsActive,
         step.CreatedAt, step.UpdatedAt,
         step.Ports.OrderBy(p => p.Direction).ThenBy(p => p.SortOrder).Select(MapPortToDto).ToList(),
         step.Images.OrderBy(i => i.SortOrder).Select(MapImageToDto).ToList(),

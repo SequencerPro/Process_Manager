@@ -118,6 +118,26 @@ public class PfmeasController : ControllerBase
     }
 
     /// <summary>
+    /// Clear the staleness flag — reviewer has confirmed no PFMEA updates are required after the process revision.
+    /// </summary>
+    [HttpPost("{id:guid}/clear-staleness")]
+    public async Task<ActionResult<PfmeaResponseDto>> ClearStaleness(Guid id, ClearPfmeaStalenessDto dto)
+    {
+        var pfmea = await LoadPfmea(id);
+        if (pfmea is null) return NotFound();
+        if (!pfmea.IsStale)
+            return BadRequest("This PFMEA is not currently stale.");
+
+        pfmea.IsStale = false;
+        pfmea.StalenessClearedBy = dto.ClearedBy;
+        pfmea.StalenessClearedAt = DateTime.UtcNow;
+        pfmea.StalenessClearanceNotes = dto.ClearanceNotes;
+
+        await _db.SaveChangesAsync();
+        return MapToDto(pfmea);
+    }
+
+    /// <summary>
     /// Branch: creates a new PFMEA version from an existing one, copying all failure modes and actions.
     /// The original is left active; the caller may deactivate it.
     /// </summary>
@@ -333,6 +353,7 @@ public class PfmeasController : ControllerBase
     private static PfmeaResponseDto MapToDto(Pfmea p) => new(
         p.Id, p.Code, p.Name, p.Description, p.Version, p.IsActive,
         p.ProcessId, p.Process.Name, p.Process.Code,
+        p.ProcessVersion, p.IsStale, p.StalenessClearedBy, p.StalenessClearedAt, p.StalenessClearanceNotes,
         p.CreatedAt, p.UpdatedAt,
         p.FailureModes.OrderBy(f => f.ProcessStep.Sequence).ThenBy(f => f.CreatedAt)
             .Select(f => new PfmeaFailureModeResponseDto(

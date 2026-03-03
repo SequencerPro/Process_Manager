@@ -24,6 +24,8 @@ public record JobResponseDto(
     string? Description,
     Guid ProcessId,
     string ProcessName,
+    string ProcessStatus,
+    int ProcessVersion,
     string Status,
     int Priority,
     DateTime? StartedAt,

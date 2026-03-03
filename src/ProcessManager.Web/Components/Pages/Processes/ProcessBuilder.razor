@@ -900,7 +900,7 @@ else
         StateHasChanged();
         try
         {
-            _pickerTemplates = await Api.GetStepTemplatesAsync(_pickerSearch, true, 1, 20);
+            _pickerTemplates = await Api.GetStepTemplatesAsync(_pickerSearch, true, pageSize: 20);
         }
         catch (Exception ex)
         {

@@ -59,6 +59,15 @@
             </NavLink>
         </li>
         <li class="nav-item">
+            <NavLink class="nav-link text-white d-flex align-items-center justify-content-between" href="approval-queue">
+                <span><i class="bi bi-clipboard2-check me-2"></i> Approval Queue</span>
+                @if (_pendingCount > 0)
+                {
+                    <span class="badge bg-warning text-dark rounded-pill" style="font-size:.68rem">@(_pendingCount > 99 ? "99+" : _pendingCount.ToString())</span>
+                }
+            </NavLink>
+        </li>
+        <li class="nav-item">
             <NavLink class="nav-link text-white" href="workflows">
                 <i class="bi bi-share me-2"></i> Workflows
             </NavLink>
@@ -157,6 +166,7 @@
     private string? _displayName;
     private string? _role;
     private int _alertCount;
+    private int _pendingCount;
 
     protected override async Task OnInitializedAsync()
     {
@@ -172,5 +182,12 @@
             _alertCount = result?.Count ?? 0;
         }
         catch { /* badge is best-effort — never break the nav */ }
+
+        try
+        {
+            var pending = await Api.GetApprovalRecordsAsync(decision: "Pending", pageSize: 1);
+            _pendingCount = pending?.TotalCount ?? 0;
+        }
+        catch { /* badge is best-effort */ }
     }
 }

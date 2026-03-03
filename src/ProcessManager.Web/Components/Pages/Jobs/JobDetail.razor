@@ -34,6 +34,7 @@ else
                     {
                         <span class="badge bg-warning text-dark ms-1">Priority @_job.Priority</span>
                     }
+                    <span class="badge bg-dark ms-1">Process v@_job.ProcessVersion</span>
                 </div>
                 <div class="d-flex gap-1 flex-wrap">
                     <button class="btn btn-outline-secondary btn-sm" @onclick="ShowEditForm">
@@ -74,7 +75,7 @@ else
             }
             <div class="mt-2">
                 <small class="text-muted">
-                    Process: <strong>@_job.ProcessName</strong> &bull;
+                    Process: <strong>@_job.ProcessName</strong> (@_job.ProcessStatus) &bull;
                     Created @_job.CreatedAt.ToString("g")
                     @if (_job.StartedAt.HasValue) { <text> &bull; Started @_job.StartedAt.Value.ToString("g")</text> }
                     @if (_job.CompletedAt.HasValue) { <text> &bull; Completed @_job.CompletedAt.Value.ToString("g")</text> }
@@ -82,6 +83,17 @@ else
             </div>
         </div>
     </div>
+
+    @if (_job.ProcessStatus == "Superseded")
+    {
+        <div class="alert alert-warning d-flex align-items-center py-2 mb-4" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <div>
+                This job was started against <strong>@_job.ProcessName v@_job.ProcessVersion</strong>, which has since been
+                superseded by a newer release. You are executing the version that was in use when this job was created.
+            </div>
+        </div>
+    }
 
     <!-- Step Executions — visual progress tracker -->
     <div class="card mb-4">

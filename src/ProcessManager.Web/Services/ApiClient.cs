@@ -76,9 +76,9 @@ public class ApiClient
     // ═══════════════════ Step Templates ═══════════════════
 
     public Task<PaginatedResponse<StepTemplateResponseDto>?> GetStepTemplatesAsync(
-        string? search = null, bool? active = null, int page = 1, int pageSize = 25)
+        string? search = null, bool? active = null, string? status = null, int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<StepTemplateResponseDto>>(
-            $"api/steptemplates?search={search}&active={active}&page={page}&pageSize={pageSize}", _json);
+            $"api/steptemplates?search={search}&active={active}&status={status}&page={page}&pageSize={pageSize}", _json);
 
     public Task<StepTemplateResponseDto?> GetStepTemplateAsync(Guid id)
         => _http.GetFromJsonAsync<StepTemplateResponseDto>($"api/steptemplates/{id}", _json);
@@ -286,9 +286,9 @@ public class ApiClient
     // ═══════════════════ Processes ═══════════════════
 
     public Task<PaginatedResponse<ProcessSummaryResponseDto>?> GetProcessesAsync(
-        string? search = null, bool? active = null, int page = 1, int pageSize = 25)
+        string? search = null, bool? active = null, string? status = null, int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<ProcessSummaryResponseDto>>(
-            $"api/processes?search={search}&active={active}&page={page}&pageSize={pageSize}", _json);
+            $"api/processes?search={search}&active={active}&status={status}&page={page}&pageSize={pageSize}", _json);
 
     public Task<ProcessResponseDto?> GetProcessAsync(Guid id)
         => _http.GetFromJsonAsync<ProcessResponseDto>($"api/processes/{id}", _json);
@@ -987,5 +987,75 @@ public class ApiClient
         var r = await _http.PostAsJsonAsync($"api/non-conformances/{id}/dispose", dto, _json);
         r.EnsureSuccessStatusCode();
         return await r.Content.ReadFromJsonAsync<NonConformanceResponseDto>(_json);
+    }
+
+    // ── Phase 9: Change Control ─────────────────────────────────────────────
+
+    public Task<PaginatedResponse<ApprovalRecordResponseDto>?> GetApprovalRecordsAsync(
+        string? entityType = null, Guid? entityId = null, string? decision = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<ApprovalRecordResponseDto>>(
+            $"api/approvals?entityType={entityType}&entityId={entityId}&decision={decision}&page={page}&pageSize={pageSize}", _json);
+
+    public async Task<ProcessResponseDto?> SubmitProcessForApprovalAsync(Guid id, SubmitForApprovalDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/processes/{id}/submit", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ProcessResponseDto>(_json);
+    }
+
+    public async Task<ProcessResponseDto?> ApproveProcessAsync(Guid id, ApproveDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/processes/{id}/approve", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ProcessResponseDto>(_json);
+    }
+
+    public async Task<ProcessResponseDto?> RejectProcessAsync(Guid id, RejectDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/processes/{id}/reject", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ProcessResponseDto>(_json);
+    }
+
+    public async Task<ProcessResponseDto?> NewProcessRevisionAsync(Guid id, NewRevisionDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/processes/{id}/new-revision", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ProcessResponseDto>(_json);
+    }
+
+    public async Task<ProcessResponseDto?> RetireProcessAsync(Guid id)
+    {
+        var r = await _http.PostAsJsonAsync<object?>($"api/processes/{id}/retire", null, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ProcessResponseDto>(_json);
+    }
+
+    public async Task<StepTemplateResponseDto?> SubmitStepTemplateForApprovalAsync(Guid id, SubmitForApprovalDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/steptemplates/{id}/submit", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<StepTemplateResponseDto>(_json);
+    }
+
+    public async Task<StepTemplateResponseDto?> ApproveStepTemplateAsync(Guid id, ApproveDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/steptemplates/{id}/approve", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<StepTemplateResponseDto>(_json);
+    }
+
+    public async Task<StepTemplateResponseDto?> RejectStepTemplateAsync(Guid id, RejectDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/steptemplates/{id}/reject", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<StepTemplateResponseDto>(_json);
+    }
+
+    public async Task<StepTemplateResponseDto?> NewStepTemplateRevisionAsync(Guid id, NewRevisionDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/steptemplates/{id}/new-revision", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<StepTemplateResponseDto>(_json);
     }
 }

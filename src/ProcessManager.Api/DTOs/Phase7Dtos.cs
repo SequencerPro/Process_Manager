@@ -45,6 +45,11 @@ public record PfmeaResponseDto(
     Guid ProcessId,
     string ProcessName,
     string ProcessCode,
+    int ProcessVersion,
+    bool IsStale,
+    string? StalenessClearedBy,
+    DateTime? StalenessClearedAt,
+    string? StalenessClearanceNotes,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     List<PfmeaFailureModeResponseDto> FailureModes

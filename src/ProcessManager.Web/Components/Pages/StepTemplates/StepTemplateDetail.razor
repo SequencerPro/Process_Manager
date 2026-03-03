@@ -32,6 +32,7 @@ else
                     <span class="badge bg-info text-dark me-1">@_st.Pattern</span>
                     <span class="badge me-1 @(_st.IsActive ? "bg-success" : "bg-secondary")">@(_st.IsActive ? "Active" : "Inactive")</span>
                     <span class="badge bg-dark">v@_st.Version</span>
+                    <span class="badge @StatusBadgeClass(_st.Status) ms-1">@_st.Status</span>
                     @if (_st.Maturity is not null)
                     {
                         <span class="badge @MaturityBadgeClass(_st.Maturity.Level) ms-1" title="Maturity score @_st.Maturity.Score/100">
@@ -43,6 +44,27 @@ else
                     <button class="btn btn-outline-secondary btn-sm" @onclick="ShowEditForm">
                         <i class="bi bi-pencil me-1"></i>Edit
                     </button>
+                    @if (_st.Status == "Draft")
+                    {
+                        <button class="btn btn-outline-primary btn-sm" @onclick="() => _showSubmitModal = true">
+                            <i class="bi bi-send me-1"></i>Submit
+                        </button>
+                    }
+                    else if (_st.Status == "PendingApproval")
+                    {
+                        <button class="btn btn-success btn-sm" @onclick="() => _showApproveModal = true">
+                            <i class="bi bi-check-circle me-1"></i>Approve
+                        </button>
+                        <button class="btn btn-warning btn-sm" @onclick="() => _showRejectModal = true">
+                            <i class="bi bi-x-circle me-1"></i>Reject
+                        </button>
+                    }
+                    else if (_st.Status == "Released")
+                    {
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="() => _showNewRevisionModal = true">
+                            <i class="bi bi-arrow-clockwise me-1"></i>New Revision
+                        </button>
+                    }
                     <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
                         <i class="bi bi-trash me-1"></i>Delete
                     </button>
@@ -919,6 +941,113 @@ else
             </div>
         </div>
     }
+
+    @* Lifecycle Modals *@
+    @if (_showSubmitModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Submit for Approval</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showSubmitModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Submitted By</label>
+                            <input class="form-control" @bind="_lifecycleUser" placeholder="Your name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes (optional)</label>
+                            <textarea class="form-control" rows="2" @bind="_lifecycleNotes"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showSubmitModal = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SubmitForApproval">Submit</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    @if (_showApproveModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Approve Step Template</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showApproveModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Approved By</label>
+                            <input class="form-control" @bind="_lifecycleUser" placeholder="Your name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes (optional)</label>
+                            <textarea class="form-control" rows="2" @bind="_lifecycleNotes"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showApproveModal = false">Cancel</button>
+                        <button class="btn btn-success" @onclick="ApproveTemplate">Approve</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    @if (_showRejectModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Reject Step Template</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showRejectModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Rejected By</label>
+                            <input class="form-control" @bind="_lifecycleUser" placeholder="Your name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Rejection Reason</label>
+                            <textarea class="form-control" rows="2" @bind="_lifecycleNotes"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showRejectModal = false">Cancel</button>
+                        <button class="btn btn-warning" @onclick="RejectTemplate">Reject</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    @if (_showNewRevisionModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Create New Revision</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showNewRevisionModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted small">A new <strong>Draft</strong> copy of this step template will be created at v@(_st!.Version + 1).</p>
+                        <div class="mb-3">
+                            <label class="form-label">Requested By</label>
+                            <input class="form-control" @bind="_lifecycleUser" placeholder="Your name" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showNewRevisionModal = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="NewRevision">Create Revision</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -954,8 +1083,17 @@ else
     private int _portSortOrder;
 
     // Edit template form state
+    // Edit form
     private bool _showEditForm;
     private string _editName = "";
+
+    // Lifecycle modals
+    private bool _showSubmitModal;
+    private bool _showApproveModal;
+    private bool _showRejectModal;
+    private bool _showNewRevisionModal;
+    private string _lifecycleUser = "";
+    private string _lifecycleNotes = "";
     private string? _editDescription;
     private StepPattern _editPattern;
     private bool _editIsActive;
@@ -1552,6 +1690,61 @@ else
         MaturityLevel.Developing => "bg-warning text-dark",
         MaturityLevel.Draft => "bg-danger",
         _ => "bg-secondary"
+    };
+
+    private async Task SubmitForApproval()
+    {
+        if (string.IsNullOrWhiteSpace(_lifecycleUser)) { Toast.ShowError("Submitted By is required."); return; }
+        try
+        {
+            _st = await Api.SubmitStepTemplateForApprovalAsync(Id, new SubmitForApprovalDto(_lifecycleUser, _lifecycleNotes));
+            _showSubmitModal = false; _lifecycleUser = ""; _lifecycleNotes = "";
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task ApproveTemplate()
+    {
+        if (string.IsNullOrWhiteSpace(_lifecycleUser)) { Toast.ShowError("Approved By is required."); return; }
+        try
+        {
+            _st = await Api.ApproveStepTemplateAsync(Id, new ApproveDto(_lifecycleUser, _lifecycleNotes));
+            _showApproveModal = false; _lifecycleUser = ""; _lifecycleNotes = "";
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task RejectTemplate()
+    {
+        if (string.IsNullOrWhiteSpace(_lifecycleUser)) { Toast.ShowError("Rejected By is required."); return; }
+        try
+        {
+            _st = await Api.RejectStepTemplateAsync(Id, new RejectDto(_lifecycleUser, _lifecycleNotes ?? ""));
+            _showRejectModal = false; _lifecycleUser = ""; _lifecycleNotes = "";
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task NewRevision()
+    {
+        if (string.IsNullOrWhiteSpace(_lifecycleUser)) { Toast.ShowError("Requested By is required."); return; }
+        try
+        {
+            var newSt = await Api.NewStepTemplateRevisionAsync(Id, new NewRevisionDto(_lifecycleUser));
+            _showNewRevisionModal = false;
+            if (newSt is not null) Nav.NavigateTo($"step-templates/{newSt.Id}");
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private static string StatusBadgeClass(string? status) => status switch
+    {
+        "Draft"           => "bg-secondary",
+        "PendingApproval" => "bg-warning text-dark",
+        "Released"        => "bg-success",
+        "Superseded"      => "bg-dark",
+        "Retired"         => "bg-danger",
+        _                 => "bg-light text-dark"
     };
 
     private static string MaturityProgressBarClass(MaturityLevel level) => level switch

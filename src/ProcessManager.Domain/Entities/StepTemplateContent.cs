@@ -58,6 +58,12 @@ public class StepTemplateContent : BaseEntity
     // ── Phase 8a fields ──
 
     /// <summary>
+    /// The StepTemplate version in which this block was first added or last substantively modified.
+    /// Used by the ExecutionWizard to highlight content that changed since the previous release.
+    /// </summary>
+    public int IntroducedInVersion { get; set; } = 1;
+
+    /// <summary>
     /// Classifies the purpose of this content block (Setup/Safety/Inspection/Reference/Note).
     /// Drives wizard phase assignment and maturity scoring.
     /// </summary>

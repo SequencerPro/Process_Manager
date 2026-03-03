@@ -27,6 +27,7 @@ public record StepTemplateResponseDto(
     string? Description,
     StepPattern Pattern,
     int Version,
+    string Status,
     bool IsActive,
     DateTime CreatedAt,
     DateTime UpdatedAt,

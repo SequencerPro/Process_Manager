@@ -44,6 +44,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ExecutionData> ExecutionData => Set<ExecutionData>();
     public DbSet<PromptResponse> PromptResponses => Set<PromptResponse>();
     public DbSet<NonConformance> NonConformances => Set<NonConformance>();
+    public DbSet<ApprovalRecord> ApprovalRecords => Set<ApprovalRecord>();
 
     // Phase 4: Workflow Composition
     public DbSet<Workflow> Workflows => Set<Workflow>();
@@ -114,6 +115,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(s => s.Code).HasMaxLength(50).IsRequired();
             e.Property(s => s.Name).HasMaxLength(200).IsRequired();
             e.Property(s => s.Pattern).HasConversion<string>().HasMaxLength(20);
+            e.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
         });
 
         // --- StepTemplateImage ---
@@ -169,6 +171,13 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(p => p.Code).IsUnique();
             e.Property(p => p.Code).HasMaxLength(50).IsRequired();
             e.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            e.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
+
+            e.HasOne(p => p.ParentProcess)
+                .WithMany()
+                .HasForeignKey(p => p.ParentProcessId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // --- ProcessStep ---
@@ -526,6 +535,8 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(p => p.Code).IsUnique();
             e.Property(p => p.Code).HasMaxLength(100).IsRequired();
             e.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            e.Property(p => p.StalenessClearedBy).HasMaxLength(200);
+            e.Property(p => p.StalenessClearanceNotes).HasMaxLength(2000);
 
             e.HasOne(p => p.Process)
                 .WithMany()
@@ -661,6 +672,31 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(nc => nc.ContentBlockId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- ApprovalRecord ---
+        modelBuilder.Entity<ApprovalRecord>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.EntityType).HasMaxLength(20).IsRequired();
+            e.Property(a => a.SubmittedBy).HasMaxLength(200).IsRequired();
+            e.Property(a => a.ReviewedBy).HasMaxLength(200);
+            e.Property(a => a.Decision).HasMaxLength(20).IsRequired();
+            e.Property(a => a.Notes).HasMaxLength(2000);
+
+            e.HasOne(a => a.Process)
+                .WithMany(p => p.ApprovalRecords)
+                .HasForeignKey(a => a.ProcessId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(a => a.StepTemplate)
+                .WithMany(s => s.ApprovalRecords)
+                .HasForeignKey(a => a.StepTemplateId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(a => new { a.EntityType, a.EntityId });
         });
     }
 

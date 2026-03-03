@@ -25,6 +25,9 @@
 | 1.9     | 2026-03-03 | Phase 8b implemented: MaturityScoringService (8 rules, 0-100 score, 4 levels), maturity endpoints, maturity badges in StepTemplateDetail/List/ProcessDetail |
 | 1.10    | 2026-03-03 | Phase 8c implemented: NonConformance entity + DispositionStatus/LimitType enums, NonConformancesController, NonConformanceList page, EF migration |
 | 1.11    | 2026-03-03 | Phase 8d implemented: ExecutionWizard 5-phase guided operator UI at /execute/{id}; MyWork + JobDetail updated to link to wizard |
+| 1.12    | 2026-03-03 | Phase 9 API layer: ProcessStatus enum (Draft/PendingApproval/Released/Superseded/Retired), ApprovalRecord entity, PFMEA staleness fields, Job version pinning, lifecycle endpoints on ProcessesController + StepTemplatesController, ApprovalsController |
+| 1.13    | 2026-03-03 | Phase 9 EF migration Phase9_ChangeControl: Status columns (default Released), IntroducedInVersion, ProcessVersion, ApprovalRecords table |
+| 1.14    | 2026-03-03 | Phase 9 Blazor UI: ProcessList/Detail + StepTemplateList/Detail status badges, lifecycle buttons (Submit/Approve/Reject/NewRevision/Retire) with modals; ApprovalQueue page at /approval-queue; JobDetail superseded process banner; NavMenu Approval Queue link with pending badge |
 
 ---
 
@@ -1034,7 +1037,7 @@ Additional capability added post-Phase 6:
 ### Known Limitations / Next Steps
 
 - **Phase 8 — Process Maturity & Guided Execution** ✅ built: ContentCategory enum, NominalValue/IsHardLimit/AcknowledgmentRequired fields, MaturityScoringService (8 rules), maturity badges across list/detail views, NonConformance entity + disposition workflow, 5-phase ExecutionWizard at `/execute/{id}`
-- **Phase 9 — Process Change Control & Approval** designed, not yet built: formal Draft/PendingApproval/Released/Superseded lifecycle; PFMEA staleness tracking; change highlighting in execution wizard; approval records; job-level version pinning
+- **Phase 9 — Process Change Control & Approval** ✅ built: ProcessStatus lifecycle (Draft→PendingApproval→Released→Superseded→Retired), ApprovalRecord entity, PFMEA staleness tracking, job-level process version pinning, Submit/Approve/Reject/NewRevision/Retire endpoints, ApprovalQueue page, status badges across all list/detail views, NavMenu pending badge
 - **Phase 10 — Root Cause Analysis** designed, not yet built: Root Cause Library, Ishikawa fishbone diagrams, branching 5 Whys, linkage to non-conformances and PFMEA failure modes
 - **Phase 11 — Production Management** designed, not yet built: expected durations + job due dates, equipment catalog, downtime tracking, PM scheduling, production visibility dashboard (WIP board, late jobs, bottleneck flags, equipment status)
 - Multi-tenancy deferred until second SaaS tenant is onboarded (database-per-tenant approach selected — see Architecture Decision above)

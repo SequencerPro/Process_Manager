@@ -31,6 +31,7 @@ else
                     <span class="text-muted me-3"><code>@_proc.Code</code></span>
                     <span class="badge me-1 @(_proc.IsActive ? "bg-success" : "bg-secondary")">@(_proc.IsActive ? "Active" : "Inactive")</span>
                     <span class="badge bg-dark">v@_proc.Version</span>
+                    <span class="badge @StatusBadgeClass(_proc.Status) ms-1">@_proc.Status</span>
                     @{ var aggMaturity = AggregateMaturity(); }
                     @if (aggMaturity is not null)
                     {
@@ -53,6 +54,30 @@ else
                     <button class="btn btn-outline-info btn-sm me-1" @onclick="Validate">
                         <i class="bi bi-check2-all me-1"></i>Validate
                     </button>
+                    @if (_proc.Status == "Draft")
+                    {
+                        <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => _showSubmitModal = true">
+                            <i class="bi bi-send me-1"></i>Submit
+                        </button>
+                    }
+                    else if (_proc.Status == "PendingApproval")
+                    {
+                        <button class="btn btn-success btn-sm me-1" @onclick="() => _showApproveModal = true">
+                            <i class="bi bi-check-circle me-1"></i>Approve
+                        </button>
+                        <button class="btn btn-warning btn-sm me-1" @onclick="() => _showRejectModal = true">
+                            <i class="bi bi-x-circle me-1"></i>Reject
+                        </button>
+                    }
+                    else if (_proc.Status == "Released")
+                    {
+                        <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => _showNewRevisionModal = true">
+                            <i class="bi bi-arrow-clockwise me-1"></i>New Revision
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm me-1" @onclick="RetireProcess">
+                            <i class="bi bi-archive me-1"></i>Retire
+                        </button>
+                    }
                     <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
                         <i class="bi bi-trash me-1"></i>Delete
                     </button>
@@ -355,6 +380,119 @@ else
             </div>
         </div>
     }
+
+    @* Submit Modal *@
+    @if (_showSubmitModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Submit for Approval</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showSubmitModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Submitted By</label>
+                            <input class="form-control" @bind="_lifecycleUser" placeholder="Your name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes (optional)</label>
+                            <textarea class="form-control" rows="2" @bind="_lifecycleNotes"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showSubmitModal = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SubmitForApproval">Submit</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Approve Modal *@
+    @if (_showApproveModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Approve Process</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showApproveModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Approved By</label>
+                            <input class="form-control" @bind="_lifecycleUser" placeholder="Your name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes (optional)</label>
+                            <textarea class="form-control" rows="2" @bind="_lifecycleNotes"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showApproveModal = false">Cancel</button>
+                        <button class="btn btn-success" @onclick="ApproveProcess">Approve</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Reject Modal *@
+    @if (_showRejectModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Reject Process</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showRejectModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Rejected By</label>
+                            <input class="form-control" @bind="_lifecycleUser" placeholder="Your name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Rejection Reason</label>
+                            <textarea class="form-control" rows="2" @bind="_lifecycleNotes"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showRejectModal = false">Cancel</button>
+                        <button class="btn btn-warning" @onclick="RejectProcess">Reject</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* New Revision Modal *@
+    @if (_showNewRevisionModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Create New Revision</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showNewRevisionModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted small">A new <strong>Draft</strong> copy of this process will be created at v@(_proc!.Version + 1). The current Release remains active.</p>
+                        <div class="mb-3">
+                            <label class="form-label">Requested By</label>
+                            <input class="form-control" @bind="_lifecycleUser" placeholder="Your name" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showNewRevisionModal = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="NewRevision">Create Revision</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -393,6 +531,14 @@ else
     private string? _editDescription;
     private bool _editIsActive;
 
+    // Lifecycle modals
+    private bool _showSubmitModal;
+    private bool _showApproveModal;
+    private bool _showRejectModal;
+    private bool _showNewRevisionModal;
+    private string _lifecycleUser = "";
+    private string _lifecycleNotes = "";
+
     protected override async Task OnInitializedAsync() => await LoadData();
 
     private async Task LoadData()
@@ -421,7 +567,7 @@ else
     {
         _stepTemplateId = ""; _stepSequence = (_proc?.Steps.Count ?? 0) + 1; _stepNameOverride = "";
         _showStepForm = true;
-        _templates = await Api.GetStepTemplatesAsync("", true, 1, 100);
+        _templates = await Api.GetStepTemplatesAsync("", true, pageSize: 100);
         StateHasChanged();
     }
 
@@ -555,8 +701,69 @@ else
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
-    private MaturitySummaryDto? AggregateMaturity()
+    private async Task SubmitForApproval()
     {
+        if (string.IsNullOrWhiteSpace(_lifecycleUser)) { Toast.ShowError("Submitted By is required."); return; }
+        try
+        {
+            _proc = await Api.SubmitProcessForApprovalAsync(Id, new SubmitForApprovalDto(_lifecycleUser, _lifecycleNotes));
+            _showSubmitModal = false; _lifecycleUser = ""; _lifecycleNotes = "";
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task ApproveProcess()
+    {
+        if (string.IsNullOrWhiteSpace(_lifecycleUser)) { Toast.ShowError("Approved By is required."); return; }
+        try
+        {
+            _proc = await Api.ApproveProcessAsync(Id, new ApproveDto(_lifecycleUser, _lifecycleNotes));
+            _showApproveModal = false; _lifecycleUser = ""; _lifecycleNotes = "";
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task RejectProcess()
+    {
+        if (string.IsNullOrWhiteSpace(_lifecycleUser)) { Toast.ShowError("Rejected By is required."); return; }
+        try
+        {
+            _proc = await Api.RejectProcessAsync(Id, new RejectDto(_lifecycleUser, _lifecycleNotes ?? ""));
+            _showRejectModal = false; _lifecycleUser = ""; _lifecycleNotes = "";
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task NewRevision()
+    {
+        if (string.IsNullOrWhiteSpace(_lifecycleUser)) { Toast.ShowError("Requested By is required."); return; }
+        try
+        {
+            var newProc = await Api.NewProcessRevisionAsync(Id, new NewRevisionDto(_lifecycleUser));
+            _showNewRevisionModal = false;
+            if (newProc is not null) Nav.NavigateTo($"processes/{newProc.Id}");
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task RetireProcess()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Retire process '{_proc!.Name}'? It will be archived.")) return;
+        try { _proc = await Api.RetireProcessAsync(Id); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private static string StatusBadgeClass(string? status) => status switch
+    {
+        "Draft"           => "bg-secondary",
+        "PendingApproval" => "bg-warning text-dark",
+        "Released"        => "bg-success",
+        "Superseded"      => "bg-dark",
+        "Retired"         => "bg-danger",
+        _                 => "bg-light text-dark"
+    };
+
+    private MaturitySummaryDto? AggregateMaturity()    {
         if (_proc is null || !_proc.Steps.Any()) return null;
         var summaries = _proc.Steps
             .Select(s => s.StepTemplateMaturity)

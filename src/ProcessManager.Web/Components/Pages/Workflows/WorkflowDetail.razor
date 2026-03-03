@@ -523,7 +523,7 @@ else
     {
         _wpProcessId = ""; _wpIsEntry = false; _wpSortOrder = 0;
         _showProcessForm = true;
-        _availableProcesses = await Api.GetProcessesAsync("", true, 1, 100);
+        _availableProcesses = await Api.GetProcessesAsync("", true, pageSize: 100);
         StateHasChanged();
     }
 

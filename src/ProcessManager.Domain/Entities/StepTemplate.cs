@@ -25,9 +25,13 @@ public class StepTemplate : BaseEntity
     /// <summary>Whether this template is available for use.</summary>
     public bool IsActive { get; set; } = true;
 
+    /// <summary>Formal lifecycle state — mirrors Process lifecycle for step templates.</summary>
+    public ProcessStatus Status { get; set; } = ProcessStatus.Draft;
+
     // Navigation properties
     public ICollection<Port> Ports { get; set; } = new List<Port>();
     public ICollection<StepTemplateImage> Images { get; set; } = new List<StepTemplateImage>();
     public ICollection<RunChartWidget> RunChartWidgets { get; set; } = new List<RunChartWidget>();
     public ICollection<StepTemplateContent> Contents { get; set; } = new List<StepTemplateContent>();
+    public ICollection<ApprovalRecord> ApprovalRecords { get; set; } = new List<ApprovalRecord>();
 }

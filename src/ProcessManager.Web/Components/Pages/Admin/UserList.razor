@@ -63,6 +63,10 @@
                                 </span>
                             </td>
                             <td class="align-middle text-end">
+                                <button class="btn btn-sm btn-outline-secondary me-1"
+                                        @onclick="() => OpenEditModal(user)" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
                                 @if (user.UserName != TokenService.UserName)
                                 {
                                     <button class="btn btn-sm btn-outline-danger"
@@ -109,6 +113,10 @@
                         <div class="form-text">Minimum 8 characters.</div>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label fw-medium">Display Name</label>
+                        <InputText class="form-control" @bind-Value="NewUser.DisplayName" placeholder="Optional" />
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label fw-medium">Role <span class="text-danger">*</span></label>
                         <InputSelect class="form-select" @bind-Value="NewUser.Role">
                             <option value="Engineer">Engineer</option>
@@ -124,6 +132,41 @@
                         </button>
                     </div>
                 </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Edit User Modal ─────────────────────────────────────────────────────── *@
+@if (UserToEdit is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-person-gear me-2"></i>Edit @UserToEdit.UserName</h5>
+                    <button type="button" class="btn-close" @onclick="() => UserToEdit = null"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Display Name</label>
+                        <input class="form-control" @bind="EditDisplayName" placeholder="Optional" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">Role</label>
+                        <select class="form-select" @bind="EditRole">
+                            <option value="Engineer">Engineer</option>
+                            <option value="Admin">Admin</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => UserToEdit = null">Cancel</button>
+                    <button class="btn btn-primary" @onclick="HandleEditUser" disabled="@EditSaving">
+                        @if (EditSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -163,9 +206,10 @@
         [StringLength(50)]
         [RegularExpression(@"^\S+$", ErrorMessage = "Username cannot contain spaces.")]
         public string UserName { get; set; } = "";
-        [Required][EmailAddress]     public string Email    { get; set; } = "";
+        [Required][EmailAddress]     public string Email       { get; set; } = "";
         [Required][StringLength(100, MinimumLength = 8)] public string Password { get; set; } = "";
-        [Required]                   public string Role     { get; set; } = "Engineer";
+        [Required]                   public string Role        { get; set; } = "Engineer";
+        [StringLength(100)]          public string? DisplayName { get; set; }
     }
 
     private List<UserResponseDto>? Users;
@@ -174,6 +218,12 @@
     private bool ShowAddModal;
     private bool AddSaving;
     private NewUserModel NewUser = new();
+
+    // Edit modal
+    private UserResponseDto? UserToEdit;
+    private string EditDisplayName = "";
+    private string EditRole = "Engineer";
+    private bool EditSaving;
 
     // Delete modal
     private UserResponseDto? UserToDelete;
@@ -204,6 +254,28 @@
         finally { DeleteSaving = false; }
     }
 
+    private void OpenEditModal(UserResponseDto user)
+    {
+        UserToEdit = user;
+        EditDisplayName = user.DisplayName ?? "";
+        EditRole = user.Role;
+    }
+
+    private async Task HandleEditUser()
+    {
+        if (UserToEdit is null) return;
+        EditSaving = true;
+        try
+        {
+            await Api.UpdateUserAsync(UserToEdit.Id, new AdminUpdateUserDto(EditDisplayName, EditRole));
+            Toast.ShowSuccess($"User '{UserToEdit.UserName}' updated.");
+            UserToEdit = null;
+            await LoadUsers();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError($"Failed to update user: {ex.Message}"); }
+        finally { EditSaving = false; }
+    }
+
     private void CloseAddModal()
     {
         ShowAddModal = false;
@@ -215,7 +287,7 @@
         AddSaving = true;
         try
         {
-            var dto = new RegisterRequestDto(NewUser.UserName, NewUser.Email, NewUser.Password, NewUser.Role);
+            var dto = new RegisterRequestDto(NewUser.UserName, NewUser.Email, NewUser.Password, NewUser.Role, NewUser.DisplayName);
             await Api.RegisterUserAsync(dto);
             Toast.ShowSuccess($"User '{NewUser.UserName}' created.");
             CloseAddModal();

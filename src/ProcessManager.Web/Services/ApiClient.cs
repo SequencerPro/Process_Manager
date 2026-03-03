@@ -769,6 +769,13 @@ public class ApiClient
         return await resp.Content.ReadFromJsonAsync<UserResponseDto>(_json);
     }
 
+    public async Task<UserResponseDto?> UpdateUserAsync(string id, AdminUpdateUserDto dto)
+    {
+        var resp = await _http.PatchAsJsonAsync($"api/auth/users/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<UserResponseDto>(_json);
+    }
+
     public async Task DeleteUserAsync(string id)
     {
         var resp = await _http.DeleteAsync($"api/auth/users/{id}");

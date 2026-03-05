@@ -1,0 +1,19 @@
+@using Blazor.Diagrams.Components.Renderers
+@using ProcessManager.Web.Components.Pages.Workflows
+
+<div class="workflow-node @(Node.IsEntryPoint ? "entry-point" : "") @(Node.Selected ? "selected" : "")">
+    <div class="node-header d-flex align-items-center gap-1">
+        @if (Node.IsEntryPoint)
+        {
+            <i class="bi bi-flag-fill text-success" style="font-size:.7rem"></i>
+        }
+        <span class="text-truncate">@Node.ProcessName</span>
+    </div>
+    <div class="node-body">
+        <code>@Node.ProcessCode</code>
+    </div>
+</div>
+
+@code {
+    [Parameter] public WorkflowProcessNodeModel Node { get; set; } = null!;
+}

@@ -1,0 +1,792 @@
+@page "/workflows/{Id:guid}/builder"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ToastService Toast
+@using ProcessManager.Web.Components.Pages.Workflows
+
+<PageTitle>Workflow Builder</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_wf is null)
+{
+    <div class="alert alert-warning">Workflow not found.</div>
+}
+else
+{
+    @* ── Top Bar ── *@
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="workflows">Workflows</a></li>
+                <li class="breadcrumb-item"><a href="workflows/@Id">@_wf.Name</a></li>
+                <li class="breadcrumb-item active">Builder</li>
+            </ol>
+        </nav>
+        <div class="d-flex gap-1">
+            <button class="btn btn-outline-info btn-sm" @onclick="Validate" disabled="@_saving">
+                <i class="bi bi-check2-circle me-1"></i>Validate
+            </button>
+            <button class="btn btn-primary btn-sm" @onclick="Save" disabled="@_saving">
+                @if (_saving)
+                {
+                    <span class="spinner-border spinner-border-sm me-1"></span>
+                }
+                <i class="bi bi-floppy me-1"></i>Save Layout
+            </button>
+            <a href="workflows/@Id" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-arrow-left me-1"></i>Back
+            </a>
+        </div>
+    </div>
+
+    @if (_validation is not null)
+    {
+        <div class="alert @(_validation.IsValid ? "alert-success" : "alert-warning") py-2 mb-3">
+            <strong>@(_validation.IsValid ? "Valid" : "Invalid")</strong>
+            @if (_validation.Errors.Any())
+            {
+                <ul class="mb-0 mt-1">
+                    @foreach (var e in _validation.Errors) { <li class="text-danger">@e</li> }
+                </ul>
+            }
+            @if (_validation.Warnings.Any())
+            {
+                <ul class="mb-0 mt-1">
+                    @foreach (var w in _validation.Warnings) { <li class="text-warning">@w</li> }
+                </ul>
+            }
+            @if (_validation.IsValid && !_validation.Warnings.Any())
+            {
+                <span class="ms-1">— workflow configuration is correct.</span>
+            }
+        </div>
+    }
+
+    @* ── Main Layout: Canvas + Sidebar ── *@
+    <div class="d-flex" style="height: calc(100vh - 180px);">
+        @* Diagram Canvas *@
+        <div class="flex-grow-1 workflow-builder-canvas">
+            <CascadingValue Value="_diagram" IsFixed="true">
+                <DiagramCanvas></DiagramCanvas>
+            </CascadingValue>
+        </div>
+
+        @* Right Sidebar *@
+        <div class="workflow-builder-sidebar d-flex flex-column">
+            @* Add Process Button *@
+            <div class="sidebar-section">
+                <button class="btn btn-primary btn-sm w-100" @onclick="ShowProcessPicker">
+                    <i class="bi bi-plus-lg me-1"></i>Add Process
+                </button>
+            </div>
+
+            @* Process Picker *@
+            @if (_showPicker)
+            {
+                <div class="sidebar-section flex-grow-1" style="overflow-y: auto;">
+                    <h6>Available Processes</h6>
+                    <input type="text" class="form-control form-control-sm mb-2" placeholder="Search processes..."
+                           @bind="_pickerSearch" @bind:event="oninput" @bind:after="FilterProcesses" />
+                    @if (_filteredProcesses is not null)
+                    {
+                        @foreach (var p in _filteredProcesses)
+                        {
+                            var alreadyAdded = _addedProcessIds.Contains(p.Id);
+                            <div class="d-flex align-items-center justify-content-between border rounded p-2 mb-1 @(alreadyAdded ? "bg-light text-muted" : "")">
+                                <div class="text-truncate me-1">
+                                    <div class="fw-semibold" style="font-size:.8rem">@p.Name</div>
+                                    <code style="font-size:.7rem">@p.Code</code>
+                                </div>
+                                <button class="btn btn-outline-primary btn-sm py-0 px-1" disabled="@alreadyAdded"
+                                        @onclick="() => AddProcessToCanvas(p)">
+                                    <i class="bi bi-plus"></i>
+                                </button>
+                            </div>
+                        }
+                        @if (!_filteredProcesses.Any())
+                        {
+                            <div class="text-muted small text-center py-2">No processes found.</div>
+                        }
+                    }
+                </div>
+            }
+
+            @* Selected Node Configuration *@
+            @if (_selectedNode is not null && !_showPicker)
+            {
+                <div class="sidebar-section">
+                    <h6>Node Configuration</h6>
+                    <div class="mb-2">
+                        <label class="form-label small mb-0">Process</label>
+                        <div class="fw-semibold" style="font-size:.85rem">@_selectedNode.ProcessName</div>
+                        <code style="font-size:.75rem">@_selectedNode.ProcessCode</code>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input type="checkbox" class="form-check-input" id="nodeEntry"
+                               checked="@_selectedNode.IsEntryPoint"
+                               @onchange="e => ToggleEntryPoint((bool)e.Value!)" />
+                        <label class="form-check-label small" for="nodeEntry">Is Entry Point</label>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small mb-0">Sort Order</label>
+                        <input type="number" class="form-control form-control-sm"
+                               value="@_selectedNode.SortOrder"
+                               @onchange="HandleSortOrderChange" />
+                    </div>
+                    <hr class="my-2" />
+                    <a href="processes/@_selectedNode.ProcessId" class="btn btn-outline-secondary btn-sm w-100 mb-1">
+                        <i class="bi bi-box-arrow-up-right me-1"></i>View Process
+                    </a>
+                    <button class="btn btn-outline-danger btn-sm w-100" @onclick="DeleteSelectedNode">
+                        <i class="bi bi-trash me-1"></i>Remove from Workflow
+                    </button>
+                </div>
+            }
+
+            @* Selected Link Configuration *@
+            @if (_selectedLink is not null && _selectedLinkData is not null && !_showPicker)
+            {
+                <div class="sidebar-section">
+                    <h6>Link Configuration</h6>
+                    <div class="mb-2 small">
+                        <span class="text-muted">From:</span> @_selectedLinkData.SourceProcessName<br />
+                        <span class="text-muted">To:</span> @_selectedLinkData.TargetProcessName
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small mb-0">Routing Type</label>
+                        <span class="badge bg-info text-dark">@_selectedLinkData.RoutingType</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_selectedLinkData.Name))
+                    {
+                        <div class="mb-2">
+                            <label class="form-label small mb-0">Name</label>
+                            <div class="small">@_selectedLinkData.Name</div>
+                        </div>
+                    }
+                    @if (_selectedLinkData.Conditions?.Any() == true)
+                    {
+                        <div class="mb-2">
+                            <label class="form-label small mb-0">Conditions</label>
+                            <div>
+                                @foreach (var c in _selectedLinkData.Conditions)
+                                {
+                                    <span class="badge bg-light text-dark border me-1">@c.GradeCode</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                    <hr class="my-2" />
+                    <button class="btn btn-outline-danger btn-sm w-100" @onclick="DeleteSelectedLink">
+                        <i class="bi bi-trash me-1"></i>Delete Link
+                    </button>
+                </div>
+            }
+
+            @* Empty State *@
+            @if (_selectedNode is null && _selectedLink is null && !_showPicker)
+            {
+                <div class="sidebar-section text-muted small text-center flex-grow-1 d-flex align-items-center justify-content-center">
+                    <div>
+                        <i class="bi bi-hand-index d-block mb-2" style="font-size:1.5rem"></i>
+                        Click a node or link to configure,<br />
+                        or drag between ports to connect.<br />
+                        <span class="mt-2 d-block"><kbd>Delete</kbd> to remove selected.</span>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* ── Add Link Modal (routing type) ── *@
+    @if (_showLinkModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Configure Link</h5>
+                        <button type="button" class="btn-close" @onclick="CancelNewLink"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-2 small">
+                            <strong>@_newLinkSourceName</strong> &rarr; <strong>@_newLinkTargetName</strong>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Routing Type</label>
+                            <select class="form-select" @bind="_newLinkRoutingType" @bind:after="OnNewLinkRoutingTypeChanged">
+                                @foreach (var rt in Enum.GetValues<RoutingType>())
+                                {
+                                    <option value="@rt">@rt</option>
+                                }
+                            </select>
+                        </div>
+                        @if (_newLinkRoutingType == RoutingType.GradeBased)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Condition Grades</label>
+                                @if (_availableGrades is null)
+                                {
+                                    <div class="text-muted small">Loading grades...</div>
+                                }
+                                else if (!_availableGrades.Any())
+                                {
+                                    <div class="text-warning small">No grades available.</div>
+                                }
+                                else
+                                {
+                                    <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                                        @foreach (var g in _availableGrades)
+                                        {
+                                            <div class="form-check">
+                                                <input type="checkbox" class="form-check-input" id="nlg-@g.Id"
+                                                       checked="@(_newLinkGradeIds.Contains(g.Id))"
+                                                       @onchange="e => ToggleNewLinkGrade(g.Id, (bool)e.Value!)" />
+                                                <label class="form-check-label" for="nlg-@g.Id">@g.Code — @g.Name</label>
+                                            </div>
+                                        }
+                                    </div>
+                                    @if (!_newLinkGradeIds.Any())
+                                    {
+                                        <small class="text-danger">At least one grade must be selected.</small>
+                                    }
+                                }
+                            </div>
+                        }
+                        <div class="mb-3">
+                            <label class="form-label">Name (optional)</label>
+                            <input class="form-control" @bind="_newLinkName" placeholder="Optional" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="CancelNewLink">Cancel</button>
+                        <button class="btn btn-primary" @onclick="ConfirmNewLink">Create Link</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private BlazorDiagram _diagram = null!;
+    private WorkflowResponseDto? _wf;
+    private bool _loading = true;
+    private bool _saving;
+    private WorkflowValidationResultDto? _validation;
+
+    // Tracks which Process Ids are already on the canvas
+    private HashSet<Guid> _addedProcessIds = new();
+
+    // Process picker state
+    private bool _showPicker;
+    private string _pickerSearch = "";
+    private List<ProcessSummaryResponseDto>? _allProcesses;
+    private List<ProcessSummaryResponseDto>? _filteredProcesses;
+
+    // Selection state
+    private WorkflowProcessNodeModel? _selectedNode;
+    private LinkModel? _selectedLink;
+    private WorkflowLinkResponseDto? _selectedLinkData;
+
+    // New link modal state
+    private bool _showLinkModal;
+    private LinkModel? _pendingLink;
+    private string _newLinkSourceName = "";
+    private string _newLinkTargetName = "";
+    private RoutingType _newLinkRoutingType = RoutingType.Always;
+    private string _newLinkName = "";
+    private List<Guid> _newLinkGradeIds = new();
+    private List<GradeResponseDto>? _availableGrades;
+
+    // Map diagram link -> server link data
+    private Dictionary<LinkModel, WorkflowLinkResponseDto> _linkDataMap = new();
+
+    // Map WorkflowProcessId -> diagram node
+    private Dictionary<Guid, WorkflowProcessNodeModel> _nodeMap = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var options = new BlazorDiagramOptions();
+        options.AllowMultiSelection = false;
+        options.Zoom.Enabled = true;
+        options.Zoom.Minimum = 0.25;
+        options.Zoom.Maximum = 2.0;
+        options.Links.DefaultRouter = new NormalRouter();
+        options.Links.DefaultPathGenerator = new SmoothPathGenerator();
+
+        _diagram = new BlazorDiagram(options);
+        _diagram.RegisterComponent<WorkflowProcessNodeModel, WorkflowProcessNode>();
+
+        // Wire events
+        _diagram.SelectionChanged += OnSelectionChanged;
+        _diagram.Links.Added += OnLinkAdded;
+        _diagram.KeyDown += OnKeyDown;
+
+        await LoadWorkflow();
+        _loading = false;
+    }
+
+    // ───────────── Load & Populate ─────────────
+
+    private async Task LoadWorkflow()
+    {
+        try
+        {
+            _wf = await Api.GetWorkflowAsync(Id);
+            if (_wf is not null)
+                PopulateDiagram();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load workflow: {ex.Message}");
+        }
+    }
+
+    private void PopulateDiagram()
+    {
+        _diagram.Nodes.Clear();
+        _diagram.Links.Clear();
+        _nodeMap.Clear();
+        _linkDataMap.Clear();
+        _addedProcessIds.Clear();
+        _selectedNode = null;
+        _selectedLink = null;
+        _selectedLinkData = null;
+
+        if (_wf?.Processes is null) return;
+
+        // Check if any node has been positioned
+        bool allDefault = _wf.Processes.All(wp => wp.PositionX == 0 && wp.PositionY == 0);
+
+        foreach (var wp in _wf.Processes.OrderBy(p => p.SortOrder))
+        {
+            double x = wp.PositionX;
+            double y = wp.PositionY;
+
+            if (allDefault)
+            {
+                // Auto-layout: cascade in a grid pattern
+                int idx = _wf.Processes.OrderBy(p => p.SortOrder).ToList().IndexOf(wp);
+                int col = idx % 3;
+                int row = idx / 3;
+                x = 80 + col * 280;
+                y = 80 + row * 200;
+            }
+
+            var node = new WorkflowProcessNodeModel(new Point(x, y))
+            {
+                WorkflowProcessId = wp.Id,
+                ProcessId = wp.ProcessId,
+                ProcessName = wp.ProcessName,
+                ProcessCode = wp.ProcessCode,
+                IsEntryPoint = wp.IsEntryPoint,
+                SortOrder = wp.SortOrder
+            };
+
+            node.AddPort(PortAlignment.Top);
+            node.AddPort(PortAlignment.Bottom);
+
+            _diagram.Nodes.Add(node);
+            _nodeMap[wp.Id] = node;
+            _addedProcessIds.Add(wp.ProcessId);
+        }
+
+        // Create links
+        if (_wf.Links is not null)
+        {
+            foreach (var lk in _wf.Links)
+            {
+                if (_nodeMap.TryGetValue(lk.SourceWorkflowProcessId, out var srcNode) &&
+                    _nodeMap.TryGetValue(lk.TargetWorkflowProcessId, out var tgtNode))
+                {
+                    var srcPort = srcNode.GetPort(PortAlignment.Bottom);
+                    var tgtPort = tgtNode.GetPort(PortAlignment.Top);
+                    if (srcPort is not null && tgtPort is not null)
+                    {
+                        var link = new LinkModel(srcPort, tgtPort);
+
+                        // Add label showing routing type or name
+                        var label = lk.Name ?? lk.RoutingType.ToString();
+                        link.Labels.Add(new LinkLabelModel(link, label));
+
+                        _diagram.Links.Add(link);
+                        _linkDataMap[link] = lk;
+                    }
+                }
+            }
+        }
+    }
+
+    // ───────────── Selection ─────────────
+
+    private void OnSelectionChanged(SelectableModel model)
+    {
+        _showPicker = false;
+
+        if (model is WorkflowProcessNodeModel node && model.Selected)
+        {
+            _selectedNode = node;
+            _selectedLink = null;
+            _selectedLinkData = null;
+        }
+        else if (model is LinkModel link && model.Selected)
+        {
+            _selectedLink = link;
+            _selectedNode = null;
+            _linkDataMap.TryGetValue(link, out _selectedLinkData);
+        }
+        else
+        {
+            _selectedNode = null;
+            _selectedLink = null;
+            _selectedLinkData = null;
+        }
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    // ───────────── Link Creation ─────────────
+
+    private void OnLinkAdded(BaseLinkModel link)
+    {
+        // Only handle user-drawn links (those not already in our map)
+        if (link is LinkModel lm && !_linkDataMap.ContainsKey(lm))
+        {
+            link.TargetChanged += OnLinkTargetChanged;
+        }
+    }
+
+    private void OnLinkTargetChanged(BaseLinkModel link, Anchor oldTarget, Anchor newTarget)
+    {
+        link.TargetChanged -= OnLinkTargetChanged;
+
+        if (link is LinkModel lm && link.Target is SinglePortAnchor tgtAnchor && link.Source is SinglePortAnchor srcAnchor)
+        {
+            var srcNode = srcAnchor.Port?.Parent as WorkflowProcessNodeModel;
+            var tgtNode = tgtAnchor.Port?.Parent as WorkflowProcessNodeModel;
+
+            if (srcNode is not null && tgtNode is not null && srcNode != tgtNode)
+            {
+                _pendingLink = lm;
+                _newLinkSourceName = srcNode.ProcessName;
+                _newLinkTargetName = tgtNode.ProcessName;
+                _newLinkRoutingType = RoutingType.Always;
+                _newLinkName = "";
+                _newLinkGradeIds = new();
+                _showLinkModal = true;
+                InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                // Invalid link — remove it
+                _diagram.Links.Remove(lm);
+            }
+        }
+    }
+
+    private async Task OnNewLinkRoutingTypeChanged()
+    {
+        if (_newLinkRoutingType == RoutingType.GradeBased && _availableGrades is null)
+        {
+            await LoadGrades();
+        }
+    }
+
+    private void ToggleNewLinkGrade(Guid gradeId, bool isChecked)
+    {
+        if (isChecked && !_newLinkGradeIds.Contains(gradeId))
+            _newLinkGradeIds.Add(gradeId);
+        else if (!isChecked)
+            _newLinkGradeIds.Remove(gradeId);
+    }
+
+    private async Task ConfirmNewLink()
+    {
+        if (_pendingLink is null) return;
+
+        var srcAnchor = _pendingLink.Source as SinglePortAnchor;
+        var tgtAnchor = _pendingLink.Target as SinglePortAnchor;
+        var srcNode = srcAnchor?.Port?.Parent as WorkflowProcessNodeModel;
+        var tgtNode = tgtAnchor?.Port?.Parent as WorkflowProcessNodeModel;
+
+        if (srcNode is null || tgtNode is null) { CancelNewLink(); return; }
+
+        if (_newLinkRoutingType == RoutingType.GradeBased && !_newLinkGradeIds.Any())
+        {
+            Toast.ShowError("GradeBased links must have at least one condition grade.");
+            return;
+        }
+
+        try
+        {
+            var dto = new CreateWorkflowLinkDto(
+                srcNode.WorkflowProcessId,
+                tgtNode.WorkflowProcessId,
+                _newLinkRoutingType,
+                string.IsNullOrWhiteSpace(_newLinkName) ? null : _newLinkName,
+                0,
+                _newLinkRoutingType == RoutingType.GradeBased ? _newLinkGradeIds : null);
+
+            var result = await Api.AddWorkflowLinkAsync(Id, dto);
+            if (result is not null)
+            {
+                _linkDataMap[_pendingLink] = result;
+                var label = result.Name ?? result.RoutingType.ToString();
+                _pendingLink.Labels.Add(new LinkLabelModel(_pendingLink, label));
+                Toast.ShowSuccess("Link created.");
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            Toast.ShowError(ex.Message);
+            _diagram.Links.Remove(_pendingLink);
+        }
+
+        _showLinkModal = false;
+        _pendingLink = null;
+    }
+
+    private void CancelNewLink()
+    {
+        if (_pendingLink is not null)
+        {
+            _diagram.Links.Remove(_pendingLink);
+        }
+        _showLinkModal = false;
+        _pendingLink = null;
+    }
+
+    // ───────────── Process Picker ─────────────
+
+    private async Task ShowProcessPicker()
+    {
+        _showPicker = true;
+        _selectedNode = null;
+        _selectedLink = null;
+        _selectedLinkData = null;
+
+        if (_allProcesses is null)
+        {
+            try
+            {
+                var result = await Api.GetProcessesAsync("", true, pageSize: 200);
+                _allProcesses = result?.Items?.ToList() ?? new();
+            }
+            catch { _allProcesses = new(); }
+        }
+
+        FilterProcesses();
+    }
+
+    private void FilterProcesses()
+    {
+        if (_allProcesses is null) { _filteredProcesses = null; return; }
+
+        var search = _pickerSearch.Trim().ToLowerInvariant();
+        _filteredProcesses = string.IsNullOrEmpty(search)
+            ? _allProcesses
+            : _allProcesses.Where(p =>
+                p.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                p.Code.Contains(search, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    private async Task AddProcessToCanvas(ProcessSummaryResponseDto process)
+    {
+        if (_addedProcessIds.Contains(process.Id)) return;
+
+        // Calculate position for the new node (center of current viewport, offset by count)
+        int count = _diagram.Nodes.Count;
+        double x = 80 + (count % 3) * 280;
+        double y = 80 + (count / 3) * 200;
+
+        try
+        {
+            var dto = new AddWorkflowProcessDto(process.Id, false, count, x, y);
+            var result = await Api.AddWorkflowProcessAsync(Id, dto);
+            if (result is not null)
+            {
+                var node = new WorkflowProcessNodeModel(new Point(x, y))
+                {
+                    WorkflowProcessId = result.Id,
+                    ProcessId = result.ProcessId,
+                    ProcessName = result.ProcessName,
+                    ProcessCode = result.ProcessCode,
+                    IsEntryPoint = result.IsEntryPoint,
+                    SortOrder = result.SortOrder
+                };
+
+                node.AddPort(PortAlignment.Top);
+                node.AddPort(PortAlignment.Bottom);
+
+                _diagram.Nodes.Add(node);
+                _nodeMap[result.Id] = node;
+                _addedProcessIds.Add(process.Id);
+                Toast.ShowSuccess($"Added '{process.Name}' to workflow.");
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            Toast.ShowError(ex.Message);
+        }
+    }
+
+    // ───────────── Node Configuration ─────────────
+
+    private async Task ToggleEntryPoint(bool value)
+    {
+        if (_selectedNode is null) return;
+
+        try
+        {
+            await Api.UpdateWorkflowProcessAsync(Id, _selectedNode.WorkflowProcessId,
+                new UpdateWorkflowProcessDto(IsEntryPoint: value));
+            _selectedNode.IsEntryPoint = value;
+            _selectedNode.Refresh();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task HandleSortOrderChange(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var val))
+            await UpdateSortOrder(val);
+    }
+
+    private async Task UpdateSortOrder(int value)
+    {
+        if (_selectedNode is null) return;
+
+        try
+        {
+            await Api.UpdateWorkflowProcessAsync(Id, _selectedNode.WorkflowProcessId,
+                new UpdateWorkflowProcessDto(SortOrder: value));
+            _selectedNode.SortOrder = value;
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    // ───────────── Delete ─────────────
+
+    private async Task DeleteSelectedNode()
+    {
+        if (_selectedNode is null) return;
+        if (!await JS.InvokeAsync<bool>("confirm", "Remove this process from the workflow? All its links will also be removed.")) return;
+
+        try
+        {
+            // First delete any links connected to this node
+            var linksToRemove = _linkDataMap
+                .Where(kvp =>
+                    kvp.Value.SourceWorkflowProcessId == _selectedNode.WorkflowProcessId ||
+                    kvp.Value.TargetWorkflowProcessId == _selectedNode.WorkflowProcessId)
+                .ToList();
+
+            foreach (var kvp in linksToRemove)
+            {
+                await Api.DeleteWorkflowLinkAsync(Id, kvp.Value.Id);
+                _diagram.Links.Remove(kvp.Key);
+                _linkDataMap.Remove(kvp.Key);
+            }
+
+            await Api.DeleteWorkflowProcessAsync(Id, _selectedNode.WorkflowProcessId);
+            _addedProcessIds.Remove(_selectedNode.ProcessId);
+            _nodeMap.Remove(_selectedNode.WorkflowProcessId);
+            _diagram.Nodes.Remove(_selectedNode);
+            _selectedNode = null;
+            Toast.ShowSuccess("Process removed from workflow.");
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task DeleteSelectedLink()
+    {
+        if (_selectedLink is null || _selectedLinkData is null) return;
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this link?")) return;
+
+        try
+        {
+            await Api.DeleteWorkflowLinkAsync(Id, _selectedLinkData.Id);
+            _diagram.Links.Remove(_selectedLink);
+            _linkDataMap.Remove(_selectedLink);
+            _selectedLink = null;
+            _selectedLinkData = null;
+            Toast.ShowSuccess("Link deleted.");
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private void OnKeyDown(Blazor.Diagrams.Core.Events.KeyboardEventArgs e)
+    {
+        if (e.Key == "Delete" || e.Key == "Backspace")
+        {
+            if (_selectedNode is not null)
+                _ = DeleteSelectedNode();
+            else if (_selectedLink is not null)
+                _ = DeleteSelectedLink();
+        }
+    }
+
+    // ───────────── Save ─────────────
+
+    private async Task Save()
+    {
+        _saving = true;
+        try
+        {
+            var positions = _diagram.Nodes
+                .OfType<WorkflowProcessNodeModel>()
+                .Select(n => new WorkflowProcessPositionDto(
+                    n.WorkflowProcessId,
+                    n.Position!.X,
+                    n.Position!.Y))
+                .ToList();
+
+            await Api.UpdateWorkflowProcessPositionsAsync(Id,
+                new UpdateWorkflowProcessPositionsDto(positions));
+
+            Toast.ShowSuccess("Layout saved.");
+        }
+        catch (HttpRequestException ex)
+        {
+            Toast.ShowError(ex.Message);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // ───────────── Validate ─────────────
+
+    private async Task Validate()
+    {
+        try
+        {
+            _validation = await Api.ValidateWorkflowAsync(Id);
+        }
+        catch (HttpRequestException ex)
+        {
+            Toast.ShowError(ex.Message);
+            _validation = null;
+        }
+    }
+
+    // ───────────── Helpers ─────────────
+
+    private async Task LoadGrades()
+    {
+        try
+        {
+            var kindsResult = await Api.GetKindsAsync(page: 1, pageSize: 100);
+            _availableGrades = kindsResult?.Items?.SelectMany(k => k.Grades).OrderBy(g => g.Code).ToList() ?? new();
+        }
+        catch { _availableGrades = new(); }
+    }
+}

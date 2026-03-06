@@ -116,3 +116,38 @@ h1:focus {
     color: #6c757d;
     margin-bottom: 0.5rem;
 }
+
+/* ── Workflow Ports ── */
+
+.workflow-port {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #0d6efd;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px #0d6efd;
+    cursor: crosshair;
+    transition: transform 0.1s;
+}
+
+.workflow-port:hover {
+    transform: scale(1.4);
+    background: #0a58ca;
+}
+
+/* ── Diagram link/arrow styles ── */
+
+.diagram-link path.main {
+    stroke: #0d6efd;
+    stroke-width: 2;
+}
+
+.diagram-link path.main:hover {
+    stroke: #0a58ca;
+    stroke-width: 3;
+}
+
+.diagram-link .link-label {
+    font-size: 0.7rem;
+    fill: #6c757d;
+}

@@ -9,7 +9,16 @@
       "Bash(dotnet add:*)",
       "Bash(pwsh -Command \":*)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(pg_dump:*)",
+      "Bash(\"C:/Program Files/PostgreSQL/18/bin/pg_dump\" --version)",
+      "Bash(\"C:/Program Files/PostgreSQL/18/bin/pg_dump\" \"postgresql://processmanager:zlUbWIWFEB0zVVija82oML7sN12Mzowh@dpg-d6i83pngi27c739pd270-a.oregon-postgres.render.com/processmanager\" --format=custom --no-owner --no-acl -f \"C:/Users/James/render_backup.dump\")",
+      "Bash(PGPASSWORD=postgres \"C:/Program Files/PostgreSQL/18/bin/psql\":*)",
+      "Bash(PGPASSWORD=postgres \"C:/Program Files/PostgreSQL/18/bin/pg_restore\":*)",
+      "Bash(dotnet ef database update:*)",
+      "Bash(unzip:*)",
+      "WebFetch(domain:blazor-diagrams.zhaytam.com)",
+      "WebFetch(domain:www.nuget.org)"
     ]
   }
 }

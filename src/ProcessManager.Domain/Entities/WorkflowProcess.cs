@@ -23,6 +23,9 @@ public class WorkflowProcess : BaseEntity
     /// <summary>Y-coordinate on the visual builder canvas.</summary>
     public double PositionY { get; set; }
 
+    /// <summary>Hex color for the tile in the visual builder (e.g. "#0d6efd").</summary>
+    public string? Color { get; set; }
+
     // Navigation properties
     public Workflow Workflow { get; set; } = null!;
     public Process Process { get; set; } = null!;

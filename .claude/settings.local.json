@@ -18,7 +18,8 @@
       "Bash(dotnet ef database update:*)",
       "Bash(unzip:*)",
       "WebFetch(domain:blazor-diagrams.zhaytam.com)",
-      "WebFetch(domain:www.nuget.org)"
+      "WebFetch(domain:www.nuget.org)",
+      "WebFetch(domain:api.github.com)"
     ]
   }
 }

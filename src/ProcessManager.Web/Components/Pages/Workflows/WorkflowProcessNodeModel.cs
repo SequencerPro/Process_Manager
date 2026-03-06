@@ -23,6 +23,9 @@ public class WorkflowProcessNodeModel : NodeModel
     public bool IsEntryPoint { get; set; }
     public int SortOrder { get; set; }
 
+    /// <summary>Hex color for the tile border/header (e.g. "#0d6efd").</summary>
+    public string? Color { get; set; }
+
     /// <summary>Server-side link Id, kept in a dictionary keyed by target node id for quick lookup.</summary>
     public Guid? ServerLinkId { get; set; }
 }

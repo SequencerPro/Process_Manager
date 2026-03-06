@@ -78,10 +78,14 @@ else
 
         @* Right Sidebar *@
         <div class="workflow-builder-sidebar d-flex flex-column">
-            @* Add Process Button *@
+            @* Add Process & Create Link Buttons *@
             <div class="sidebar-section">
-                <button class="btn btn-primary btn-sm w-100" @onclick="ShowProcessPicker">
+                <button class="btn btn-primary btn-sm w-100 mb-1" @onclick="ShowProcessPicker">
                     <i class="bi bi-plus-lg me-1"></i>Add Process
+                </button>
+                <button class="btn btn-outline-primary btn-sm w-100" @onclick="ShowCreateLinkModal"
+                        disabled="@(_diagram.Nodes.Count < 2)">
+                    <i class="bi bi-arrow-right me-1"></i>Create Link
                 </button>
             </div>
 
@@ -138,6 +142,18 @@ else
                                value="@_selectedNode.SortOrder"
                                @onchange="HandleSortOrderChange" />
                     </div>
+                    <div class="mb-2">
+                        <label class="form-label small mb-0">Tile Color</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="color" class="form-control form-control-color form-control-sm"
+                                   value="@GetNodeColor()"
+                                   @onchange="HandleColorChange" />
+                            <button class="btn btn-outline-secondary btn-sm py-0 px-1"
+                                    @onclick="ResetNodeColor" title="Reset to default">
+                                <i class="bi bi-arrow-counterclockwise"></i>
+                            </button>
+                        </div>
+                    </div>
                     <hr class="my-2" />
                     <a href="processes/@_selectedNode.ProcessId" class="btn btn-outline-secondary btn-sm w-100 mb-1">
                         <i class="bi bi-box-arrow-up-right me-1"></i>View Process
@@ -180,6 +196,14 @@ else
                             </div>
                         </div>
                     }
+                    <div class="mb-2">
+                        <label class="form-label small mb-0">Line Shape</label>
+                        <select class="form-select form-select-sm" value="@GetLinkShape()"
+                                @onchange="HandleLinkShapeChange">
+                            <option value="straight">Straight (right-angle)</option>
+                            <option value="curved">Curved (smooth)</option>
+                        </select>
+                    </div>
                     <hr class="my-2" />
                     <button class="btn btn-outline-danger btn-sm w-100" @onclick="DeleteSelectedLink">
                         <i class="bi bi-trash me-1"></i>Delete Link
@@ -213,9 +237,36 @@ else
                         <button type="button" class="btn-close" @onclick="CancelNewLink"></button>
                     </div>
                     <div class="modal-body">
-                        <div class="mb-2 small">
-                            <strong>@_newLinkSourceName</strong> &rarr; <strong>@_newLinkTargetName</strong>
-                        </div>
+                        @if (_isManualLinkCreation)
+                        {
+                            @* Manual link creation — show source/target selectors *@
+                            <div class="mb-3">
+                                <label class="form-label">Source Process</label>
+                                <select class="form-select" @bind="_manualSourceId">
+                                    <option value="">— Select source —</option>
+                                    @foreach (var n in _diagram.Nodes.OfType<WorkflowProcessNodeModel>())
+                                    {
+                                        <option value="@n.WorkflowProcessId">@n.ProcessName</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Target Process</label>
+                                <select class="form-select" @bind="_manualTargetId">
+                                    <option value="">— Select target —</option>
+                                    @foreach (var n in _diagram.Nodes.OfType<WorkflowProcessNodeModel>())
+                                    {
+                                        <option value="@n.WorkflowProcessId">@n.ProcessName</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="mb-2 small">
+                                <strong>@_newLinkSourceName</strong> &rarr; <strong>@_newLinkTargetName</strong>
+                            </div>
+                        }
                         <div class="mb-3">
                             <label class="form-label">Routing Type</label>
                             <select class="form-select" @bind="_newLinkRoutingType" @bind:after="OnNewLinkRoutingTypeChanged">
@@ -305,8 +356,16 @@ else
     private List<Guid> _newLinkGradeIds = new();
     private List<GradeResponseDto>? _availableGrades;
 
+    // Manual link creation state
+    private bool _isManualLinkCreation;
+    private string _manualSourceId = "";
+    private string _manualTargetId = "";
+
     // Map diagram link -> server link data
     private Dictionary<LinkModel, WorkflowLinkResponseDto> _linkDataMap = new();
+
+    // Map diagram link -> shape setting
+    private Dictionary<LinkModel, string> _linkShapeMap = new();
 
     // Map WorkflowProcessId -> diagram node
     private Dictionary<Guid, WorkflowProcessNodeModel> _nodeMap = new();
@@ -355,6 +414,7 @@ else
         _diagram.Links.Clear();
         _nodeMap.Clear();
         _linkDataMap.Clear();
+        _linkShapeMap.Clear();
         _addedProcessIds.Clear();
         _selectedNode = null;
         _selectedLink = null;
@@ -387,7 +447,8 @@ else
                 ProcessName = wp.ProcessName,
                 ProcessCode = wp.ProcessCode,
                 IsEntryPoint = wp.IsEntryPoint,
-                SortOrder = wp.SortOrder
+                SortOrder = wp.SortOrder,
+                Color = wp.Color
             };
 
             node.AddPort(PortAlignment.Top);
@@ -420,6 +481,7 @@ else
 
                         _diagram.Links.Add(link);
                         _linkDataMap[link] = lk;
+                        _linkShapeMap[link] = "straight"; // default
                     }
                 }
             }
@@ -454,7 +516,7 @@ else
         InvokeAsync(StateHasChanged);
     }
 
-    // ───────────── Link Creation ─────────────
+    // ───────────── Link Creation (drag from port) ─────────────
 
     private void OnLinkAdded(BaseLinkModel link)
     {
@@ -482,6 +544,7 @@ else
                 _newLinkRoutingType = RoutingType.Always;
                 _newLinkName = "";
                 _newLinkGradeIds = new();
+                _isManualLinkCreation = false;
                 _showLinkModal = true;
                 InvokeAsync(StateHasChanged);
             }
@@ -491,6 +554,20 @@ else
                 _diagram.Links.Remove(lm);
             }
         }
+    }
+
+    // ───────────── Link Creation (manual via modal) ─────────────
+
+    private void ShowCreateLinkModal()
+    {
+        _isManualLinkCreation = true;
+        _manualSourceId = "";
+        _manualTargetId = "";
+        _newLinkRoutingType = RoutingType.Always;
+        _newLinkName = "";
+        _newLinkGradeIds = new();
+        _pendingLink = null;
+        _showLinkModal = true;
     }
 
     private async Task OnNewLinkRoutingTypeChanged()
@@ -511,12 +588,36 @@ else
 
     private async Task ConfirmNewLink()
     {
-        if (_pendingLink is null) return;
+        Guid srcWpId, tgtWpId;
+        WorkflowProcessNodeModel? srcNode, tgtNode;
 
-        var srcAnchor = _pendingLink.Source as SinglePortAnchor;
-        var tgtAnchor = _pendingLink.Target as SinglePortAnchor;
-        var srcNode = srcAnchor?.Port?.Parent as WorkflowProcessNodeModel;
-        var tgtNode = tgtAnchor?.Port?.Parent as WorkflowProcessNodeModel;
+        if (_isManualLinkCreation)
+        {
+            // Manual creation — get source/target from dropdowns
+            if (!Guid.TryParse(_manualSourceId, out srcWpId) || !Guid.TryParse(_manualTargetId, out tgtWpId))
+            {
+                Toast.ShowError("Please select both source and target processes.");
+                return;
+            }
+            if (srcWpId == tgtWpId)
+            {
+                Toast.ShowError("Source and target must be different.");
+                return;
+            }
+            _nodeMap.TryGetValue(srcWpId, out srcNode);
+            _nodeMap.TryGetValue(tgtWpId, out tgtNode);
+        }
+        else
+        {
+            // Port-dragged creation
+            if (_pendingLink is null) return;
+            var srcAnchor = _pendingLink.Source as SinglePortAnchor;
+            var tgtAnchor = _pendingLink.Target as SinglePortAnchor;
+            srcNode = srcAnchor?.Port?.Parent as WorkflowProcessNodeModel;
+            tgtNode = tgtAnchor?.Port?.Parent as WorkflowProcessNodeModel;
+            srcWpId = srcNode?.WorkflowProcessId ?? Guid.Empty;
+            tgtWpId = tgtNode?.WorkflowProcessId ?? Guid.Empty;
+        }
 
         if (srcNode is null || tgtNode is null) { CancelNewLink(); return; }
 
@@ -529,8 +630,8 @@ else
         try
         {
             var dto = new CreateWorkflowLinkDto(
-                srcNode.WorkflowProcessId,
-                tgtNode.WorkflowProcessId,
+                srcWpId,
+                tgtWpId,
                 _newLinkRoutingType,
                 string.IsNullOrWhiteSpace(_newLinkName) ? null : _newLinkName,
                 0,
@@ -539,20 +640,42 @@ else
             var result = await Api.AddWorkflowLinkAsync(Id, dto);
             if (result is not null)
             {
-                _linkDataMap[_pendingLink] = result;
+                LinkModel diagramLink;
+
+                if (_isManualLinkCreation)
+                {
+                    // Create diagram link for manual creation
+                    var (srcPort, tgtPort) = GetBestPortPair(srcNode, tgtNode);
+                    if (srcPort is null || tgtPort is null)
+                    {
+                        Toast.ShowError("Could not find ports to connect.");
+                        return;
+                    }
+                    diagramLink = new LinkModel(srcPort, tgtPort);
+                    _diagram.Links.Add(diagramLink);
+                }
+                else
+                {
+                    diagramLink = _pendingLink!;
+                }
+
+                _linkDataMap[diagramLink] = result;
+                _linkShapeMap[diagramLink] = "straight";
                 var label = result.Name ?? result.RoutingType.ToString();
-                _pendingLink.Labels.Add(new LinkLabelModel(_pendingLink, label));
+                diagramLink.Labels.Add(new LinkLabelModel(diagramLink, label));
                 Toast.ShowSuccess("Link created.");
             }
         }
         catch (HttpRequestException ex)
         {
             Toast.ShowError(ex.Message);
-            _diagram.Links.Remove(_pendingLink);
+            if (_pendingLink is not null)
+                _diagram.Links.Remove(_pendingLink);
         }
 
         _showLinkModal = false;
         _pendingLink = null;
+        _isManualLinkCreation = false;
     }
 
     private void CancelNewLink()
@@ -563,6 +686,7 @@ else
         }
         _showLinkModal = false;
         _pendingLink = null;
+        _isManualLinkCreation = false;
     }
 
     // ───────────── Process Picker ─────────────
@@ -603,7 +727,7 @@ else
     {
         if (_addedProcessIds.Contains(process.Id)) return;
 
-        // Calculate position for the new node (center of current viewport, offset by count)
+        // Calculate position for the new node (grid offset by count)
         int count = _diagram.Nodes.Count;
         double x = 80 + (count % 3) * 280;
         double y = 80 + (count / 3) * 200;
@@ -621,7 +745,8 @@ else
                     ProcessName = result.ProcessName,
                     ProcessCode = result.ProcessCode,
                     IsEntryPoint = result.IsEntryPoint,
-                    SortOrder = result.SortOrder
+                    SortOrder = result.SortOrder,
+                    Color = result.Color
                 };
 
                 node.AddPort(PortAlignment.Top);
@@ -676,6 +801,74 @@ else
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
+    private string GetNodeColor()
+    {
+        return !string.IsNullOrEmpty(_selectedNode?.Color) ? _selectedNode.Color
+            : _selectedNode?.IsEntryPoint == true ? "#198754"
+            : "#0d6efd";
+    }
+
+    private async Task HandleColorChange(ChangeEventArgs e)
+    {
+        if (_selectedNode is null) return;
+        var color = e.Value?.ToString();
+        if (string.IsNullOrEmpty(color)) return;
+
+        try
+        {
+            await Api.UpdateWorkflowProcessAsync(Id, _selectedNode.WorkflowProcessId,
+                new UpdateWorkflowProcessDto(Color: color));
+            _selectedNode.Color = color;
+            _selectedNode.Refresh();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task ResetNodeColor()
+    {
+        if (_selectedNode is null) return;
+
+        try
+        {
+            // Reset to empty string (server stores null)
+            await Api.UpdateWorkflowProcessAsync(Id, _selectedNode.WorkflowProcessId,
+                new UpdateWorkflowProcessDto(Color: ""));
+            _selectedNode.Color = null;
+            _selectedNode.Refresh();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    // ───────────── Link Shape Toggle ─────────────
+
+    private string GetLinkShape()
+    {
+        if (_selectedLink is not null && _linkShapeMap.TryGetValue(_selectedLink, out var shape))
+            return shape;
+        return "straight";
+    }
+
+    private void HandleLinkShapeChange(ChangeEventArgs e)
+    {
+        if (_selectedLink is null) return;
+        var shape = e.Value?.ToString() ?? "straight";
+
+        _linkShapeMap[_selectedLink] = shape;
+
+        if (shape == "curved")
+        {
+            _selectedLink.Router = new NormalRouter();
+            _selectedLink.PathGenerator = new SmoothPathGenerator();
+        }
+        else
+        {
+            _selectedLink.Router = new OrthogonalRouter();
+            _selectedLink.PathGenerator = new StraightPathGenerator();
+        }
+
+        _selectedLink.Refresh();
+    }
+
     // ───────────── Delete ─────────────
 
     private async Task DeleteSelectedNode()
@@ -697,6 +890,7 @@ else
                 await Api.DeleteWorkflowLinkAsync(Id, kvp.Value.Id);
                 _diagram.Links.Remove(kvp.Key);
                 _linkDataMap.Remove(kvp.Key);
+                _linkShapeMap.Remove(kvp.Key);
             }
 
             await Api.DeleteWorkflowProcessAsync(Id, _selectedNode.WorkflowProcessId);
@@ -719,6 +913,7 @@ else
             await Api.DeleteWorkflowLinkAsync(Id, _selectedLinkData.Id);
             _diagram.Links.Remove(_selectedLink);
             _linkDataMap.Remove(_selectedLink);
+            _linkShapeMap.Remove(_selectedLink);
             _selectedLink = null;
             _selectedLinkData = null;
             Toast.ShowSuccess("Link deleted.");

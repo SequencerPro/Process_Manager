@@ -34,13 +34,15 @@ public record AddWorkflowProcessDto(
     bool IsEntryPoint = false,
     int SortOrder = 0,
     double PositionX = 0,
-    double PositionY = 0);
+    double PositionY = 0,
+    string? Color = null);
 
 public record UpdateWorkflowProcessDto(
     bool? IsEntryPoint = null,
     int? SortOrder = null,
     double? PositionX = null,
-    double? PositionY = null);
+    double? PositionY = null,
+    string? Color = null);
 
 public record WorkflowProcessResponseDto(
     Guid Id,
@@ -52,6 +54,7 @@ public record WorkflowProcessResponseDto(
     int SortOrder,
     double PositionX,
     double PositionY,
+    string? Color,
     DateTime CreatedAt,
     DateTime UpdatedAt);
 

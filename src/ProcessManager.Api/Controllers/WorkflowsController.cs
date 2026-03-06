@@ -229,7 +229,8 @@ public class WorkflowsController : ControllerBase
             IsEntryPoint = dto.IsEntryPoint,
             SortOrder = dto.SortOrder,
             PositionX = dto.PositionX,
-            PositionY = dto.PositionY
+            PositionY = dto.PositionY,
+            Color = dto.Color
         };
 
         _db.WorkflowProcesses.Add(wp);
@@ -252,6 +253,7 @@ public class WorkflowsController : ControllerBase
         if (dto.SortOrder.HasValue) wp.SortOrder = dto.SortOrder.Value;
         if (dto.PositionX.HasValue) wp.PositionX = dto.PositionX.Value;
         if (dto.PositionY.HasValue) wp.PositionY = dto.PositionY.Value;
+        if (dto.Color is not null) wp.Color = string.IsNullOrEmpty(dto.Color) ? null : dto.Color;
 
         await _db.SaveChangesAsync();
         return MapWorkflowProcessToDto(wp);
@@ -498,7 +500,7 @@ public class WorkflowsController : ControllerBase
             wp.Id, wp.WorkflowId, wp.ProcessId,
             wp.Process?.Name ?? "", wp.Process?.Code ?? "",
             wp.IsEntryPoint, wp.SortOrder,
-            wp.PositionX, wp.PositionY,
+            wp.PositionX, wp.PositionY, wp.Color,
             wp.CreatedAt, wp.UpdatedAt);
     }
 

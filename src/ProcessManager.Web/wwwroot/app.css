@@ -126,25 +126,13 @@ h1:focus {
     background: #0d6efd;
     border: 2px solid #fff;
     box-shadow: 0 0 0 1px #0d6efd;
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
     cursor: crosshair;
-    z-index: 10;
     transition: transform 0.1s;
 }
 
 .workflow-port:hover {
-    transform: translateX(-50%) scale(1.3);
+    transform: scale(1.4);
     background: #0a58ca;
-}
-
-.workflow-port-top {
-    top: -7px;
-}
-
-.workflow-port-bottom {
-    bottom: -7px;
 }
 
 /* ── Diagram link/arrow styles ── */

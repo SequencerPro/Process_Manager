@@ -17,6 +17,12 @@ public class WorkflowProcess : BaseEntity
     /// <summary>Display ordering.</summary>
     public int SortOrder { get; set; }
 
+    /// <summary>X-coordinate on the visual builder canvas.</summary>
+    public double PositionX { get; set; }
+
+    /// <summary>Y-coordinate on the visual builder canvas.</summary>
+    public double PositionY { get; set; }
+
     // Navigation properties
     public Workflow Workflow { get; set; } = null!;
     public Process Process { get; set; } = null!;

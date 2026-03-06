@@ -227,7 +227,9 @@ public class WorkflowsController : ControllerBase
             WorkflowId = workflowId,
             ProcessId = dto.ProcessId,
             IsEntryPoint = dto.IsEntryPoint,
-            SortOrder = dto.SortOrder
+            SortOrder = dto.SortOrder,
+            PositionX = dto.PositionX,
+            PositionY = dto.PositionY
         };
 
         _db.WorkflowProcesses.Add(wp);
@@ -248,6 +250,8 @@ public class WorkflowsController : ControllerBase
 
         if (dto.IsEntryPoint.HasValue) wp.IsEntryPoint = dto.IsEntryPoint.Value;
         if (dto.SortOrder.HasValue) wp.SortOrder = dto.SortOrder.Value;
+        if (dto.PositionX.HasValue) wp.PositionX = dto.PositionX.Value;
+        if (dto.PositionY.HasValue) wp.PositionY = dto.PositionY.Value;
 
         await _db.SaveChangesAsync();
         return MapWorkflowProcessToDto(wp);
@@ -267,6 +271,31 @@ public class WorkflowsController : ControllerBase
             return Conflict("Cannot remove a process that has workflow links. Remove the links first.");
 
         _db.WorkflowProcesses.Remove(wp);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPut("{workflowId:guid}/processes/positions")]
+    public async Task<IActionResult> UpdatePositions(
+        Guid workflowId, UpdateWorkflowProcessPositionsDto dto)
+    {
+        if (!await _db.Workflows.AnyAsync(w => w.Id == workflowId))
+            return NotFound();
+
+        var wps = await _db.WorkflowProcesses
+            .Where(wp => wp.WorkflowId == workflowId)
+            .ToListAsync();
+
+        foreach (var pos in dto.Positions)
+        {
+            var wp = wps.FirstOrDefault(w => w.Id == pos.WorkflowProcessId);
+            if (wp is not null)
+            {
+                wp.PositionX = pos.PositionX;
+                wp.PositionY = pos.PositionY;
+            }
+        }
+
         await _db.SaveChangesAsync();
         return NoContent();
     }
@@ -469,6 +498,7 @@ public class WorkflowsController : ControllerBase
             wp.Id, wp.WorkflowId, wp.ProcessId,
             wp.Process?.Name ?? "", wp.Process?.Code ?? "",
             wp.IsEntryPoint, wp.SortOrder,
+            wp.PositionX, wp.PositionY,
             wp.CreatedAt, wp.UpdatedAt);
     }
 

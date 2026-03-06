@@ -690,6 +690,12 @@ public class ApiClient
         resp.EnsureSuccessStatusCode();
     }
 
+    public async Task UpdateWorkflowProcessPositionsAsync(Guid workflowId, UpdateWorkflowProcessPositionsDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/workflows/{workflowId}/processes/positions", dto, _json);
+        resp.EnsureSuccessStatusCode();
+    }
+
     public Task<List<WorkflowLinkResponseDto>?> GetWorkflowLinksAsync(Guid workflowId)
         => _http.GetFromJsonAsync<List<WorkflowLinkResponseDto>>(
             $"api/workflows/{workflowId}/links", _json);

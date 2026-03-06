@@ -32,11 +32,15 @@ public record WorkflowResponseDto(
 public record AddWorkflowProcessDto(
     Guid ProcessId,
     bool IsEntryPoint = false,
-    int SortOrder = 0);
+    int SortOrder = 0,
+    double PositionX = 0,
+    double PositionY = 0);
 
 public record UpdateWorkflowProcessDto(
     bool? IsEntryPoint = null,
-    int? SortOrder = null);
+    int? SortOrder = null,
+    double? PositionX = null,
+    double? PositionY = null);
 
 public record WorkflowProcessResponseDto(
     Guid Id,
@@ -46,8 +50,20 @@ public record WorkflowProcessResponseDto(
     string ProcessCode,
     bool IsEntryPoint,
     int SortOrder,
+    double PositionX,
+    double PositionY,
     DateTime CreatedAt,
     DateTime UpdatedAt);
+
+// ──────────── Bulk Position Update ────────────
+
+public record UpdateWorkflowProcessPositionsDto(
+    List<WorkflowProcessPositionDto> Positions);
+
+public record WorkflowProcessPositionDto(
+    Guid WorkflowProcessId,
+    double PositionX,
+    double PositionY);
 
 // ──────────── WorkflowLink ────────────
 

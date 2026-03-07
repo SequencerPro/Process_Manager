@@ -89,10 +89,6 @@ else if (_data is not null)
                 <EditForm Model="_form" OnValidSubmit="SaveKind">
                     <DataAnnotationsValidator />
                     <div class="modal-body">
-                        @if (_error is not null)
-                        {
-                            <div class="alert alert-danger py-2">@_error</div>
-                        }
                         <div class="mb-3">
                             <label class="form-label">Code</label>
                             <InputText class="form-control" @bind-Value="_form.Code" disabled="@_editingId.HasValue" />
@@ -137,15 +133,24 @@ else if (_data is not null)
     private bool _showForm;
     private Guid? _editingId;
     private KindFormModel _form = new();
-    private string? _error;
 
     protected override async Task OnInitializedAsync() => await LoadData();
 
     private async Task LoadData()
     {
         _loading = true;
-        _data = await Api.GetKindsAsync(_search, _page, _pageSize);
-        _loading = false;
+        try
+        {
+            _data = await Api.GetKindsAsync(_search, _page, _pageSize);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task OnSearch(string value) { _search = value; _page = 1; await LoadData(); }
@@ -155,7 +160,6 @@ else if (_data is not null)
     {
         _editingId = null;
         _form = new();
-        _error = null;
         _showForm = true;
     }
 
@@ -164,7 +168,6 @@ else if (_data is not null)
         _editingId = kind.Id;
         _form = new() { Code = kind.Code, Name = kind.Name, Description = kind.Description ?? "",
                          IsSerialized = kind.IsSerialized, IsBatchable = kind.IsBatchable };
-        _error = null;
         _showForm = true;
     }
 
@@ -186,7 +189,7 @@ else if (_data is not null)
         }
         catch (HttpRequestException ex)
         {
-            _error = ex.Message;
+            Toast.ShowError(ex.Message);
         }
     }
 
@@ -200,7 +203,7 @@ else if (_data is not null)
         }
         catch (HttpRequestException ex)
         {
-            _error = ex.Message;
+            Toast.ShowError(ex.Message);
         }
     }
 

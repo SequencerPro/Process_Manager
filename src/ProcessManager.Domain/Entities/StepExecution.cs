@@ -34,4 +34,6 @@ public class StepExecution : BaseEntity
     public ProcessStep ProcessStep { get; set; } = null!;
     public ICollection<PortTransaction> PortTransactions { get; set; } = new List<PortTransaction>();
     public ICollection<ExecutionData> ExecutionData { get; set; } = new List<ExecutionData>();
+    public ICollection<PromptResponse> PromptResponses { get; set; } = new List<PromptResponse>();
+    public ICollection<NonConformance> NonConformances { get; set; } = new List<NonConformance>();
 }

@@ -1,0 +1,179 @@
+@page "/my-work"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>My Work — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-person-workspace me-2 text-primary"></i>My Work</h3>
+        <p class="text-muted small mb-0">Steps ready to start or currently in progress</p>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="Load" disabled="@_loading">
+        <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+    </button>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading work queue…
+    </div>
+}
+else
+{
+    @* ── In Progress ──────────────────────────────────────────────────────── *@
+    <div class="d-flex align-items-center mb-3 gap-2">
+        <h5 class="mb-0">In Progress</h5>
+        <span class="badge bg-primary rounded-pill">@_inProgress.Count</span>
+    </div>
+
+    @if (!_inProgress.Any())
+    {
+        <div class="card shadow-sm mb-4">
+            <div class="card-body text-muted fst-italic small">No steps currently in progress.</div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm mb-4">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Step</th>
+                            <th>Job</th>
+                            <th>Started</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var se in _inProgress.OrderBy(s => s.StartedAt))
+                        {
+                            <tr>
+                                <td class="align-middle">
+                                    <span class="fw-medium">@se.StepName</span>
+                                    <span class="badge bg-light text-dark border ms-1">#@se.Sequence</span>
+                                </td>
+                                <td class="align-middle">
+                                    <span class="fw-medium">@(se.JobCode ?? "—")</span>
+                                    <span class="text-muted small ms-1">@se.JobName</span>
+                                </td>
+                                <td class="align-middle text-muted small">
+                                    @(se.StartedAt?.ToString("g") ?? "—")
+                                </td>
+                                <td class="align-middle text-end">
+                                    <a href="execute/@se.Id" class="btn btn-sm btn-primary">
+                                        <i class="bi bi-play-fill me-1"></i>Execute
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    @* ── Available to Start ────────────────────────────────────────────────── *@
+    <div class="d-flex align-items-center mb-3 gap-2">
+        <h5 class="mb-0">Available to Start</h5>
+        <span class="badge bg-secondary rounded-pill">@_pending.Count</span>
+    </div>
+
+    @if (!_pending.Any())
+    {
+        <div class="card shadow-sm">
+            <div class="card-body text-muted fst-italic small">No pending steps found. All jobs may be on hold or complete.</div>
+        </div>
+    }
+    else
+    {
+        @foreach (var jobGroup in _pending.GroupBy(s => s.JobId).OrderBy(g => g.First().JobCode))
+        {
+            var first = jobGroup.First();
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-transparent d-flex align-items-center gap-2 py-2">
+                    <i class="bi bi-clipboard-check text-secondary"></i>
+                    <span class="fw-semibold">@(first.JobCode ?? "—")</span>
+                    <span class="text-muted small">@first.JobName</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <tbody>
+                            @foreach (var se in jobGroup.OrderBy(s => s.Sequence))
+                            {
+                                <tr>
+                                    <td class="align-middle" style="width:2.5rem">
+                                        <span class="badge bg-light text-dark border">@se.Sequence</span>
+                                    </td>
+                                    <td class="align-middle fw-medium">@se.StepName</td>
+                                    <td class="align-middle text-end">
+                                        <button class="btn btn-sm btn-success"
+                                                @onclick="() => StartStep(se)"
+                                                disabled="@(_starting == se.Id)">
+                                            @if (_starting == se.Id)
+                                            {
+                                                <span class="spinner-border spinner-border-sm me-1"></span>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-play-fill me-1"></i>
+                                            }
+                                            Start
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    private List<StepExecutionResponseDto> _inProgress = new();
+    private List<StepExecutionResponseDto> _pending    = new();
+    private bool _loading;
+    private Guid? _starting;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            var inProgress = await Api.GetStepExecutionsAsync(status: "InProgress", pageSize: 200);
+            var pending    = await Api.GetStepExecutionsAsync(status: "Pending",    pageSize: 200);
+            _inProgress = inProgress?.Items ?? new();
+            _pending    = pending?.Items    ?? new();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load work queue: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task StartStep(StepExecutionResponseDto se)
+    {
+        _starting = se.Id;
+        try
+        {
+            await Api.StepExecutionTransitionAsync(se.Id, "start");
+            Nav.NavigateTo($"execute/{se.Id}");
+        }
+        catch (HttpRequestException ex)
+        {
+            Toast.ShowError($"Could not start '{se.StepName}': {ex.Message}");
+            _starting = null;
+        }
+    }
+}

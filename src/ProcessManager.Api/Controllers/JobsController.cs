@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Api.Data;
@@ -7,6 +8,7 @@ using ProcessManager.Domain.Enums;
 
 namespace ProcessManager.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class JobsController : ControllerBase
@@ -78,6 +80,10 @@ public class JobsController : ControllerBase
         if (!process.IsActive)
             return BadRequest($"Process '{process.Code}' is not active.");
 
+        if (process.Status != ProcessManager.Domain.Enums.ProcessStatus.Released &&
+            process.Status != ProcessManager.Domain.Enums.ProcessStatus.Superseded)
+            return BadRequest($"Process '{process.Code}' is not Released (current status: {process.Status}). Only Released or Superseded processes can be used for new Jobs.");
+
         var job = new Job
         {
             Code = dto.Code,
@@ -85,6 +91,7 @@ public class JobsController : ControllerBase
             Description = dto.Description,
             ProcessId = dto.ProcessId,
             Priority = dto.Priority,
+            ProcessVersion = process.Version,
             Status = JobStatus.Created
         };
 
@@ -296,6 +303,8 @@ public class JobsController : ControllerBase
             job.Description,
             job.ProcessId,
             job.Process?.Name ?? "",
+            job.Process?.Status.ToString() ?? "",
+            job.ProcessVersion,
             job.Status.ToString(),
             job.Priority,
             job.StartedAt,
@@ -328,7 +337,10 @@ public class JobsController : ControllerBase
             se.UpdatedAt,
             includePortTransactions
                 ? se.PortTransactions.Select(MapPortTransactionToDto).ToList()
-                : null);
+                : null,
+            se.Job?.Code,
+            se.Job?.Name,
+            se.ProcessStep?.ProcessId);
     }
 
     internal static PortTransactionResponseDto MapPortTransactionToDto(PortTransaction pt)

@@ -1,0 +1,212 @@
+@page "/ce-matrices"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject IJSRuntime JS
+
+<PageTitle>C&amp;E Matrices</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">C&amp;E Matrices</h3>
+    <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
+        <i class="bi bi-plus-lg me-1"></i> New Matrix
+    </button>
+</div>
+
+<div class="mb-3">
+    <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search matrices..." />
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_data is not null)
+{
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Name</th>
+                    <th>Step</th>
+                    <th>Inputs</th>
+                    <th>Outputs</th>
+                    <th>Updated</th>
+                    <th style="width:100px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!_data.Items.Any())
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-3">No C&amp;E matrices found.</td></tr>
+                }
+                else
+                {
+                    @foreach (var m in _data.Items)
+                    {
+                        <tr>
+                            <td><a href="ce-matrices/@m.Id">@m.Name</a></td>
+                            <td>
+                                <span class="badge bg-secondary me-1">Step @m.ProcessStepSequence</span>
+                                @m.ProcessStepName
+                            </td>
+                            <td><span class="badge bg-light text-dark border">@m.InputCount inputs</span></td>
+                            <td><span class="badge bg-light text-dark border">@m.OutputCount outputs</span></td>
+                            <td class="text-muted small">@m.UpdatedAt.ToString("g")</td>
+                            <td>
+                                <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEdit(m)" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(m.Id)" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+    <Pager Page="_page" PageSize="_pageSize" TotalCount="_data.TotalCount" OnPageChanged="OnPageChanged" />
+}
+
+@if (_showForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "New") C&amp;E Matrix</h5>
+                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!_editId.HasValue)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Process Step <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-sm" @bind="_formProcessId" @bind:after="OnProcessSelected">
+                                <option value="">— select process first —</option>
+                                @if (_processes is not null)
+                                {
+                                    @foreach (var p in _processes.Items)
+                                    {
+                                        <option value="@p.Id">@p.Name</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        @if (_selectedSteps.Any())
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Step <span class="text-danger">*</span></label>
+                                <select class="form-select form-select-sm" @bind="_formStepId">
+                                    <option value="">Select a step...</option>
+                                    @foreach (var s in _selectedSteps)
+                                    {
+                                        <option value="@s.Id">@s.Sequence. @(s.NameOverride ?? s.StepTemplateName)</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                    }
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" @bind="_formName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control form-control-sm" rows="2" @bind="_formDescription"></textarea>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_formError)) { <div class="alert alert-danger py-2 mt-2">@_formError</div> }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseForm">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="Save" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    PaginatedResponse<CeMatrixSummaryDto>? _data;
+    PaginatedResponse<ProcessSummaryResponseDto>? _processes;
+    bool _loading = true;
+    string? _search;
+    int _page = 1, _pageSize = 25;
+
+    // Form
+    bool _showForm, _saving;
+    Guid? _editId;
+    string _formName = "", _formDescription = "", _formProcessId = "", _formStepId = "";
+    List<ProcessStepResponseDto> _selectedSteps = [];
+    string? _formError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _processes = await Api.GetProcessesAsync(active: true, pageSize: 200);
+        await Load();
+    }
+
+    async Task Load()
+    {
+        _loading = true;
+        _data = await Api.GetCeMatricesAsync(_search, page: _page, pageSize: _pageSize);
+        _loading = false;
+    }
+
+    async Task OnSearch(string val) { _search = val; _page = 1; await Load(); }
+    async Task OnPageChanged(int p) { _page = p; await Load(); }
+
+    void ShowCreate()
+    {
+        _editId = null; _formName = ""; _formDescription = ""; _formProcessId = ""; _formStepId = "";
+        _selectedSteps = []; _formError = null; _showForm = true;
+    }
+
+    void ShowEdit(CeMatrixSummaryDto m)
+    {
+        _editId = m.Id; _formName = m.Name; _formDescription = m.Description ?? "";
+        _formError = null; _showForm = true;
+    }
+
+    void CloseForm() { _showForm = false; _formError = null; }
+
+    async Task OnProcessSelected()
+    {
+        _formStepId = "";
+        _selectedSteps = [];
+        if (!Guid.TryParse(_formProcessId, out var pid)) return;
+        var proc = await Api.GetProcessAsync(pid);
+        _selectedSteps = proc?.Steps?.OrderBy(s => s.Sequence).ToList() ?? [];
+    }
+
+    async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_formName)) { _formError = "Name is required."; return; }
+        _saving = true; _formError = null;
+        try
+        {
+            if (_editId.HasValue)
+                await Api.UpdateCeMatrixAsync(_editId.Value, new(_formName, _formDescription));
+            else
+            {
+                if (!Guid.TryParse(_formStepId, out var sid)) { _formError = "Select a step."; _saving = false; return; }
+                await Api.CreateCeMatrixAsync(new(sid, _formName, _formDescription));
+            }
+            _showForm = false;
+            await Load();
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    async Task Delete(Guid id)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this C&E matrix?")) return;
+        await Api.DeleteCeMatrixAsync(id);
+        await Load();
+    }
+}

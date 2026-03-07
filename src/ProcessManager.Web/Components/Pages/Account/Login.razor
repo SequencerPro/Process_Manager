@@ -1,0 +1,114 @@
+@page "/account/login"
+@layout EmptyLayout
+@attribute [AllowAnonymous]
+@using System.ComponentModel.DataAnnotations
+@using System.Net.Http.Json
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@inject IHttpContextAccessor HttpContextAccessor
+@inject NavigationManager Nav
+@inject IConfiguration Config
+
+<PageTitle>Sign In — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-center align-items-center" style="min-height: 100vh; background: #f8f9fa;">
+    <div class="card shadow-sm" style="width: 380px;">
+        <div class="card-body p-4">
+            <div class="text-center mb-4">
+                <i class="bi bi-gear-wide-connected fs-1 text-primary"></i>
+                <h4 class="mt-2 mb-0">Process Manager</h4>
+                <p class="text-muted small">Sign in to continue</p>
+            </div>
+
+            @if (ErrorMessage is not null)
+            {
+                <div class="alert alert-danger py-2">
+                    <i class="bi bi-exclamation-triangle me-2"></i>@ErrorMessage
+                </div>
+            }
+
+            <EditForm Model="Input" OnValidSubmit="HandleLogin" FormName="login" method="post">
+                <DataAnnotationsValidator />
+                <div class="mb-3">
+                    <label class="form-label fw-medium">Username</label>
+                    <InputText class="form-control" @bind-Value="Input.UserName" autocomplete="username" />
+                    <ValidationMessage For="() => Input.UserName" />
+                </div>
+                <div class="mb-4">
+                    <label class="form-label fw-medium">Password</label>
+                    <InputText type="password" class="form-control" @bind-Value="Input.Password" autocomplete="current-password" />
+                    <ValidationMessage For="() => Input.Password" />
+                </div>
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+                </button>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private LoginInput Input { get; set; } = new();
+
+    private string? ErrorMessage { get; set; }
+
+    private async Task HandleLogin()
+    {
+        ErrorMessage = null;
+        var context = HttpContextAccessor.HttpContext!;
+
+        var apiBase = Config["ApiBaseUrl"] ?? "http://localhost:5100";
+        using var http = new HttpClient { BaseAddress = new Uri(apiBase) };
+
+        HttpResponseMessage response;
+        try
+        {
+            response = await http.PostAsJsonAsync("api/auth/login",
+                new { Input.UserName, Input.Password });
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Could not reach the API ({apiBase}). Details: {ex.Message}";
+            return;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            ErrorMessage = "Invalid username or password.";
+            return;
+        }
+
+        var token = await response.Content.ReadFromJsonAsync<TokenResponse>(
+            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if (token is null) { ErrorMessage = "Unexpected error. Please try again."; return; }
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.Name, token.UserName),
+            new(ClaimTypes.Email, token.Email),
+            new(ClaimTypes.Role, token.Role),
+            new("access_token", token.Token)
+        };
+        if (!string.IsNullOrWhiteSpace(token.DisplayName))
+            claims.Add(new("display_name", token.DisplayName));
+
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        await context.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            new ClaimsPrincipal(identity));
+
+        Nav.NavigateTo("/", forceLoad: true);
+    }
+
+    private record TokenResponse(
+        string Token, string UserName, string Email, string Role,
+        string? DisplayName, DateTime ExpiresAt);
+
+    public class LoginInput
+    {
+        [Required] public string UserName { get; set; } = "";
+        [Required] public string Password { get; set; } = "";
+    }
+}

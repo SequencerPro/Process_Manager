@@ -1,0 +1,311 @@
+@namespace ProcessManager.Web.Components.Shared
+@using System.Net
+
+@*
+    Inline-SVG run chart.  Displays up to ChartWindowSize historical NumericEntry
+    responses plus an optional "current" value (not yet saved).
+    UCL/LCL are computed from the rolling window using 3-sigma control limits.
+
+    SVG <text> elements must be rendered via SvgLabel*/SvgLabelRight/SvgLabelCenter
+    helper methods that return MarkupString — Blazor's Razor compiler treats
+    <text>...</text> as its own literal-emit construct and refuses attributes on it.
+*@
+
+<div class="run-chart-wrapper mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+        <span class="fw-semibold">@Label@(string.IsNullOrEmpty(Units) ? "" : $" ({Units})")</span>
+        @if (_displayValues.Length > 0)
+        {
+            <span class="text-muted" style="font-size:.72rem">@_displayValues.Length observation(s)</span>
+        }
+    </div>
+
+    @if (_allY.Length == 0 && !CurrentValue.HasValue)
+    {
+        <div class="p-3 bg-light rounded text-muted small fst-italic border">
+            <i class="bi bi-graph-up me-1"></i>No historical data yet — chart will populate as operators record responses.
+        </div>
+    }
+    else
+    {
+        <svg viewBox="0 0 600 250" style="width:100%;height:210px;display:block;" class="border rounded">
+            <!-- Plot area background -->
+            <rect x="@ML" y="@MT" width="@PlotW" height="@PlotH" fill="#f8f9fa"/>
+
+            <!-- Grid lines (horizontal) -->
+            @foreach (var tick in _yTicks)
+            {
+                var ty = ToSvgY(tick);
+                <line x1="@ML" y1="@ty.ToString("F0")" x2="@(ML + PlotW)" y2="@ty.ToString("F0")"
+                      stroke="#e9ecef" stroke-width="1"/>
+            }
+
+            <!-- Spec-violation shading (below LSL and above USL) -->
+            @if (SpecMin.HasValue && ToSvgY(SpecMin.Value) < MT + PlotH)
+            {
+                var y = ToSvgY(SpecMin.Value);
+                var h = MT + PlotH - y;
+                <rect x="@ML" y="@y.ToString("F0")" width="@PlotW" height="@h.ToString("F0")"
+                      fill="rgba(220,53,69,0.07)"/>
+            }
+            @if (SpecMax.HasValue && ToSvgY(SpecMax.Value) > MT)
+            {
+                var y = ToSvgY(SpecMax.Value);
+                var h = y - MT;
+                <rect x="@ML" y="@MT" width="@PlotW" height="@h.ToString("F0")"
+                      fill="rgba(220,53,69,0.07)"/>
+            }
+
+            <!-- UCL / mean / LCL lines (3-sigma) -->
+            @if (_showControlLimits)
+            {
+                var yclU = ToSvgY(_ucl);
+                var ymean = ToSvgY(_mean);
+                var yclL = ToSvgY(_lcl);
+
+                <line x1="@ML" y1="@yclU.ToString("F0")" x2="@(ML+PlotW)" y2="@yclU.ToString("F0")"
+                      stroke="#6f42c1" stroke-width="1.5" stroke-dasharray="6,3"/>
+                <line x1="@ML" y1="@ymean.ToString("F0")" x2="@(ML+PlotW)" y2="@ymean.ToString("F0")"
+                      stroke="#6f42c1" stroke-width="1" stroke-dasharray="2,4" opacity="0.6"/>
+                <line x1="@ML" y1="@yclL.ToString("F0")" x2="@(ML+PlotW)" y2="@yclL.ToString("F0")"
+                      stroke="#6f42c1" stroke-width="1.5" stroke-dasharray="6,3"/>
+
+                @SvgLabelRight(ML + PlotW - 3, yclU - 4, "UCL", "#6f42c1", 8)
+                @SvgLabelRight(ML + PlotW - 3, yclL + 11, "LCL", "#6f42c1", 8)
+            }
+
+            <!-- Spec limit lines (USL / LSL) -->
+            @if (SpecMax.HasValue)
+            {
+                var y = ToSvgY(SpecMax.Value);
+                <line x1="@ML" y1="@y.ToString("F0")" x2="@(ML+PlotW)" y2="@y.ToString("F0")"
+                      stroke="#dc3545" stroke-width="1.5" stroke-dasharray="8,3"/>
+                @SvgLabel(ML + 4, y - 3, "USL", "#dc3545", 8)
+            }
+            @if (SpecMin.HasValue)
+            {
+                var y = ToSvgY(SpecMin.Value);
+                <line x1="@ML" y1="@y.ToString("F0")" x2="@(ML+PlotW)" y2="@y.ToString("F0")"
+                      stroke="#dc3545" stroke-width="1.5" stroke-dasharray="8,3"/>
+                @SvgLabel(ML + 4, y + 11, "LSL", "#dc3545", 8)
+            }
+
+            <!-- Data polyline (historical) -->
+            @if (_displayValues.Length > 1)
+            {
+                <polyline points="@GetDataPolyline()" fill="none"
+                          stroke="#0d6efd" stroke-width="2"
+                          stroke-linejoin="round" stroke-linecap="round"/>
+            }
+
+            <!-- Historical data point circles -->
+            @for (int i = 0; i < _displayValues.Length; i++)
+            {
+                var cx = ToSvgX(i, _totalPtCount);
+                var cy = ToSvgY(_displayValues[i]);
+                var oor = i < _displayOutOfRange.Length && _displayOutOfRange[i];
+                <circle cx="@cx.ToString("F0")" cy="@cy.ToString("F0")" r="3.5"
+                        fill="@(oor ? "#dc3545" : "#0d6efd")" stroke="white" stroke-width="1.5"/>
+            }
+
+            <!-- Current value (unsaved) -->
+            @if (CurrentValue.HasValue)
+            {
+                var curX = ToSvgX(_displayValues.Length, _totalPtCount);
+                var curY = ToSvgY(CurrentValue.Value);
+
+                @if (_displayValues.Length > 0)
+                {
+                    var prevX = ToSvgX(_displayValues.Length - 1, _totalPtCount);
+                    var prevY = ToSvgY(_displayValues[_displayValues.Length - 1]);
+                    <line x1="@prevX.ToString("F0")" y1="@prevY.ToString("F0")"
+                          x2="@curX.ToString("F0")" y2="@curY.ToString("F0")"
+                          stroke="#0d6efd" stroke-width="2" stroke-dasharray="5,3"/>
+                }
+                <circle cx="@curX.ToString("F0")" cy="@curY.ToString("F0")" r="6"
+                        fill="#0d6efd" stroke="white" stroke-width="2.5"/>
+            }
+
+            <!-- Y-axis ticks and labels -->
+            @foreach (var tick in _yTicks)
+            {
+                var ty = ToSvgY(tick);
+                <line x1="@(ML-5)" y1="@ty.ToString("F0")" x2="@ML" y2="@ty.ToString("F0")"
+                      stroke="#adb5bd" stroke-width="1"/>
+                @SvgLabelRight(ML - 8, ty, FormatYLabel(tick), "#6c757d", 9)
+            }
+
+            <!-- Axis frame -->
+            <line x1="@ML" y1="@MT" x2="@ML" y2="@(MT+PlotH)" stroke="#adb5bd" stroke-width="1"/>
+            <line x1="@ML" y1="@(MT+PlotH)" x2="@(ML+PlotW)" y2="@(MT+PlotH)"
+                  stroke="#adb5bd" stroke-width="1"/>
+
+            <!-- X-axis label -->
+            @SvgLabelCenter(ML + PlotW / 2, MT + PlotH + 22, "Observations →", "#6c757d", 9)
+        </svg>
+
+        <!-- Legend -->
+        <div class="d-flex gap-3 flex-wrap mt-1" style="font-size:.7rem;color:#6c757d">
+            <span>
+                <svg width="18" height="9" style="vertical-align:middle">
+                    <line x1="0" y1="4" x2="18" y2="4" stroke="#0d6efd" stroke-width="2"/>
+                    <circle cx="9" cy="4" r="3" fill="#0d6efd"/>
+                </svg> Historical
+            </span>
+            @if (_showControlLimits)
+            {
+                <span>
+                    <svg width="18" height="9" style="vertical-align:middle">
+                        <line x1="0" y1="4" x2="18" y2="4" stroke="#6f42c1" stroke-dasharray="4,2" stroke-width="1.5"/>
+                    </svg> UCL/LCL (3σ)
+                </span>
+            }
+            @if (SpecMin.HasValue || SpecMax.HasValue)
+            {
+                <span>
+                    <svg width="18" height="9" style="vertical-align:middle">
+                        <line x1="0" y1="4" x2="18" y2="4" stroke="#dc3545" stroke-dasharray="6,2" stroke-width="1.5"/>
+                    </svg> Spec limits
+                </span>
+            }
+            @if (CurrentValue.HasValue)
+            {
+                <span>
+                    <svg width="14" height="14" style="vertical-align:middle">
+                        <circle cx="7" cy="7" r="6" fill="#0d6efd"/>
+                    </svg>
+                    <span class="ms-1">Current</span>
+                </span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Historical response values, ordered oldest-to-newest.</summary>
+    [Parameter] public double[] HistoricalValues { get; set; } = Array.Empty<double>();
+
+    /// <summary>Parallel array indicating which historical values were out-of-range.</summary>
+    [Parameter] public bool[] OutOfRange { get; set; } = Array.Empty<bool>();
+
+    /// <summary>The value the operator has entered but not yet saved (rendered differently).</summary>
+    [Parameter] public double? CurrentValue { get; set; }
+
+    /// <summary>Lower spec limit line.</summary>
+    [Parameter] public double? SpecMin { get; set; }
+
+    /// <summary>Upper spec limit line.</summary>
+    [Parameter] public double? SpecMax { get; set; }
+
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string? Units { get; set; }
+
+    // ── SVG layout constants ──
+    private const int ML = 60, MR = 20, MT = 20, MB = 30;
+    private const int SvgW = 600, SvgH = 250;
+    private int PlotW => SvgW - ML - MR;  // 520
+    private int PlotH => SvgH - MT - MB;  // 200
+
+    // ── Computed each render ──
+    private double[] _displayValues = Array.Empty<double>();
+    private bool[] _displayOutOfRange = Array.Empty<bool>();
+    private double[] _allY = Array.Empty<double>();
+    private double _yMin, _yMax;
+    private double[] _yTicks = Array.Empty<double>();
+    private bool _showControlLimits;
+    private double _ucl, _lcl, _mean;
+    private int _totalPtCount;
+
+    protected override void OnParametersSet() => Compute();
+
+    private void Compute()
+    {
+        _displayValues = HistoricalValues;
+        _displayOutOfRange = OutOfRange;
+        _showControlLimits = false;
+        _totalPtCount = _displayValues.Length + (CurrentValue.HasValue ? 1 : 0);
+
+        if (_totalPtCount == 0) { _allY = Array.Empty<double>(); _yMin = 0; _yMax = 1; BuildTicks(); return; }
+
+        // ── Control limits (need >= 2 historical points) ──
+        if (_displayValues.Length >= 2)
+        {
+            _mean = _displayValues.Average();
+            var variance = _displayValues.Average(v => (v - _mean) * (v - _mean));
+            var sigma = Math.Sqrt(variance);
+            if (sigma > 1e-10)
+            {
+                _ucl = _mean + 3 * sigma;
+                _lcl = _mean - 3 * sigma;
+                _showControlLimits = true;
+            }
+        }
+
+        // ── Y range (considers all elements that will appear on chart) ──
+        var yList = _displayValues.ToList();
+        if (CurrentValue.HasValue) yList.Add(CurrentValue.Value);
+        if (SpecMin.HasValue) yList.Add(SpecMin.Value);
+        if (SpecMax.HasValue) yList.Add(SpecMax.Value);
+        if (_showControlLimits) { yList.Add(_ucl); yList.Add(_lcl); }
+
+        _allY = yList.ToArray();
+        var rawMin = yList.Min();
+        var rawMax = yList.Max();
+        double span = rawMax - rawMin;
+        double pad = span < 1e-10 ? Math.Max(Math.Abs(rawMin) * 0.1, 1.0) : span * 0.12;
+        _yMin = rawMin - pad;
+        _yMax = rawMax + pad;
+
+        BuildTicks();
+    }
+
+    private void BuildTicks()
+    {
+        const int n = 5;
+        if (_yMax <= _yMin) { _yTicks = new[] { _yMin, _yMax }; return; }
+        _yTicks = Enumerable.Range(0, n)
+            .Select(i => _yMin + (_yMax - _yMin) * i / (n - 1))
+            .ToArray();
+    }
+
+    private double ToSvgY(double v)
+    {
+        if (_yMax <= _yMin) return MT + PlotH / 2.0;
+        return MT + PlotH - (v - _yMin) / (_yMax - _yMin) * PlotH;
+    }
+
+    private double ToSvgX(int index, int total)
+    {
+        if (total <= 1) return ML + PlotW / 2.0;
+        return ML + (double)index / (total - 1) * PlotW;
+    }
+
+    private string GetDataPolyline()
+    {
+        if (_displayValues.Length == 0) return "";
+        return string.Join(" ", _displayValues.Select((v, i) =>
+            $"{ToSvgX(i, _totalPtCount):F0},{ToSvgY(v):F0}"));
+    }
+
+    private static string FormatYLabel(double v)
+    {
+        if (v == 0) return "0";
+        double abs = Math.Abs(v);
+        if (abs >= 10000 || (abs > 0 && abs < 0.001)) return v.ToString("G3");
+        return v.ToString("G4");
+    }
+
+    // ── SVG text helpers (avoids Blazor/Razor <text> parser conflict) ──
+
+    /// <summary>Left-anchored SVG label.</summary>
+    private static MarkupString SvgLabel(double x, double y, string content, string fill = "#6c757d", int size = 9)
+        => (MarkupString)$"<text x=\"{x:F0}\" y=\"{y:F0}\" font-size=\"{size}\" fill=\"{fill}\">{WebUtility.HtmlEncode(content)}</text>";
+
+    /// <summary>Right-anchored SVG label with middle vertical alignment.</summary>
+    private static MarkupString SvgLabelRight(double x, double y, string content, string fill = "#6c757d", int size = 9)
+        => (MarkupString)$"<text x=\"{x:F0}\" y=\"{y:F0}\" text-anchor=\"end\" dominant-baseline=\"middle\" font-size=\"{size}\" fill=\"{fill}\">{WebUtility.HtmlEncode(content)}</text>";
+
+    /// <summary>Center-anchored SVG label.</summary>
+    private static MarkupString SvgLabelCenter(double x, double y, string content, string fill = "#6c757d", int size = 9)
+        => (MarkupString)$"<text x=\"{x:F0}\" y=\"{y:F0}\" text-anchor=\"middle\" font-size=\"{size}\" fill=\"{fill}\">{WebUtility.HtmlEncode(content)}</text>";
+}

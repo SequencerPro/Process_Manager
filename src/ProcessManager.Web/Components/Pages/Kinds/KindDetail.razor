@@ -42,11 +42,6 @@ else
         </div>
     </div>
 
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger py-2">@_error</div>
-    }
-
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="mb-0">Grades</h5>
         <button class="btn btn-primary btn-sm" @onclick="ShowGradeForm">
@@ -150,7 +145,6 @@ else
 
     private KindResponseDto? _kind;
     private bool _loading = true;
-    private string? _error;
 
     // Grade form
     private bool _showGradeForm;
@@ -162,8 +156,18 @@ else
     private async Task LoadData()
     {
         _loading = true;
-        _kind = await Api.GetKindAsync(Id);
-        _loading = false;
+        try
+        {
+            _kind = await Api.GetKindAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private void ShowGradeForm()
@@ -181,7 +185,7 @@ else
         _showGradeForm = true;
     }
 
-    private void CloseGradeForm() => _showGradeForm = false;
+    private void CloseGradeForm() { _showGradeForm = false; }
 
     private async Task SaveGrade()
     {
@@ -195,10 +199,9 @@ else
                     new GradeCreateDto(_gradeForm.Code, _gradeForm.Name, _gradeForm.Description, _gradeForm.IsDefault, _gradeForm.SortOrder));
 
             _showGradeForm = false;
-            _error = null;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task DeleteGrade(GradeResponseDto grade)
@@ -207,10 +210,9 @@ else
         try
         {
             await Api.DeleteGradeAsync(Id, grade.Id);
-            _error = null;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private class GradeFormModel

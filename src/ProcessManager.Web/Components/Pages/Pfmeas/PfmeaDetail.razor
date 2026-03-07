@@ -1,0 +1,615 @@
+@page "/pfmeas/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>PFMEA Detail</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_pfmea is null)
+{
+    <div class="alert alert-warning">PFMEA not found.</div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="pfmeas">PFMEAs</a></li>
+            <li class="breadcrumb-item active">@_pfmea.Name</li>
+        </ol>
+    </nav>
+
+    <!-- Header card -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <h4 class="mb-1">@_pfmea.Name</h4>
+                    <span class="text-muted me-3"><code>@_pfmea.Code</code></span>
+                    <span class="badge me-1 @(_pfmea.IsActive ? "bg-success" : "bg-secondary")">
+                        @(_pfmea.IsActive ? "Active" : "Inactive")
+                    </span>
+                    <span class="badge bg-dark">v@_pfmea.Version</span>
+                    <span class="ms-3 text-muted small">Process: <a href="processes/@_pfmea.ProcessId">@_pfmea.ProcessName</a></span>
+                </div>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-outline-info btn-sm" @onclick="Branch" title="Create new version">
+                        <i class="bi bi-git me-1"></i>Branch
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ShowEdit">
+                        <i class="bi bi-pencil me-1"></i>Edit
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(_pfmea.Description))
+            {
+                <p class="text-muted mb-1">@_pfmea.Description</p>
+            }
+            <small class="text-muted">
+                @_pfmea.FailureModes.Count failure mode(s) &bull;
+                @_pfmea.FailureModes.SelectMany(f => f.Actions).Count(a => a.Status is "Open" or "InProgress") open action(s) &bull;
+                Updated @_pfmea.UpdatedAt.ToString("g")
+            </small>
+        </div>
+    </div>
+
+    <!-- Add Failure Mode button -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Failure Modes</h5>
+        <button class="btn btn-primary btn-sm" @onclick="ShowAddFm">
+            <i class="bi bi-plus-lg me-1"></i>Add Failure Mode
+        </button>
+    </div>
+
+    @if (!_pfmea.FailureModes.Any())
+    {
+        <div class="alert alert-info py-2">
+            No failure modes yet. Click "Add Failure Mode" to begin.
+        </div>
+    }
+    else
+    {
+        <!-- Group by process step -->
+        @foreach (var grp in _pfmea.FailureModes
+            .GroupBy(f => new { f.ProcessStepId, f.ProcessStepName, f.ProcessStepSequence })
+            .OrderBy(g => g.Key.ProcessStepSequence))
+        {
+            <div class="card mb-3">
+                <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                    <span>
+                        <span class="badge bg-secondary me-2">Step @grp.Key.ProcessStepSequence</span>
+                        <strong>@grp.Key.ProcessStepName</strong>
+                    </span>
+                    <span class="badge bg-light text-dark border">@grp.Count() failure mode(s)</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Step Function</th>
+                                    <th>Failure Mode</th>
+                                    <th>Failure Effect</th>
+                                    <th>Failure Cause</th>
+                                    <th title="Severity">S</th>
+                                    <th title="Occurrence">O</th>
+                                    <th title="Detection">D</th>
+                                    <th title="Risk Priority Number">RPN</th>
+                                    <th>Actions</th>
+                                    <th style="width:80px"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var fm in grp.OrderBy(f => f.CreatedAt))
+                                {
+                                    <tr>
+                                        <td class="small">@fm.StepFunction</td>
+                                        <td class="small fw-semibold">@fm.FailureMode</td>
+                                        <td class="small">@fm.FailureEffect</td>
+                                        <td class="small text-muted">@(fm.FailureCause ?? "—")</td>
+                                        <td><span class="badge @SeverityBadge(fm.Severity)">@fm.Severity</span></td>
+                                        <td><span class="badge bg-secondary">@fm.Occurrence</span></td>
+                                        <td><span class="badge bg-secondary">@fm.Detection</span></td>
+                                        <td><span class="badge @RpnBadge(fm.Rpn) fw-bold">@fm.Rpn</span></td>
+                                        <td>
+                                            <button class="btn btn-link btn-sm p-0 text-decoration-none"
+                                                    @onclick="() => ToggleActions(fm.Id)">
+                                                <i class="bi @(_expandedFm == fm.Id ? "bi-chevron-up" : "bi-chevron-down") me-1"></i>
+                                                @fm.Actions.Count action(s)
+                                            </button>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEditFm(fm)" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm" @onclick="() => DeleteFm(fm.Id)" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+
+                                    @if (_expandedFm == fm.Id)
+                                    {
+                                        <tr>
+                                            <td colspan="10" class="bg-light p-3">
+                                                <!-- Prevention / Detection controls -->
+                                                @if (!string.IsNullOrEmpty(fm.PreventionControls) || !string.IsNullOrEmpty(fm.DetectionControls))
+                                                {
+                                                    <div class="row mb-3">
+                                                        <div class="col-md-6">
+                                                            <small class="fw-semibold text-muted">Prevention Controls</small>
+                                                            <p class="mb-0 small">@(fm.PreventionControls ?? "—")</p>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <small class="fw-semibold text-muted">Detection Controls</small>
+                                                            <p class="mb-0 small">@(fm.DetectionControls ?? "—")</p>
+                                                        </div>
+                                                    </div>
+                                                }
+
+                                                <!-- Actions -->
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <strong class="small">Actions</strong>
+                                                    <button class="btn btn-outline-primary btn-sm py-0" @onclick="() => ShowAddAction(fm.Id)">
+                                                        <i class="bi bi-plus-lg me-1"></i>Add Action
+                                                    </button>
+                                                </div>
+
+                                                @if (!fm.Actions.Any())
+                                                {
+                                                    <p class="text-muted small mb-0">No actions yet.</p>
+                                                }
+                                                else
+                                                {
+                                                    <table class="table table-sm mb-0">
+                                                        <thead class="table-light">
+                                                            <tr>
+                                                                <th>Description</th>
+                                                                <th>Responsible</th>
+                                                                <th>Target Date</th>
+                                                                <th>Status</th>
+                                                                <th>Revised O</th>
+                                                                <th>Revised D</th>
+                                                                <th title="Revised RPN">Rev. RPN</th>
+                                                                <th></th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var a in fm.Actions.OrderBy(x => x.CreatedAt))
+                                                            {
+                                                                <tr>
+                                                                    <td class="small">@a.Description</td>
+                                                                    <td class="small">@(a.ResponsiblePerson ?? "—")</td>
+                                                                    <td class="small">@(a.TargetDate?.ToString("d") ?? "—")</td>
+                                                                    <td><span class="badge @ActionStatusBadge(a.Status)">@a.Status</span></td>
+                                                                    <td class="small">@(a.RevisedOccurrence?.ToString() ?? "—")</td>
+                                                                    <td class="small">@(a.RevisedDetection?.ToString() ?? "—")</td>
+                                                                    <td>
+                                                                        @if (a.RevisedRpn.HasValue)
+                                                                        {
+                                                                            <span class="badge @RpnBadge(a.RevisedRpn.Value)">@a.RevisedRpn</span>
+                                                                        }
+                                                                        else { <span class="text-muted">—</span> }
+                                                                    </td>
+                                                                    <td>
+                                                                        <button class="btn btn-outline-secondary btn-sm me-1"
+                                                                                @onclick="() => ShowEditAction(fm, a)" title="Edit">
+                                                                            <i class="bi bi-pencil"></i>
+                                                                        </button>
+                                                                        <button class="btn btn-outline-danger btn-sm"
+                                                                                @onclick="() => DeleteAction(fm.Id, a.Id)" title="Delete">
+                                                                            <i class="bi bi-trash"></i>
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+<!-- Edit PFMEA modal -->
+@if (_showEditForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title">Edit PFMEA</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showEditForm = false"></button></div>
+                <div class="modal-body">
+                    <div class="mb-3"><label class="form-label">Name</label>
+                        <input class="form-control form-control-sm" @bind="_editName" /></div>
+                    <div class="mb-3"><label class="form-label">Description</label>
+                        <textarea class="form-control form-control-sm" rows="3" @bind="_editDescription"></textarea></div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="editActive" @bind="_editActive" />
+                        <label class="form-check-label" for="editActive">Active</label>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_formError)) { <div class="alert alert-danger py-2 mt-2">@_formError</div> }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showEditForm = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveEdit">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Add/Edit Failure Mode modal -->
+@if (_showFmForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_editFmId.HasValue ? "Edit" : "Add") Failure Mode</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showFmForm = false"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!_editFmId.HasValue && _pfmea is not null)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Process Step <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-sm" @bind="_fmStepId">
+                                <option value="">Select a step...</option>
+                                @foreach (var s in _processSteps)
+                                {
+                                    <option value="@s.Id">@s.Sequence. @(s.NameOverride ?? s.StepTemplateName)</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-4">
+                            <label class="form-label small">Step Function <span class="text-danger">*</span></label>
+                            <input class="form-control form-control-sm" @bind="_fmStepFunction" placeholder="What should this step do?" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Failure Mode <span class="text-danger">*</span></label>
+                            <input class="form-control form-control-sm" @bind="_fmFailureMode" placeholder="How could it fail?" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Failure Effect <span class="text-danger">*</span></label>
+                            <input class="form-control form-control-sm" @bind="_fmFailureEffect" placeholder="Consequence to customer/next step" />
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">Failure Cause</label>
+                        <input class="form-control form-control-sm" @bind="_fmFailureCause" placeholder="Root cause or mechanism" />
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label small">Prevention Controls</label>
+                            <textarea class="form-control form-control-sm" rows="2" @bind="_fmPrevention"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small">Detection Controls</label>
+                            <textarea class="form-control form-control-sm" rows="2" @bind="_fmDetection"></textarea>
+                        </div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <label class="form-label small">Severity (1–10)</label>
+                            <input type="number" min="1" max="10" class="form-control form-control-sm" @bind="_fmSeverity" />
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small">Occurrence (1–10)</label>
+                            <input type="number" min="1" max="10" class="form-control form-control-sm" @bind="_fmOccurrence" />
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label small">Detection (1–10)</label>
+                            <input type="number" min="1" max="10" class="form-control form-control-sm" @bind="_fmDetectionRating" />
+                        </div>
+                    </div>
+                    <div class="mt-2 text-end">
+                        <span class="fw-semibold">RPN = @(_fmSeverity * _fmOccurrence * _fmDetectionRating)
+                            <span class="badge @RpnBadge(_fmSeverity * _fmOccurrence * _fmDetectionRating) ms-1">
+                                @RpnLabel(_fmSeverity * _fmOccurrence * _fmDetectionRating)
+                            </span>
+                        </span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_formError)) { <div class="alert alert-danger py-2 mt-2">@_formError</div> }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showFmForm = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveFm" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> } Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Add/Edit Action modal -->
+@if (_showActionForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_editActionId.HasValue ? "Edit" : "Add") Action</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showActionForm = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-2">
+                        <label class="form-label small">Description <span class="text-danger">*</span></label>
+                        <textarea class="form-control form-control-sm" rows="2" @bind="_actionDesc"></textarea>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label small">Responsible Person</label>
+                            <input class="form-control form-control-sm" @bind="_actionPerson" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small">Target Date</label>
+                            <input type="date" class="form-control form-control-sm"
+                                   value="@_actionTargetDate?.ToString("yyyy-MM-dd")"
+                                   @onchange="e => _actionTargetDate = DateTime.TryParse(e.Value?.ToString(), out var d) ? d : null" />
+                        </div>
+                    </div>
+                    @if (_editActionId.HasValue)
+                    {
+                        <div class="mb-2">
+                            <label class="form-label small">Status</label>
+                            <select class="form-select form-select-sm" @bind="_actionStatus">
+                                <option>Open</option>
+                                <option>InProgress</option>
+                                <option>Completed</option>
+                                <option>Cancelled</option>
+                            </select>
+                        </div>
+                        @if (_actionStatus == "Completed")
+                        {
+                            <div class="mb-2">
+                                <label class="form-label small">Completion Notes</label>
+                                <textarea class="form-control form-control-sm" rows="2" @bind="_actionNotes"></textarea>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label small">Revised Occurrence (1–10)</label>
+                                    <input type="number" min="1" max="10" class="form-control form-control-sm" @bind="_actionRevO" />
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small">Revised Detection (1–10)</label>
+                                    <input type="number" min="1" max="10" class="form-control form-control-sm" @bind="_actionRevD" />
+                                </div>
+                            </div>
+                        }
+                    }
+                    @if (!string.IsNullOrEmpty(_formError)) { <div class="alert alert-danger py-2 mt-2">@_formError</div> }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showActionForm = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveAction" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> } Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    PfmeaResponseDto? _pfmea;
+    bool _loading = true;
+    string? _formError;
+    bool _saving;
+    Guid? _expandedFm;
+
+    // Process steps for the Add FM dropdown
+    List<ProcessStepResponseDto> _processSteps = [];
+
+    // Edit PFMEA
+    bool _showEditForm;
+    string _editName = "", _editDescription = "";
+    bool _editActive;
+
+    // Failure Mode form
+    bool _showFmForm;
+    Guid? _editFmId;
+    string _fmStepId = "", _fmStepFunction = "", _fmFailureMode = "", _fmFailureEffect = "",
+           _fmFailureCause = "", _fmPrevention = "", _fmDetection = "";
+    int _fmSeverity = 1, _fmOccurrence = 1, _fmDetectionRating = 1;
+
+    // Action form
+    bool _showActionForm;
+    Guid? _actionFmId, _editActionId;
+    string _actionDesc = "", _actionPerson = "", _actionStatus = "Open", _actionNotes = "";
+    DateTime? _actionTargetDate;
+    int? _actionRevO, _actionRevD;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    async Task Load()
+    {
+        _loading = true;
+        _pfmea = await Api.GetPfmeaAsync(Id);
+
+        if (_pfmea is not null)
+        {
+            var proc = await Api.GetProcessAsync(_pfmea.ProcessId);
+            _processSteps = proc?.Steps ?? [];
+        }
+        _loading = false;
+    }
+
+    void ToggleActions(Guid fmId) => _expandedFm = _expandedFm == fmId ? null : fmId;
+
+    // ── Edit PFMEA ──────────────────────────────────────────────────────
+
+    void ShowEdit()
+    {
+        if (_pfmea is null) return;
+        _editName = _pfmea.Name; _editDescription = _pfmea.Description ?? ""; _editActive = _pfmea.IsActive;
+        _formError = null; _showEditForm = true;
+    }
+
+    async Task SaveEdit()
+    {
+        if (string.IsNullOrWhiteSpace(_editName)) { _formError = "Name is required."; return; }
+        _saving = true;
+        try
+        {
+            _pfmea = await Api.UpdatePfmeaAsync(Id, new(_editName, _editDescription, _editActive));
+            _showEditForm = false;
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    async Task Branch()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm",
+            "Create a new version of this PFMEA, copying all failure modes and actions?")) return;
+        var branched = await Api.BranchPfmeaAsync(Id);
+        if (branched is not null) Nav.NavigateTo($"/pfmeas/{branched.Id}");
+    }
+
+    async Task Delete()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this PFMEA? This cannot be undone.")) return;
+        await Api.DeletePfmeaAsync(Id);
+        Nav.NavigateTo("/pfmeas");
+    }
+
+    // ── Failure Modes ────────────────────────────────────────────────────
+
+    void ShowAddFm()
+    {
+        _editFmId = null; _fmStepId = ""; _fmStepFunction = ""; _fmFailureMode = ""; _fmFailureEffect = "";
+        _fmFailureCause = ""; _fmPrevention = ""; _fmDetection = "";
+        _fmSeverity = 1; _fmOccurrence = 1; _fmDetectionRating = 1;
+        _formError = null; _showFmForm = true;
+    }
+
+    void ShowEditFm(PfmeaFailureModeResponseDto fm)
+    {
+        _editFmId = fm.Id; _fmStepFunction = fm.StepFunction; _fmFailureMode = fm.FailureMode;
+        _fmFailureEffect = fm.FailureEffect; _fmFailureCause = fm.FailureCause ?? "";
+        _fmPrevention = fm.PreventionControls ?? ""; _fmDetection = fm.DetectionControls ?? "";
+        _fmSeverity = fm.Severity; _fmOccurrence = fm.Occurrence; _fmDetectionRating = fm.Detection;
+        _formError = null; _showFmForm = true;
+    }
+
+    async Task SaveFm()
+    {
+        if (string.IsNullOrWhiteSpace(_fmStepFunction) || string.IsNullOrWhiteSpace(_fmFailureMode)
+            || string.IsNullOrWhiteSpace(_fmFailureEffect))
+        {
+            _formError = "Step Function, Failure Mode, and Failure Effect are required.";
+            return;
+        }
+        _saving = true; _formError = null;
+        try
+        {
+            if (_editFmId.HasValue)
+                _pfmea = await Api.UpdateFailureModeAsync(Id, _editFmId.Value,
+                    new(_fmStepFunction, _fmFailureMode, _fmFailureEffect, _fmFailureCause,
+                        _fmPrevention, _fmDetection, _fmSeverity, _fmOccurrence, _fmDetectionRating));
+            else
+            {
+                if (!Guid.TryParse(_fmStepId, out var sid)) { _formError = "Select a step."; _saving = false; return; }
+                _pfmea = await Api.AddFailureModeAsync(Id,
+                    new(sid, _fmStepFunction, _fmFailureMode, _fmFailureEffect, _fmFailureCause,
+                        _fmPrevention, _fmDetection, _fmSeverity, _fmOccurrence, _fmDetectionRating));
+            }
+            _showFmForm = false;
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    async Task DeleteFm(Guid fmId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this failure mode and all its actions?")) return;
+        _pfmea = await Api.DeleteFailureModeAsync(Id, fmId);
+        if (_expandedFm == fmId) _expandedFm = null;
+    }
+
+    // ── Actions ──────────────────────────────────────────────────────────
+
+    void ShowAddAction(Guid fmId)
+    {
+        _actionFmId = fmId; _editActionId = null;
+        _actionDesc = ""; _actionPerson = ""; _actionStatus = "Open"; _actionNotes = "";
+        _actionTargetDate = null; _actionRevO = null; _actionRevD = null;
+        _formError = null; _showActionForm = true;
+    }
+
+    void ShowEditAction(PfmeaFailureModeResponseDto fm, PfmeaActionResponseDto action)
+    {
+        _actionFmId = fm.Id; _editActionId = action.Id;
+        _actionDesc = action.Description; _actionPerson = action.ResponsiblePerson ?? "";
+        _actionStatus = action.Status; _actionNotes = action.CompletionNotes ?? "";
+        _actionTargetDate = action.TargetDate; _actionRevO = action.RevisedOccurrence;
+        _actionRevD = action.RevisedDetection;
+        _formError = null; _showActionForm = true;
+    }
+
+    async Task SaveAction()
+    {
+        if (string.IsNullOrWhiteSpace(_actionDesc)) { _formError = "Description is required."; return; }
+        if (_actionFmId is null) return;
+        _saving = true; _formError = null;
+        try
+        {
+            if (_editActionId.HasValue)
+            {
+                var status = Enum.Parse<ProcessManager.Domain.Enums.PfmeaActionStatus>(_actionStatus);
+                _pfmea = await Api.UpdatePfmeaActionAsync(Id, _actionFmId.Value, _editActionId.Value,
+                    new(_actionDesc, _actionPerson, _actionTargetDate, status,
+                        _actionStatus == "Completed" ? DateTime.UtcNow : null,
+                        _actionNotes, _actionRevO, _actionRevD));
+            }
+            else
+            {
+                _pfmea = await Api.AddPfmeaActionAsync(Id, _actionFmId.Value,
+                    new(_actionDesc, _actionPerson, _actionTargetDate));
+            }
+            _showActionForm = false;
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    async Task DeleteAction(Guid fmId, Guid actionId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this action?")) return;
+        _pfmea = await Api.DeletePfmeaActionAsync(Id, fmId, actionId);
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────
+
+    static string RpnBadge(int rpn) => rpn switch { >= 200 => "bg-danger", >= 100 => "bg-warning text-dark", _ => "bg-success" };
+    static string RpnLabel(int rpn) => rpn switch { >= 200 => "High Risk", >= 100 => "Med Risk", _ => "Low Risk" };
+    static string SeverityBadge(int s) => s >= 8 ? "bg-danger" : s >= 5 ? "bg-warning text-dark" : "bg-secondary";
+    static string ActionStatusBadge(string s) => s switch
+    {
+        "Completed"  => "bg-success",
+        "InProgress" => "bg-primary",
+        "Cancelled"  => "bg-secondary",
+        _            => "bg-warning text-dark",
+    };
+}

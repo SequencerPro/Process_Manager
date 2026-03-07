@@ -1,13 +1,16 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Api.Data;
 using ProcessManager.Api.DTOs;
+using ProcessManager.Api.Services;
 using ProcessManager.Domain.Enums;
 using Process = ProcessManager.Domain.Entities.Process;
 using ProcessManager.Domain.Entities;
 
 namespace ProcessManager.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class ProcessesController : ControllerBase
@@ -20,6 +23,7 @@ public class ProcessesController : ControllerBase
     public async Task<ActionResult<PaginatedResponse<ProcessSummaryResponseDto>>> GetAll(
         [FromQuery] string? search = null,
         [FromQuery] bool? active = null,
+        [FromQuery] string? status = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
@@ -31,18 +35,28 @@ public class ProcessesController : ControllerBase
         if (active.HasValue)
             query = query.Where(p => p.IsActive == active.Value);
 
+        if (!string.IsNullOrWhiteSpace(status) &&
+            Enum.TryParse<ProcessStatus>(status, ignoreCase: true, out var statusEnum))
+            query = query.Where(p => p.Status == statusEnum);
+
         var totalCount = await query.CountAsync();
 
-        var processes = await query
+        var rawProcesses = await query
             .OrderBy(p => p.Name)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(p => new ProcessSummaryResponseDto(
+            .Select(p => new {
                 p.Id, p.Code, p.Name, p.Description,
-                p.Version, p.IsActive,
-                p.ProcessSteps.Count,
-                p.CreatedAt, p.UpdatedAt))
+                p.Version, p.Status, p.IsActive,
+                StepCount = p.ProcessSteps.Count,
+                p.CreatedAt, p.UpdatedAt
+            })
             .ToListAsync();
+
+        var processes = rawProcesses.Select(p => new ProcessSummaryResponseDto(
+                p.Id, p.Code, p.Name, p.Description,
+                p.Version, p.Status.ToString(), p.IsActive,
+                p.StepCount, p.CreatedAt, p.UpdatedAt)).ToList();
 
         return new PaginatedResponse<ProcessSummaryResponseDto>(
             processes, totalCount, page, pageSize);
@@ -82,10 +96,12 @@ public class ProcessesController : ControllerBase
         var process = await LoadProcess(id);
         if (process is null) return NotFound();
 
+        if (process.Status == ProcessStatus.Released || process.Status == ProcessStatus.PendingApproval)
+            return BadRequest($"A {process.Status} process cannot be edited directly. Create a new revision instead.");
+
         process.Name = dto.Name;
         process.Description = dto.Description;
         if (dto.IsActive.HasValue) process.IsActive = dto.IsActive.Value;
-        process.Version++;
 
         await _db.SaveChangesAsync();
         return MapToDto(process);
@@ -239,11 +255,15 @@ public class ProcessesController : ControllerBase
         if (targetPort is null)
             return BadRequest("Target port not found or is not an input port on the target step's template.");
 
+        // Flows are only allowed between Material ports
+        if (sourcePort.PortType != PortType.Material || targetPort.PortType != PortType.Material)
+            return BadRequest("Flows can only connect Material ports. Non-material ports (Parameter, Characteristic, Condition) are connected analytically, not via flows.");
+
         // Validate type compatibility (Kind + Grade must match)
         if (sourcePort.KindId != targetPort.KindId || sourcePort.GradeId != targetPort.GradeId)
             return BadRequest(
-                $"Type mismatch: source port flows {sourcePort.Kind.Code}/{sourcePort.Grade.Code} " +
-                $"but target port expects {targetPort.Kind.Code}/{targetPort.Grade.Code}.");
+                $"Type mismatch: source port flows {sourcePort.Kind?.Code}/{sourcePort.Grade?.Code} " +
+                $"but target port expects {targetPort.Kind?.Code}/{targetPort.Grade?.Code}.");
 
         // Check for duplicate connections
         if (await _db.Flows.AnyAsync(f => f.SourcePortId == dto.SourcePortId && f.ProcessId == processId))
@@ -284,6 +304,197 @@ public class ProcessesController : ControllerBase
         var process = await _db.Processes.FindAsync(processId);
         if (process is not null) process.Version++;
 
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ──────────── ProcessStepContent sub-resources ────────────
+
+    [HttpGet("{processId:guid}/steps/{stepId:guid}/content")]
+    public async Task<ActionResult<List<ProcessStepContentResponseDto>>> GetStepContent(
+        Guid processId, Guid stepId)
+    {
+        var step = await _db.ProcessSteps
+            .Include(ps => ps.Contents)
+            .FirstOrDefaultAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (step is null) return NotFound();
+
+        return step.Contents
+            .OrderBy(c => c.SortOrder)
+            .Select(MapContentToDto)
+            .ToList();
+    }
+
+    [HttpPost("{processId:guid}/steps/{stepId:guid}/content/text")]
+    public async Task<ActionResult<ProcessStepContentResponseDto>> AddTextBlock(
+        Guid processId, Guid stepId, AddTextBlockDto dto)
+    {
+        var step = await _db.ProcessSteps
+            .Include(ps => ps.Contents)
+            .FirstOrDefaultAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (step is null) return NotFound();
+
+        var sortOrder = step.Contents.Any() ? step.Contents.Max(c => c.SortOrder) + 1 : 0;
+        var block = new ProcessStepContent
+        {
+            ProcessStepId = stepId,
+            ContentType = StepContentType.Text,
+            SortOrder = sortOrder,
+            Body = dto.Body
+        };
+
+        _db.ProcessStepContents.Add(block);
+        await _db.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetStepContent), new { processId, stepId }, MapContentToDto(block));
+    }
+
+    [HttpPost("{processId:guid}/steps/{stepId:guid}/content/image")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ProcessStepContentResponseDto>> AddImageBlock(
+        Guid processId, Guid stepId,
+        [FromForm] ImageUploadRequest request,
+        [FromServices] IImageStorageService imageStorage)
+    {
+        var step = await _db.ProcessSteps
+            .Include(ps => ps.Contents)
+            .FirstOrDefaultAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (step is null) return NotFound();
+
+        var file = request.File;
+        if (file is null) return BadRequest("No file was provided.");
+
+        var (fileName, _) = await imageStorage.SaveAsync(file, "process-steps");
+
+        var sortOrder = step.Contents.Any() ? step.Contents.Max(c => c.SortOrder) + 1 : 0;
+        var block = new ProcessStepContent
+        {
+            ProcessStepId = stepId,
+            ContentType = StepContentType.Image,
+            SortOrder = sortOrder,
+            FileName = fileName,
+            OriginalFileName = file.FileName,
+            MimeType = file.ContentType
+        };
+
+        _db.ProcessStepContents.Add(block);
+        await _db.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetStepContent), new { processId, stepId }, MapContentToDto(block));
+    }
+
+    [HttpPut("{processId:guid}/steps/{stepId:guid}/content/{contentId:guid}")]
+    public async Task<ActionResult<ProcessStepContentResponseDto>> UpdateTextBlock(
+        Guid processId, Guid stepId, Guid contentId, UpdateTextBlockDto dto)
+    {
+        var stepExists = await _db.ProcessSteps
+            .AnyAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (!stepExists) return NotFound();
+
+        var block = await _db.ProcessStepContents
+            .FirstOrDefaultAsync(c => c.Id == contentId && c.ProcessStepId == stepId);
+        if (block is null) return NotFound();
+        if (block.ContentType != StepContentType.Text)
+            return BadRequest("Only Text blocks can be updated via this endpoint.");
+
+        block.Body = dto.Body;
+        await _db.SaveChangesAsync();
+        return MapContentToDto(block);
+    }
+
+    [HttpPost("{processId:guid}/steps/{stepId:guid}/content/prompt")]
+    public async Task<ActionResult<ProcessStepContentResponseDto>> AddPromptBlock(
+        Guid processId, Guid stepId, AddPromptBlockDto dto)
+    {
+        var step = await _db.ProcessSteps
+            .Include(ps => ps.Contents)
+            .FirstOrDefaultAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (step is null) return NotFound();
+
+        if (!Enum.TryParse<PromptType>(dto.PromptType, ignoreCase: true, out var promptType))
+            return BadRequest($"Unknown PromptType '{dto.PromptType}'.");
+
+        var sortOrder = step.Contents.Any() ? step.Contents.Max(c => c.SortOrder) + 1 : 0;
+        var block = new ProcessStepContent
+        {
+            ProcessStepId = stepId,
+            ContentType = StepContentType.Prompt,
+            SortOrder = sortOrder,
+            PromptType = promptType,
+            Label = dto.Label,
+            IsRequired = dto.IsRequired,
+            Units = dto.Units,
+            MinValue = dto.MinValue,
+            MaxValue = dto.MaxValue,
+            Choices = dto.Choices
+        };
+
+        _db.ProcessStepContents.Add(block);
+        await _db.SaveChangesAsync();
+        return CreatedAtAction(nameof(GetStepContent), new { processId, stepId }, MapContentToDto(block));
+    }
+
+    [HttpPut("{processId:guid}/steps/{stepId:guid}/content/{contentId:guid}/prompt")]
+    public async Task<ActionResult<ProcessStepContentResponseDto>> UpdatePromptBlock(
+        Guid processId, Guid stepId, Guid contentId, UpdatePromptBlockDto dto)
+    {
+        var stepExists = await _db.ProcessSteps
+            .AnyAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (!stepExists) return NotFound();
+
+        var block = await _db.ProcessStepContents
+            .FirstOrDefaultAsync(c => c.Id == contentId && c.ProcessStepId == stepId);
+        if (block is null) return NotFound();
+        if (block.ContentType != StepContentType.Prompt)
+            return BadRequest("Only Prompt blocks can be updated via this endpoint.");
+
+        block.Label = dto.Label;
+        block.IsRequired = dto.IsRequired;
+        block.Units = dto.Units;
+        block.MinValue = dto.MinValue;
+        block.MaxValue = dto.MaxValue;
+        block.Choices = dto.Choices;
+        await _db.SaveChangesAsync();
+        return MapContentToDto(block);
+    }
+
+    [HttpPut("{processId:guid}/steps/{stepId:guid}/content/reorder")]
+    public async Task<IActionResult> ReorderContent(
+        Guid processId, Guid stepId, ReorderContentBlocksDto dto)
+    {
+        var stepExists = await _db.ProcessSteps
+            .AnyAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (!stepExists) return NotFound();
+
+        var blocks = await _db.ProcessStepContents
+            .Where(c => c.ProcessStepId == stepId)
+            .ToListAsync();
+
+        for (int i = 0; i < dto.OrderedIds.Count; i++)
+        {
+            var block = blocks.FirstOrDefault(c => c.Id == dto.OrderedIds[i]);
+            if (block is not null) block.SortOrder = i;
+        }
+
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpDelete("{processId:guid}/steps/{stepId:guid}/content/{contentId:guid}")]
+    public async Task<IActionResult> DeleteContentBlock(
+        Guid processId, Guid stepId, Guid contentId,
+        [FromServices] IImageStorageService imageStorage)
+    {
+        var stepExists = await _db.ProcessSteps
+            .AnyAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
+        if (!stepExists) return NotFound();
+
+        var block = await _db.ProcessStepContents
+            .FirstOrDefaultAsync(c => c.Id == contentId && c.ProcessStepId == stepId);
+        if (block is null) return NotFound();
+
+        if (block.ContentType == StepContentType.Image && block.FileName is not null)
+            await imageStorage.DeleteAsync($"uploads/process-steps/{block.FileName}");
+
+        _db.ProcessStepContents.Remove(block);
         await _db.SaveChangesAsync();
         return NoContent();
     }
@@ -351,12 +562,161 @@ public class ProcessesController : ControllerBase
         return Ok(new ProcessValidationResultDto(errors, warnings));
     }
 
+    // ──────────── Lifecycle ────────────
+
+    /// <summary>Submit a Draft for approval. Status → PendingApproval.</summary>
+    [HttpPost("{id:guid}/submit")]
+    public async Task<ActionResult<ProcessResponseDto>> Submit(Guid id, SubmitForApprovalDto dto)
+    {
+        var process = await LoadProcess(id);
+        if (process is null) return NotFound();
+        if (process.Status != ProcessStatus.Draft)
+            return BadRequest($"Only Draft processes can be submitted (current: {process.Status}).");
+
+        process.Status = ProcessStatus.PendingApproval;
+        _db.ApprovalRecords.Add(new ApprovalRecord
+        {
+            EntityType = "Process",
+            EntityId = process.Id,
+            ProcessId = process.Id,
+            EntityVersion = process.Version,
+            SubmittedBy = dto.SubmittedBy,
+            SubmittedAt = DateTime.UtcNow,
+            Decision = "Pending",
+            Notes = dto.SubmissionNotes
+        });
+        await _db.SaveChangesAsync();
+        return MapToDto(process);
+    }
+
+    /// <summary>Approve a PendingApproval process. Status → Released; supersedes prior Released.</summary>
+    [HttpPost("{id:guid}/approve")]
+    public async Task<ActionResult<ProcessResponseDto>> Approve(Guid id, ApproveDto dto)
+    {
+        var process = await LoadProcess(id);
+        if (process is null) return NotFound();
+        if (process.Status != ProcessStatus.PendingApproval)
+            return BadRequest($"Only PendingApproval processes can be approved (current: {process.Status}).");
+
+        // Supersede any currently Released version with the same code
+        var priorReleased = await _db.Processes
+            .Where(p => p.Code == process.Code && p.Status == ProcessStatus.Released && p.Id != process.Id)
+            .ToListAsync();
+        foreach (var prior in priorReleased)
+            prior.Status = ProcessStatus.Superseded;
+
+        process.Status = ProcessStatus.Released;
+
+        // Flag linked PFMEAs as stale
+        var linkedPfmeas = await _db.Pfmeas
+            .Where(p => p.ProcessId == process.Id && !p.IsStale)
+            .ToListAsync();
+        foreach (var pfmea in linkedPfmeas)
+        {
+            pfmea.IsStale = true;
+            pfmea.ProcessVersion = process.Version;
+        }
+
+        // Update approval record
+        var record = await _db.ApprovalRecords
+            .Where(a => a.ProcessId == process.Id && a.Decision == "Pending")
+            .OrderByDescending(a => a.SubmittedAt).FirstOrDefaultAsync();
+        if (record is not null)
+        {
+            record.ReviewedBy = dto.ApprovedBy;
+            record.ReviewedAt = DateTime.UtcNow;
+            record.Decision = "Approved";
+            record.Notes ??= dto.ApprovalNotes;
+        }
+
+        await _db.SaveChangesAsync();
+        return MapToDto(process);
+    }
+
+    /// <summary>Reject a PendingApproval process. Status → Draft with rejection reason.</summary>
+    [HttpPost("{id:guid}/reject")]
+    public async Task<ActionResult<ProcessResponseDto>> Reject(Guid id, RejectDto dto)
+    {
+        var process = await LoadProcess(id);
+        if (process is null) return NotFound();
+        if (process.Status != ProcessStatus.PendingApproval)
+            return BadRequest($"Only PendingApproval processes can be rejected (current: {process.Status}).");
+
+        process.Status = ProcessStatus.Draft;
+        var record = await _db.ApprovalRecords
+            .Where(a => a.ProcessId == process.Id && a.Decision == "Pending")
+            .OrderByDescending(a => a.SubmittedAt).FirstOrDefaultAsync();
+        if (record is not null)
+        {
+            record.ReviewedBy = dto.RejectedBy;
+            record.ReviewedAt = DateTime.UtcNow;
+            record.Decision = "Rejected";
+            record.Notes = dto.RejectionReason;
+        }
+
+        await _db.SaveChangesAsync();
+        return MapToDto(process);
+    }
+
+    /// <summary>Create a new Draft revision from a Released process. Steps are copied; flows are not.</summary>
+    [HttpPost("{id:guid}/new-revision")]
+    public async Task<ActionResult<ProcessResponseDto>> NewRevision(Guid id, NewRevisionDto dto)
+    {
+        var source = await LoadProcess(id);
+        if (source is null) return NotFound();
+        if (source.Status != ProcessStatus.Released)
+            return BadRequest($"Only Released processes can have new revisions created (current: {source.Status}).");
+
+        var newProcess = new Process
+        {
+            Code = source.Code,
+            Name = source.Name,
+            Description = source.Description,
+            Version = source.Version + 1,
+            IsActive = source.IsActive,
+            Status = ProcessStatus.Draft,
+            ParentProcessId = source.Id
+        };
+        _db.Processes.Add(newProcess);
+        await _db.SaveChangesAsync();
+
+        foreach (var ps in source.ProcessSteps.OrderBy(s => s.Sequence))
+        {
+            _db.ProcessSteps.Add(new ProcessStep
+            {
+                ProcessId = newProcess.Id,
+                StepTemplateId = ps.StepTemplateId,
+                Sequence = ps.Sequence,
+                NameOverride = ps.NameOverride,
+                DescriptionOverride = ps.DescriptionOverride
+            });
+        }
+        await _db.SaveChangesAsync();
+
+        var result = await LoadProcess(newProcess.Id);
+        return CreatedAtAction(nameof(GetById), new { id = newProcess.Id }, MapToDto(result!));
+    }
+
+    /// <summary>Retire a Released or Superseded process.</summary>
+    [HttpPost("{id:guid}/retire")]
+    public async Task<ActionResult<ProcessResponseDto>> Retire(Guid id)
+    {
+        var process = await LoadProcess(id);
+        if (process is null) return NotFound();
+        if (process.Status == ProcessStatus.Draft || process.Status == ProcessStatus.PendingApproval)
+            return BadRequest($"Draft and PendingApproval processes should be deleted, not retired.");
+
+        process.Status = ProcessStatus.Retired;
+        await _db.SaveChangesAsync();
+        return MapToDto(process);
+    }
+
     // ──────────── Helpers ────────────
 
     private async Task<Process?> LoadProcess(Guid id)
     {
         return await _db.Processes
-            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.StepTemplate)
+            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.StepTemplate).ThenInclude(st => st.Contents)
             .Include(p => p.Flows).ThenInclude(f => f.SourcePort)
             .Include(p => p.Flows).ThenInclude(f => f.TargetPort)
             .FirstOrDefaultAsync(p => p.Id == id);
@@ -366,7 +726,7 @@ public class ProcessesController : ControllerBase
 
     private static ProcessResponseDto MapToDto(Process process) => new(
         process.Id, process.Code, process.Name, process.Description,
-        process.Version, process.IsActive,
+        process.Version, process.Status.ToString(), process.IsActive,
         process.CreatedAt, process.UpdatedAt,
         process.ProcessSteps.OrderBy(ps => ps.Sequence).Select(MapProcessStepToDto).ToList(),
         process.Flows.Select(MapFlowToDto).ToList()
@@ -376,7 +736,8 @@ public class ProcessesController : ControllerBase
         ps.Id, ps.ProcessId, ps.StepTemplateId,
         ps.StepTemplate.Code, ps.StepTemplate.Name,
         ps.Sequence, ps.NameOverride, ps.DescriptionOverride,
-        ps.CreatedAt, ps.UpdatedAt
+        ps.CreatedAt, ps.UpdatedAt,
+        MaturityScoringService.Summarise(ps.StepTemplate)
     );
 
     private static FlowResponseDto MapFlowToDto(Flow f) => new(
@@ -384,5 +745,19 @@ public class ProcessesController : ControllerBase
         f.SourceProcessStepId, f.SourcePortId, f.SourcePort.Name,
         f.TargetProcessStepId, f.TargetPortId, f.TargetPort.Name,
         f.CreatedAt, f.UpdatedAt
+    );
+
+    private static ProcessStepContentResponseDto MapContentToDto(ProcessStepContent c) => new(
+        c.Id, c.ProcessStepId,
+        c.ContentType.ToString(),
+        c.SortOrder,
+        c.Body,
+        c.FileName, c.OriginalFileName, c.MimeType,
+        c.ContentType == StepContentType.Image && c.FileName is not null
+            ? $"uploads/process-steps/{c.FileName}"
+            : null,
+        c.CreatedAt,
+        c.PromptType?.ToString(), c.Label, c.IsRequired, c.Units, c.MinValue, c.MaxValue, c.Choices,
+        c.ContentCategory?.ToString(), c.AcknowledgmentRequired, c.NominalValue, c.IsHardLimit
     );
 }

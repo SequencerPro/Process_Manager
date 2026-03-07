@@ -4,6 +4,10 @@
     <ProjectReference Include="..\ProcessManager.Api\ProcessManager.Api.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Z.Blazor.Diagrams" Version="3.0.4.1" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>

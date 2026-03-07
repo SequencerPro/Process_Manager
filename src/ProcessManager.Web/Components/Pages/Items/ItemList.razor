@@ -85,11 +85,6 @@ else if (_data is not null)
            OnPageChanged="OnPageChanged" />
 }
 
-@if (_error is not null)
-{
-    <div class="alert alert-danger mt-3 py-2">@_error</div>
-}
-
 @* Create Item Modal *@
 @if (_showForm)
 {
@@ -161,7 +156,6 @@ else if (_data is not null)
     private string? _status;
     private int _page = 1;
     private int _pageSize = 25;
-    private string? _error;
 
     // Create form
     private bool _showForm;
@@ -177,9 +171,19 @@ else if (_data is not null)
 
     private async Task LoadData()
     {
-        _loading = true; _error = null;
-        _data = await Api.GetItemsAsync(_search, status: _status, page: _page, pageSize: _pageSize);
-        _loading = false;
+        _loading = true;
+        try
+        {
+            _data = await Api.GetItemsAsync(_search, status: _status, page: _page, pageSize: _pageSize);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task OnSearch(string v) { _search = v; _page = 1; await LoadData(); }
@@ -201,7 +205,7 @@ else if (_data is not null)
         StateHasChanged();
     }
 
-    private void CloseForm() => _showForm = false;
+    private void CloseForm() { _showForm = false; }
 
     private async Task OnFormKindChanged()
     {
@@ -217,21 +221,21 @@ else if (_data is not null)
     {
         try
         {
-            if (!Guid.TryParse(_formJobId, out var jobId)) { _error = "Select a job."; return; }
-            if (!Guid.TryParse(_formKindId, out var kindId)) { _error = "Select a kind."; return; }
-            if (!Guid.TryParse(_formGradeId, out var gradeId)) { _error = "Select a grade."; return; }
+            if (!Guid.TryParse(_formJobId, out var jobId)) { Toast.ShowError("Select a job."); return; }
+            if (!Guid.TryParse(_formKindId, out var kindId)) { Toast.ShowError("Select a kind."); return; }
+            if (!Guid.TryParse(_formGradeId, out var gradeId)) { Toast.ShowError("Select a grade."); return; }
             var serial = string.IsNullOrWhiteSpace(_formSerial) ? null : _formSerial.Trim();
             await Api.CreateItemAsync(new CreateItemDto(kindId, gradeId, jobId, serial));
-            _showForm = false; _error = null;
+            _showForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task Delete(Guid id)
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Delete this item?")) return;
         try { await Api.DeleteItemAsync(id); await LoadData(); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 }

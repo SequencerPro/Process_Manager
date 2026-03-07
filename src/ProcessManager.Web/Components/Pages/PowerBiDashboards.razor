@@ -1,0 +1,275 @@
+@page "/powerbi-dashboards"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject ApiClient Api
+@inject ToastService Toast
+
+<PageTitle>Power BI Dashboards — Process Manager</PageTitle>
+
+<div class="container-fluid py-3 px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="mb-0"><i class="bi bi-bar-chart-steps me-2 text-primary"></i>Power BI Dashboards</h3>
+            <p class="text-muted small mb-0">Connect and view your Power BI dashboards</p>
+        </div>
+        <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
+            <i class="bi bi-plus-lg me-1"></i> Add Dashboard
+        </button>
+    </div>
+
+    @if (_loading)
+    {
+        <div class="text-center py-5 text-muted">
+            <div class="spinner-border spinner-border-sm me-2"></div>Loading dashboards…
+        </div>
+    }
+    else if (_dashboards is null || !_dashboards.Any())
+    {
+        <div class="text-center py-5">
+            <i class="bi bi-bar-chart-steps display-4 text-muted d-block mb-3"></i>
+            <p class="text-muted mb-3">No Power BI dashboards connected yet.</p>
+            <button class="btn btn-outline-primary btn-sm" @onclick="ShowCreate">
+                <i class="bi bi-plus-lg me-1"></i> Add Your First Dashboard
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            @foreach (var db in _dashboards)
+            {
+                <div class="col-12">
+                    <div class="card shadow-sm">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-0">@db.Name</h5>
+                                @if (!string.IsNullOrWhiteSpace(db.Description))
+                                {
+                                    <small class="text-muted">@db.Description</small>
+                                }
+                            </div>
+                            <div>
+                                <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEdit(db)" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => ConfirmDelete(db)" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="ratio ratio-16x9">
+                                <iframe src="@db.EmbedUrl"
+                                        frameborder="0"
+                                        allowfullscreen
+                                        sandbox="allow-scripts allow-same-origin allow-popups"
+                                        style="border: none;">
+                                </iframe>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@* ── Add / Edit Modal ──────────────────────────────────────────────────── *@
+@if (_showForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "Add") Dashboard</h5>
+                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_formName" placeholder="e.g. Production Overview" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Embed URL <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_formEmbedUrl" placeholder="https://app.powerbi.com/view?r=..." />
+                        <div class="form-text">Paste the Power BI "Publish to web" embed URL.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" @bind="_formDescription" rows="2" placeholder="Optional description"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Sort Order</label>
+                        <input type="number" class="form-control" @bind="_formSortOrder" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseForm">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveAsync" disabled="@_saving">
+                        @if (_saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        @(_editId.HasValue ? "Update" : "Add")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Delete Confirmation Modal ─────────────────────────────────────────── *@
+@if (_showDeleteConfirm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete Dashboard</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showDeleteConfirm = false"></button>
+                </div>
+                <div class="modal-body">
+                    Are you sure you want to delete <strong>@_deleteTarget?.Name</strong>?
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showDeleteConfirm = false">Cancel</button>
+                    <button class="btn btn-danger btn-sm" @onclick="DeleteAsync" disabled="@_saving">
+                        @if (_saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<PowerBiDashboardResponseDto>? _dashboards;
+    private bool _loading = true;
+    private bool _saving;
+
+    // Form state
+    private bool _showForm;
+    private Guid? _editId;
+    private string _formName = string.Empty;
+    private string _formEmbedUrl = string.Empty;
+    private string? _formDescription;
+    private int _formSortOrder;
+
+    // Delete state
+    private bool _showDeleteConfirm;
+    private PowerBiDashboardResponseDto? _deleteTarget;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _dashboards = await Api.GetPowerBiDashboardsAsync();
+        }
+        catch
+        {
+            Toast.ShowError("Failed to load dashboards.");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void ShowCreate()
+    {
+        _editId = null;
+        _formName = string.Empty;
+        _formEmbedUrl = string.Empty;
+        _formDescription = null;
+        _formSortOrder = 0;
+        _showForm = true;
+    }
+
+    private void ShowEdit(PowerBiDashboardResponseDto d)
+    {
+        _editId = d.Id;
+        _formName = d.Name;
+        _formEmbedUrl = d.EmbedUrl;
+        _formDescription = d.Description;
+        _formSortOrder = d.SortOrder;
+        _showForm = true;
+    }
+
+    private void CloseForm() => _showForm = false;
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_formName) || string.IsNullOrWhiteSpace(_formEmbedUrl))
+        {
+            Toast.ShowError("Name and Embed URL are required.");
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            if (_editId.HasValue)
+            {
+                var dto = new PowerBiDashboardUpdateDto(_formName.Trim(), _formEmbedUrl.Trim(), _formDescription?.Trim(), _formSortOrder);
+                await Api.UpdatePowerBiDashboardAsync(_editId.Value, dto);
+                Toast.ShowSuccess("Dashboard updated.");
+            }
+            else
+            {
+                var dto = new PowerBiDashboardCreateDto(_formName.Trim(), _formEmbedUrl.Trim(), _formDescription?.Trim(), _formSortOrder);
+                await Api.CreatePowerBiDashboardAsync(dto);
+                Toast.ShowSuccess("Dashboard added.");
+            }
+
+            _showForm = false;
+            await LoadAsync();
+        }
+        catch
+        {
+            Toast.ShowError("Failed to save dashboard.");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void ConfirmDelete(PowerBiDashboardResponseDto d)
+    {
+        _deleteTarget = d;
+        _showDeleteConfirm = true;
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (_deleteTarget is null) return;
+
+        _saving = true;
+        try
+        {
+            await Api.DeletePowerBiDashboardAsync(_deleteTarget.Id);
+            Toast.ShowSuccess("Dashboard deleted.");
+            _showDeleteConfirm = false;
+            _deleteTarget = null;
+            await LoadAsync();
+        }
+        catch
+        {
+            Toast.ShowError("Failed to delete dashboard.");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

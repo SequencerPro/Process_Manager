@@ -37,7 +37,7 @@ else
                         </button>
                         <button class="btn btn-outline-secondary btn-sm" @onclick='() => Transition("skip")'>Skip</button>
                     }
-                    else if (_exec.Status == "Running")
+                    else if (_exec.Status == "InProgress")
                     {
                         <button class="btn btn-primary btn-sm" @onclick='() => Transition("complete")'>
                             <i class="bi bi-check-lg me-1"></i>Complete
@@ -80,13 +80,14 @@ else
         </div>
     </div>
 
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger py-2">@_error</div>
-    }
-
-    <!-- Tabs: Port Transactions / Execution Data -->
+    <!-- Tabs: Instructions / Port Transactions / Execution Data -->
     <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <button class="nav-link @(_activeTab == "instructions" ? "active" : "")"
+                    @onclick='() => _activeTab = "instructions"'>
+                <i class="bi bi-card-text me-1"></i>Instructions & Prompts
+            </button>
+        </li>
         <li class="nav-item">
             <button class="nav-link @(_activeTab == "transactions" ? "active" : "")"
                     @onclick='() => _activeTab = "transactions"'>
@@ -99,8 +100,161 @@ else
                 Execution Data (@(_data?.Count ?? 0))
             </button>
         </li>
+        <li class="nav-item">
+            <button class="nav-link @(_activeTab == "charts" ? "active" : "")"
+                    @onclick='() => _activeTab = "charts"'>
+                <i class="bi bi-graph-up me-1"></i>Run Charts (@(_runChartWidgets?.Count ?? 0))
+            </button>
+        </li>
     </ul>
 
+    @* ── Instructions & Prompts tab ────────────────────────────────────── *@
+    @if (_activeTab == "instructions")
+    {
+        @if (_contentLoading)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                <span class="text-muted">Loading instructions…</span>
+            </div>
+        }
+        else if (!_allContentBlocks.Any())
+        {
+            <p class="text-muted fst-italic py-3">No work instructions defined for this step.</p>
+        }
+        else
+        {
+            @foreach (var block in _allContentBlocks)
+            {
+                if (block.ContentType == "Text")
+                {
+                    <div class="mb-4 p-3 bg-light rounded border-start border-4 border-primary">
+                        <p class="mb-0" style="white-space:pre-wrap">@block.Body</p>
+                    </div>
+                }
+                else if (block.ContentType == "Image")
+                {
+                    <div class="mb-4 text-center">
+                        <img src="@block.ImageUrl" class="img-fluid rounded shadow-sm" style="max-height:400px" alt="@block.OriginalFileName" />
+                        @if (!string.IsNullOrEmpty(block.OriginalFileName))
+                        {
+                            <div class="text-muted small mt-1">@block.OriginalFileName</div>
+                        }
+                    </div>
+                }
+                else if (block.ContentType == "Prompt")
+                {
+                    var key  = block.Id.ToString();
+                    var pval = GetPromptValue(key);
+                    var existing     = _promptResponses.FirstOrDefault(r =>
+                        r.ProcessStepContentId == block.Id || r.StepTemplateContentId == block.Id);
+                    var isOutOfRange = existing?.IsOutOfRange == true;
+
+                    <div class="card mb-3 @(isOutOfRange ? "border-warning" : "")">
+                        <div class="card-body">
+                            <label class="form-label fw-medium">
+                                @block.Label
+                                @if (block.IsRequired) { <span class="text-danger">*</span> }
+                                @if (!string.IsNullOrEmpty(block.Units))
+                                { <span class="text-muted ms-1 fw-normal">(@block.Units)</span> }
+                                <span class="badge bg-secondary ms-2 fw-normal" style="font-size:.7rem">@block.PromptType</span>
+                            </label>
+
+                            @if (block.PromptType == "NumericEntry")
+                            {
+                                <input type="number" step="any"
+                                       class="form-control @(isOutOfRange ? "border-warning" : "")"
+                                       value="@pval"
+                                       @oninput="e => SetPromptValue(key, e.Value?.ToString())" />
+                                @if (block.MinValue.HasValue || block.MaxValue.HasValue)
+                                {
+                                    <div class="form-text">
+                                        Range: @(block.MinValue?.ToString() ?? "—") to @(block.MaxValue?.ToString() ?? "—")
+                                        @if (!string.IsNullOrEmpty(block.Units)) { <text> @block.Units</text> }
+                                    </div>
+                                }
+                            }
+                            else if (block.PromptType == "TextEntry")
+                            {
+                                <textarea class="form-control" rows="3"
+                                          @oninput="e => SetPromptValue(key, e.Value?.ToString())">@pval</textarea>
+                            }
+                            else if (block.PromptType == "Checkbox")
+                            {
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" id="chk-@block.Id"
+                                           checked="@(pval == "true")"
+                                           @onchange="e => SetBoolPromptValue(key, (bool)e.Value!)" />
+                                    <label class="form-check-label" for="chk-@block.Id">Confirmed</label>
+                                </div>
+                            }
+                            else if (block.PromptType == "SingleChoice")
+                            {
+                                var sc = block.Choices?.Split(',',
+                                    StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                                    ?? Array.Empty<string>();
+                                <select class="form-select"
+                                        @onchange="e => SetPromptValue(key, e.Value?.ToString())">
+                                    <option value="">Select…</option>
+                                    @foreach (var c in sc)
+                                    {
+                                        <option value="@c" selected="@(pval == c)">@c</option>
+                                    }
+                                </select>
+                            }
+                            else if (block.PromptType == "MultipleChoice")
+                            {
+                                var mc      = block.Choices?.Split(',',
+                                    StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                                    ?? Array.Empty<string>();
+                                var selset  = pval.Split(',',
+                                    StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                                    .ToHashSet();
+                                @foreach (var c in mc)
+                                {
+                                    <div class="form-check">
+                                        <input type="checkbox" class="form-check-input" id="mc-@(block.Id)-@c"
+                                               checked="@selset.Contains(c)"
+                                               @onchange="e => ToggleMultiChoice(key, c, (bool)e.Value!)" />
+                                        <label class="form-check-label" for="mc-@(block.Id)-@c">@c</label>
+                                    </div>
+                                }
+                            }
+
+                            @if (isOutOfRange)
+                            {
+                                <div class="text-warning mt-1 small">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>Value is out of specified range.
+                                    @if (!string.IsNullOrEmpty(existing?.OverrideNote))
+                                    { <text> Note: @existing.OverrideNote</text> }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+
+            @if (_allContentBlocks.Any(b => b.ContentType == "Prompt"))
+            {
+                <div class="d-flex align-items-center gap-3 mt-1 mb-4">
+                    <button class="btn btn-primary" @onclick="SavePromptResponses" disabled="@_promptSaving">
+                        @if (_promptSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi bi-save me-1"></i> Save Responses
+                    </button>
+                    @if (_promptsSaved)
+                    {
+                        <span class="text-success"><i class="bi bi-check-circle me-1"></i>Saved</span>
+                    }
+                    @if (_promptError is not null)
+                    {
+                        <span class="text-danger small">@_promptError</span>
+                    }
+                </div>
+            }
+        }
+    }
+
+    @* ── Port Transactions tab ─────────────────────────────────────────── *@
     @if (_activeTab == "transactions")
     {
         <div class="d-flex justify-content-end mb-2">
@@ -200,6 +354,49 @@ else
         else
         {
             <p class="text-muted small">No execution data recorded.</p>
+        }
+    }
+
+    @* ── Run Charts tab ──────────────────────────────────────────────── *@
+    @if (_activeTab == "charts")
+    {
+        @if (_chartsLoading)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                <span class="text-muted">Loading charts…</span>
+            </div>
+        }
+        else if (_runChartWidgets is null || _runChartWidgets.Count == 0)
+        {
+            <p class="text-muted fst-italic py-3">No run charts are configured for this step template.</p>
+        }
+        else
+        {
+            @foreach (var w in _runChartWidgets)
+            {
+                var history = _chartHistories.TryGetValue(w.Id, out var h) ? h : new();
+                var csvValues = history.Select(p => p.Value).ToArray();
+                var csvOor = history.Select(p => p.IsOutOfRange).ToArray();
+                var currentVal = TryGetCurrentChartValue(w.SourceContentId);
+                var specMin = w.SpecMin.HasValue ? (double?)((double)w.SpecMin.Value)
+                              : w.SourceSpecMin.HasValue ? (double?)((double)w.SourceSpecMin.Value) : null;
+                var specMax = w.SpecMax.HasValue ? (double?)((double)w.SpecMax.Value)
+                              : w.SourceSpecMax.HasValue ? (double?)((double)w.SourceSpecMax.Value) : null;
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <RunChart
+                            HistoricalValues="@csvValues"
+                            OutOfRange="@csvOor"
+                            CurrentValue="@currentVal"
+                            SpecMin="@specMin"
+                            SpecMax="@specMax"
+                            Label="@w.Label"
+                            Units="@w.SourceUnits" />
+                    </div>
+                </div>
+            }
         }
     }
 }
@@ -315,9 +512,30 @@ else
     private List<PortTransactionResponseDto>? _transactions;
     private List<ExecutionDataResponseDto>? _data;
     private bool _loading = true;
-    private string? _error;
-    private string _activeTab = "transactions";
+    private string _activeTab = "instructions";
     private string _notes = "";
+
+    // Instructions & Prompts
+    private bool _contentLoading;
+    private List<ContentBlockViewModel> _allContentBlocks = new();
+    private List<PromptResponseDto> _promptResponses = new();
+    private readonly Dictionary<string, string> _promptValues = new();
+    private bool _promptSaving;
+    private bool _promptsSaved;
+    private string? _promptError;
+
+    // Run Charts
+    private bool _chartsLoading;
+    private Guid? _stepTemplateId;
+    private List<RunChartWidgetResponseDto>? _runChartWidgets;
+    private readonly Dictionary<Guid, List<PromptHistoryPointDto>> _chartHistories = new();
+
+    private record ContentBlockViewModel(
+        Guid Id, string ContentType, int SortOrder,
+        string? Body, string? ImageUrl, string? OriginalFileName,
+        string? PromptType, string? Label, bool IsRequired,
+        string? Units, decimal? MinValue, decimal? MaxValue,
+        string? Choices, bool IsFromTemplate);
 
     // Data form
     private bool _showDataForm;
@@ -340,15 +558,164 @@ else
 
     private async Task LoadAll()
     {
-        _loading = true; _error = null;
+        _loading = true;
         _exec = await Api.GetStepExecutionAsync(Id);
         if (_exec is not null)
         {
             _notes = _exec.Notes ?? "";
             _transactions = await Api.GetStepExecutionPortTransactionsAsync(Id);
             _data = await Api.GetStepExecutionDataAsync(Id);
+            _ = LoadInstructions();
         }
         _loading = false;
+    }
+
+    private async Task LoadInstructions()
+    {
+        if (_exec is null) return;
+        _contentLoading = true;
+        StateHasChanged();
+        try
+        {
+            var job = await Api.GetJobAsync(_exec.JobId);
+            if (job is null) return;
+
+            // Prefer process-step-level content; fall back to template content
+            var processContent = await Api.GetStepContentAsync(job.ProcessId, _exec.ProcessStepId);
+            if (processContent?.Any() == true)
+            {
+                _allContentBlocks = processContent
+                    .OrderBy(c => c.SortOrder)
+                    .Select(c => new ContentBlockViewModel(
+                        c.Id, c.ContentType, c.SortOrder, c.Body, c.ImageUrl, c.OriginalFileName,
+                        c.PromptType, c.Label, c.IsRequired, c.Units, c.MinValue, c.MaxValue,
+                        c.Choices, false))
+                    .ToList();
+            }
+            else
+            {
+                var process = await Api.GetProcessAsync(job.ProcessId);
+                var step = process?.Steps.FirstOrDefault(s => s.Id == _exec.ProcessStepId);
+                if (step is not null)
+                {
+                    _stepTemplateId = step.StepTemplateId;
+                    var tplContent = await Api.GetStepTemplateContentAsync(step.StepTemplateId);
+                    _allContentBlocks = tplContent
+                        .OrderBy(c => c.SortOrder)
+                        .Select(c => new ContentBlockViewModel(
+                            c.Id, c.ContentType, c.SortOrder, c.Body, c.ImageUrl, c.OriginalFileName,
+                            c.PromptType, c.Label, c.IsRequired, c.Units, c.MinValue, c.MaxValue,
+                            c.Choices, true))
+                        .ToList();
+                }
+            }
+
+            // Load existing prompt responses and pre-populate values
+            _promptResponses = await Api.GetPromptResponsesAsync(_exec.Id);
+            foreach (var r in _promptResponses)
+            {
+                var blockId = (r.ProcessStepContentId ?? r.StepTemplateContentId)?.ToString();
+                if (blockId is not null)
+                    _promptValues[blockId] = r.ResponseValue;
+            }
+
+            // Load run chart widgets (non-blocking)
+            if (_stepTemplateId.HasValue)
+                _ = LoadRunCharts(_stepTemplateId.Value);
+        }
+        finally
+        {
+            _contentLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadRunCharts(Guid stepTemplateId)
+    {
+        _chartsLoading = true;
+        StateHasChanged();
+        try
+        {
+            _runChartWidgets = await Api.GetRunChartWidgetsAsync(stepTemplateId);
+            _chartHistories.Clear();
+            foreach (var w in _runChartWidgets)
+            {
+                try
+                {
+                    var history = await Api.GetPromptHistoryAsync(
+                        w.SourceStepTemplateId,
+                        w.SourceContentId,
+                        w.ChartWindowSize);
+                    _chartHistories[w.Id] = history;
+                }
+                catch { /* non-fatal – chart shows empty */ }
+            }
+        }
+        catch (Exception ex) { Toast.ShowError($"Could not load run charts: {ex.Message}"); }
+        finally { _chartsLoading = false; StateHasChanged(); }
+    }
+
+    /// <summary>Returns the operator's current (possibly unsaved) entry for the given source content block.</summary>
+    private double? TryGetCurrentChartValue(Guid sourceContentId)
+    {
+        if (_promptValues.TryGetValue(sourceContentId.ToString(), out var raw) &&
+            double.TryParse(raw, System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var d))
+            return d;
+        return null;
+    }
+
+    private string GetPromptValue(string key) =>
+        _promptValues.TryGetValue(key, out var v) ? v : "";
+
+    private void SetPromptValue(string key, string? value)
+    {
+        _promptValues[key] = value ?? "";
+        _promptsSaved = false;
+    }
+
+    private void SetBoolPromptValue(string key, bool isChecked) =>
+        SetPromptValue(key, isChecked ? "true" : "false");
+
+    private void ToggleMultiChoice(string key, string choice, bool add)
+    {
+        var current = GetPromptValue(key)
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .ToHashSet();
+        if (add) current.Add(choice); else current.Remove(choice);
+        SetPromptValue(key, string.Join(", ", current));
+    }
+
+    private async Task SavePromptResponses()
+    {
+        if (_exec is null) return;
+        _promptSaving = true; _promptError = null; _promptsSaved = false;
+        try
+        {
+            var items = _allContentBlocks
+                .Where(b => b.ContentType == "Prompt")
+                .Select(b =>
+                {
+                    var val = GetPromptValue(b.Id.ToString());
+                    if (string.IsNullOrEmpty(val)) return null;
+                    return new PromptResponseItemDto(
+                        b.IsFromTemplate ? null : b.Id,
+                        b.IsFromTemplate ? b.Id : null,
+                        val);
+                })
+                .Where(x => x is not null)
+                .Cast<PromptResponseItemDto>()
+                .ToList();
+
+            if (items.Any())
+            {
+                await Api.SavePromptResponsesAsync(_exec.Id, new SavePromptResponsesDto(items));
+                _promptResponses = await Api.GetPromptResponsesAsync(_exec.Id);
+                _promptsSaved = true;
+            }
+        }
+        catch (Exception ex) { _promptError = ex.Message; }
+        finally { _promptSaving = false; }
     }
 
     private async Task Transition(string action)
@@ -356,10 +723,9 @@ else
         try
         {
             _exec = await Api.StepExecutionTransitionAsync(Id, action);
-            _error = null;
             _transactions = await Api.GetStepExecutionPortTransactionsAsync(Id);
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task SaveNotes()
@@ -367,9 +733,8 @@ else
         try
         {
             _exec = await Api.UpdateStepExecutionNotesAsync(Id, new UpdateStepExecutionNotesDto(_notes));
-            _error = null;
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private void ShowDataForm()
@@ -378,7 +743,7 @@ else
         _showDataForm = true;
     }
 
-    private void CloseDataForm() => _showDataForm = false;
+    private void CloseDataForm() { _showDataForm = false; }
 
     private async Task SaveData()
     {
@@ -386,10 +751,10 @@ else
         {
             var dataType = Enum.Parse<ProcessManager.Domain.Enums.DataValueType>(_dataType);
             await Api.AddStepExecutionDataAsync(Id, new CreateExecutionDataDto(_dataKey, _dataValue, dataType, _dataUnit));
-            _showDataForm = false; _error = null;
+            _showDataForm = false;
             _data = await Api.GetStepExecutionDataAsync(Id);
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Port Transaction ---
@@ -398,7 +763,6 @@ else
         _ptPortId = ""; _ptItemId = ""; _ptBatchId = ""; _ptQuantity = 1;
         _stepPorts = null; _jobItems = null; _jobBatches = null;
         _showPortTxnForm = true;
-        _error = null;
 
         try
         {
@@ -423,7 +787,7 @@ else
                 _jobBatches = batchResult?.Items?.ToList();
             }
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
 
         StateHasChanged();
     }
@@ -432,16 +796,16 @@ else
     {
         try
         {
-            if (!Guid.TryParse(_ptPortId, out var portId)) { _error = "Select a port."; return; }
+            if (!Guid.TryParse(_ptPortId, out var portId)) { Toast.ShowError("Select a port."); return; }
             Guid? itemId = Guid.TryParse(_ptItemId, out var iid) ? iid : null;
             Guid? batchId = Guid.TryParse(_ptBatchId, out var bid) ? bid : null;
 
             await Api.AddStepExecutionPortTransactionAsync(Id,
                 new CreatePortTransactionDto(portId, itemId, batchId, _ptQuantity));
 
-            _showPortTxnForm = false; _error = null;
+            _showPortTxnForm = false;
             _transactions = await Api.GetStepExecutionPortTransactionsAsync(Id);
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 }

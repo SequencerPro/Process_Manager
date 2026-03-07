@@ -8,6 +8,7 @@
 | 0.2     | 2026-02-16 | Added Phase 5 — Execution      |
 | 0.3     | 2026-02-16 | Added Phase 4 — Workflows      |
 | 0.4     | 2026-02-22 | Corrections: RoutingType values (Always/GradeBased/Manual, not Sequential); noted JobName/BatchCode denormalized fields on Item/Batch response DTOs for display performance |
+| 0.5     | 2026-02-27 | Extended Port model with PortType enum (Material, Parameter, Characteristic, Condition); Kind/Grade/QtyRule fields now Material-only; added DataType/Units/NominalValue/Tolerance fields for Parameter and Characteristic ports |
 
 ---
 
@@ -174,39 +175,55 @@ A reusable definition of a unit of work. "Template" distinguishes the design-tim
 
 ### Port
 
-A named connection point on a StepTemplate.
+A named connection point on a StepTemplate. Every port has a `port_type` that governs which additional fields are required.
 
-| Attribute          | Type        | Constraints                    | Description                                    |
-|--------------------|-------------|--------------------------------|------------------------------------------------|
-| id                 | UUID        | PK                             | Unique identifier                              |
-| step_template_id   | UUID        | FK → StepTemplate, Not Null    | The StepTemplate this Port belongs to           |
-| name               | string(200) | Not Null                       | Human-readable name (e.g., "Good Part Out")    |
-| direction          | enum        | Not Null                       | One of: Input, Output                          |
-| kind_id            | UUID        | FK → Kind, Not Null            | The Kind of item this port flows                |
-| grade_id           | UUID        | FK → Grade, Not Null           | The Grade of item this port flows               |
-| qty_rule_mode      | enum        | Not Null                       | One of: Exactly, ZeroOrN, Range, Unbounded     |
-| qty_rule_n         | integer     |                                | The N value (for Exactly and ZeroOrN modes)    |
-| qty_rule_min       | integer     |                                | Minimum (for Range and Unbounded modes)        |
-| qty_rule_max       | integer     |                                | Maximum (for Range mode; null for Unbounded)   |
-| sort_order         | integer     | Not Null, Default: 0           | Display ordering among ports of same direction |
-| created_at         | timestamp   | Not Null                       | Record creation time                           |
-| updated_at         | timestamp   | Not Null                       | Last modification time                         |
+**PortType values:**
+
+| PortType       | Represents                            | Quality tool role                          |
+|----------------|---------------------------------------|--------------------------------------------|
+| Material       | Physical workpiece or batch           | WIP tracking, PFMEA material causes        |
+| Parameter      | A controllable input setting (X)      | C&E X-axis, PFMEA causes, Control Plan     |
+| Characteristic | A measurable output/feature (Y)       | C&E Y-axis, PFMEA effects, Control Plan    |
+| Condition      | A binary pass/fail prerequisite       | PFMEA error-proofing, Control Plan checks  |
+
+| Attribute          | Type        | Constraints                         | Applies To              | Description                                    |
+|--------------------|-------------|-------------------------------------|-------------------------|------------------------------------------------|
+| id                 | UUID        | PK                                  | All                     | Unique identifier                              |
+| step_template_id   | UUID        | FK → StepTemplate, Not Null         | All                     | The StepTemplate this Port belongs to           |
+| name               | string(200) | Not Null                            | All                     | Human-readable name (e.g., "Good Part Out")    |
+| direction          | enum        | Not Null                            | All                     | One of: Input, Output                          |
+| port_type          | enum        | Not Null                            | All                     | One of: Material, Parameter, Characteristic, Condition |
+| kind_id            | UUID        | FK → Kind, nullable                 | Material only           | The Kind of item this port flows                |
+| grade_id           | UUID        | FK → Grade, nullable                | Material only           | The Grade of item this port flows               |
+| qty_rule_mode      | enum        | nullable                            | Material only           | One of: Exactly, ZeroOrN, Range, Unbounded     |
+| qty_rule_n         | integer     | nullable                            | Material only           | The N value (for Exactly and ZeroOrN modes)    |
+| qty_rule_min       | integer     | nullable                            | Material only           | Minimum (for Range and Unbounded modes)        |
+| qty_rule_max       | integer     | nullable                            | Material only           | Maximum (for Range mode; null for Unbounded)   |
+| data_type          | enum        | nullable                            | Parameter, Characteristic | One of: String, Integer, Decimal, Boolean, DateTime |
+| units              | string(50)  | nullable                            | Parameter, Characteristic | Unit of measure (e.g., RPM, °C, mm)           |
+| nominal_value      | string(200) | nullable                            | Parameter, Characteristic | Target value (stored as string)               |
+| lower_tolerance    | string(100) | nullable                            | Parameter, Characteristic | Lower allowable deviation from nominal        |
+| upper_tolerance    | string(100) | nullable                            | Parameter, Characteristic | Upper allowable deviation from nominal        |
+| sort_order         | integer     | Not Null, Default: 0                | All                     | Display ordering among ports of same direction |
+| created_at         | timestamp   | Not Null                            | All                     | Record creation time                           |
+| updated_at         | timestamp   | Not Null                            | All                     | Last modification time                         |
 
 **Constraints:**
-- grade_id must reference a Grade that belongs to the Kind referenced by kind_id
-- qty_rule_n is required when qty_rule_mode is Exactly or ZeroOrN
-- qty_rule_min is required when qty_rule_mode is Range or Unbounded
-- qty_rule_max is required when qty_rule_mode is Range
-- qty_rule_min ≤ qty_rule_max (when both present)
+- When port_type = Material: kind_id, grade_id, and qty_rule_mode are required; grade_id must reference a Grade that belongs to kind_id
+- When port_type = Material: qty_rule_n required for Exactly/ZeroOrN; qty_rule_min required for Range/Unbounded; qty_rule_max required for Range; qty_rule_min ≤ qty_rule_max
+- When port_type = Parameter or Characteristic: data_type is required
+- When port_type = Condition: no additional fields required beyond name and direction
+- kind_id, grade_id, and qty_rule_* must be null when port_type ≠ Material
+- data_type, units, nominal_value, lower_tolerance, upper_tolerance must be null when port_type = Material or Condition
 
-**Validation rules for pattern consistency:**
+**Validation rules for pattern consistency** (applies to Material ports only):
 
-| Pattern   | Expected Input Ports | Expected Output Ports |
-|-----------|---------------------|-----------------------|
-| Transform | Exactly 1           | Exactly 1             |
-| Assembly  | 2 or more           | Exactly 1             |
-| Division  | Exactly 1           | 2 or more             |
-| General   | Any                 | Any                   |
+| Pattern   | Expected Material Input Ports | Expected Material Output Ports |
+|-----------|------------------------------|---------------------------------|
+| Transform | Exactly 1                    | Exactly 1                       |
+| Assembly  | 2 or more                    | Exactly 1                       |
+| Division  | Exactly 1                    | 2 or more                       |
+| General   | Any                          | Any                             |
 
 ---
 
@@ -287,7 +304,9 @@ The number of input and output ports on a StepTemplate should be consistent with
 
 ### Rule 3: Flow type compatibility
 
-Every Flow must connect ports with identical Item Types (Kind + Grade). A mismatch is a hard error.
+Flows connect **Material ports only**. A Flow may not be created between Parameter, Characteristic, or Condition ports — those relationships are expressed in the PFMEA and C&E Matrix modules, not as runtime flows.
+
+Every Flow connecting two Material ports must reference ports with identical Item Types (Kind + Grade). A type mismatch is a hard error.
 
 ### Rule 4: Complete flow coverage within a Process
 

@@ -82,11 +82,6 @@ else
         </div>
     </div>
 
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger py-2">@_error</div>
-    }
-
     <!-- Execution Data -->
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -173,7 +168,7 @@ else
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">Edit Item</h5>
-                    <button type="button" class="btn-close" @onclick="() => _showEditForm = false"></button>
+                        <button type="button" class="btn-close" @onclick="CloseEditItemForm"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
@@ -182,7 +177,7 @@ else
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" @onclick="() => _showEditForm = false">Cancel</button>
+                    <button class="btn btn-secondary" @onclick="CloseEditItemForm">Cancel</button>
                     <button class="btn btn-primary" @onclick="SaveEdit">Update</button>
                 </div>
             </div>
@@ -196,7 +191,6 @@ else
     private ItemResponseDto? _item;
     private List<ExecutionDataResponseDto>? _data;
     private bool _loading = true;
-    private string? _error;
 
     // Data form
     private bool _showDataForm;
@@ -213,11 +207,21 @@ else
 
     private async Task LoadAll()
     {
-        _loading = true; _error = null;
-        _item = await Api.GetItemAsync(Id);
-        if (_item is not null)
-            _data = await Api.GetItemDataAsync(Id);
-        _loading = false;
+        _loading = true;
+        try
+        {
+            _item = await Api.GetItemAsync(Id);
+            if (_item is not null)
+                _data = await Api.GetItemDataAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private void ShowDataForm()
@@ -226,7 +230,9 @@ else
         _showDataForm = true;
     }
 
-    private void CloseDataForm() => _showDataForm = false;
+    private void CloseDataForm() { _showDataForm = false; }
+
+    private void CloseEditItemForm() { _showEditForm = false; }
 
     private async Task SaveData()
     {
@@ -234,10 +240,10 @@ else
         {
             var dataType = Enum.Parse<ProcessManager.Domain.Enums.DataValueType>(_dataType);
             await Api.AddItemDataAsync(Id, new CreateExecutionDataDto(_dataKey, _dataValue, dataType, _dataUnit));
-            _showDataForm = false; _error = null;
+            _showDataForm = false;
             _data = await Api.GetItemDataAsync(Id);
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task Delete()
@@ -248,7 +254,7 @@ else
             await Api.DeleteItemAsync(Id);
             Nav.NavigateTo("items");
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private void ShowEditForm()
@@ -263,9 +269,9 @@ else
         {
             var serial = string.IsNullOrWhiteSpace(_editSerial) ? null : _editSerial.Trim();
             await Api.UpdateItemAsync(Id, new UpdateItemDto(serial));
-            _showEditForm = false; _error = null;
+            _showEditForm = false;
             await LoadAll();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 }

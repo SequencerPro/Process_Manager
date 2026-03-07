@@ -6,14 +6,14 @@
 
 <h3 class="mb-3">Step Executions</h3>
 
-<div class="d-flex gap-3 mb-3 flex-wrap">
+<div class="d-flex gap-3 mb-3 flex-wrap align-items-center">
     <select class="form-select form-select-sm" style="width:auto" @onchange="OnStatusFilter">
-        <option value="">All Statuses</option>
-        <option value="Pending">Pending</option>
-        <option value="Running">Running</option>
-        <option value="Completed">Completed</option>
-        <option value="Skipped">Skipped</option>
-        <option value="Failed">Failed</option>
+        <option value=""           selected="@(_status is null)">All Statuses</option>
+        <option value="Pending"    selected="@(_status == "Pending")">Pending</option>
+        <option value="InProgress" selected="@(_status == "InProgress")">In Progress</option>
+        <option value="Completed"  selected="@(_status == "Completed")">Completed</option>
+        <option value="Skipped"    selected="@(_status == "Skipped")">Skipped</option>
+        <option value="Failed"     selected="@(_status == "Failed")">Failed</option>
     </select>
     <select class="form-select form-select-sm" style="width:auto" @onchange="OnJobFilter">
         <option value="">All Jobs</option>
@@ -25,6 +25,10 @@
             }
         }
     </select>
+    <a href="@($"/api/export/step-executions{(_jobId.HasValue ? $"?jobId={_jobId}" : "")}")"
+       class="btn btn-sm btn-outline-secondary ms-auto">
+        <i class="bi bi-download me-1"></i>Export CSV
+    </a>
 </div>
 
 @if (_loading)
@@ -74,23 +78,20 @@ else if (_data is not null)
            OnPageChanged="OnPageChanged" />
 }
 
-@if (_error is not null)
-{
-    <div class="alert alert-danger mt-3 py-2">@_error</div>
-}
-
 @code {
     private PaginatedResponse<StepExecutionResponseDto>? _data;
     private bool _loading = true;
+    [Parameter][SupplyParameterFromQuery(Name = "status")] public string? StatusQuery { get; set; }
+
     private string? _status;
     private Guid? _jobId;
     private int _page = 1;
     private int _pageSize = 25;
-    private string? _error;
     private List<JobResponseDto>? _jobs;
 
     protected override async Task OnInitializedAsync()
     {
+        _status = StatusQuery;
         var jobResult = await Api.GetJobsAsync(page: 1, pageSize: 200);
         _jobs = jobResult?.Items?.ToList();
         await LoadData();
@@ -98,9 +99,19 @@ else if (_data is not null)
 
     private async Task LoadData()
     {
-        _loading = true; _error = null;
-        _data = await Api.GetStepExecutionsAsync(jobId: _jobId, status: _status, page: _page, pageSize: _pageSize);
-        _loading = false;
+        _loading = true;
+        try
+        {
+            _data = await Api.GetStepExecutionsAsync(jobId: _jobId, status: _status, page: _page, pageSize: _pageSize);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task OnPageChanged(int p) { _page = p; await LoadData(); }

@@ -1,15 +1,43 @@
 @rendermode InteractiveServer
+@inject TokenService TokenService
+@inject AuthenticationStateProvider AuthState
+@inject ApiClient Api
+@using System.Security.Claims
 
-<nav class="d-flex flex-column flex-shrink-0 p-3 text-white bg-dark sidebar" style="width: 250px;">
+<nav class="d-flex flex-column flex-shrink-0 p-3 text-white bg-dark sidebar" style="width: 250px; height: 100vh; overflow: hidden;">
     <a href="/" class="d-flex align-items-center mb-3 text-white text-decoration-none">
         <i class="bi bi-gear-wide-connected me-2 fs-4"></i>
         <span class="fs-5 fw-semibold">Process Manager</span>
     </a>
     <hr />
-    <ul class="nav nav-pills flex-column mb-auto">
+    <ul class="nav nav-pills flex-column mb-auto" style="overflow-y: auto; flex: 1 1 0; min-height: 0;">
         <li class="nav-item">
             <NavLink class="nav-link text-white" href="" Match="NavLinkMatch.All">
                 <i class="bi bi-house-door me-2"></i> Home
+            </NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link text-white" href="dashboard">
+                <i class="bi bi-speedometer2 me-2"></i> Dashboard
+            </NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link text-white" href="my-work">
+                <i class="bi bi-person-workspace me-2"></i> My Work
+            </NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link text-white d-flex align-items-center justify-content-between" href="alerts">
+                <span><i class="bi bi-bell me-2"></i> Alerts</span>
+                @if (_alertCount > 0)
+                {
+                    <span class="badge bg-danger rounded-pill" style="font-size:.68rem">@(_alertCount > 99 ? "99+" : _alertCount.ToString())</span>
+                }
+            </NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link text-white" href="analytics">
+                <i class="bi bi-graph-up-arrow me-2"></i> Analytics
             </NavLink>
         </li>
 
@@ -28,6 +56,15 @@
         <li class="nav-item">
             <NavLink class="nav-link text-white" href="processes">
                 <i class="bi bi-diagram-3 me-2"></i> Processes
+            </NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link text-white d-flex align-items-center justify-content-between" href="approval-queue">
+                <span><i class="bi bi-clipboard2-check me-2"></i> Approval Queue</span>
+                @if (_pendingCount > 0)
+                {
+                    <span class="badge bg-warning text-dark rounded-pill" style="font-size:.68rem">@(_pendingCount > 99 ? "99+" : _pendingCount.ToString())</span>
+                }
             </NavLink>
         </li>
         <li class="nav-item">
@@ -66,5 +103,96 @@
                 <i class="bi bi-translate me-2"></i> Vocabulary
             </NavLink>
         </li>
+
+        <li class="nav-section-header mt-3 mb-1 ps-3 text-uppercase small text-secondary">Quality</li>
+
+        <li class="nav-item">
+            <NavLink class="nav-link text-white" href="pfmeas">
+                <i class="bi bi-shield-exclamation me-2"></i> PFMEAs
+            </NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link text-white" href="ce-matrices">
+                <i class="bi bi-grid-3x3 me-2"></i> C&amp;E Matrices
+            </NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link text-white" href="non-conformances">
+                <i class="bi bi-exclamation-triangle me-2"></i> Non-Conformances
+            </NavLink>
+        </li>
+
+        <AuthorizeView Roles="Admin">
+            <Authorized>
+                <li class="nav-section-header mt-3 mb-1 ps-3 text-uppercase small text-secondary">Admin</li>
+
+                <li class="nav-item">
+                    <NavLink class="nav-link text-white" href="admin/users">
+                        <i class="bi bi-people me-2"></i> Users
+                    </NavLink>
+                </li>
+            </Authorized>
+        </AuthorizeView>
+
+        <li class="nav-section-header mt-3 mb-1 ps-3 text-uppercase small text-secondary">Analytics</li>
+
+        <li class="nav-item">
+            <NavLink class="nav-link text-white" href="reports">
+                <i class="bi bi-bar-chart-line me-2"></i> Reports
+            </NavLink>
+        </li>
+        <li class="nav-item">
+            <NavLink class="nav-link text-white" href="powerbi-dashboards">
+                <i class="bi bi-bar-chart-steps me-2"></i> Power BI
+            </NavLink>
+        </li>
     </ul>
+
+    <hr class="mt-auto" />
+    <div class="d-flex align-items-center text-white-50 small">
+        <i class="bi bi-person-circle me-2 fs-5 text-white"></i>
+        <div class="flex-grow-1 overflow-hidden">
+            <div class="text-white fw-medium text-truncate">@(_displayName)</div>
+            <div class="text-white-50 small text-truncate">@(_role)</div>
+        </div>
+        <a href="/account/profile" class="btn btn-sm btn-outline-light ms-1" title="Edit profile">
+            <i class="bi bi-person-gear"></i>
+        </a>
+        <a href="/account/change-password" class="btn btn-sm btn-outline-light ms-1" title="Change password">
+            <i class="bi bi-key"></i>
+        </a>
+        <a href="/account/logout" class="btn btn-sm btn-outline-light ms-1" title="Sign out">
+            <i class="bi bi-box-arrow-right"></i>
+        </a>
+    </div>
 </nav>
+
+@code {
+    private string? _displayName;
+    private string? _role;
+    private int _alertCount;
+    private int _pendingCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var user  = state.User;
+        _displayName = user.FindFirst("display_name")?.Value
+                       ?? user.Identity?.Name;
+        _role        = user.FindFirst(ClaimTypes.Role)?.Value;
+
+        try
+        {
+            var result = await Api.GetOutOfRangeAlertCountAsync(days: 7);
+            _alertCount = result?.Count ?? 0;
+        }
+        catch { /* badge is best-effort — never break the nav */ }
+
+        try
+        {
+            var pending = await Api.GetApprovalRecordsAsync(decision: "Pending", pageSize: 1);
+            _pendingCount = pending?.TotalCount ?? 0;
+        }
+        catch { /* badge is best-effort */ }
+    }
+}

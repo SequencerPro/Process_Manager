@@ -27,6 +27,7 @@ public record ProcessResponseDto(
     string Name,
     string? Description,
     int Version,
+    string Status,
     bool IsActive,
     DateTime CreatedAt,
     DateTime UpdatedAt,
@@ -43,6 +44,7 @@ public record ProcessSummaryResponseDto(
     string Name,
     string? Description,
     int Version,
+    string Status,
     bool IsActive,
     int StepCount,
     DateTime CreatedAt,
@@ -74,7 +76,93 @@ public record ProcessStepResponseDto(
     string? NameOverride,
     string? DescriptionOverride,
     DateTime CreatedAt,
-    DateTime UpdatedAt
+    DateTime UpdatedAt,
+    MaturitySummaryDto? StepTemplateMaturity = null
+);
+
+// ──────────────────── ProcessStepContent ────────────────────
+
+public record ProcessStepContentResponseDto(
+    Guid Id,
+    Guid ProcessStepId,
+    string ContentType,
+    int SortOrder,
+    string? Body,
+    string? FileName,
+    string? OriginalFileName,
+    string? MimeType,
+    string? ImageUrl,
+    DateTime CreatedAt,
+    // Prompt fields — null for Text/Image blocks
+    string? PromptType,
+    string? Label,
+    bool IsRequired,
+    string? Units,
+    decimal? MinValue,
+    decimal? MaxValue,
+    string? Choices,
+    // Phase 8a fields
+    string? ContentCategory = null,
+    bool AcknowledgmentRequired = false,
+    decimal? NominalValue = null,
+    bool IsHardLimit = false
+);
+
+public record AddTextBlockDto(
+    [Required, StringLength(10000, MinimumLength = 1)] string Body
+);
+
+public record UpdateTextBlockDto(
+    [Required, StringLength(10000, MinimumLength = 1)] string Body
+);
+
+public record AddPromptBlockDto(
+    [Required, StringLength(500, MinimumLength = 1)] string Label,
+    [Required] string PromptType,
+    bool IsRequired = true,
+    [StringLength(50)] string? Units = null,
+    decimal? MinValue = null,
+    decimal? MaxValue = null,
+    [StringLength(4000)] string? Choices = null
+);
+
+public record UpdatePromptBlockDto(
+    [Required, StringLength(500, MinimumLength = 1)] string Label,
+    bool IsRequired = true,
+    [StringLength(50)] string? Units = null,
+    decimal? MinValue = null,
+    decimal? MaxValue = null,
+    [StringLength(4000)] string? Choices = null
+);
+
+public record ReorderContentBlocksDto(
+    List<Guid> OrderedIds
+);
+
+// ──────────────────── PromptResponse ────────────────────
+
+public record PromptResponseDto(
+    Guid Id,
+    Guid StepExecutionId,
+    Guid? ProcessStepContentId,
+    Guid? StepTemplateContentId,
+    string Label,
+    string PromptType,
+    string ResponseValue,
+    bool IsOutOfRange,
+    string? OverrideNote,
+    DateTime RespondedAt
+);
+
+public record SavePromptResponsesDto(
+    [Required] List<PromptResponseItemDto> Responses
+);
+
+public record PromptResponseItemDto(
+    Guid? ProcessStepContentId,
+    Guid? StepTemplateContentId,
+    [Required, StringLength(1000)] string ResponseValue,
+    [StringLength(2000)] string? OverrideNote = null
 );
 
 // ──────────────────── Flow ────────────────────

@@ -1,0 +1,94 @@
+@implements IDisposable
+@inject ToastService ToastSvc
+
+@* Fixed toast stack — top-right corner *@
+<div class="toast-stack" aria-live="polite" aria-atomic="false">
+    @foreach (var toast in _toasts)
+    {
+        var (icon, bg, textClass) = ToastStyle(toast.Type);
+        <div class="toast show shadow mb-2" role="alert" @key="toast.Id">
+            <div class="toast-header @bg @textClass border-0 py-2">
+                <i class="bi @icon me-2"></i>
+                <strong class="me-auto">@ToastLabel(toast.Type)</strong>
+                <button type="button" class="btn-close @(toast.Type == ToastType.Success || toast.Type == ToastType.Danger ? "btn-close-white" : "")"
+                        @onclick="() => ToastSvc.Dismiss(toast.Id)"></button>
+            </div>
+            <div class="toast-body small py-2">
+                @toast.Message
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .toast-stack {
+        position: fixed;
+        top: 1.25rem;
+        right: 1.25rem;
+        z-index: 1100;
+        min-width: 300px;
+        max-width: 420px;
+    }
+</style>
+
+@code {
+    private List<ToastMessage> _toasts = new();
+    private readonly Dictionary<Guid, Timer> _timers = new();
+
+    protected override void OnInitialized()
+    {
+        ToastSvc.OnChange += HandleChange;
+    }
+
+    private void HandleChange()
+    {
+        // Sync local copy so we can track which are new
+        var incoming = ToastSvc.Toasts.ToList();
+
+        // Start a timer for any newly added toast
+        foreach (var toast in incoming.Where(t => !_timers.ContainsKey(t.Id)))
+        {
+            var id = toast.Id;
+            var timer = new Timer(_ =>
+            {
+                ToastSvc.Dismiss(id);
+            }, null, toast.DurationMs, Timeout.Infinite);
+            _timers[id] = timer;
+        }
+
+        // Clean up timers for toasts that were dismissed
+        foreach (var id in _timers.Keys.Except(incoming.Select(t => t.Id)).ToList())
+        {
+            _timers[id].Dispose();
+            _timers.Remove(id);
+        }
+
+        _toasts = incoming;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private static (string icon, string bg, string textClass) ToastStyle(ToastType type) => type switch
+    {
+        ToastType.Success => ("bi-check-circle-fill", "bg-success", "text-white"),
+        ToastType.Danger  => ("bi-exclamation-triangle-fill", "bg-danger", "text-white"),
+        ToastType.Warning => ("bi-exclamation-circle-fill", "bg-warning", "text-dark"),
+        ToastType.Info    => ("bi-info-circle-fill", "bg-info", "text-dark"),
+        _                 => ("bi-bell-fill", "bg-secondary", "text-white")
+    };
+
+    private static string ToastLabel(ToastType type) => type switch
+    {
+        ToastType.Success => "Success",
+        ToastType.Danger  => "Error",
+        ToastType.Warning => "Warning",
+        ToastType.Info    => "Info",
+        _                 => "Notice"
+    };
+
+    public void Dispose()
+    {
+        ToastSvc.OnChange -= HandleChange;
+        foreach (var t in _timers.Values) t.Dispose();
+        _timers.Clear();
+    }
+}

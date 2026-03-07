@@ -31,14 +31,53 @@ else
                     <span class="text-muted me-3"><code>@_proc.Code</code></span>
                     <span class="badge me-1 @(_proc.IsActive ? "bg-success" : "bg-secondary")">@(_proc.IsActive ? "Active" : "Inactive")</span>
                     <span class="badge bg-dark">v@_proc.Version</span>
+                    <span class="badge @StatusBadgeClass(_proc.Status) ms-1">@_proc.Status</span>
+                    @{ var aggMaturity = AggregateMaturity(); }
+                    @if (aggMaturity is not null)
+                    {
+                        <span class="badge @MaturityBadgeClass(aggMaturity.Level) ms-1" title="Lowest step-template maturity (Score @aggMaturity.Score/100)">
+                            <i class="bi bi-bar-chart-fill me-1"></i>@aggMaturity.Level
+                        </span>
+                        @if (aggMaturity.HasBlockingErrors)
+                        {
+                            <span class="badge bg-danger ms-1" title="One or more steps have blocking maturity errors"><i class="bi bi-exclamation-triangle-fill"></i></span>
+                        }
+                    }
                 </div>
                 <div>
+                    <a href="processes/@Id/builder" class="btn btn-outline-primary btn-sm me-1">
+                        <i class="bi bi-diagram-3 me-1"></i>Builder
+                    </a>
                     <button class="btn btn-outline-secondary btn-sm me-1" @onclick="ShowEditForm">
                         <i class="bi bi-pencil me-1"></i>Edit
                     </button>
                     <button class="btn btn-outline-info btn-sm me-1" @onclick="Validate">
                         <i class="bi bi-check2-all me-1"></i>Validate
                     </button>
+                    @if (_proc.Status == "Draft")
+                    {
+                        <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => _showSubmitModal = true">
+                            <i class="bi bi-send me-1"></i>Submit
+                        </button>
+                    }
+                    else if (_proc.Status == "PendingApproval")
+                    {
+                        <button class="btn btn-success btn-sm me-1" @onclick="() => _showApproveModal = true">
+                            <i class="bi bi-check-circle me-1"></i>Approve
+                        </button>
+                        <button class="btn btn-warning btn-sm me-1" @onclick="() => _showRejectModal = true">
+                            <i class="bi bi-x-circle me-1"></i>Reject
+                        </button>
+                    }
+                    else if (_proc.Status == "Released")
+                    {
+                        <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => _showNewRevisionModal = true">
+                            <i class="bi bi-arrow-clockwise me-1"></i>New Revision
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm me-1" @onclick="RetireProcess">
+                            <i class="bi bi-archive me-1"></i>Retire
+                        </button>
+                    }
                     <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
                         <i class="bi bi-trash me-1"></i>Delete
                     </button>
@@ -64,11 +103,6 @@ else
         </div>
     }
 
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger py-2">@_error</div>
-    }
-
     <!-- Steps -->
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -82,16 +116,33 @@ else
             <div class="table-responsive">
                 <table class="table table-sm mb-0 align-middle">
                     <thead class="table-light">
-                        <tr><th>#</th><th>Template</th><th>Name Override</th><th>Desc. Override</th><th></th></tr>
+                        <tr><th>#</th><th>Template</th><th>Name Override</th><th>Desc. Override</th><th>Maturity</th><th></th></tr>
                     </thead>
                     <tbody>
                         @foreach (var s in _proc.Steps.OrderBy(s => s.Sequence))
                         {
                             <tr>
                                 <td>@s.Sequence</td>
-                                <td><code>@s.StepTemplateCode</code> — @s.StepTemplateName</td>
+                                <td>
+                                    <a href="step-templates/@s.StepTemplateId" title="Open step template editor">
+                                        <code>@s.StepTemplateCode</code>
+                                    </a>
+                                    — @s.StepTemplateName
+                                </td>
                                 <td>@(s.NameOverride ?? "—")</td>
                                 <td class="small text-truncate" style="max-width:200px">@(s.DescriptionOverride ?? "—")</td>
+                                <td>
+                                    @if (s.StepTemplateMaturity is not null)
+                                    {
+                                        <span class="badge @MaturityBadgeClass(s.StepTemplateMaturity.Level)" title="Score @s.StepTemplateMaturity.Score/100">
+                                            @s.StepTemplateMaturity.Level
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">—</span>
+                                    }
+                                </td>
                                 <td>
                                     <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1" @onclick="() => ShowEditStep(s)" title="Edit">
                                         <i class="bi bi-pencil"></i>
@@ -329,6 +380,119 @@ else
             </div>
         </div>
     }
+
+    @* Submit Modal *@
+    @if (_showSubmitModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Submit for Approval</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showSubmitModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Submitted By</label>
+                            <input class="form-control" @bind="_lifecycleUser" placeholder="Your name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes (optional)</label>
+                            <textarea class="form-control" rows="2" @bind="_lifecycleNotes"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showSubmitModal = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SubmitForApproval">Submit</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Approve Modal *@
+    @if (_showApproveModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Approve Process</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showApproveModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Approved By</label>
+                            <input class="form-control" @bind="_lifecycleUser" placeholder="Your name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes (optional)</label>
+                            <textarea class="form-control" rows="2" @bind="_lifecycleNotes"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showApproveModal = false">Cancel</button>
+                        <button class="btn btn-success" @onclick="ApproveProcess">Approve</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* Reject Modal *@
+    @if (_showRejectModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Reject Process</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showRejectModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Rejected By</label>
+                            <input class="form-control" @bind="_lifecycleUser" placeholder="Your name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Rejection Reason</label>
+                            <textarea class="form-control" rows="2" @bind="_lifecycleNotes"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showRejectModal = false">Cancel</button>
+                        <button class="btn btn-warning" @onclick="RejectProcess">Reject</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* New Revision Modal *@
+    @if (_showNewRevisionModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Create New Revision</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showNewRevisionModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted small">A new <strong>Draft</strong> copy of this process will be created at v@(_proc!.Version + 1). The current Release remains active.</p>
+                        <div class="mb-3">
+                            <label class="form-label">Requested By</label>
+                            <input class="form-control" @bind="_lifecycleUser" placeholder="Your name" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showNewRevisionModal = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="NewRevision">Create Revision</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @code {
@@ -337,7 +501,6 @@ else
     private ProcessResponseDto? _proc;
     private ProcessValidationResultDto? _validation;
     private bool _loading = true;
-    private string? _error;
 
     // Step form
     private bool _showStepForm;
@@ -368,14 +531,31 @@ else
     private string? _editDescription;
     private bool _editIsActive;
 
+    // Lifecycle modals
+    private bool _showSubmitModal;
+    private bool _showApproveModal;
+    private bool _showRejectModal;
+    private bool _showNewRevisionModal;
+    private string _lifecycleUser = "";
+    private string _lifecycleNotes = "";
+
     protected override async Task OnInitializedAsync() => await LoadData();
 
     private async Task LoadData()
     {
         _loading = true;
-        _error = null;
-        _proc = await Api.GetProcessAsync(Id);
-        _loading = false;
+        try
+        {
+            _proc = await Api.GetProcessAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task Validate()
@@ -387,7 +567,7 @@ else
     {
         _stepTemplateId = ""; _stepSequence = (_proc?.Steps.Count ?? 0) + 1; _stepNameOverride = "";
         _showStepForm = true;
-        _templates = await Api.GetStepTemplatesAsync("", true, 1, 100);
+        _templates = await Api.GetStepTemplatesAsync("", true, pageSize: 100);
         StateHasChanged();
     }
 
@@ -395,14 +575,14 @@ else
     {
         try
         {
-            if (!Guid.TryParse(_stepTemplateId, out var tid)) { _error = "Select a step template."; return; }
+            if (!Guid.TryParse(_stepTemplateId, out var tid)) { Toast.ShowError("Select a step template."); return; }
             var dto = new ProcessStepCreateDto(tid, _stepSequence, 
                 string.IsNullOrWhiteSpace(_stepNameOverride) ? null : _stepNameOverride, null);
             await Api.AddProcessStepAsync(Id, dto);
-            _showStepForm = false; _error = null;
+            _showStepForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private void ShowEditStep(ProcessStepResponseDto s)
@@ -423,17 +603,17 @@ else
                 string.IsNullOrWhiteSpace(_editStepName) ? null : _editStepName,
                 string.IsNullOrWhiteSpace(_editStepDesc) ? null : _editStepDesc);
             await Api.UpdateProcessStepAsync(Id, _editStepId, dto);
-            _showEditStepForm = false; _error = null;
+            _showEditStepForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task DeleteStep(Guid stepId)
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Delete this step?")) return;
         try { await Api.DeleteProcessStepAsync(Id, stepId); await LoadData(); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private void ShowAddFlow()
@@ -478,27 +658,27 @@ else
             if (!Guid.TryParse(_flowSrcStepId, out var ss) || !Guid.TryParse(_flowSrcPortId, out var sp)
                 || !Guid.TryParse(_flowTgtStepId, out var ts) || !Guid.TryParse(_flowTgtPortId, out var tp))
             {
-                _error = "All flow fields are required."; return;
+                Toast.ShowError("All flow fields are required."); return;
             }
             await Api.AddFlowAsync(Id, new FlowCreateDto(ss, sp, ts, tp));
-            _showFlowForm = false; _error = null;
+            _showFlowForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task DeleteFlow(Guid flowId)
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Delete this flow?")) return;
         try { await Api.DeleteFlowAsync(Id, flowId); await LoadData(); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task Delete()
     {
         if (!await JS.InvokeAsync<bool>("confirm", $"Delete process '{_proc!.Name}'? This cannot be undone.")) return;
         try { await Api.DeleteProcessAsync(Id); Nav.NavigateTo("processes"); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Edit Process ---
@@ -515,9 +695,90 @@ else
         try
         {
             await Api.UpdateProcessAsync(Id, new ProcessUpdateDto(_editName, _editDescription, _editIsActive));
-            _showEditForm = false; _error = null;
+            _showEditForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
+
+    private async Task SubmitForApproval()
+    {
+        if (string.IsNullOrWhiteSpace(_lifecycleUser)) { Toast.ShowError("Submitted By is required."); return; }
+        try
+        {
+            _proc = await Api.SubmitProcessForApprovalAsync(Id, new SubmitForApprovalDto(_lifecycleUser, _lifecycleNotes));
+            _showSubmitModal = false; _lifecycleUser = ""; _lifecycleNotes = "";
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task ApproveProcess()
+    {
+        if (string.IsNullOrWhiteSpace(_lifecycleUser)) { Toast.ShowError("Approved By is required."); return; }
+        try
+        {
+            _proc = await Api.ApproveProcessAsync(Id, new ApproveDto(_lifecycleUser, _lifecycleNotes));
+            _showApproveModal = false; _lifecycleUser = ""; _lifecycleNotes = "";
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task RejectProcess()
+    {
+        if (string.IsNullOrWhiteSpace(_lifecycleUser)) { Toast.ShowError("Rejected By is required."); return; }
+        try
+        {
+            _proc = await Api.RejectProcessAsync(Id, new RejectDto(_lifecycleUser, _lifecycleNotes ?? ""));
+            _showRejectModal = false; _lifecycleUser = ""; _lifecycleNotes = "";
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task NewRevision()
+    {
+        if (string.IsNullOrWhiteSpace(_lifecycleUser)) { Toast.ShowError("Requested By is required."); return; }
+        try
+        {
+            var newProc = await Api.NewProcessRevisionAsync(Id, new NewRevisionDto(_lifecycleUser));
+            _showNewRevisionModal = false;
+            if (newProc is not null) Nav.NavigateTo($"processes/{newProc.Id}");
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task RetireProcess()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Retire process '{_proc!.Name}'? It will be archived.")) return;
+        try { _proc = await Api.RetireProcessAsync(Id); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private static string StatusBadgeClass(string? status) => status switch
+    {
+        "Draft"           => "bg-secondary",
+        "PendingApproval" => "bg-warning text-dark",
+        "Released"        => "bg-success",
+        "Superseded"      => "bg-dark",
+        "Retired"         => "bg-danger",
+        _                 => "bg-light text-dark"
+    };
+
+    private MaturitySummaryDto? AggregateMaturity()    {
+        if (_proc is null || !_proc.Steps.Any()) return null;
+        var summaries = _proc.Steps
+            .Select(s => s.StepTemplateMaturity)
+            .Where(m => m is not null)
+            .ToList();
+        if (!summaries.Any()) return null;
+        // Return the worst (lowest score) summary
+        return summaries.MinBy(m => m!.Score);
+    }
+
+    private static string MaturityBadgeClass(MaturityLevel level) => level switch
+    {
+        MaturityLevel.Optimised  => "bg-success",
+        MaturityLevel.Defined    => "bg-primary",
+        MaturityLevel.Developing => "bg-warning text-dark",
+        _                        => "bg-secondary"
+    };
 }

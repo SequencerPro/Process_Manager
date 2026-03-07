@@ -21,7 +21,7 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
 
     protected IntegrationTestBase(TestWebApplicationFactory factory)
     {
-        Client = factory.CreateClient();
+        Client = factory.CreateAuthenticatedClient();
     }
 
     // ──────────── Kind helpers ────────────
@@ -80,10 +80,10 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
     {
         var dto = new StepTemplateCreateDto(code, name, null, Domain.Enums.StepPattern.Transform, new()
         {
-            new("Part In", Domain.Enums.PortDirection.Input, inputKindId, inputGradeId,
-                Domain.Enums.QuantityRuleMode.Exactly, 1, null, null, 0),
-            new("Part Out", Domain.Enums.PortDirection.Output, outputKindId, outputGradeId,
-                Domain.Enums.QuantityRuleMode.Exactly, 1, null, null, 0),
+            new("Part In", Domain.Enums.PortDirection.Input, Domain.Enums.PortType.Material, inputKindId, inputGradeId,
+                Domain.Enums.QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
+            new("Part Out", Domain.Enums.PortDirection.Output, Domain.Enums.PortType.Material, outputKindId, outputGradeId,
+                Domain.Enums.QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0),
         });
 
         var response = await Client.PostAsJsonAsync("/api/steptemplates", dto, JsonOptions);
@@ -99,15 +99,15 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
     {
         var ports = new List<PortCreateDto>
         {
-            new("Part In", Domain.Enums.PortDirection.Input, inputKindId, inputGradeId,
-                Domain.Enums.QuantityRuleMode.Exactly, 1, null, null, 0)
+            new("Part In", Domain.Enums.PortDirection.Input, Domain.Enums.PortType.Material, inputKindId, inputGradeId,
+                Domain.Enums.QuantityRuleMode.Exactly, 1, null, null, null, null, null, null, null, 0)
         };
 
         for (int i = 0; i < outputs.Count; i++)
         {
             var (portName, kindId, gradeId) = outputs[i];
-            ports.Add(new PortCreateDto(portName, Domain.Enums.PortDirection.Output,
-                kindId, gradeId, Domain.Enums.QuantityRuleMode.ZeroOrN, 1, null, null, i));
+            ports.Add(new PortCreateDto(portName, Domain.Enums.PortDirection.Output, Domain.Enums.PortType.Material,
+                kindId, gradeId, Domain.Enums.QuantityRuleMode.ZeroOrN, 1, null, null, null, null, null, null, null, i));
         }
 
         var dto = new StepTemplateCreateDto(code, name, null, Domain.Enums.StepPattern.Division, ports);

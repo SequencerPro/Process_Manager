@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Api.Data;
@@ -7,6 +8,7 @@ using ProcessManager.Domain.Enums;
 
 namespace ProcessManager.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/step-executions")]
 public class StepExecutionsController : ControllerBase
@@ -27,6 +29,7 @@ public class StepExecutionsController : ControllerBase
         var query = _db.StepExecutions
             .Include(se => se.ProcessStep)
                 .ThenInclude(ps => ps.StepTemplate)
+            .Include(se => se.Job)
             .AsQueryable();
 
         if (jobId.HasValue)
@@ -56,6 +59,7 @@ public class StepExecutionsController : ControllerBase
         var se = await _db.StepExecutions
             .Include(s => s.ProcessStep)
                 .ThenInclude(ps => ps.StepTemplate)
+            .Include(s => s.Job)
             .Include(s => s.PortTransactions)
                 .ThenInclude(pt => pt.Port)
             .Include(s => s.PortTransactions)
@@ -255,21 +259,21 @@ public class StepExecutionsController : ControllerBase
 
         _db.PortTransactions.Add(pt);
 
-        // For output ports: update item/batch grade to match port's declared grade
-        if (port.Direction == PortDirection.Output)
+        // For output ports: update item/batch grade to match port's declared grade (Material ports only)
+        if (port.Direction == PortDirection.Output && port.GradeId.HasValue)
         {
             if (item != null)
             {
-                item.GradeId = port.GradeId;
+                item.GradeId = port.GradeId.Value;
                 item.Status = ItemStatus.InProcess;
             }
             if (batch != null)
             {
-                batch.GradeId = port.GradeId;
+                batch.GradeId = port.GradeId.Value;
                 // Also update all items in the batch
                 var batchItems = await _db.Items.Where(i => i.BatchId == batch.Id).ToListAsync();
                 foreach (var bi in batchItems)
-                    bi.GradeId = port.GradeId;
+                    bi.GradeId = port.GradeId.Value;
             }
         }
 
@@ -283,6 +287,103 @@ public class StepExecutionsController : ControllerBase
             .FirstAsync(p => p.Id == pt.Id);
 
         return CreatedAtAction(nameof(GetPortTransactions), new { id }, JobsController.MapPortTransactionToDto(result));
+    }
+
+    // ───── Prompt Responses ─────
+
+    [HttpGet("{id:guid}/prompt-responses")]
+    public async Task<ActionResult<List<PromptResponseDto>>> GetPromptResponses(Guid id)
+    {
+        if (!await _db.StepExecutions.AnyAsync(se => se.Id == id)) return NotFound();
+
+        var responses = await _db.PromptResponses
+            .Include(r => r.ProcessStepContent)
+            .Include(r => r.StepTemplateContent)
+            .Where(r => r.StepExecutionId == id)
+            .OrderBy(r => r.RespondedAt)
+            .ToListAsync();
+
+        return responses.Select(MapPromptResponseToDto).ToList();
+    }
+
+    [HttpPost("{id:guid}/prompt-responses")]
+    public async Task<IActionResult> SavePromptResponses(Guid id, SavePromptResponsesDto dto)
+    {
+        if (!await _db.StepExecutions.AnyAsync(se => se.Id == id)) return NotFound();
+
+        foreach (var item in dto.Responses)
+        {
+            if (item.ProcessStepContentId is null && item.StepTemplateContentId is null)
+                return BadRequest("Each response must reference either a ProcessStepContentId or StepTemplateContentId.");
+
+            // Determine IsOutOfRange
+            bool isOutOfRange = false;
+            if (item.ProcessStepContentId.HasValue)
+            {
+                var content = await _db.ProcessStepContents.FindAsync(item.ProcessStepContentId);
+                if (content?.PromptType == Domain.Enums.PromptType.NumericEntry &&
+                    decimal.TryParse(item.ResponseValue, System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out var val))
+                {
+                    isOutOfRange = (content.MinValue.HasValue && val < content.MinValue) ||
+                                   (content.MaxValue.HasValue && val > content.MaxValue);
+                }
+            }
+            else if (item.StepTemplateContentId.HasValue)
+            {
+                var content = await _db.StepTemplateContents.FindAsync(item.StepTemplateContentId);
+                if (content?.PromptType == Domain.Enums.PromptType.NumericEntry &&
+                    decimal.TryParse(item.ResponseValue, System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out var val))
+                {
+                    isOutOfRange = (content.MinValue.HasValue && val < content.MinValue) ||
+                                   (content.MaxValue.HasValue && val > content.MaxValue);
+                }
+            }
+
+            // Upsert by (StepExecutionId + content block id)
+            var existing = await _db.PromptResponses.FirstOrDefaultAsync(r =>
+                r.StepExecutionId == id &&
+                r.ProcessStepContentId == item.ProcessStepContentId &&
+                r.StepTemplateContentId == item.StepTemplateContentId);
+
+            if (existing is not null)
+            {
+                existing.ResponseValue = item.ResponseValue;
+                existing.IsOutOfRange = isOutOfRange;
+                existing.OverrideNote = item.OverrideNote;
+                existing.RespondedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                _db.PromptResponses.Add(new PromptResponse
+                {
+                    StepExecutionId = id,
+                    ProcessStepContentId = item.ProcessStepContentId,
+                    StepTemplateContentId = item.StepTemplateContentId,
+                    ResponseValue = item.ResponseValue,
+                    IsOutOfRange = isOutOfRange,
+                    OverrideNote = item.OverrideNote,
+                    RespondedAt = DateTime.UtcNow
+                });
+            }
+        }
+
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    private static PromptResponseDto MapPromptResponseToDto(PromptResponse r)
+    {
+        var label = r.ProcessStepContent?.Label ?? r.StepTemplateContent?.Label ?? "(deleted prompt)";
+        var promptType = r.ProcessStepContent?.PromptType?.ToString()
+                      ?? r.StepTemplateContent?.PromptType?.ToString()
+                      ?? "Unknown";
+        return new PromptResponseDto(
+            r.Id, r.StepExecutionId,
+            r.ProcessStepContentId, r.StepTemplateContentId,
+            label, promptType,
+            r.ResponseValue, r.IsOutOfRange, r.OverrideNote, r.RespondedAt);
     }
 
     // ───── Execution Data ─────

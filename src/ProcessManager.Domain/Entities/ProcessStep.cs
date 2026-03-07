@@ -23,4 +23,5 @@ public class ProcessStep : BaseEntity
     // Navigation properties
     public Process Process { get; set; } = null!;
     public StepTemplate StepTemplate { get; set; } = null!;
+    public ICollection<ProcessStepContent> Contents { get; set; } = new List<ProcessStepContent>();
 }

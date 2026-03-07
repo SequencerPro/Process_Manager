@@ -1,0 +1,251 @@
+@page "/pfmeas"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject IJSRuntime JS
+
+<PageTitle>PFMEAs</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">PFMEAs</h3>
+    <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
+        <i class="bi bi-plus-lg me-1"></i> New PFMEA
+    </button>
+</div>
+
+<div class="d-flex gap-3 mb-3">
+    <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search PFMEAs..." />
+    <select class="form-select form-select-sm" style="width:auto" @onchange="OnActiveFilter">
+        <option value="">All</option>
+        <option value="true">Active</option>
+        <option value="false">Inactive</option>
+    </select>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_data is not null)
+{
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Process</th>
+                    <th>Ver</th>
+                    <th>Failure Modes</th>
+                    <th>Open Actions</th>
+                    <th title="Highest Risk Priority Number">Highest RPN</th>
+                    <th>Active</th>
+                    <th style="width:100px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!_data.Items.Any())
+                {
+                    <tr><td colspan="9" class="text-center text-muted py-3">No PFMEAs found.</td></tr>
+                }
+                else
+                {
+                    @foreach (var p in _data.Items)
+                    {
+                        <tr>
+                            <td><code>@p.Code</code></td>
+                            <td><a href="pfmeas/@p.Id">@p.Name</a></td>
+                            <td><a href="processes/@p.ProcessId">@p.ProcessName</a></td>
+                            <td>v@p.Version</td>
+                            <td><span class="badge bg-secondary">@p.FailureModeCount</span></td>
+                            <td>
+                                @if (p.OpenActionCount > 0)
+                                {
+                                    <span class="badge bg-warning text-dark">@p.OpenActionCount open</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td>
+                                @if (p.HighestRpn > 0)
+                                {
+                                    <span class="badge @RpnBadge(p.HighestRpn)">@p.HighestRpn</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td>
+                                @if (p.IsActive) { <i class="bi bi-check-circle-fill text-success"></i> }
+                                else { <i class="bi bi-x-circle text-danger"></i> }
+                            </td>
+                            <td>
+                                <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEdit(p)" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(p.Id)" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <Pager Page="_page" PageSize="_pageSize" TotalCount="_data.TotalCount"
+           OnPageChanged="OnPageChanged" />
+}
+
+@if (_showForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_editId.HasValue ? "Edit PFMEA" : "New PFMEA")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!_editId.HasValue)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Code <span class="text-danger">*</span></label>
+                            <input class="form-control form-control-sm" @bind="_formCode" placeholder="e.g. PFMEA-MACH-V1" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Process <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-sm" @bind="_formProcessId">
+                                <option value="">Select a process...</option>
+                                @if (_processes is not null)
+                                {
+                                    @foreach (var p in _processes.Items)
+                                    {
+                                        <option value="@p.Id">@p.Name (@p.Code)</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" @bind="_formName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control form-control-sm" rows="3" @bind="_formDescription"></textarea>
+                    </div>
+                    @if (_editId.HasValue)
+                    {
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="pfmeaActive" @bind="_formActive" />
+                            <label class="form-check-label" for="pfmeaActive">Active</label>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(_formError))
+                    {
+                        <div class="alert alert-danger py-2 mt-2">@_formError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseForm">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="Save" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    PaginatedResponse<PfmeaSummaryDto>? _data;
+    PaginatedResponse<ProcessSummaryResponseDto>? _processes;
+    bool _loading = true;
+    string? _search;
+    bool? _activeFilter;
+    int _page = 1, _pageSize = 25;
+
+    // Form
+    bool _showForm, _saving;
+    Guid? _editId;
+    string _formCode = "", _formName = "", _formDescription = "", _formProcessId = "";
+    bool _formActive = true;
+    string? _formError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _processes = await Api.GetProcessesAsync(active: true, pageSize: 200);
+        await Load();
+    }
+
+    async Task Load()
+    {
+        _loading = true;
+        _data = await Api.GetPfmeasAsync(_search, active: _activeFilter, page: _page, pageSize: _pageSize);
+        _loading = false;
+    }
+
+    async Task OnSearch(string val) { _search = val; _page = 1; await Load(); }
+    async Task OnActiveFilter(ChangeEventArgs e)
+    {
+        _activeFilter = e.Value?.ToString() switch { "true" => true, "false" => false, _ => null };
+        _page = 1;
+        await Load();
+    }
+    async Task OnPageChanged(int p) { _page = p; await Load(); }
+
+    void ShowCreate()
+    {
+        _editId = null; _formCode = ""; _formName = ""; _formDescription = ""; _formActive = true;
+        _formProcessId = ""; _formError = null; _showForm = true;
+    }
+
+    void ShowEdit(PfmeaSummaryDto p)
+    {
+        _editId = p.Id; _formName = p.Name; _formDescription = p.Description ?? "";
+        _formActive = p.IsActive; _formError = null; _showForm = true;
+    }
+
+    void CloseForm() { _showForm = false; _formError = null; }
+
+    async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(_formName)) { _formError = "Name is required."; return; }
+        _saving = true; _formError = null;
+        try
+        {
+            if (_editId.HasValue)
+                await Api.UpdatePfmeaAsync(_editId.Value, new(_formName, _formDescription, _formActive));
+            else
+            {
+                if (string.IsNullOrEmpty(_formProcessId)) { _formError = "Process is required."; _saving = false; return; }
+                if (string.IsNullOrWhiteSpace(_formCode)) { _formError = "Code is required."; _saving = false; return; }
+                if (!Guid.TryParse(_formProcessId, out var pid)) { _formError = "Invalid process."; _saving = false; return; }
+                await Api.CreatePfmeaAsync(new(pid, _formCode, _formName, _formDescription));
+            }
+            _showForm = false;
+            await Load();
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    async Task Delete(Guid id)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this PFMEA? This cannot be undone.")) return;
+        await Api.DeletePfmeaAsync(id);
+        await Load();
+    }
+
+    static string RpnBadge(int rpn) => rpn switch
+    {
+        >= 200 => "bg-danger",
+        >= 100 => "bg-warning text-dark",
+        _      => "bg-success",
+    };
+}

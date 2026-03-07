@@ -1,67 +1,341 @@
 ﻿@page "/"
+@rendermode InteractiveServer
+@using ProcessManager.Api.DTOs
+@inject ApiClient Api
 
-<PageTitle>Process Manager</PageTitle>
+<PageTitle>Dashboard — Process Manager</PageTitle>
 
-<div class="row mb-4">
-    <div class="col">
-        <h2>Process Manager</h2>
-        <p class="text-muted">Manufacturing process design and execution management</p>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0">Dashboard</h3>
+        <p class="text-muted small mb-0">@DateTime.Now.ToString("dddd, MMMM d, yyyy")</p>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="Refresh" disabled="@_loading">
+        <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+    </button>
+</div>
+
+@* ── KPI stat cards ───────────────────────────────────────────────────────── *@
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-xl-2">
+        <a href="jobs?status=InProgress" class="text-decoration-none">
+            <div class="card h-100 border-0 shadow-sm stat-card">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="stat-value text-primary">@Kpi("activeJobs")</div>
+                            <div class="stat-label">Active Jobs</div>
+                        </div>
+                        <i class="bi bi-briefcase-fill fs-3 text-primary opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <a href="jobs?status=OnHold" class="text-decoration-none">
+            <div class="card h-100 border-0 shadow-sm stat-card">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="stat-value text-warning">@Kpi("onHold")</div>
+                            <div class="stat-label">On Hold</div>
+                        </div>
+                        <i class="bi bi-pause-circle-fill fs-3 text-warning opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <a href="step-executions?status=InProgress" class="text-decoration-none">
+            <div class="card h-100 border-0 shadow-sm stat-card">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="stat-value text-info">@Kpi("stepsInProgress")</div>
+                            <div class="stat-label">Steps Running</div>
+                        </div>
+                        <i class="bi bi-play-circle-fill fs-3 text-info opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <a href="step-executions?status=Pending" class="text-decoration-none">
+            <div class="card h-100 border-0 shadow-sm stat-card">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="stat-value text-secondary">@Kpi("stepsPending")</div>
+                            <div class="stat-label">Steps Pending</div>
+                        </div>
+                        <i class="bi bi-hourglass-split fs-3 text-secondary opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <a href="step-executions?status=Failed" class="text-decoration-none">
+            <div class="card h-100 border-0 shadow-sm stat-card">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="stat-value @(_kpis.TryGetValue("stepsFailed", out var f) && f > 0 ? "text-danger" : "text-secondary")">
+                                @Kpi("stepsFailed")
+                            </div>
+                            <div class="stat-label">Steps Failed</div>
+                        </div>
+                        <i class="bi bi-x-circle-fill fs-3 text-danger opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <a href="jobs?status=Completed" class="text-decoration-none">
+            <div class="card h-100 border-0 shadow-sm stat-card">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="stat-value text-success">@Kpi("jobsCompleted")</div>
+                            <div class="stat-label">Jobs Completed</div>
+                        </div>
+                        <i class="bi bi-check-circle-fill fs-3 text-success opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </a>
     </div>
 </div>
 
+@* ── Main content panels ──────────────────────────────────────────────────── *@
 <div class="row g-4">
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title"><i class="bi bi-box me-2"></i>Kinds & Grades</h5>
-                <p class="card-text">Define material types with classifications and tracking rules.</p>
-                <a href="kinds" class="btn btn-outline-primary btn-sm">Manage Kinds</a>
+
+    @* Active Jobs *@
+    <div class="col-lg-7">
+        <div class="card shadow-sm h-100">
+            <div class="card-header d-flex justify-content-between align-items-center bg-transparent">
+                <span class="fw-semibold"><i class="bi bi-briefcase me-2 text-primary"></i>Active Jobs</span>
+                <a href="jobs?status=InProgress" class="btn btn-sm btn-outline-primary">View all</a>
             </div>
+
+            @if (_loading)
+            {
+                <div class="card-body text-center py-5">
+                    <div class="spinner-border text-primary spinner-border-sm"></div>
+                </div>
+            }
+            else if (!_activeJobs.Any())
+            {
+                <div class="card-body text-muted fst-italic">No active jobs right now.</div>
+            }
+            else
+            {
+                <div class="list-group list-group-flush">
+                    @foreach (var job in _activeJobs)
+                    {
+                        <a href="jobs/@job.Id" class="list-group-item list-group-item-action px-3 py-3">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <div>
+                                    <span class="fw-medium">@job.Name</span>
+                                    @if (job.Priority > 0)
+                                    {
+                                        <span class="badge bg-warning text-dark ms-1">P@job.Priority</span>
+                                    }
+                                </div>
+                                <small class="text-muted ms-2 text-nowrap">
+                                    @(job.StartedAt.HasValue
+                                        ? FormatAge(job.StartedAt.Value)
+                                        : "not started")
+                                </small>
+                            </div>
+                            <div class="small text-muted">
+                                <i class="bi bi-diagram-3 me-1"></i>@job.ProcessName
+                                &nbsp;<code class="text-secondary">@job.Code</code>
+                            </div>
+                        </a>
+                    }
+                </div>
+                @if (_activeJobsTotal > _activeJobs.Count)
+                {
+                    <div class="card-footer text-center text-muted small bg-transparent py-2">
+                        + @(_activeJobsTotal - _activeJobs.Count) more active job(s)
+                    </div>
+                }
+            }
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title"><i class="bi bi-puzzle me-2"></i>Step Templates</h5>
-                <p class="card-text">Design reusable operations with typed input/output ports.</p>
-                <a href="step-templates" class="btn btn-outline-primary btn-sm">Manage Templates</a>
+
+    @* Needs Attention *@
+    <div class="col-lg-5">
+        <div class="card shadow-sm h-100">
+            <div class="card-header d-flex justify-content-between align-items-center bg-transparent">
+                <span class="fw-semibold"><i class="bi bi-exclamation-triangle me-2 text-danger"></i>Needs Attention</span>
             </div>
+
+            @if (_loading)
+            {
+                <div class="card-body text-center py-5">
+                    <div class="spinner-border text-danger spinner-border-sm"></div>
+                </div>
+            }
+            else if (!_failedSteps.Any() && !_onHoldJobs.Any())
+            {
+                <div class="card-body">
+                    <div class="text-center text-success py-3">
+                        <i class="bi bi-check-circle-fill fs-2 mb-2 d-block"></i>
+                        <span>All clear — nothing needs attention.</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="list-group list-group-flush">
+                    @foreach (var job in _onHoldJobs)
+                    {
+                        <a href="jobs/@job.Id" class="list-group-item list-group-item-action px-3 py-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-pause-circle-fill text-warning fs-5"></i>
+                                <div>
+                                    <div class="fw-medium">@job.Name <span class="badge bg-warning text-dark ms-1">On Hold</span></div>
+                                    <div class="small text-muted"><code>@job.Code</code> — @job.ProcessName</div>
+                                </div>
+                            </div>
+                        </a>
+                    }
+                    @foreach (var se in _failedSteps)
+                    {
+                        <a href="step-executions/@se.Id" class="list-group-item list-group-item-action px-3 py-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-x-circle-fill text-danger fs-5"></i>
+                                <div>
+                                    <div class="fw-medium">@se.StepName <span class="badge bg-danger ms-1">Failed</span></div>
+                                    <div class="small text-muted">
+                                        Step @se.Sequence
+                                        @if (se.CompletedAt.HasValue)
+                                        { <text> · @FormatAge(se.CompletedAt.Value) ago</text> }
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    }
+                </div>
+            }
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title"><i class="bi bi-diagram-3 me-2"></i>Processes</h5>
-                <p class="card-text">Compose steps into ordered process sequences with flows.</p>
-                <a href="processes" class="btn btn-outline-primary btn-sm">Manage Processes</a>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title"><i class="bi bi-share me-2"></i>Workflows</h5>
-                <p class="card-text">Connect processes into directed graphs with routing decisions.</p>
-                <a href="workflows" class="btn btn-outline-primary btn-sm">Manage Workflows</a>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title"><i class="bi bi-clipboard-check me-2"></i>Jobs</h5>
-                <p class="card-text">Create and track production jobs through processes.</p>
-                <a href="jobs" class="btn btn-outline-primary btn-sm">Manage Jobs</a>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card h-100">
-            <div class="card-body">
-                <h5 class="card-title"><i class="bi bi-tag me-2"></i>Items & Batches</h5>
-                <p class="card-text">Track individual items and batches flowing through production.</p>
-                <a href="items" class="btn btn-outline-primary btn-sm">View Items</a>
-            </div>
-        </div>
-    </div>
+
 </div>
+
+@* ── Quick links footer ───────────────────────────────────────────────────── *@
+<div class="row g-3 mt-2">
+    @foreach (var (href, icon, label) in _quickLinks)
+    {
+        <div class="col-6 col-md-4 col-xl-2">
+            <a href="@href" class="card text-decoration-none quick-link-card shadow-sm">
+                <div class="card-body py-3 d-flex align-items-center gap-2">
+                    <i class="bi @icon text-secondary fs-5"></i>
+                    <span class="small fw-medium text-body">@label</span>
+                </div>
+            </a>
+        </div>
+    }
+</div>
+
+<style>
+    .stat-card { transition: transform .15s, box-shadow .15s; }
+    .stat-card:hover { transform: translateY(-2px); box-shadow: 0 .5rem 1rem rgba(0,0,0,.1) !important; }
+    .stat-value { font-size: 2rem; font-weight: 700; line-height: 1; }
+    .stat-label { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: #6c757d; margin-top: .25rem; }
+    .quick-link-card { transition: background .15s; }
+    .quick-link-card:hover { background: #f8f9fa; }
+    @@keyframes spin { to { transform: rotate(360deg); } }
+    .spin { display: inline-block; animation: spin .8s linear infinite; }
+</style>
+
+@code {
+    private bool _loading = true;
+    private readonly Dictionary<string, int> _kpis = new();
+    private List<JobResponseDto> _activeJobs = new();
+    private List<JobResponseDto> _onHoldJobs = new();
+    private List<StepExecutionResponseDto> _failedSteps = new();
+    private int _activeJobsTotal;
+
+    private static readonly (string href, string icon, string label)[] _quickLinks =
+    [
+        ("jobs",            "bi-briefcase",      "All Jobs"),
+        ("step-executions", "bi-play-circle",    "Step Executions"),
+        ("processes",       "bi-diagram-3",      "Processes"),
+        ("kinds",           "bi-box",            "Kinds & Grades"),
+        ("items",           "bi-tag",            "Items"),
+        ("batches",         "bi-collection",     "Batches"),
+    ];
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task Refresh()
+    {
+        _loading = true;
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        StateHasChanged();
+        try
+        {
+            // Fan out all 6 count/list queries in parallel
+            var t1 = Api.GetJobsAsync(status: "InProgress",  pageSize: 8);
+            var t2 = Api.GetJobsAsync(status: "OnHold",      pageSize: 5);
+            var t3 = Api.GetJobsAsync(status: "Completed",   pageSize: 1);
+            var t4 = Api.GetStepExecutionsAsync(status: "InProgress", pageSize: 1);
+            var t5 = Api.GetStepExecutionsAsync(status: "Pending",    pageSize: 1);
+            var t6 = Api.GetStepExecutionsAsync(status: "Failed",     pageSize: 5);
+
+            await Task.WhenAll(t1, t2, t3, t4, t5, t6);
+
+            var activeResult    = await t1;
+            var onHoldResult    = await t2;
+            var completedResult = await t3;
+            var stepIPResult    = await t4;
+            var stepPendResult  = await t5;
+            var failedResult    = await t6;
+
+            _activeJobs      = activeResult?.Items    ?? new();
+            _activeJobsTotal = activeResult?.TotalCount ?? 0;
+            _onHoldJobs      = onHoldResult?.Items    ?? new();
+            _failedSteps     = failedResult?.Items    ?? new();
+
+            _kpis["activeJobs"]       = activeResult?.TotalCount    ?? 0;
+            _kpis["onHold"]           = onHoldResult?.TotalCount    ?? 0;
+            _kpis["jobsCompleted"]    = completedResult?.TotalCount  ?? 0;
+            _kpis["stepsInProgress"]  = stepIPResult?.TotalCount    ?? 0;
+            _kpis["stepsPending"]     = stepPendResult?.TotalCount  ?? 0;
+            _kpis["stepsFailed"]      = failedResult?.TotalCount    ?? 0;
+        }
+        catch
+        {
+            // API unreachable or auth failure — show zeroes rather than
+            // crashing the Blazor circuit with an unhandled exception.
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private string Kpi(string key) =>
+        _loading ? "—" : (_kpis.TryGetValue(key, out var v) ? v.ToString() : "0");
+
+    private static string FormatAge(DateTime dt)
+    {
+        var age = DateTime.UtcNow - dt.ToUniversalTime();
+        if (age.TotalMinutes < 1)  return "just now";
+        if (age.TotalMinutes < 60) return $"{(int)age.TotalMinutes}m ago";
+        if (age.TotalHours   < 24) return $"{(int)age.TotalHours}h ago";
+        return $"{(int)age.TotalDays}d ago";
+    }
+}

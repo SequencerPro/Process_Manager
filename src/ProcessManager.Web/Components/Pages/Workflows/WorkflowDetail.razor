@@ -33,6 +33,9 @@ else
                     <span class="badge bg-dark">v@_wf.Version</span>
                 </div>
                 <div class="d-flex gap-1">
+                    <a href="workflows/@Id/builder" class="btn btn-primary btn-sm">
+                        <i class="bi bi-diagram-3 me-1"></i>Builder
+                    </a>
                     <button class="btn btn-outline-info btn-sm" @onclick="Validate">
                         <i class="bi bi-check2-circle me-1"></i>Validate
                     </button>
@@ -51,11 +54,6 @@ else
             <small class="text-muted">Created @_wf.CreatedAt.ToString("g") &bull; Updated @_wf.UpdatedAt.ToString("g")</small>
         </div>
     </div>
-
-    @if (_error is not null)
-    {
-        <div class="alert alert-danger py-2">@_error</div>
-    }
 
     @if (_validation is not null)
     {
@@ -266,13 +264,47 @@ else
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Routing Type</label>
-                            <select class="form-select" @bind="_lkRoutingType">
+                            <select class="form-select" @bind="_lkRoutingType" @bind:after="OnLinkRoutingTypeChanged">
                                 @foreach (var rt in Enum.GetValues<RoutingType>())
                                 {
                                     <option value="@rt">@rt</option>
                                 }
                             </select>
                         </div>
+                        @if (_lkRoutingType == RoutingType.GradeBased)
+                        {
+                            <div class="mb-3">
+                                <label class="form-label">Condition Grades</label>
+                                @if (_lkAvailableGrades is null)
+                                {
+                                    <div class="text-muted small">Loading grades...</div>
+                                }
+                                else if (!_lkAvailableGrades.Any())
+                                {
+                                    <div class="text-warning small">No grades available. Create grades on a Kind first.</div>
+                                }
+                                else
+                                {
+                                    <div class="border rounded p-2" style="max-height: 200px; overflow-y: auto;">
+                                        @foreach (var g in _lkAvailableGrades)
+                                        {
+                                            <div class="form-check">
+                                                <input type="checkbox" class="form-check-input" id="grade-@g.Id"
+                                                       checked="@(_lkSelectedGradeIds.Contains(g.Id))"
+                                                       @onchange="e => ToggleLinkGrade(g.Id, (bool)e.Value!)" />
+                                                <label class="form-check-label" for="grade-@g.Id">
+                                                    @g.Code — @g.Name
+                                                </label>
+                                            </div>
+                                        }
+                                    </div>
+                                    @if (!_lkSelectedGradeIds.Any())
+                                    {
+                                        <small class="text-danger">At least one grade must be selected.</small>
+                                    }
+                                }
+                            </div>
+                        }
                         <div class="mb-3">
                             <label class="form-label">Name</label>
                             <input class="form-control" @bind="_lkName" placeholder="Optional" />
@@ -418,7 +450,6 @@ else
 
     private WorkflowResponseDto? _wf;
     private bool _loading = true;
-    private string? _error;
     private WorkflowValidationResultDto? _validation;
 
     // Add Process form
@@ -434,6 +465,8 @@ else
     private string _lkTargetId = "";
     private RoutingType _lkRoutingType = RoutingType.Always;
     private string _lkName = "";
+    private List<GradeResponseDto>? _lkAvailableGrades;
+    private List<Guid> _lkSelectedGradeIds = new();
 
     // Edit workflow form
     private bool _showEditForm;
@@ -463,9 +496,19 @@ else
 
     private async Task LoadData()
     {
-        _loading = true; _error = null;
-        _wf = await Api.GetWorkflowAsync(Id);
-        _loading = false;
+        _loading = true;
+        try
+        {
+            _wf = await Api.GetWorkflowAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     // --- Validate ---
@@ -474,9 +517,8 @@ else
         try
         {
             _validation = await Api.ValidateWorkflowAsync(Id);
-            _error = null;
         }
-        catch (HttpRequestException ex) { _error = ex.Message; _validation = null; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); _validation = null; }
     }
 
     // --- Process CRUD ---
@@ -484,7 +526,7 @@ else
     {
         _wpProcessId = ""; _wpIsEntry = false; _wpSortOrder = 0;
         _showProcessForm = true;
-        _availableProcesses = await Api.GetProcessesAsync("", true, 1, 100);
+        _availableProcesses = await Api.GetProcessesAsync("", true, pageSize: 100);
         StateHasChanged();
     }
 
@@ -492,12 +534,12 @@ else
     {
         try
         {
-            if (!Guid.TryParse(_wpProcessId, out var pid)) { _error = "Select a process."; return; }
+            if (!Guid.TryParse(_wpProcessId, out var pid)) { Toast.ShowError("Select a process."); return; }
             await Api.AddWorkflowProcessAsync(Id, new AddWorkflowProcessDto(pid, _wpIsEntry, _wpSortOrder));
-            _showProcessForm = false; _error = null;
+            _showProcessForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private void ShowEditWfProcess(WorkflowProcessResponseDto wp)
@@ -513,24 +555,59 @@ else
         try
         {
             await Api.UpdateWorkflowProcessAsync(Id, _editWpId, new UpdateWorkflowProcessDto(_editWpIsEntry, _editWpSortOrder));
-            _showEditWpForm = false; _error = null;
+            _showEditWpForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task DeleteWfProcess(Guid wpId)
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Remove this process from the workflow?")) return;
         try { await Api.DeleteWorkflowProcessAsync(Id, wpId); await LoadData(); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Link CRUD ---
-    private void ShowAddLink()
+    private async Task ShowAddLink()
     {
         _lkSourceId = ""; _lkTargetId = ""; _lkRoutingType = RoutingType.Always; _lkName = "";
+        _lkSelectedGradeIds = new();
         _showLinkForm = true;
+        if (_allGrades is null)
+        {
+            await LoadAllGrades();
+        }
+        _lkAvailableGrades = _allGrades;
+        StateHasChanged();
+    }
+
+    private async Task OnLinkRoutingTypeChanged()
+    {
+        if (_lkRoutingType == RoutingType.GradeBased)
+        {
+            if (_allGrades is null)
+            {
+                await LoadAllGrades();
+            }
+            _lkAvailableGrades = _allGrades;
+        }
+        else
+        {
+            _lkSelectedGradeIds = new();
+        }
+    }
+
+    private void ToggleLinkGrade(Guid gradeId, bool isChecked)
+    {
+        if (isChecked && !_lkSelectedGradeIds.Contains(gradeId))
+        {
+            _lkSelectedGradeIds.Add(gradeId);
+        }
+        else if (!isChecked)
+        {
+            _lkSelectedGradeIds.Remove(gradeId);
+        }
     }
 
     private async Task SaveLink()
@@ -538,14 +615,18 @@ else
         try
         {
             if (!Guid.TryParse(_lkSourceId, out var src) || !Guid.TryParse(_lkTargetId, out var tgt))
-            { _error = "Select both source and target processes."; return; }
+            { Toast.ShowError("Select both source and target processes."); return; }
+            if (_lkRoutingType == RoutingType.GradeBased && !_lkSelectedGradeIds.Any())
+            { Toast.ShowError("GradeBased links must have at least one condition grade."); return; }
             var dto = new CreateWorkflowLinkDto(src, tgt, _lkRoutingType,
-                string.IsNullOrWhiteSpace(_lkName) ? null : _lkName);
+                string.IsNullOrWhiteSpace(_lkName) ? null : _lkName,
+                0,
+                _lkRoutingType == RoutingType.GradeBased ? _lkSelectedGradeIds : null);
             await Api.AddWorkflowLinkAsync(Id, dto);
-            _showLinkForm = false; _error = null;
+            _showLinkForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private void ShowEditLink(WorkflowLinkResponseDto lk)
@@ -562,35 +643,39 @@ else
         {
             await Api.UpdateWorkflowLinkAsync(Id, _editLinkId,
                 new UpdateWorkflowLinkDto(string.IsNullOrWhiteSpace(_editLinkName) ? null : _editLinkName, _editLinkSortOrder));
-            _showEditLinkForm = false; _error = null;
+            _showEditLinkForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task DeleteLink(Guid linkId)
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Delete this link?")) return;
         try { await Api.DeleteWorkflowLinkAsync(Id, linkId); await LoadData(); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Conditions ---
+    private async Task LoadAllGrades()
+    {
+        try
+        {
+            var kindsResult = await Api.GetKindsAsync(page: 1, pageSize: 100);
+            _allGrades = kindsResult?.Items?.SelectMany(k => k.Grades).OrderBy(g => g.Code).ToList() ?? new();
+        }
+        catch { _allGrades = new(); }
+    }
+
     private async Task ShowAddCondition(WorkflowLinkResponseDto lk)
     {
         _condLinkId = lk.Id;
         _condGradeId = "";
         _showConditionForm = true;
 
-        // Load all grades (from all kinds)
         if (_allGrades is null)
         {
-            try
-            {
-                var kindsResult = await Api.GetKindsAsync(page: 1, pageSize: 100);
-                _allGrades = kindsResult?.Items?.SelectMany(k => k.Grades).OrderBy(g => g.Code).ToList() ?? new();
-            }
-            catch { _allGrades = new(); }
+            await LoadAllGrades();
         }
         StateHasChanged();
     }
@@ -599,19 +684,19 @@ else
     {
         try
         {
-            if (!Guid.TryParse(_condGradeId, out var gid)) { _error = "Select a grade."; return; }
+            if (!Guid.TryParse(_condGradeId, out var gid)) { Toast.ShowError("Select a grade."); return; }
             await Api.AddWorkflowLinkConditionAsync(Id, _condLinkId, new AddWorkflowLinkConditionDto(gid));
-            _showConditionForm = false; _error = null;
+            _showConditionForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task RemoveCondition(Guid linkId, Guid conditionId)
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Remove this condition?")) return;
         try { await Api.DeleteWorkflowLinkConditionAsync(Id, linkId, conditionId); await LoadData(); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Delete Workflow ---
@@ -619,7 +704,7 @@ else
     {
         if (!await JS.InvokeAsync<bool>("confirm", "Delete this workflow? This cannot be undone.")) return;
         try { await Api.DeleteWorkflowAsync(Id); Nav.NavigateTo("workflows"); }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     // --- Edit Workflow ---
@@ -636,9 +721,9 @@ else
         try
         {
             await Api.UpdateWorkflowAsync(Id, new UpdateWorkflowDto(_editName, _editDescription, _editIsActive));
-            _showEditForm = false; _error = null;
+            _showEditForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { _error = ex.Message; }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 }

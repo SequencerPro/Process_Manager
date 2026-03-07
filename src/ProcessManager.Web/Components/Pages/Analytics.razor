@@ -1,0 +1,403 @@
+@page "/analytics"
+@attribute [Authorize]
+@inject ApiClient Api
+
+<PageTitle>Analytics</PageTitle>
+
+<div class="container-fluid py-3 px-4">
+
+    <div class="d-flex align-items-center mb-3 gap-3">
+        <h3 class="mb-0"><i class="bi bi-graph-up-arrow me-2"></i>Analytics</h3>
+        <span class="text-muted small">Ad-hoc multi-series time-series chart builder</span>
+    </div>
+
+    <!-- ── Chart Config Row ── -->
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row gx-3 gy-2 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label mb-1 small fw-semibold">Start Date</label>
+                    <input type="date" class="form-control form-control-sm"
+                           value="@_startDate.ToString("yyyy-MM-dd")"
+                           @onchange="e => _startDate = DateTime.Parse(e.Value!.ToString()!)"/>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-1 small fw-semibold">End Date</label>
+                    <input type="date" class="form-control form-control-sm"
+                           value="@_endDate.ToString("yyyy-MM-dd")"
+                           @onchange="e => _endDate = DateTime.Parse(e.Value!.ToString()!)"/>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label mb-1 small fw-semibold">Bucket Size</label>
+                    <select class="form-select form-select-sm" @bind="_bucketMinutes">
+                        <option value="60">1 hour</option>
+                        <option value="240">4 hours</option>
+                        <option value="480">8 hours (shift)</option>
+                        <option value="1440">1 day</option>
+                        <option value="10080">1 week</option>
+                    </select>
+                </div>
+                <div class="col-md-auto ms-auto">
+                    <button class="btn btn-primary btn-sm"
+                            @onclick="RunChartAsync"
+                            disabled="@(!CanRunChart || _querying)">
+                        @if (_querying)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-play-fill me-1"></i>
+                        }
+                        Run Chart
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Series Builders ── -->
+    <div class="row g-3 mb-3">
+        @for (int i = 0; i < _seriesBuilders.Count; i++)
+        {
+            var sb = _seriesBuilders[i];
+            var idx = i;
+            <div class="col-md-6 col-xl-4">
+                <div class="card h-100 border-2" style="border-color:@sb.Color!important">
+                    <div class="card-header d-flex align-items-center gap-2 py-2"
+                         style="background:@sb.Color20">
+                        <span class="fw-semibold small">Series @(idx + 1)</span>
+                        <button class="btn btn-link btn-sm text-danger ms-auto p-0"
+                                title="Remove series"
+                                @onclick="() => RemoveSeries(sb)">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                    <div class="card-body p-3">
+
+                        <!-- Process picker -->
+                        <div class="mb-2">
+                            <label class="form-label small mb-1">Process</label>
+                            @if (_allProcesses is null)
+                            {
+                                <div class="text-muted small fst-italic">Loading…</div>
+                            }
+                            else
+                            {
+                                <select class="form-select form-select-sm"
+                                        value="@sb.ProcessId"
+                                        @onchange="e => OnProcessChanged(sb, e.Value?.ToString() ?? string.Empty)">
+                                    <option value="">— select process —</option>
+                                    @foreach (var p in _allProcesses)
+                                    {
+                                        <option value="@p.Id">[@p.Code] @p.Name</option>
+                                    }
+                                </select>
+                            }
+                        </div>
+
+                        <!-- Step picker -->
+                        @if (sb.Steps is not null)
+                        {
+                            <div class="mb-2">
+                                <label class="form-label small mb-1">Step</label>
+                                <select class="form-select form-select-sm"
+                                        value="@sb.StepTemplateId"
+                                        @onchange="e => OnStepChanged(sb, e.Value?.ToString() ?? string.Empty)">
+                                    <option value="">— select step —</option>
+                                    @foreach (var s in sb.Steps)
+                                    {
+                                        <option value="@s.StepTemplateId">
+                                            @s.Sequence. @(!string.IsNullOrEmpty(s.NameOverride) ? s.NameOverride : s.StepTemplateName)
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                        }
+
+                        <!-- Prompt picker -->
+                        @if (sb.Prompts is not null)
+                        {
+                            <div class="mb-2">
+                                <label class="form-label small mb-1">Numeric Prompt</label>
+                                @if (sb.Prompts.Count == 0)
+                                {
+                                    <div class="text-muted small fst-italic">No numeric prompts in this step.</div>
+                                }
+                                else
+                                {
+                                    <select class="form-select form-select-sm"
+                                            value="@sb.ContentId"
+                                            @onchange="e => OnPromptChanged(sb, e.Value?.ToString() ?? string.Empty)">
+                                        <option value="">— select prompt —</option>
+                                        @foreach (var pr in sb.Prompts)
+                                        {
+                                            <option value="@pr.Id">
+                                                @pr.Label@(string.IsNullOrEmpty(pr.Units) ? "" : $" ({pr.Units})")
+                                            </option>
+                                        }
+                                    </select>
+                                }
+                            </div>
+                        }
+
+                        <!-- Label, Color, Y Axis row -->
+                        <div class="row gx-2 align-items-end mt-2">
+                            <div class="col">
+                                <label class="form-label small mb-1">Label</label>
+                                <input type="text" class="form-control form-control-sm"
+                                       placeholder="Series label" maxlength="80"
+                                       @bind="sb.Label"/>
+                            </div>
+                            <div class="col-auto">
+                                <label class="form-label small mb-1">Color</label>
+                                <input type="color" class="form-control form-control-color form-control-sm"
+                                       style="width:38px;padding:2px 3px;"
+                                       @bind="sb.Color"/>
+                            </div>
+                            <div class="col-auto">
+                                <label class="form-label small mb-1">Y Axis</label>
+                                <select class="form-select form-select-sm" @bind="sb.YAxis" style="width:72px">
+                                    <option value="0">Left</option>
+                                    <option value="1">Right</option>
+                                </select>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Add Series button -->
+        @if (_seriesBuilders.Count < 6)
+        {
+            <div class="col-md-6 col-xl-4 d-flex align-items-stretch">
+                <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2"
+                        style="min-height: 120px; border-style:dashed"
+                        @onclick="AddSeriesAsync">
+                    @if (_loadingProcesses)
+                    {
+                        <span class="spinner-border spinner-border-sm"></span>
+                        <span>Loading processes…</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-plus-lg fs-5"></i>
+                        <span>Add Series</span>
+                    }
+                </button>
+            </div>
+        }
+    </div>
+
+    <!-- ── Chart Result ── -->
+    @if (_result is not null)
+    {
+        <div class="card">
+            <div class="card-header d-flex align-items-center justify-content-between py-2">
+                <span class="fw-semibold">
+                    <i class="bi bi-bar-chart-line me-1"></i>
+                    Chart — @_result.Rows.Count bucket(s), @_result.TotalResponses total response(s)
+                </span>
+                <span class="text-muted small">
+                    @_startDate.ToString("MMM d, yyyy") – @_endDate.ToString("MMM d, yyyy") &nbsp;|&nbsp; @BucketLabel
+                </span>
+            </div>
+            <div class="card-body">
+                <TimeSeriesChart Series="_result.Series"
+                                 Rows="_result.Rows"
+                                 BucketMinutes="_result.BucketSizeMinutes"/>
+            </div>
+        </div>
+    }
+    else if (_queryError is not null)
+    {
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-1"></i>@_queryError
+        </div>
+    }
+
+</div>
+
+@code {
+    // ── Inner class ──────────────────────────────────────────────────
+
+    private class SeriesBuilder
+    {
+        public string ProcessId      { get; set; } = "";
+        public string StepTemplateId { get; set; } = "";
+        public string ContentId      { get; set; } = "";
+        public string Label          { get; set; } = "";
+        public string Color          { get; set; } = "#0d6efd";
+        public int    YAxis          { get; set; } = 0;
+
+        public List<ProcessStepResponseDto>?         Steps   { get; set; }
+        public List<StepTemplateContentResponseDto>? Prompts { get; set; }
+
+        /// 20% alpha background for card header tint
+        public string Color20 => Color.Length == 7
+            ? $"{Color}33"
+            : "rgba(0,0,0,0.04)";
+
+        public bool IsComplete => Guid.TryParse(ContentId, out _) && !string.IsNullOrWhiteSpace(Label);
+    }
+
+    // ── Palette ──────────────────────────────────────────────────────
+
+    private static readonly string[] _palette =
+        ["#0d6efd", "#dc3545", "#198754", "#fd7e14", "#6f42c1", "#20c997"];
+
+    // ── Page state ───────────────────────────────────────────────────
+
+    private List<ProcessSummaryResponseDto>? _allProcesses;
+    private List<SeriesBuilder> _seriesBuilders = new();
+
+    private DateTime _startDate = DateTime.Today.AddDays(-30);
+    private DateTime _endDate   = DateTime.Today;
+    private int      _bucketMinutes = 480;
+
+    private AnalyticsQueryResultDto? _result;
+    private string?                  _queryError;
+    private bool                     _querying;
+    private bool                     _loadingProcesses;
+
+    private bool CanRunChart => _seriesBuilders.Any(sb => sb.IsComplete);
+
+    private string BucketLabel => _bucketMinutes switch
+    {
+        60    => "1-hour buckets",
+        240   => "4-hour buckets",
+        480   => "8-hour (shift) buckets",
+        1440  => "daily buckets",
+        10080 => "weekly buckets",
+        _     => $"{_bucketMinutes}-min buckets"
+    };
+
+    // ── Lifecycle ────────────────────────────────────────────────────
+
+    // Processes loaded lazily on first AddSeries click
+
+    // ── Series management ────────────────────────────────────────────
+
+    private async Task AddSeriesAsync()
+    {
+        if (_allProcesses is null)
+        {
+            _loadingProcesses = true;
+            try
+            {
+                _allProcesses = (await Api.GetProcessesAsync(pageSize: 500))?.Items?.ToList() ?? new();
+            }
+            catch (Exception ex) { Toast.ShowError($"Failed to load processes: {ex.Message}"); }
+            finally { _loadingProcesses = false; }
+        }
+
+        var next = _seriesBuilders.Count;
+        _seriesBuilders.Add(new SeriesBuilder
+        {
+            Color = _palette[next % _palette.Length]
+        });
+    }
+
+    private void RemoveSeries(SeriesBuilder sb)
+    {
+        _seriesBuilders.Remove(sb);
+        _result = null;
+        _queryError = null;
+    }
+
+    // ── Cascading pickers ────────────────────────────────────────────
+
+    private async Task OnProcessChanged(SeriesBuilder sb, string value)
+    {
+        sb.ProcessId = value;
+        sb.StepTemplateId = "";
+        sb.ContentId = "";
+        sb.Steps = null;
+        sb.Prompts = null;
+
+        if (!Guid.TryParse(value, out var pid)) return;
+        try
+        {
+            var process = await Api.GetProcessAsync(pid);
+            sb.Steps = process?.Steps.OrderBy(s => s.Sequence).ToList();
+        }
+        catch (Exception ex) { Toast.ShowError($"Failed to load steps: {ex.Message}"); }
+    }
+
+    private async Task OnStepChanged(SeriesBuilder sb, string value)
+    {
+        sb.StepTemplateId = value;
+        sb.ContentId = "";
+        sb.Prompts = null;
+
+        if (!Guid.TryParse(value, out var stId)) return;
+        try
+        {
+            var contents = await Api.GetStepTemplateContentAsync(stId);
+            sb.Prompts = contents
+                .Where(c => c.ContentType == "Prompt" && c.PromptType == "NumericEntry")
+                .ToList();
+
+            // Auto-select if only one numeric prompt
+            if (sb.Prompts.Count == 1)
+            {
+                sb.ContentId = sb.Prompts[0].Id.ToString();
+                if (string.IsNullOrWhiteSpace(sb.Label))
+                    sb.Label = sb.Prompts[0].Label ?? "";
+            }
+        }
+        catch (Exception ex) { Toast.ShowError($"Failed to load prompts: {ex.Message}"); }
+    }
+
+    private void OnPromptChanged(SeriesBuilder sb, string value)
+    {
+        sb.ContentId = value;
+        if (!Guid.TryParse(value, out var cid)) return;
+        var prompt = sb.Prompts?.FirstOrDefault(p => p.Id == cid);
+        if (prompt is not null && string.IsNullOrWhiteSpace(sb.Label))
+            sb.Label = prompt.Label ?? "";
+    }
+
+    // ── Query execution ──────────────────────────────────────────────
+
+    private async Task RunChartAsync()
+    {
+        _result = null;
+        _queryError = null;
+
+        var completeSeries = _seriesBuilders
+            .Where(sb => sb.IsComplete)
+            .Select(sb => new AnalyticsSeriesRequestDto(
+                Guid.Parse(sb.ContentId),
+                sb.Label.Trim(),
+                sb.Color,
+                sb.YAxis))
+            .ToList();
+
+        if (completeSeries.Count == 0)
+        {
+            _queryError = "At least one fully-configured series is required.";
+            return;
+        }
+
+        var dto = new AnalyticsQueryDto(
+            "RunOverTime",
+            _startDate,
+            _endDate.AddDays(1).AddTicks(-1), // include full end day
+            _bucketMinutes,
+            completeSeries);
+
+        _querying = true;
+        try
+        {
+            _result = await Api.RunAnalyticsQueryAsync(dto);
+        }
+        catch (Exception ex)
+        {
+            _queryError = $"Query failed: {ex.Message}";
+        }
+        finally { _querying = false; }
+    }
+}

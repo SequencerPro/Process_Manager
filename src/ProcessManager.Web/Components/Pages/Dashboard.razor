@@ -1,0 +1,354 @@
+@page "/dashboard"
+@attribute [Authorize]
+@inject ApiClient Api
+@using System.Net
+
+<PageTitle>Dashboard</PageTitle>
+
+<div class="container-fluid py-3 px-4">
+
+    <div class="d-flex align-items-center mb-4 gap-3">
+        <h3 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h3>
+        @if (_loading)
+        {
+            <span class="spinner-border spinner-border-sm text-secondary ms-2"></span>
+        }
+        else
+        {
+            <span class="text-muted small">As of @_loadedAt.ToString("MMM d, yyyy h:mm tt")</span>
+        }
+        <button class="btn btn-sm btn-outline-secondary ms-auto"
+                @onclick="LoadAllAsync" disabled="@_loading">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+    </div>
+
+    <!-- ── KPI Cards ── -->
+    @if (_summary is not null)
+    {
+        var kpis = new (string Label, string Value, string Icon, string Color)[]
+        {
+            ("Total Jobs",            _summary.TotalJobs.ToString(),                                            "bi-clipboard-data",    "#0d6efd"),
+            ("Active Jobs",           _summary.ActiveJobs.ToString(),                                           "bi-play-circle-fill",  "#198754"),
+            ("Completed This Month",  _summary.CompletedThisMonth.ToString(),                                   "bi-check-circle-fill", "#20c997"),
+            ("Failed Steps",          _summary.FailedStepsAllTime.ToString(),                                   "bi-exclamation-triangle-fill", _summary.FailedStepsAllTime > 0 ? "#dc3545" : "#6c757d"),
+            ("Avg Job Duration",      _summary.AvgJobDurationHours.HasValue ? $"{_summary.AvgJobDurationHours.Value:F1} h" : "—", "bi-clock-history", "#6f42c1"),
+        };
+        <div class="row g-3 mb-4">
+            @foreach (var kpi in kpis)
+            {
+                <div class="col-md col-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body d-flex align-items-center gap-3 py-3">
+                            <span class="fs-2" style="color:@kpi.Color;opacity:.85;">
+                                <i class="bi @kpi.Icon"></i>
+                            </span>
+                            <div>
+                                <div class="fw-bold fs-4 lh-1 mb-1">@kpi.Value</div>
+                                <div class="text-muted" style="font-size:.78rem">@kpi.Label</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else if (!_loading)
+    {
+        <div class="alert alert-warning small">Could not load summary data.</div>
+    }
+
+    <!-- ── Middle Row: Status Breakdown + Throughput ── -->
+    <div class="row g-3 mb-4">
+
+        <!-- Job Status Breakdown -->
+        <div class="col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-header bg-transparent border-bottom py-2 fw-semibold small">
+                    <i class="bi bi-bar-chart-steps me-1"></i>Job Status Breakdown
+                </div>
+                <div class="card-body">
+                    @if (_breakdown is null || _breakdown.Count == 0)
+                    {
+                        <div class="text-muted small fst-italic">No job data yet.</div>
+                    }
+                    else
+                    {
+                        var bkTotal = _breakdown.Sum(b => b.Count);
+                        <div class="d-flex rounded-2 overflow-hidden mb-3" style="height:26px;">
+                            @foreach (var seg in _breakdown.OrderBy(b => StatusOrder(b.Status)))
+                            {
+                                var pct = bkTotal > 0 ? (double)seg.Count / bkTotal * 100.0 : 0;
+                                if (pct < 0.5) continue;
+                                <div style="width:@pct.ToString("F1")%;background:@StatusColor(seg.Status);"
+                                     title="@seg.Status: @seg.Count"></div>
+                            }
+                        </div>
+                        <ul class="list-unstyled mb-0 small">
+                            @foreach (var seg in _breakdown.OrderBy(b => StatusOrder(b.Status)))
+                            {
+                                <li class="d-flex align-items-center gap-2 mb-1">
+                                    <span style="display:inline-block;width:11px;height:11px;border-radius:2px;
+                                                 background:@StatusColor(seg.Status);flex-shrink:0;"></span>
+                                    <span>@seg.Status</span>
+                                    <span class="ms-auto fw-semibold">@seg.Count</span>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- 30-day Throughput -->
+        <div class="col-md-8">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-header bg-transparent border-bottom py-2 fw-semibold small">
+                    <i class="bi bi-graph-up me-1"></i>30-Day Throughput
+                </div>
+                <div class="card-body p-2">
+                    @if (_throughput is null || _throughput.Count == 0)
+                    {
+                        <div class="text-muted small fst-italic p-2">No data yet.</div>
+                    }
+                    else
+                    {
+                        <svg viewBox="0 0 700 175" style="width:100%;height:155px;display:block;">
+                            @foreach (var ty in TChartYTicks())
+                            {
+                                <line x1="@TML" y1="@TsvgY(ty)"
+                                      x2="@(TML + TPlotW)" y2="@TsvgY(ty)"
+                                      stroke="#dee2e6" stroke-width="1"/>
+                                @SvgLabelRight(TML - 4, double.Parse(TsvgY(ty)) + 3, ty.ToString())
+                            }
+                            <path d="@TBuildPoly(p => p.Created)"
+                                  stroke="#0d6efd" stroke-width="2" fill="none" stroke-linejoin="round"/>
+                            <path d="@TBuildPoly(p => p.Completed)"
+                                  stroke="#198754" stroke-width="2" fill="none" stroke-linejoin="round"/>
+                            @for (int di = 0; di < _throughput!.Count; di++)
+                            {
+                                var dp = _throughput[di];
+                                <circle cx="@TsvgX(di)" cy="@TsvgY(dp.Created)"   r="2.5" fill="#0d6efd"/>
+                                <circle cx="@TsvgX(di)" cy="@TsvgY(dp.Completed)" r="2.5" fill="#198754"/>
+                            }
+                            @foreach (var xi in TChartXLabelIdxs())
+                            {
+                                var tp = _throughput[xi];
+                                <line x1="@TsvgX(xi)" y1="@(TMT + TPlotH)"
+                                      x2="@TsvgX(xi)" y2="@(TMT + TPlotH + 4)"
+                                      stroke="#6c757d" stroke-width="1"/>
+                                @SvgLabelCenter(double.Parse(TsvgX(xi)), TMT + TPlotH + 16, tp.Date.ToString("MM/dd"))
+                            }
+                            <line x1="@TML" y1="@TMT" x2="@TML" y2="@(TMT + TPlotH)" stroke="#6c757d" stroke-width="1.5"/>
+                            <line x1="@TML" y1="@(TMT + TPlotH)" x2="@(TML + TPlotW)" y2="@(TMT + TPlotH)" stroke="#6c757d" stroke-width="1.5"/>
+                        </svg>
+                        <div class="d-flex justify-content-center gap-4 mt-1" style="font-size:.8rem">
+                            <span><span style="display:inline-block;width:18px;height:3px;background:#0d6efd;border-radius:2px;vertical-align:middle;"></span> Created</span>
+                            <span><span style="display:inline-block;width:18px;height:3px;background:#198754;border-radius:2px;vertical-align:middle;"></span> Completed</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ── Bottom Row: Step Performance + Recent Completions ── -->
+    <div class="row g-3">
+
+        <!-- Step Performance -->
+        <div class="col-md-7">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent border-bottom py-2 fw-semibold small">
+                    <i class="bi bi-list-check me-1"></i>Step Performance (all time)
+                </div>
+                @if (_stepPerf is null || _stepPerf.Count == 0)
+                {
+                    <div class="card-body text-muted small fst-italic">No step execution data yet.</div>
+                }
+                else
+                {
+                    <div class="table-responsive" style="max-height:340px;overflow-y:auto;">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Step</th>
+                                    <th class="text-end">Total</th>
+                                    <th class="text-end">Done</th>
+                                    <th class="text-end">Failed</th>
+                                    <th class="text-end">Avg (min)</th>
+                                    <th style="min-width:80px">Pass%</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var s in _stepPerf)
+                                {
+                                    var passRate = s.Total > 0 ? (double)s.Completed / s.Total : 0.0;
+                                    var barColor = passRate >= 0.9 ? "#198754" : passRate >= 0.7 ? "#fd7e14" : "#dc3545";
+                                    <tr>
+                                        <td class="small align-middle">@s.StepName</td>
+                                        <td class="text-end small align-middle">@s.Total</td>
+                                        <td class="text-end small align-middle text-success">@s.Completed</td>
+                                        <td class="text-end small align-middle @(s.Failed > 0 ? "text-danger fw-semibold" : "")">@s.Failed</td>
+                                        <td class="text-end small align-middle">@(s.AvgDurationMinutes.HasValue ? s.AvgDurationMinutes.Value.ToString("F0") : "—")</td>
+                                        <td class="align-middle">
+                                            <div class="progress" style="height:7px;">
+                                                <div class="progress-bar" role="progressbar"
+                                                     style="width:@((passRate * 100).ToString("F0"))%;background:@barColor;">
+                                                </div>
+                                            </div>
+                                            <span class="text-muted" style="font-size:.7rem">@((passRate * 100).ToString("F0"))%</span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Recent Completions -->
+        <div class="col-md-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent border-bottom py-2 fw-semibold small">
+                    <i class="bi bi-check2-all me-1"></i>Recent Completions
+                </div>
+                @if (_recent is null || _recent.Count == 0)
+                {
+                    <div class="card-body text-muted small fst-italic">No completed jobs yet.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Job</th>
+                                    <th>Process</th>
+                                    <th class="text-end">Completed</th>
+                                    <th class="text-end">Duration</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in _recent)
+                                {
+                                    <tr>
+                                        <td class="small align-middle">
+                                            <a href="jobs/@r.JobId" class="text-decoration-none fw-semibold">@r.Code</a>
+                                        </td>
+                                        <td class="small text-muted align-middle">@r.ProcessName</td>
+                                        <td class="text-end small align-middle">@r.CompletedAt.ToString("MM/dd HH:mm")</td>
+                                        <td class="text-end small align-middle">@(r.DurationHours.HasValue ? $"{r.DurationHours.Value:F1}h" : "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+@code {
+    private ReportSummaryDto?            _summary;
+    private List<JobStatusBreakdownDto>? _breakdown;
+    private List<StepPerformanceDto>?    _stepPerf;
+    private List<RecentCompletionDto>?   _recent;
+    private List<ThroughputPointDto>?    _throughput;
+    private bool     _loading = true;
+    private DateTime _loadedAt;
+
+    protected override async Task OnInitializedAsync() => await LoadAllAsync();
+
+    private async Task LoadAllAsync()
+    {
+        _loading = true;
+        await Task.WhenAll(
+            LoadSummaryAsync(),
+            LoadBreakdownAsync(),
+            LoadStepPerfAsync(),
+            LoadRecentAsync(),
+            LoadThroughputAsync());
+        _loadedAt = DateTime.Now;
+        _loading  = false;
+    }
+
+    private async Task LoadSummaryAsync()    { try { _summary    = await Api.GetReportSummaryAsync();       } catch { } }
+    private async Task LoadBreakdownAsync()  { try { _breakdown  = await Api.GetJobStatusBreakdownAsync() ?? new(); } catch { } }
+    private async Task LoadStepPerfAsync()   { try { _stepPerf   = await Api.GetStepPerformanceAsync()    ?? new(); } catch { } }
+    private async Task LoadRecentAsync()     { try { _recent     = await Api.GetRecentCompletionsAsync(10) ?? new(); } catch { } }
+    private async Task LoadThroughputAsync() { try { _throughput = await Api.GetThroughputAsync(30)        ?? new(); } catch { } }
+
+    // ── Status helpers ──
+
+    private static string StatusColor(string status) => status.ToLowerInvariant() switch
+    {
+        "created"    => "#6c757d",
+        "inprogress" => "#0d6efd",
+        "onhold"     => "#ffc107",
+        "completed"  => "#198754",
+        "cancelled"  => "#dc3545",
+        _            => "#adb5bd"
+    };
+
+    private static int StatusOrder(string status) => status.ToLowerInvariant() switch
+    {
+        "created"    => 0,
+        "inprogress" => 1,
+        "onhold"     => 2,
+        "completed"  => 3,
+        "cancelled"  => 4,
+        _            => 9
+    };
+
+    // ── SVG text helpers (Blazor <text> tag workaround) ──
+
+    private static MarkupString SvgLabelRight(double x, double y, string txt, string fill = "#6c757d", int size = 9)
+        => (MarkupString)$"<text x=\"{x:F0}\" y=\"{y:F0}\" text-anchor=\"end\" font-size=\"{size}\" fill=\"{fill}\">{WebUtility.HtmlEncode(txt)}</text>";
+
+    private static MarkupString SvgLabelCenter(double x, double y, string txt, string fill = "#6c757d", int size = 9)
+        => (MarkupString)$"<text x=\"{x:F0}\" y=\"{y:F0}\" text-anchor=\"middle\" font-size=\"{size}\" fill=\"{fill}\">{WebUtility.HtmlEncode(txt)}</text>";
+
+    // ── Throughput chart helpers ──
+    private const double TML = 40; private const double TMR = 15;
+    private const double TMT = 15; private const double TMB = 38;
+    private const double TPlotW = 700 - TML - TMR;   // 645
+    private const double TPlotH = 175 - TMT - TMB;   // 122
+
+    private double TYMax => _throughput is { Count: > 0 }
+        ? Math.Max(1, Math.Max(_throughput.Max(p => p.Created), _throughput.Max(p => p.Completed))) * 1.15
+        : 1.0;
+
+    private string TsvgX(int i)
+    {
+        int n = _throughput!.Count;
+        return (TML + (n <= 1 ? TPlotW / 2.0 : (double)i / (n - 1) * TPlotW)).ToString("F1");
+    }
+
+    private string TsvgY(int v) => (TMT + TPlotH - v / TYMax * TPlotH).ToString("F1");
+
+    private string TBuildPoly(Func<ThroughputPointDto, int> sel)
+    {
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < _throughput!.Count; i++)
+        {
+            sb.Append(i == 0 ? "M" : " L");
+            sb.Append($"{TsvgX(i)},{TsvgY(sel(_throughput[i]))}");
+        }
+        return sb.ToString();
+    }
+
+    private int[] TChartYTicks() => Enumerable.Range(0, 5)
+        .Select(i => (int)Math.Round(TYMax * i / 4.0))
+        .Distinct().ToArray();
+
+    private int[] TChartXLabelIdxs()
+    {
+        int n = _throughput!.Count;
+        return Enumerable.Range(0, n).Where(i => i % 7 == 0 || i == n - 1).ToArray();
+    }
+}

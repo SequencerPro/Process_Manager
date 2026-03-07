@@ -222,17 +222,120 @@ public class WorkflowTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task AddProcess_DuplicateInWorkflow_ReturnsConflict()
+    public async Task AddProcess_SameProcessTwice_Succeeds()
     {
         var scenario = await BuildWidgetFinishingScenario();
         var wf = await CreateWorkflow();
-        await AddWorkflowProcess(wf.Id, scenario.Process.Id);
+        var wp1 = await AddWorkflowProcess(wf.Id, scenario.Process.Id);
 
         var dto = new AddWorkflowProcessDto(scenario.Process.Id);
         var response = await Client.PostAsJsonAsync(
             $"/api/workflows/{wf.Id}/processes", dto, JsonOptions);
+        response.EnsureSuccessStatusCode();
 
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        var wp2 = await response.Content.ReadFromJsonAsync<WorkflowProcessResponseDto>(JsonOptions);
+        Assert.NotNull(wp2);
+        Assert.NotEqual(wp1.Id, wp2!.Id); // Different WorkflowProcess IDs
+        Assert.Equal(wp1.ProcessId, wp2.ProcessId); // Same underlying Process
+    }
+
+    [Fact]
+    public async Task AddProcess_SameProcessThreeTimes_AllAppearInWorkflow()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var wf = await CreateWorkflow();
+
+        var wp1 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, isEntryPoint: true, sortOrder: 1);
+        var wp2 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, sortOrder: 2);
+        var wp3 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, sortOrder: 3);
+
+        // Reload workflow with children
+        var loaded = await Client.GetFromJsonAsync<WorkflowResponseDto>(
+            $"/api/workflows/{wf.Id}", JsonOptions);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(3, loaded!.Processes!.Count);
+        Assert.All(loaded.Processes, p => Assert.Equal(scenario.Process.Id, p.ProcessId));
+        // All have distinct WorkflowProcess IDs
+        var wpIds = loaded.Processes.Select(p => p.Id).ToList();
+        Assert.Equal(3, wpIds.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task AddProcess_DuplicateProcesses_CanBeLinkSeparately()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var wf = await CreateWorkflow();
+
+        // Add same process three times: entry → middle → end
+        var wp1 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, isEntryPoint: true, sortOrder: 1);
+        var wp2 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, sortOrder: 2);
+        var wp3 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, sortOrder: 3);
+
+        // Link them: wp1 → wp2 → wp3
+        var link1 = await AddWorkflowLink(wf.Id, wp1.Id, wp2.Id, RoutingType.Always, "First to Second");
+        var link2 = await AddWorkflowLink(wf.Id, wp2.Id, wp3.Id, RoutingType.Always, "Second to Third");
+
+        Assert.Equal(wp1.Id, link1.SourceWorkflowProcessId);
+        Assert.Equal(wp2.Id, link1.TargetWorkflowProcessId);
+        Assert.Equal(wp2.Id, link2.SourceWorkflowProcessId);
+        Assert.Equal(wp3.Id, link2.TargetWorkflowProcessId);
+    }
+
+    [Fact]
+    public async Task AddProcess_DuplicateProcesses_CanDeleteOneKeepOthers()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var wf = await CreateWorkflow();
+
+        var wp1 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, sortOrder: 1);
+        var wp2 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, sortOrder: 2);
+        var wp3 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, sortOrder: 3);
+
+        // Delete the middle one
+        var response = await Client.DeleteAsync(
+            $"/api/workflows/{wf.Id}/processes/{wp2.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        // Remaining should be wp1 and wp3
+        var processes = await Client.GetFromJsonAsync<List<WorkflowProcessResponseDto>>(
+            $"/api/workflows/{wf.Id}/processes", JsonOptions);
+        Assert.Equal(2, processes!.Count);
+        Assert.Contains(processes, p => p.Id == wp1.Id);
+        Assert.Contains(processes, p => p.Id == wp3.Id);
+        Assert.DoesNotContain(processes, p => p.Id == wp2.Id);
+    }
+
+    [Fact]
+    public async Task AddProcess_DuplicateProcesses_IndependentConfiguration()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var wf = await CreateWorkflow();
+
+        // Add same process twice with different configurations
+        var wp1 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, isEntryPoint: true, sortOrder: 1);
+        var wp2 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, isEntryPoint: false, sortOrder: 5);
+
+        Assert.True(wp1.IsEntryPoint);
+        Assert.False(wp2.IsEntryPoint);
+        Assert.Equal(1, wp1.SortOrder);
+        Assert.Equal(5, wp2.SortOrder);
+
+        // Update wp2 independently — should not affect wp1
+        var response = await Client.PutAsJsonAsync(
+            $"/api/workflows/{wf.Id}/processes/{wp2.Id}",
+            new UpdateWorkflowProcessDto(IsEntryPoint: true, SortOrder: 10), JsonOptions);
+        response.EnsureSuccessStatusCode();
+        var updated = await response.Content.ReadFromJsonAsync<WorkflowProcessResponseDto>(JsonOptions);
+        Assert.True(updated!.IsEntryPoint);
+        Assert.Equal(10, updated.SortOrder);
+
+        // wp1 should still have its original values
+        var loaded = await Client.GetFromJsonAsync<WorkflowResponseDto>(
+            $"/api/workflows/{wf.Id}", JsonOptions);
+        var loadedWp1 = loaded!.Processes!.Single(p => p.Id == wp1.Id);
+        Assert.True(loadedWp1.IsEntryPoint);
+        Assert.Equal(1, loadedWp1.SortOrder);
     }
 
     [Fact]
@@ -392,6 +495,93 @@ public class WorkflowTests : IntegrationTestBase
         var links = await Client.GetFromJsonAsync<List<WorkflowLinkResponseDto>>(
             $"/api/workflows/{scenario.Workflow.Id}/links", JsonOptions);
         Assert.Equal(2, links!.Count);
+    }
+
+    [Fact]
+    public async Task CreateLink_Manual_Succeeds()
+    {
+        var s1 = await BuildWidgetFinishingScenario();
+        var s2 = await BuildWidgetFinishingScenario();
+        var wf = await CreateWorkflow();
+        var wp1 = await AddWorkflowProcess(wf.Id, s1.Process.Id, isEntryPoint: true);
+        var wp2 = await AddWorkflowProcess(wf.Id, s2.Process.Id);
+
+        var link = await AddWorkflowLink(wf.Id, wp1.Id, wp2.Id, RoutingType.Manual, "Manual Decision");
+
+        Assert.Equal(RoutingType.Manual, link.RoutingType);
+        Assert.Equal("Manual Decision", link.Name);
+        Assert.Equal(wp1.Id, link.SourceWorkflowProcessId);
+        Assert.Equal(wp2.Id, link.TargetWorkflowProcessId);
+    }
+
+    [Fact]
+    public async Task CreateLink_GradeBased_WithMultipleConditions_Succeeds()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var widget = await CreateKind($"WDG-{pfx}", "Widget", isSerialized: true);
+        var rawGrade = await CreateGrade(widget.Id, "RAW", "Raw", isDefault: true);
+        var passedGrade = await CreateGrade(widget.Id, "PASS", "Passed");
+        var failedGrade = await CreateGrade(widget.Id, "FAIL", "Failed");
+
+        var step1 = await CreateTransformStep($"S1-{pfx}", "Step1",
+            widget.Id, rawGrade.Id, widget.Id, rawGrade.Id);
+        var step2 = await CreateTransformStep($"S2-{pfx}", "Step2",
+            widget.Id, rawGrade.Id, widget.Id, rawGrade.Id);
+        var p1 = await CreateProcess($"P1-{pfx}", "Process 1");
+        await AddProcessStep(p1.Id, step1.Id, 1);
+        var p2 = await CreateProcess($"P2-{pfx}", "Process 2");
+        await AddProcessStep(p2.Id, step2.Id, 1);
+
+        var wf = await CreateWorkflow($"WF-{pfx}");
+        var wp1 = await AddWorkflowProcess(wf.Id, p1.Id, isEntryPoint: true);
+        var wp2 = await AddWorkflowProcess(wf.Id, p2.Id);
+
+        var link = await AddWorkflowLink(wf.Id, wp1.Id, wp2.Id,
+            RoutingType.GradeBased, "Multi-grade",
+            new List<Guid> { passedGrade.Id, failedGrade.Id });
+
+        Assert.Equal(RoutingType.GradeBased, link.RoutingType);
+        Assert.Equal(2, link.Conditions!.Count);
+        Assert.Contains(link.Conditions, c => c.GradeId == passedGrade.Id);
+        Assert.Contains(link.Conditions, c => c.GradeId == failedGrade.Id);
+    }
+
+    [Fact]
+    public async Task Validate_ReworkLoop_WorkflowStructure_IsCorrect()
+    {
+        var scenario = await BuildWorkflowScenario();
+
+        var wf = await Client.GetFromJsonAsync<WorkflowResponseDto>(
+            $"/api/workflows/{scenario.Workflow.Id}", JsonOptions);
+
+        Assert.NotNull(wf);
+
+        // Verify forward links from Finishing
+        var toPackaging = wf!.Links!.Single(l =>
+            l.SourceWorkflowProcessId == scenario.WpFinishing.Id &&
+            l.TargetWorkflowProcessId == scenario.WpPackaging.Id);
+        Assert.Equal(RoutingType.GradeBased, toPackaging.RoutingType);
+        Assert.Single(toPackaging.Conditions!);
+
+        var toRework = wf.Links!.Single(l =>
+            l.SourceWorkflowProcessId == scenario.WpFinishing.Id &&
+            l.TargetWorkflowProcessId == scenario.WpRework.Id);
+        Assert.Equal(RoutingType.GradeBased, toRework.RoutingType);
+        Assert.Single(toRework.Conditions!);
+
+        // Verify rework loop back
+        var backToFinishing = wf.Links!.Single(l =>
+            l.SourceWorkflowProcessId == scenario.WpRework.Id &&
+            l.TargetWorkflowProcessId == scenario.WpFinishing.Id);
+        Assert.Equal(RoutingType.Always, backToFinishing.RoutingType);
+
+        // Validate the workflow
+        var response = await Client.PostAsync(
+            $"/api/workflows/{scenario.Workflow.Id}/validate", null);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<WorkflowValidationResultDto>(JsonOptions);
+        Assert.True(result!.IsValid);
+        Assert.Empty(result.Errors);
     }
 
     // ───── Link Conditions ─────

@@ -1,0 +1,310 @@
+@namespace ProcessManager.Web.Components.Shared
+@using System.Net
+@using System.Text
+
+@*
+    Multi-series time-series chart using inline SVG.
+    Supports dual Y axes (left = YAxis 0, right = YAxis 1).
+    All SVG <text> elements rendered via MarkupString helpers to avoid
+    the Blazor Razor compiler's RZ1023 conflict with SVG <text> tags.
+*@
+
+@if (Series == null || Rows == null || Series.Count == 0 || Rows.Count == 0)
+{
+    <div class="p-4 text-muted text-center fst-italic border rounded bg-light">
+        <i class="bi bi-bar-chart me-2"></i>No data in this range. Try expanding the date window or adding more series.
+    </div>
+}
+else
+{
+    <div>
+        <svg viewBox="0 0 800 380" style="width:100%;height:340px;display:block;" class="border rounded">
+
+            <!-- Plot area background -->
+            <rect x="@ML" y="@MT" width="@PlotW" height="@PlotH" fill="#f8f9fa"/>
+
+            <!-- Horizontal grid lines (left Y ticks) -->
+            @foreach (var tick in _yTicksL)
+            {
+                var ty = ToSvgYL(tick);
+                <line x1="@ML" y1="@ty.ToString("F1")"
+                      x2="@(ML + PlotW)" y2="@ty.ToString("F1")"
+                      stroke="#dee2e6" stroke-width="1"/>
+            }
+
+            <!-- Left Y axis tick labels -->
+            @foreach (var tick in _yTicksL)
+            {
+                var ty = ToSvgYL(tick);
+                @SvgLabelRight(ML - 4, ty + 4, FormatVal(tick))
+            }
+
+            <!-- Right Y axis tick labels -->
+            @if (_hasRightAxis)
+            {
+                foreach (var tick in _yTicksR)
+                {
+                    var ty = ToSvgYR(tick);
+                    @SvgLabel(ML + PlotW + 5, ty + 4, FormatVal(tick))
+                }
+            }
+
+            <!-- X axis tick labels -->
+            @foreach (var xTick in _xTicks)
+            {
+                var tx = ToSvgX(xTick);
+                <line x1="@tx.ToString("F1")" y1="@(MT + PlotH)"
+                      x2="@tx.ToString("F1")" y2="@(MT + PlotH + 4)"
+                      stroke="#6c757d" stroke-width="1"/>
+                @SvgLabelCenter(tx, MT + PlotH + 16, FormatXTick(xTick))
+                @if (BucketMinutes >= 1440)
+                {
+                    <!-- For daily+ buckets one line is enough -->
+                }
+            }
+
+            <!-- Series paths and dots -->
+            @foreach (var s in Series)
+            {
+                var pathD = BuildPath(s);
+                if (!string.IsNullOrEmpty(pathD))
+                {
+                    <path d="@pathD" stroke="@s.Color" stroke-width="2"
+                          fill="none" stroke-linejoin="round"/>
+                }
+                <!-- Dots at each data point -->
+                @foreach (var row in Rows)
+                {
+                    var key = s.ContentId.ToString();
+                    if (row.Values.TryGetValue(key, out var v) && v.HasValue)
+                    {
+                        var cx = ToSvgX(row.Bucket);
+                        var cy = s.YAxis == 1 ? ToSvgYR(v.Value) : ToSvgYL(v.Value);
+                        <circle cx="@cx.ToString("F1")" cy="@cy.ToString("F1")"
+                                r="3" fill="@s.Color"/>
+                    }
+                }
+            }
+
+            <!-- Left Y axis label -->
+            @{
+                var leftLabel = BuildAxisLabel(0);
+                if (!string.IsNullOrEmpty(leftLabel))
+                {
+                    @SvgLabelVertical(11, MT + PlotH / 2.0, leftLabel)
+                }
+            }
+
+            <!-- Right Y axis label -->
+            @if (_hasRightAxis)
+            {
+                var rightLabel = BuildAxisLabel(1);
+                if (!string.IsNullOrEmpty(rightLabel))
+                {
+                    @SvgLabelVerticalRight(789, MT + PlotH / 2.0, rightLabel)
+                }
+            }
+
+            <!-- Axes border lines -->
+            <line x1="@ML" y1="@MT" x2="@ML" y2="@(MT + PlotH)"
+                  stroke="#6c757d" stroke-width="1.5"/>
+            <line x1="@ML" y1="@(MT + PlotH)" x2="@(ML + PlotW)" y2="@(MT + PlotH)"
+                  stroke="#6c757d" stroke-width="1.5"/>
+            @if (_hasRightAxis)
+            {
+                <line x1="@(ML + PlotW)" y1="@MT" x2="@(ML + PlotW)" y2="@(MT + PlotH)"
+                      stroke="#6c757d" stroke-width="1"/>
+            }
+
+        </svg>
+
+        <!-- Legend -->
+        <div class="d-flex flex-wrap gap-3 mt-2 justify-content-center">
+            @foreach (var s in Series)
+            {
+                <span class="d-flex align-items-center gap-1" style="font-size:.82rem">
+                    <span style="display:inline-block;width:24px;height:3px;background:@s.Color;border-radius:2px;"></span>
+                    @s.Label
+                    @if (!string.IsNullOrEmpty(s.Units))
+                    {
+                        <span class="text-muted">(@s.Units)</span>
+                    }
+                    @if (_hasRightAxis)
+                    {
+                        <span class="badge bg-secondary ms-1" style="font-size:.68rem">@(s.YAxis == 1 ? "R" : "L")</span>
+                    }
+                </span>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public List<AnalyticsSeriesResultDto>? Series { get; set; }
+    [Parameter, EditorRequired] public List<AnalyticsBucketRowDto>? Rows    { get; set; }
+    [Parameter]                 public int BucketMinutes                     { get; set; } = 60;
+
+    // ── Layout constants ──
+    private const double MT = 25;
+    private const double MB = 50;
+    private double ML => 65;
+    private double MR => _hasRightAxis ? 65.0 : 20.0;
+    private double PlotW => 800 - ML - MR;
+    private const double PlotH = 305;
+
+    // ── Computed ranges ──
+    private bool     _hasRightAxis;
+    private DateTime _xMin, _xMax;
+    private double   _xRangeSeconds;
+    private double   _yMinL = 0, _yMaxL = 1;
+    private double   _yMinR = 0, _yMaxR = 1;
+    private double[] _yTicksL = Array.Empty<double>();
+    private double[] _yTicksR = Array.Empty<double>();
+    private DateTime[] _xTicks = Array.Empty<DateTime>();
+
+    protected override void OnParametersSet()
+    {
+        if (Series == null || Rows == null || Series.Count == 0 || Rows.Count == 0)
+            return;
+
+        _hasRightAxis = Series.Any(s => s.YAxis == 1);
+
+        // ── X range ──
+        _xMin = Rows.Min(r => r.Bucket);
+        _xMax = Rows.Max(r => r.Bucket);
+        if (_xMax <= _xMin) _xMax = _xMin.AddMinutes(BucketMinutes);
+        _xRangeSeconds = (_xMax - _xMin).TotalSeconds;
+
+        // ── Y ranges per axis ──
+        var leftSeries  = Series.Where(s => s.YAxis == 0).Select(s => s.ContentId.ToString()).ToHashSet();
+        var rightSeries = Series.Where(s => s.YAxis == 1).Select(s => s.ContentId.ToString()).ToHashSet();
+
+        var leftVals  = Rows.SelectMany(r => r.Values.Where(kv => leftSeries.Contains(kv.Key)  && kv.Value.HasValue).Select(kv => kv.Value!.Value)).ToList();
+        var rightVals = Rows.SelectMany(r => r.Values.Where(kv => rightSeries.Contains(kv.Key) && kv.Value.HasValue).Select(kv => kv.Value!.Value)).ToList();
+
+        (_yMinL, _yMaxL) = PaddedRange(leftVals);
+        (_yMinR, _yMaxR) = PaddedRange(rightVals);
+
+        _yTicksL = BuildTicks(_yMinL, _yMaxL, 6);
+        _yTicksR = _hasRightAxis ? BuildTicks(_yMinR, _yMaxR, 6) : Array.Empty<double>();
+        _xTicks  = BuildXTicks(7);
+    }
+
+    // ── Coordinate mapping ──
+
+    private double ToSvgX(DateTime t)
+    {
+        if (_xRangeSeconds < 1e-6) return ML + PlotW / 2.0;
+        return ML + (t - _xMin).TotalSeconds / _xRangeSeconds * PlotW;
+    }
+
+    private double ToSvgYL(double v)
+    {
+        if (_yMaxL <= _yMinL) return MT + PlotH / 2.0;
+        return MT + PlotH - (v - _yMinL) / (_yMaxL - _yMinL) * PlotH;
+    }
+
+    private double ToSvgYR(double v)
+    {
+        if (_yMaxR <= _yMinR) return MT + PlotH / 2.0;
+        return MT + PlotH - (v - _yMinR) / (_yMaxR - _yMinR) * PlotH;
+    }
+
+    // ── Path builder ──
+
+    private string BuildPath(AnalyticsSeriesResultDto s)
+    {
+        var key = s.ContentId.ToString();
+        var sb  = new StringBuilder();
+        bool inSeg = false;
+
+        foreach (var row in Rows!)
+        {
+            if (!row.Values.TryGetValue(key, out var v) || !v.HasValue)
+            {
+                inSeg = false;
+                continue;
+            }
+
+            var cx = ToSvgX(row.Bucket);
+            var cy = s.YAxis == 1 ? ToSvgYR(v.Value) : ToSvgYL(v.Value);
+
+            if (!inSeg)
+            {
+                sb.Append($"M{cx:F1},{cy:F1}");
+                inSeg = true;
+            }
+            else
+            {
+                sb.Append($" L{cx:F1},{cy:F1}");
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    // ── Helpers ──
+
+    private static (double min, double max) PaddedRange(List<double> vals)
+    {
+        if (vals.Count == 0) return (0, 1);
+        double mn = vals.Min(), mx = vals.Max();
+        double span = mx - mn;
+        double pad  = span < 1e-10 ? Math.Max(Math.Abs(mn) * 0.1, 1.0) : span * 0.12;
+        return (mn - pad, mx + pad);
+    }
+
+    private static double[] BuildTicks(double min, double max, int n)
+    {
+        if (max <= min) return new[] { min, max };
+        return Enumerable.Range(0, n)
+            .Select(i => min + (max - min) * i / (n - 1))
+            .ToArray();
+    }
+
+    private DateTime[] BuildXTicks(int n)
+    {
+        return Enumerable.Range(0, n)
+            .Select(i => _xMin.AddSeconds(_xRangeSeconds * i / (n - 1)))
+            .ToArray();
+    }
+
+    private string FormatXTick(DateTime t)
+        => BucketMinutes >= 1440 ? t.ToString("MM/dd") : t.ToString("MM/dd\nHH:mm");
+
+    private static string FormatVal(double v)
+    {
+        double abs = Math.Abs(v);
+        if (abs == 0) return "0";
+        if (abs >= 10000 || (abs > 0 && abs < 0.001)) return v.ToString("G3");
+        return v.ToString("G4");
+    }
+
+    private string BuildAxisLabel(int yAxis)
+    {
+        if (Series == null) return "";
+        var units = Series
+            .Where(s => s.YAxis == yAxis && !string.IsNullOrEmpty(s.Units))
+            .Select(s => s.Units!)
+            .Distinct()
+            .ToList();
+        return units.Count > 0 ? string.Join(" / ", units) : "";
+    }
+
+    // ── SVG text helpers (Blazor <text> tag workaround) ──
+
+    private static MarkupString SvgLabel(double x, double y, string txt, string fill = "#6c757d", int size = 9)
+        => (MarkupString)$"<text x=\"{x:F0}\" y=\"{y:F0}\" font-size=\"{size}\" fill=\"{fill}\">{WebUtility.HtmlEncode(txt)}</text>";
+
+    private static MarkupString SvgLabelRight(double x, double y, string txt, string fill = "#6c757d", int size = 9)
+        => (MarkupString)$"<text x=\"{x:F0}\" y=\"{y:F0}\" text-anchor=\"end\" font-size=\"{size}\" fill=\"{fill}\">{WebUtility.HtmlEncode(txt)}</text>";
+
+    private static MarkupString SvgLabelCenter(double x, double y, string txt, string fill = "#6c757d", int size = 9)
+        => (MarkupString)$"<text x=\"{x:F0}\" y=\"{y:F0}\" text-anchor=\"middle\" font-size=\"{size}\" fill=\"{fill}\">{WebUtility.HtmlEncode(txt)}</text>";
+
+    private static MarkupString SvgLabelVertical(double x, double cy, string txt, string fill = "#6c757d", int size = 9)
+        => (MarkupString)$"<text x=\"{x:F0}\" y=\"{cy:F0}\" text-anchor=\"middle\" dominant-baseline=\"middle\" transform=\"rotate(-90,{x:F0},{cy:F0})\" font-size=\"{size}\" fill=\"{fill}\">{WebUtility.HtmlEncode(txt)}</text>";
+
+    private static MarkupString SvgLabelVerticalRight(double x, double cy, string txt, string fill = "#6c757d", int size = 9)
+        => (MarkupString)$"<text x=\"{x:F0}\" y=\"{cy:F0}\" text-anchor=\"middle\" dominant-baseline=\"middle\" transform=\"rotate(90,{x:F0},{cy:F0})\" font-size=\"{size}\" fill=\"{fill}\">{WebUtility.HtmlEncode(txt)}</text>";
+}

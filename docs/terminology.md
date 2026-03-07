@@ -6,6 +6,7 @@
 |---------|------------|--------------------------------|
 | 0.1     | 2026-02-16 | Initial draft                  |
 | 0.2     | 2026-02-22 | Added RoutingType clarification; minor wording updates to reflect implemented system |
+| 0.3     | 2026-02-27 | Extended Port model with PortType (Material, Parameter, Characteristic, Condition); updated §1.4, §1.5, §6 |
 
 ---
 
@@ -25,25 +26,65 @@ A discrete unit of work with explicitly defined **Input Ports** and **Output Por
 
 ### 1.4 Port
 
-A named connection point on a Step through which **Items** flow. Each Port declares:
+A named connection point on a Step. Every Port has:
 
 - **Direction**: Input or Output
-- **Item Type** (exactly one Kind + Grade combination)
-- **Quantity Rule**: how many items are expected to flow
+- **Port Type**: one of Material, Parameter, Characteristic, or Condition (see §1.4.1–1.4.4)
 
-A Port accepts or produces exactly one **Item Type**. This constraint enables the system to validate that items are flowing to correct destinations.
+The Port Type determines what additional metadata is required and what the port represents in quality engineering tools (PFMEA, C&E Matrix, Control Plan).
 
 #### 1.4.1 Input Port
 
-A Port through which items enter a Step.
+A Port through which something enters a Step. Can be any PortType.
 
 #### 1.4.2 Output Port
 
-A Port through which items exit a Step.
+A Port through which something exits a Step. Can be any PortType.
+
+#### 1.4.3 PortType: Material
+
+A physical workpiece, material, or batch that flows into or out of the Step. Material ports are the basis for WIP tracking.
+
+Additional fields required:
+- **Item Type** (exactly one Kind + Grade combination)
+- **Quantity Rule**: how many items are expected to flow
+
+Flows between steps connect Material ports of matching Item Type. This constraint ensures that the wrong material cannot be routed to the wrong destination.
+
+#### 1.4.4 PortType: Parameter
+
+A controllable input setting that influences what the Step produces. Parameters are the X-variables in a C&E Matrix and the controlled inputs in a Control Plan.
+
+Examples: spindle speed, coolant pressure, tool length offset setting, torque specification, oven temperature set-point.
+
+Additional fields:
+- **Data Type**: Numeric, String, Integer, Boolean, or DateTime
+- **Units**: unit of measure (e.g., RPM, °C, Nm) — for Numeric/Integer types
+- **Nominal Value**: the target value as a string
+- **Lower Tolerance / Upper Tolerance**: allowable deviation from nominal — for Numeric/Integer types
+
+#### 1.4.5 PortType: Characteristic
+
+A measurable result or feature produced by the Step. Characteristics are the Y-variables in a C&E Matrix, the monitored outputs in a Control Plan, and the effects in a PFMEA.
+
+Examples: surface finish Ra, hole diameter, tensile strength, hardness, flatness.
+
+Additional fields (same shape as Parameter):
+- **Data Type**, **Units**, **Nominal Value**, **Lower Tolerance**, **Upper Tolerance**
+
+A Characteristic output of one Step may appear as a Characteristic input to a downstream Step, capturing the analytical dependency that a C&E Matrix expresses.
+
+#### 1.4.6 PortType: Condition
+
+A binary pass/fail prerequisite or state that must be verified before or after the Step. Conditions appear as error-proofing entries in a PFMEA and as verification checks in a Control Plan.
+
+Examples: tool length offset verified, fixture seated correctly, safety gate closed, first-article approved.
+
+No numeric metadata. A Condition is simply named and described — its value at runtime is pass or fail.
 
 ### 1.5 Quantity Rule
 
-A constraint declared on a Port that specifies how many items are expected to flow. There are four quantity rule modes:
+A constraint declared on a **Material** port (PortType = Material) that specifies how many items are expected to flow. Quantity Rules are not applicable to Parameter, Characteristic, or Condition ports. There are four quantity rule modes:
 
 | Mode             | Notation  | Meaning                              | Example Use Case                  |
 |------------------|-----------|--------------------------------------|-----------------------------------|
@@ -174,12 +215,14 @@ Data generated during processing (measurements, observations, parameters) can be
 
 Steps are classified by their Port configuration:
 
-| Pattern      | Input Ports | Output Ports | Example                                      |
-|--------------|-------------|--------------|-----------------------------------------------|
-| Transform    | 1           | 1            | Paint a part, approve a document              |
-| Assembly     | N           | 1            | Join two components, add two numbers          |
-| Division     | 1           | N            | Cut parts from a sheet, split a batch         |
-| General      | N           | M            | Chemical reaction with multiple inputs/outputs|
+Steps are classified by their **Material port** configuration. Non-material ports (Parameter, Characteristic, Condition) do not affect pattern classification.
+
+| Pattern      | Material Inputs | Material Outputs | Example                                      |
+|--------------|-----------------|------------------|-----------------------------------------------|
+| Transform    | 1               | 1                | Paint a part, approve a document              |
+| Assembly     | N               | 1                | Join two components, add two numbers          |
+| Division     | 1               | N                | Cut parts from a sheet, split a batch         |
+| General      | N               | M                | Chemical reaction with multiple inputs/outputs|
 
 ---
 

@@ -15,6 +15,55 @@
     </button>
 </div>
 
+@if (_showSetupGuide)
+{
+    <div class="card shadow-sm mb-4" style="border-left: 4px solid #0d6efd;">
+        <div class="card-body">
+            <h5 class="fw-semibold mb-1"><i class="bi bi-rocket-takeoff me-2 text-primary"></i>Getting Started</h5>
+            <p class="text-muted small mb-3">
+                Process Manager is built around your <strong>process library</strong> — formal, reusable
+                definitions of how your work gets done. Jobs, quality analysis, and performance metrics all
+                flow from that foundation. Complete the four steps below to get set up.
+                You can also <a href="vocabulary">configure your vocabulary</a> to use your own terminology throughout the UI.
+            </p>
+            <div class="row g-2">
+                @{ var nextStep = _setupChecklist.FirstOrDefault(s => !s.Done); }
+                @foreach (var step in _setupChecklist)
+                {
+                    <div class="col-sm-6 col-lg-3">
+                        <a href="@step.Href" class="text-decoration-none d-block h-100">
+                            <div class="rounded border h-100 p-3 @(step.Done ? "border-success bg-success bg-opacity-10" : step == nextStep ? "border-primary bg-primary bg-opacity-5" : "border-0 bg-light")">
+                                <div class="d-flex align-items-start gap-2">
+                                    <span class="flex-shrink-0 mt-1">
+                                        @if (step.Done)
+                                        {
+                                            <i class="bi bi-check-circle-fill text-success"></i>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-circle text-muted"></i>
+                                        }
+                                    </span>
+                                    <div>
+                                        <div class="fw-medium small @(step.Done ? "text-decoration-line-through text-muted" : "")">
+                                            @step.StepNum. @step.Label
+                                        </div>
+                                        <div class="text-muted" style="font-size:.73rem">@step.Description</div>
+                                        @if (step == nextStep)
+                                        {
+                                            <span class="badge bg-primary mt-1" style="font-size:.65rem">Start here →</span>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
 @* ── KPI stat cards ───────────────────────────────────────────────────────── *@
 <div class="row g-3 mb-4">
     <div class="col-6 col-md-4 col-xl-2">
@@ -263,6 +312,26 @@
     private List<StepExecutionResponseDto> _failedSteps = new();
     private int _activeJobsTotal;
 
+    // Setup guide state
+    private int _kindCount;
+    private int _stepCount;
+    private int _processCount;
+    private bool _jobsExist =>
+        _kpis.GetValueOrDefault("activeJobs") +
+        _kpis.GetValueOrDefault("onHold") +
+        _kpis.GetValueOrDefault("jobsCompleted") > 0;
+    private bool _showSetupGuide =>
+        !_loading && (_kindCount == 0 || _stepCount == 0 || _processCount == 0 || !_jobsExist);
+
+    private record SetupStep(int StepNum, string Href, string Icon, string Label, string Description, bool Done);
+    private IReadOnlyList<SetupStep> _setupChecklist => new SetupStep[]
+    {
+        new(1, "kinds",          "bi-box",        "Define Kinds & Grades",    "Catalog the materials, parts, and other things that flow through your processes.",             _kindCount    > 0),
+        new(2, "step-templates", "bi-puzzle",     "Design Step Templates",    "Define the operations your team performs — inputs, outputs, and work instructions.",           _stepCount    > 0),
+        new(3, "processes",      "bi-diagram-3",  "Build a Process",          "Arrange steps into an ordered sequence that describes one type of work end-to-end.",           _processCount > 0),
+        new(4, "jobs",           "bi-briefcase",  "Run your first Job",       "Execute a process against real work and start tracking live progress and outcomes.",            _jobsExist),
+    };
+
     private static readonly (string href, string icon, string label)[] _quickLinks =
     [
         ("jobs",            "bi-briefcase",      "All Jobs"),
@@ -294,8 +363,11 @@
             var t4 = Api.GetStepExecutionsAsync(status: "InProgress", pageSize: 1);
             var t5 = Api.GetStepExecutionsAsync(status: "Pending",    pageSize: 1);
             var t6 = Api.GetStepExecutionsAsync(status: "Failed",     pageSize: 5);
+            var t7 = Api.GetKindsAsync(pageSize: 1);
+            var t8 = Api.GetStepTemplatesAsync(pageSize: 1);
+            var t9 = Api.GetProcessesAsync(pageSize: 1);
 
-            await Task.WhenAll(t1, t2, t3, t4, t5, t6);
+            await Task.WhenAll(t1, t2, t3, t4, t5, t6, t7, t8, t9);
 
             var activeResult    = await t1;
             var onHoldResult    = await t2;
@@ -303,6 +375,9 @@
             var stepIPResult    = await t4;
             var stepPendResult  = await t5;
             var failedResult    = await t6;
+            _kindCount    = (await t7)?.TotalCount ?? 0;
+            _stepCount    = (await t8)?.TotalCount ?? 0;
+            _processCount = (await t9)?.TotalCount ?? 0;
 
             _activeJobs      = activeResult?.Items    ?? new();
             _activeJobsTotal = activeResult?.TotalCount ?? 0;

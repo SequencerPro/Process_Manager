@@ -76,11 +76,13 @@ public record CreateWorkflowLinkDto(
     RoutingType RoutingType = RoutingType.Always,
     [StringLength(200)] string? Name = null,
     [Range(0, int.MaxValue)] int SortOrder = 0,
-    List<Guid>? ConditionGradeIds = null);
+    List<Guid>? ConditionGradeIds = null,
+    string? LineShape = null);
 
 public record UpdateWorkflowLinkDto(
     [StringLength(200)] string? Name = null,
-    [Range(0, int.MaxValue)] int? SortOrder = null);
+    [Range(0, int.MaxValue)] int? SortOrder = null,
+    string? LineShape = null);
 
 public record WorkflowLinkResponseDto(
     Guid Id,
@@ -92,6 +94,7 @@ public record WorkflowLinkResponseDto(
     RoutingType RoutingType,
     string? Name,
     int SortOrder,
+    string? LineShape,
     List<WorkflowLinkConditionResponseDto>? Conditions,
     DateTime CreatedAt,
     DateTime UpdatedAt);

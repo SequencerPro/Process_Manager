@@ -218,10 +218,6 @@ public class WorkflowsController : ControllerBase
         if (!process.IsActive)
             return BadRequest($"Process '{process.Code}' is not active.");
 
-        if (await _db.WorkflowProcesses.AnyAsync(
-            wp => wp.WorkflowId == workflowId && wp.ProcessId == dto.ProcessId))
-            return Conflict($"Process '{process.Code}' is already in this workflow.");
-
         var wp = new WorkflowProcess
         {
             WorkflowId = workflowId,
@@ -363,7 +359,8 @@ public class WorkflowsController : ControllerBase
             TargetWorkflowProcessId = dto.TargetWorkflowProcessId,
             RoutingType = dto.RoutingType,
             Name = dto.Name,
-            SortOrder = dto.SortOrder
+            SortOrder = dto.SortOrder,
+            LineShape = dto.LineShape
         };
 
         _db.WorkflowLinks.Add(link);
@@ -410,6 +407,7 @@ public class WorkflowsController : ControllerBase
 
         if (dto.Name is not null) link.Name = dto.Name;
         if (dto.SortOrder.HasValue) link.SortOrder = dto.SortOrder.Value;
+        if (dto.LineShape is not null) link.LineShape = string.IsNullOrEmpty(dto.LineShape) ? null : dto.LineShape;
 
         await _db.SaveChangesAsync();
         return MapWorkflowLinkToDto(link);
@@ -513,6 +511,7 @@ public class WorkflowsController : ControllerBase
             wl.TargetWorkflowProcessId,
             wl.TargetWorkflowProcess?.Process?.Name ?? "",
             wl.RoutingType, wl.Name, wl.SortOrder,
+            wl.LineShape,
             wl.Conditions?.Select(c => new WorkflowLinkConditionResponseDto(
                 c.Id, c.WorkflowLinkId, c.GradeId,
                 c.Grade?.Code ?? "", c.Grade?.Name ?? "")).ToList(),

@@ -100,13 +100,12 @@ else
                     {
                         @foreach (var p in _filteredProcesses)
                         {
-                            var alreadyAdded = _addedProcessIds.Contains(p.Id);
-                            <div class="d-flex align-items-center justify-content-between border rounded p-2 mb-1 @(alreadyAdded ? "bg-light text-muted" : "")">
+                            <div class="d-flex align-items-center justify-content-between border rounded p-2 mb-1">
                                 <div class="text-truncate me-1">
                                     <div class="fw-semibold" style="font-size:.8rem">@p.Name</div>
                                     <code style="font-size:.7rem">@p.Code</code>
                                 </div>
-                                <button class="btn btn-outline-primary btn-sm py-0 px-1" disabled="@alreadyAdded"
+                                <button class="btn btn-outline-primary btn-sm py-0 px-1"
                                         @onclick="() => AddProcessToCanvas(p)">
                                     <i class="bi bi-plus"></i>
                                 </button>
@@ -332,9 +331,6 @@ else
     private bool _saving;
     private WorkflowValidationResultDto? _validation;
 
-    // Tracks which Process Ids are already on the canvas
-    private HashSet<Guid> _addedProcessIds = new();
-
     // Process picker state
     private bool _showPicker;
     private string _pickerSearch = "";
@@ -415,7 +411,6 @@ else
         _nodeMap.Clear();
         _linkDataMap.Clear();
         _linkShapeMap.Clear();
-        _addedProcessIds.Clear();
         _selectedNode = null;
         _selectedLink = null;
         _selectedLinkData = null;
@@ -458,7 +453,6 @@ else
 
             _diagram.Nodes.Add(node);
             _nodeMap[wp.Id] = node;
-            _addedProcessIds.Add(wp.ProcessId);
         }
 
         // Create links
@@ -475,13 +469,21 @@ else
                     {
                         var link = new LinkModel(srcPort, tgtPort);
 
+                        // Apply persisted line shape
+                        var shape = lk.LineShape ?? "straight";
+                        if (shape == "curved")
+                        {
+                            link.Router = new NormalRouter();
+                            link.PathGenerator = new SmoothPathGenerator();
+                        }
+
                         // Add label showing routing type or name
                         var label = lk.Name ?? lk.RoutingType.ToString();
                         link.Labels.Add(new LinkLabelModel(link, label));
 
                         _diagram.Links.Add(link);
                         _linkDataMap[link] = lk;
-                        _linkShapeMap[link] = "straight"; // default
+                        _linkShapeMap[link] = shape;
                     }
                 }
             }
@@ -725,8 +727,6 @@ else
 
     private async Task AddProcessToCanvas(ProcessSummaryResponseDto process)
     {
-        if (_addedProcessIds.Contains(process.Id)) return;
-
         // Calculate position for the new node (grid offset by count)
         int count = _diagram.Nodes.Count;
         double x = 80 + (count % 3) * 280;
@@ -756,7 +756,6 @@ else
 
                 _diagram.Nodes.Add(node);
                 _nodeMap[result.Id] = node;
-                _addedProcessIds.Add(process.Id);
                 Toast.ShowSuccess($"Added '{process.Name}' to workflow.");
             }
         }
@@ -848,7 +847,7 @@ else
         return "straight";
     }
 
-    private void HandleLinkShapeChange(ChangeEventArgs e)
+    private async Task HandleLinkShapeChange(ChangeEventArgs e)
     {
         if (_selectedLink is null) return;
         var shape = e.Value?.ToString() ?? "straight";
@@ -867,6 +866,17 @@ else
         }
 
         _selectedLink.Refresh();
+
+        // Persist to server
+        if (_selectedLinkData is not null)
+        {
+            try
+            {
+                await Api.UpdateWorkflowLinkAsync(Id, _selectedLinkData.Id,
+                    new UpdateWorkflowLinkDto(LineShape: shape));
+            }
+            catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+        }
     }
 
     // ───────────── Delete ─────────────
@@ -894,7 +904,6 @@ else
             }
 
             await Api.DeleteWorkflowProcessAsync(Id, _selectedNode.WorkflowProcessId);
-            _addedProcessIds.Remove(_selectedNode.ProcessId);
             _nodeMap.Remove(_selectedNode.WorkflowProcessId);
             _diagram.Nodes.Remove(_selectedNode);
             _selectedNode = null;

@@ -383,6 +383,7 @@ else
         _diagram.SelectionChanged += OnSelectionChanged;
         _diagram.Links.Added += OnLinkAdded;
         _diagram.KeyDown += OnKeyDown;
+        _diagram.PointerDoubleClick += OnDoubleClick;
 
         await LoadWorkflow();
         _loading = false;
@@ -938,6 +939,15 @@ else
                 _ = DeleteSelectedNode();
             else if (_selectedLink is not null)
                 _ = DeleteSelectedLink();
+        }
+    }
+
+    private void OnDoubleClick(Blazor.Diagrams.Core.Models.Base.Model? model,
+        Blazor.Diagrams.Core.Events.PointerEventArgs e)
+    {
+        if (model is WorkflowProcessNodeModel node)
+        {
+            Nav.NavigateTo($"processes/{node.ProcessId}");
         }
     }
 

@@ -336,7 +336,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<WorkflowProcess>(e =>
         {
             e.HasKey(wp => wp.Id);
-            e.HasIndex(wp => new { wp.WorkflowId, wp.ProcessId }).IsUnique();
+            e.HasIndex(wp => new { wp.WorkflowId, wp.ProcessId });
 
             e.HasOne(wp => wp.Workflow)
                 .WithMany(w => w.WorkflowProcesses)

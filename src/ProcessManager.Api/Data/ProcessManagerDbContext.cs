@@ -346,6 +346,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne(wp => wp.Process)
                 .WithMany()
                 .HasForeignKey(wp => wp.ProcessId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

@@ -15,8 +15,11 @@ public class WorkflowProcessNodeModel : NodeModel
     /// <summary>Server-side WorkflowProcess Id.</summary>
     public Guid WorkflowProcessId { get; set; }
 
-    /// <summary>The Process this node represents.</summary>
-    public Guid ProcessId { get; set; }
+    /// <summary>The Process this node represents (null for terminal nodes).</summary>
+    public Guid? ProcessId { get; set; }
+
+    /// <summary>True if this is a terminal "End" node.</summary>
+    public bool IsTerminalNode { get; set; }
 
     public string ProcessName { get; set; } = "";
     public string ProcessCode { get; set; } = "";

@@ -78,10 +78,13 @@ else
 
         @* Right Sidebar *@
         <div class="workflow-builder-sidebar d-flex flex-column">
-            @* Add Process & Create Link Buttons *@
+            @* Add Process, End Node & Create Link Buttons *@
             <div class="sidebar-section">
                 <button class="btn btn-primary btn-sm w-100 mb-1" @onclick="ShowProcessPicker">
                     <i class="bi bi-plus-lg me-1"></i>Add Process
+                </button>
+                <button class="btn btn-outline-danger btn-sm w-100 mb-1" @onclick="AddEndNodeToCanvas">
+                    <i class="bi bi-stop-circle me-1"></i>Add End Node
                 </button>
                 <button class="btn btn-outline-primary btn-sm w-100" @onclick="ShowCreateLinkModal"
                         disabled="@(_diagram.Nodes.Count < 2)">
@@ -123,40 +126,56 @@ else
             @if (_selectedNode is not null && !_showPicker)
             {
                 <div class="sidebar-section">
-                    <h6>Node Configuration</h6>
-                    <div class="mb-2">
-                        <label class="form-label small mb-0">Process</label>
-                        <div class="fw-semibold" style="font-size:.85rem">@_selectedNode.ProcessName</div>
-                        <code style="font-size:.75rem">@_selectedNode.ProcessCode</code>
-                    </div>
-                    <div class="form-check mb-2">
-                        <input type="checkbox" class="form-check-input" id="nodeEntry"
-                               checked="@_selectedNode.IsEntryPoint"
-                               @onchange="e => ToggleEntryPoint((bool)e.Value!)" />
-                        <label class="form-check-label small" for="nodeEntry">Is Entry Point</label>
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small mb-0">Sort Order</label>
-                        <input type="number" class="form-control form-control-sm"
-                               value="@_selectedNode.SortOrder"
-                               @onchange="HandleSortOrderChange" />
-                    </div>
-                    <div class="mb-2">
-                        <label class="form-label small mb-0">Tile Color</label>
-                        <div class="d-flex align-items-center gap-2">
-                            <input type="color" class="form-control form-control-color form-control-sm"
-                                   value="@GetNodeColor()"
-                                   @onchange="HandleColorChange" />
-                            <button class="btn btn-outline-secondary btn-sm py-0 px-1"
-                                    @onclick="ResetNodeColor" title="Reset to default">
-                                <i class="bi bi-arrow-counterclockwise"></i>
-                            </button>
+                    <h6>@(_selectedNode.IsTerminalNode ? "End Node" : "Node Configuration")</h6>
+
+                    @if (_selectedNode.IsTerminalNode)
+                    {
+                        <div class="mb-2 text-center">
+                            <i class="bi bi-stop-circle-fill" style="font-size:1.5rem; color:#dc3545;"></i>
+                            <div class="fw-semibold mt-1" style="color:#dc3545;">Terminal Node</div>
+                            <div class="text-muted small">Workflow ends when a process exits toward this node.</div>
                         </div>
-                    </div>
+                    }
+                    else
+                    {
+                        <div class="mb-2">
+                            <label class="form-label small mb-0">Process</label>
+                            <div class="fw-semibold" style="font-size:.85rem">@_selectedNode.ProcessName</div>
+                            <code style="font-size:.75rem">@_selectedNode.ProcessCode</code>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input type="checkbox" class="form-check-input" id="nodeEntry"
+                                   checked="@_selectedNode.IsEntryPoint"
+                                   @onchange="e => ToggleEntryPoint((bool)e.Value!)" />
+                            <label class="form-check-label small" for="nodeEntry">Is Entry Point</label>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-0">Sort Order</label>
+                            <input type="number" class="form-control form-control-sm"
+                                   value="@_selectedNode.SortOrder"
+                                   @onchange="HandleSortOrderChange" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-0">Tile Color</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="color" class="form-control form-control-color form-control-sm"
+                                       value="@GetNodeColor()"
+                                       @onchange="HandleColorChange" />
+                                <button class="btn btn-outline-secondary btn-sm py-0 px-1"
+                                        @onclick="ResetNodeColor" title="Reset to default">
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>
+                            </div>
+                        </div>
+                    }
+
                     <hr class="my-2" />
-                    <a href="processes/@_selectedNode.ProcessId" class="btn btn-outline-secondary btn-sm w-100 mb-1">
-                        <i class="bi bi-box-arrow-up-right me-1"></i>View Process
-                    </a>
+                    @if (!_selectedNode.IsTerminalNode)
+                    {
+                        <a href="processes/@_selectedNode.ProcessId" class="btn btn-outline-secondary btn-sm w-100 mb-1">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>View Process
+                        </a>
+                    }
                     <button class="btn btn-outline-danger btn-sm w-100" @onclick="DeleteSelectedNode">
                         <i class="bi bi-trash me-1"></i>Remove from Workflow
                     </button>
@@ -440,6 +459,7 @@ else
             {
                 WorkflowProcessId = wp.Id,
                 ProcessId = wp.ProcessId,
+                IsTerminalNode = wp.IsTerminalNode,
                 ProcessName = wp.ProcessName,
                 ProcessCode = wp.ProcessCode,
                 IsEntryPoint = wp.IsEntryPoint,
@@ -766,6 +786,51 @@ else
         }
     }
 
+    private async Task AddEndNodeToCanvas()
+    {
+        int count = _diagram.Nodes.Count;
+        double x = 80 + (count % 3) * 280;
+        double y = 80 + (count / 3) * 200;
+
+        try
+        {
+            var dto = new AddWorkflowProcessDto(
+                ProcessId: null,
+                IsEntryPoint: false,
+                SortOrder: count,
+                PositionX: x,
+                PositionY: y,
+                IsTerminalNode: true);
+            var result = await Api.AddWorkflowProcessAsync(Id, dto);
+            if (result is not null)
+            {
+                var node = new WorkflowProcessNodeModel(new Point(x, y))
+                {
+                    WorkflowProcessId = result.Id,
+                    ProcessId = null,
+                    IsTerminalNode = true,
+                    ProcessName = "End",
+                    ProcessCode = "END",
+                    IsEntryPoint = false,
+                    SortOrder = result.SortOrder
+                };
+
+                node.AddPort(PortAlignment.Top);
+                node.AddPort(PortAlignment.Bottom);
+                node.AddPort(PortAlignment.Left);
+                node.AddPort(PortAlignment.Right);
+
+                _diagram.Nodes.Add(node);
+                _nodeMap[result.Id] = node;
+                Toast.ShowSuccess("Added End node to workflow.");
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            Toast.ShowError(ex.Message);
+        }
+    }
+
     // ───────────── Node Configuration ─────────────
 
     private async Task ToggleEntryPoint(bool value)
@@ -945,7 +1010,7 @@ else
     private void OnDoubleClick(Blazor.Diagrams.Core.Models.Base.Model? model,
         Blazor.Diagrams.Core.Events.PointerEventArgs e)
     {
-        if (model is WorkflowProcessNodeModel node)
+        if (model is WorkflowProcessNodeModel node && !node.IsTerminalNode && node.ProcessId.HasValue)
         {
             Nav.NavigateTo($"processes/{node.ProcessId}");
         }

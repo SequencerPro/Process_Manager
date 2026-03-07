@@ -30,12 +30,13 @@ public record WorkflowResponseDto(
 // ──────────── WorkflowProcess ────────────
 
 public record AddWorkflowProcessDto(
-    Guid ProcessId,
+    Guid? ProcessId = null,
     bool IsEntryPoint = false,
     int SortOrder = 0,
     double PositionX = 0,
     double PositionY = 0,
-    string? Color = null);
+    string? Color = null,
+    bool IsTerminalNode = false);
 
 public record UpdateWorkflowProcessDto(
     bool? IsEntryPoint = null,
@@ -47,10 +48,11 @@ public record UpdateWorkflowProcessDto(
 public record WorkflowProcessResponseDto(
     Guid Id,
     Guid WorkflowId,
-    Guid ProcessId,
+    Guid? ProcessId,
     string ProcessName,
     string ProcessCode,
     bool IsEntryPoint,
+    bool IsTerminalNode,
     int SortOrder,
     double PositionX,
     double PositionY,

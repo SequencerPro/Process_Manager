@@ -103,6 +103,16 @@ else
         </div>
     }
 
+    @if (_proc.Status == "Draft" && _proc.Steps.Count > 0 && !_dismissedLifecycleHint)
+    {
+        <div class="alert alert-dismissible small py-2 mb-3" role="alert"
+             style="border-left:3px solid #0d6efd;background:#eef4ff;color:#212529">
+            <i class="bi bi-lightbulb-fill me-2 text-primary"></i>
+            <strong>Next step:</strong> Click <strong>Validate</strong> to check that all step ports are compatible, then <strong>Submit</strong> to send this Process through the approval workflow. Once approved and released, it can be used to create Jobs.
+            <button type="button" class="btn-close py-2" @onclick="() => _dismissedLifecycleHint = true"></button>
+        </div>
+    }
+
     <!-- Steps -->
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -159,7 +169,23 @@ else
         }
         else
         {
-            <div class="card-body text-muted small">No steps defined. Add a step template to begin.</div>
+            @if (!_dismissedBuilderHint)
+            {
+                <div class="alert alert-dismissible small py-2 mx-3 mt-3 mb-0" role="alert"
+                     style="border-left:3px solid #0d6efd;background:#eef4ff;color:#212529">
+                    <i class="bi bi-lightbulb-fill me-2 text-primary"></i>
+                    <strong>Tip:</strong> Add steps with the <strong>+</strong> button above, or open the
+                    <strong><a href="processes/@Id/builder" class="alert-link">Builder</a></strong>
+                    for a visual drag-and-connect editor where you can compose the entire Process in one view.
+                    <button type="button" class="btn-close py-2" @onclick="() => _dismissedBuilderHint = true"></button>
+                </div>
+            }
+            <div class="card-body text-center py-4">
+                <i class="bi bi-list-ol d-block fs-2 text-muted opacity-50 mb-2"></i>
+                <div class="fw-medium mb-1">No steps defined yet</div>
+                <div class="text-muted small mb-3">Arrange your Step Templates into an ordered sequence. Each step declares what it consumes and produces, and together they define how work flows from start to finish.</div>
+                <a href="processes/@Id/builder" class="btn btn-sm btn-outline-primary"><i class="bi bi-diagram-3 me-1"></i>Open Builder</a>
+            </div>
         }
     </div>
 
@@ -501,6 +527,8 @@ else
     private ProcessResponseDto? _proc;
     private ProcessValidationResultDto? _validation;
     private bool _loading = true;
+    private bool _dismissedBuilderHint;
+    private bool _dismissedLifecycleHint;
 
     // Step form
     private bool _showStepForm;

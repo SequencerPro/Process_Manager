@@ -66,20 +66,29 @@ h1:focus {
 
 /* Section toggle headers */
 .nav-section-toggle {
-    background: none;
-    border: none;
+    appearance: none;
+    -webkit-appearance: none;
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none;
     padding: .28rem .75rem;
     font-size: .68rem;
     font-weight: 600;
     letter-spacing: .1em;
     text-transform: uppercase;
-    color: #484848;
+    color: #888;
     cursor: pointer;
     width: 100%;
     transition: color .12s;
 }
+.nav-section-toggle:focus,
+.nav-section-toggle:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+}
 .nav-section-toggle:hover {
-    color: #888;
+    color: #b0b0b0;
 }
 
 .valid.modified:not([type=checkbox]) {

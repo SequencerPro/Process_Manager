@@ -2,6 +2,8 @@
 @inject TokenService TokenService
 @inject AuthenticationStateProvider AuthState
 @inject ApiClient Api
+@inject NavigationManager Nav
+@implements IDisposable
 @using System.Security.Claims
 
 <nav class="d-flex flex-column flex-shrink-0 p-3 text-white bg-dark sidebar" style="width: 250px; height: 100vh; overflow: hidden;">
@@ -41,111 +43,178 @@
             </NavLink>
         </li>
 
-        <li class="nav-section-header mt-3 mb-1 ps-3 text-uppercase small text-secondary">Design</li>
+        @* ── Design ── *@
+        <li class="mt-2">
+            <button type="button"
+                    class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
+                    @onclick='() => ToggleSection("design")'>
+                <span>Design</span>
+                <span class="d-flex align-items-center gap-2">
+                    @if (_pendingCount > 0 && _openSection != "design")
+                    {
+                        <span class="badge bg-warning text-dark rounded-pill" style="font-size:.6rem" title="Pending approvals">@(_pendingCount > 99 ? "99+" : _pendingCount.ToString())</span>
+                    }
+                    <i class='bi @(_openSection == "design" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
+                </span>
+            </button>
+        </li>
+        @if (_openSection == "design")
+        {
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="kinds">
+                    <i class="bi bi-box me-2"></i> Kinds &amp; Grades
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="step-templates">
+                    <i class="bi bi-puzzle me-2"></i> Step Templates
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="processes">
+                    <i class="bi bi-diagram-3 me-2"></i> Processes
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4 d-flex align-items-center justify-content-between" href="approval-queue">
+                    <span><i class="bi bi-clipboard2-check me-2"></i> Approval Queue</span>
+                    @if (_pendingCount > 0)
+                    {
+                        <span class="badge bg-warning text-dark rounded-pill" style="font-size:.68rem">@(_pendingCount > 99 ? "99+" : _pendingCount.ToString())</span>
+                    }
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="workflows">
+                    <i class="bi bi-share me-2"></i> Workflows
+                </NavLink>
+            </li>
+        }
 
-        <li class="nav-item">
-            <NavLink class="nav-link text-white" href="kinds">
-                <i class="bi bi-box me-2"></i> Kinds & Grades
-            </NavLink>
+        @* ── Execution ── *@
+        <li class="mt-2">
+            <button type="button"
+                    class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
+                    @onclick='() => ToggleSection("execution")'>
+                <span>Execution</span>
+                <i class='bi @(_openSection == "execution" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
+            </button>
         </li>
-        <li class="nav-item">
-            <NavLink class="nav-link text-white" href="step-templates">
-                <i class="bi bi-puzzle me-2"></i> Step Templates
-            </NavLink>
-        </li>
-        <li class="nav-item">
-            <NavLink class="nav-link text-white" href="processes">
-                <i class="bi bi-diagram-3 me-2"></i> Processes
-            </NavLink>
-        </li>
-        <li class="nav-item">
-            <NavLink class="nav-link text-white d-flex align-items-center justify-content-between" href="approval-queue">
-                <span><i class="bi bi-clipboard2-check me-2"></i> Approval Queue</span>
-                @if (_pendingCount > 0)
-                {
-                    <span class="badge bg-warning text-dark rounded-pill" style="font-size:.68rem">@(_pendingCount > 99 ? "99+" : _pendingCount.ToString())</span>
-                }
-            </NavLink>
-        </li>
-        <li class="nav-item">
-            <NavLink class="nav-link text-white" href="workflows">
-                <i class="bi bi-share me-2"></i> Workflows
-            </NavLink>
-        </li>
+        @if (_openSection == "execution")
+        {
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="jobs">
+                    <i class="bi bi-clipboard-check me-2"></i> Jobs
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="items">
+                    <i class="bi bi-tag me-2"></i> Items
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="batches">
+                    <i class="bi bi-collection me-2"></i> Batches
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="step-executions">
+                    <i class="bi bi-play-circle me-2"></i> Step Executions
+                </NavLink>
+            </li>
+        }
 
-        <li class="nav-section-header mt-3 mb-1 ps-3 text-uppercase small text-secondary">Execution</li>
+        @* ── Config ── *@
+        <li class="mt-2">
+            <button type="button"
+                    class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
+                    @onclick='() => ToggleSection("config")'>
+                <span>Config</span>
+                <i class='bi @(_openSection == "config" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
+            </button>
+        </li>
+        @if (_openSection == "config")
+        {
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="vocabulary">
+                    <i class="bi bi-translate me-2"></i> Vocabulary
+                </NavLink>
+            </li>
+        }
 
-        <li class="nav-item">
-            <NavLink class="nav-link text-white" href="jobs">
-                <i class="bi bi-clipboard-check me-2"></i> Jobs
-            </NavLink>
+        @* ── Quality ── *@
+        <li class="mt-2">
+            <button type="button"
+                    class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
+                    @onclick='() => ToggleSection("quality")'>
+                <span>Quality</span>
+                <i class='bi @(_openSection == "quality" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
+            </button>
         </li>
-        <li class="nav-item">
-            <NavLink class="nav-link text-white" href="items">
-                <i class="bi bi-tag me-2"></i> Items
-            </NavLink>
-        </li>
-        <li class="nav-item">
-            <NavLink class="nav-link text-white" href="batches">
-                <i class="bi bi-collection me-2"></i> Batches
-            </NavLink>
-        </li>
-        <li class="nav-item">
-            <NavLink class="nav-link text-white" href="step-executions">
-                <i class="bi bi-play-circle me-2"></i> Step Executions
-            </NavLink>
-        </li>
+        @if (_openSection == "quality")
+        {
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="pfmeas">
+                    <i class="bi bi-shield-exclamation me-2"></i> PFMEAs
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="ce-matrices">
+                    <i class="bi bi-grid-3x3 me-2"></i> C&amp;E Matrices
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="non-conformances">
+                    <i class="bi bi-exclamation-triangle me-2"></i> Non-Conformances
+                </NavLink>
+            </li>
+        }
 
-        <li class="nav-section-header mt-3 mb-1 ps-3 text-uppercase small text-secondary">Config</li>
-
-        <li class="nav-item">
-            <NavLink class="nav-link text-white" href="vocabulary">
-                <i class="bi bi-translate me-2"></i> Vocabulary
-            </NavLink>
-        </li>
-
-        <li class="nav-section-header mt-3 mb-1 ps-3 text-uppercase small text-secondary">Quality</li>
-
-        <li class="nav-item">
-            <NavLink class="nav-link text-white" href="pfmeas">
-                <i class="bi bi-shield-exclamation me-2"></i> PFMEAs
-            </NavLink>
-        </li>
-        <li class="nav-item">
-            <NavLink class="nav-link text-white" href="ce-matrices">
-                <i class="bi bi-grid-3x3 me-2"></i> C&amp;E Matrices
-            </NavLink>
-        </li>
-        <li class="nav-item">
-            <NavLink class="nav-link text-white" href="non-conformances">
-                <i class="bi bi-exclamation-triangle me-2"></i> Non-Conformances
-            </NavLink>
-        </li>
-
+        @* ── Admin (role-gated) ── *@
         <AuthorizeView Roles="Admin">
             <Authorized>
-                <li class="nav-section-header mt-3 mb-1 ps-3 text-uppercase small text-secondary">Admin</li>
-
-                <li class="nav-item">
-                    <NavLink class="nav-link text-white" href="admin/users">
-                        <i class="bi bi-people me-2"></i> Users
-                    </NavLink>
+                <li class="mt-2">
+                    <button type="button"
+                            class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
+                            @onclick='() => ToggleSection("admin")'>
+                        <span>Admin</span>
+                        <i class='bi @(_openSection == "admin" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
+                    </button>
                 </li>
+                @if (_openSection == "admin")
+                {
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="admin/users">
+                            <i class="bi bi-people me-2"></i> Users
+                        </NavLink>
+                    </li>
+                }
             </Authorized>
         </AuthorizeView>
 
-        <li class="nav-section-header mt-3 mb-1 ps-3 text-uppercase small text-secondary">Analytics</li>
+        @* ── Reports ── *@
+        <li class="mt-2">
+            <button type="button"
+                    class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
+                    @onclick='() => ToggleSection("reports")'>
+                <span>Reports</span>
+                <i class='bi @(_openSection == "reports" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
+            </button>
+        </li>
+        @if (_openSection == "reports")
+        {
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="reports">
+                    <i class="bi bi-bar-chart-line me-2"></i> Reports
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="powerbi-dashboards">
+                    <i class="bi bi-bar-chart-steps me-2"></i> Power BI
+                </NavLink>
+            </li>
+        }
 
-        <li class="nav-item">
-            <NavLink class="nav-link text-white" href="reports">
-                <i class="bi bi-bar-chart-line me-2"></i> Reports
-            </NavLink>
-        </li>
-        <li class="nav-item">
-            <NavLink class="nav-link text-white" href="powerbi-dashboards">
-                <i class="bi bi-bar-chart-steps me-2"></i> Power BI
-            </NavLink>
-        </li>
     </ul>
 
     <hr class="mt-auto" />
@@ -172,6 +241,23 @@
     private string? _role;
     private int _alertCount;
     private int _pendingCount;
+    private string? _openSection;
+
+    private static readonly Dictionary<string, string[]> _sectionPaths = new()
+    {
+        ["design"]    = ["kinds", "step-templates", "processes", "approval-queue", "workflows"],
+        ["execution"] = ["jobs", "items", "batches", "step-executions"],
+        ["config"]    = ["vocabulary"],
+        ["quality"]   = ["pfmeas", "ce-matrices", "non-conformances"],
+        ["admin"]     = ["admin"],
+        ["reports"]   = ["reports", "powerbi-dashboards"],
+    };
+
+    protected override void OnInitialized()
+    {
+        _openSection = GetSectionForUrl(Nav.Uri);
+        Nav.LocationChanged += OnLocationChanged;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -195,4 +281,28 @@
         }
         catch { /* badge is best-effort */ }
     }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        var section = GetSectionForUrl(e.Location);
+        if (section is not null && section != _openSection)
+        {
+            _openSection = section;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ToggleSection(string key) =>
+        _openSection = _openSection == key ? null : key;
+
+    private static string? GetSectionForUrl(string url)
+    {
+        var path = new Uri(url).AbsolutePath.TrimStart('/').ToLowerInvariant();
+        foreach (var (section, prefixes) in _sectionPaths)
+            if (prefixes.Any(p => path == p || path.StartsWith(p + "/")))
+                return section;
+        return null;
+    }
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
 }

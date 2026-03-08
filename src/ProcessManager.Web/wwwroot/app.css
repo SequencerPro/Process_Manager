@@ -2,20 +2,84 @@ h1:focus {
     outline: none;
 }
 
-/* ── Main navigation section toggle buttons ── */
+/* ══════════════════════════════════════════
+   Sidebar — dark charcoal + orange accent
+   ══════════════════════════════════════════ */
+
+.pm-sidebar {
+    background: #141414 !important;
+    color: #c0c0c0;
+}
+
+.pm-sidebar hr {
+    border-color: #262626;
+    opacity: 1;
+}
+
+/* Brand / logo link */
+.pm-sidebar-brand {
+    color: #e8e8e8 !important;
+    text-decoration: none !important;
+    transition: color .15s;
+}
+.pm-sidebar-brand:hover {
+    color: #f97316 !important;
+}
+
+/* All nav links inside sidebar */
+.pm-sidebar .nav-link {
+    color: #b0b0b0 !important;
+    border-radius: 6px;
+    padding: .32rem .75rem;
+    font-size: .88rem;
+    transition: background .12s, color .12s;
+    border-left: 2px solid transparent;
+}
+.pm-sidebar .nav-link:hover {
+    background: #1e1e1e !important;
+    color: #e8e8e8 !important;
+}
+/* Active — orange left stripe + subtle highlight */
+.pm-sidebar .nav-link.active,
+.pm-sidebar .nav-pills .nav-link.active {
+    background: #1f1f1f !important;
+    color: #ffffff !important;
+    border-left: 2px solid #f97316 !important;
+    padding-left: calc(.75rem - 2px) !important;
+}
+
+/* Override Bootstrap text-white / text-white-50 inside sidebar */
+.pm-sidebar .text-white    { color: #e0e0e0 !important; }
+.pm-sidebar .text-white-50 { color: #5c5c5c !important; }
+
+/* Footer action buttons (profile, password, logout) */
+.pm-sidebar .btn-outline-light {
+    border-color: #303030 !important;
+    color: #888 !important;
+    background: transparent !important;
+}
+.pm-sidebar .btn-outline-light:hover {
+    border-color: #555 !important;
+    color: #d0d0d0 !important;
+    background: #1e1e1e !important;
+}
+
+/* Section toggle headers */
 .nav-section-toggle {
     background: none;
     border: none;
-    padding: .25rem .75rem;
-    font-size: .75rem;
-    letter-spacing: .075em;
+    padding: .28rem .75rem;
+    font-size: .68rem;
+    font-weight: 600;
+    letter-spacing: .1em;
     text-transform: uppercase;
-    color: #6c757d;
+    color: #484848;
     cursor: pointer;
+    width: 100%;
+    transition: color .12s;
 }
-
 .nav-section-toggle:hover {
-    color: #adb5bd;
+    color: #888;
 }
 
 .valid.modified:not([type=checkbox]) {

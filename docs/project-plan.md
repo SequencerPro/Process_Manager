@@ -29,6 +29,8 @@
 | 1.13    | 2026-03-03 | Phase 9 EF migration Phase9_ChangeControl: Status columns (default Released), IntroducedInVersion, ProcessVersion, ApprovalRecords table |
 | 1.14    | 2026-03-03 | Phase 9 Blazor UI: ProcessList/Detail + StepTemplateList/Detail status badges, lifecycle buttons (Submit/Approve/Reject/NewRevision/Retire) with modals; ApprovalQueue page at /approval-queue; JobDetail superseded process banner; NavMenu Approval Queue link with pending badge |
 | 1.15    | 2026-03-02 | Admin: Display Name field added to Add User form; Edit User modal (Display Name + Role) on UserList; PATCH api/auth/users/{id} admin endpoint |
+| 1.16    | 2026-03-08 | Phase 12 design: workflow execution with OrgUnit assignment, automated process sequencing, and periodic scheduling via WorkflowSchedule |
+| 1.17    | 2026-03-08 | Phase 2 design gap addressed: PromptDefinition and PromptOption entities added to data model; ExecutionData updated with prompt_definition_id FK, widened value field (text), and extended DataType enum |
 
 ---
 
@@ -71,24 +73,40 @@ A system that treats manufacturing (and other business) process designs as the c
 
 ---
 
-### Phase 2 — Step Design (Steps with Ports) ✅
+### Phase 2 — Step Design (Steps, Ports, and Prompts) ✅
 
 **Goal:** Define *what work looks like.*
 
-**Status:** Implemented — full CRUD API and Blazor UI (StepTemplateList, StepTemplateDetail with port management)
+**Status:** Implemented — full CRUD API and Blazor UI (StepTemplateList, StepTemplateDetail with port management). `PromptDefinition` and `PromptOption` are **designed, not yet built** — see below.
 
 **Delivers:**
 - Design individual Steps with named Input and Output Ports
 - Each Port declares exactly one Item Type (Kind + Grade) and a Quantity Rule
 - Steps are classified by pattern (Transform, Assembly, Division, General)
 - Steps are reusable — designed once, used in multiple Processes
+- **Prompts:** define what data the operator must collect during the step, independent of Ports
 
-**Standalone value:** Documented operations with formal input/output definitions. Already more rigorous than most shops have.
+**Standalone value:** Documented operations with formal input/output definitions and structured data-collection forms.
 
 **Key entities:**
 - Step (template/definition)
-- Port (Input / Output)
+- Port (Input / Output) — quality-tool connection points for PFMEA, C&E Matrix, Control Plan
+- PromptDefinition — operator data-collection form fields (label, data type, required, scope, validation)
+- PromptOption — choice list entries for Select / MultiSelect prompts
 - Quantity Rule
+
+**PromptDefinition design notes:**
+
+Ports and PromptDefinitions are two independent extension points on a `StepTemplate`. A Port models process-knowledge relationships (why this step affects quality). A `PromptDefinition` models what the operator is asked to enter and gates step completion. They coexist and may overlap conceptually but neither depends on the other.
+
+Key `PromptDefinition` fields:
+- `key` — machine-readable name, unique per StepTemplate, copied to ExecutionData on capture
+- `collection_scope` — `PerStep` / `PerItem` / `PerBatch` (controls form repetition)
+- `is_required` — if true, step cannot be completed without an answer
+- `data_type` — extended enum: String, Integer, Decimal, Boolean, DateTime, Select, MultiSelect, Barcode, Photo, Signature
+- `lower_limit` / `upper_limit` / `validation_pattern` — field-level validation rules
+
+`ExecutionData` updated to add `prompt_definition_id` (nullable FK), widen `value` from `string(1000)` → `text`, and share the extended `DataType` enum.
 
 ---
 
@@ -969,7 +987,162 @@ None of this requires any additional design — it is a natural output of record
 
 ---
 
-### Phase 12+ — Integrations (future)
+### Phase 12 — Workflow Execution & Department Assignment
+
+**Goal:** Enable a workflow to be *run* as a single top-level work order, with each contained process automatically assigned to a responsible department, work area, or role, and advanced through the workflow graph as each process job completes.
+
+**Design premise:** The workflow graph, routing links, and grade-based conditions are all already built. The missing pieces are: (1) an assignable-entity model, (2) a workflow-level execution record that ties the run together, and (3) a sequencing service that watches for job completion and creates the next job in the graph.
+
+---
+
+#### 12a — OrgUnit (Assignable Entity)
+
+A flexible entity covering any type of responsible party: department, work area, role, or individual. A self-referential parent relationship supports hierarchy (e.g. "Quality" as a parent of "Incoming Inspection" and "Final Inspection").
+
+**Key entity: `OrgUnit`**
+
+| Field | Type | Purpose |
+|---|---|---|
+| `Code` | string(50) | Short identifier (e.g. "QC", "ASSY", "ENG") |
+| `Name` | string(200) | Human-readable name |
+| `Type` | enum | `Department`, `WorkArea`, `Role`, `Person` |
+| `ParentId` | FK → OrgUnit, nullable | Parent in the hierarchy |
+| `IsActive` | bool | Whether available for assignment |
+
+---
+
+#### 12b — Assignee on WorkflowProcess
+
+A single nullable FK added to the existing `WorkflowProcess` node entity:
+
+```
+WorkflowProcess
+  + assignee_id  (FK → OrgUnit, nullable)
+```
+
+Nullable because not all workflows use assignment. When set, it declares which OrgUnit is responsible for executing the process at that node.
+
+---
+
+#### 12c — WorkflowJob (Workflow Execution Record)
+
+A parent-level record for a complete workflow run. Analogous to `Job` for a single process, but spanning the entire workflow graph.
+
+**Key entity: `WorkflowJob`**
+
+| Field | Type | Purpose |
+|---|---|---|
+| `WorkflowId` | FK → Workflow | The workflow being executed |
+| `Subject` | string(500) | What this run is about (e.g. "Batch #4421", "New hire: J. Smith") |
+| `Status` | enum | `Running`, `Completed`, `Cancelled` |
+| `StartedAt` | DateTime? | When the first process job was created |
+| `CompletedAt` | DateTime? | When the final process job completed |
+
+**`Job` gains two nullable FKs:**
+
+```
+Job
+  + workflow_job_id      (FK → WorkflowJob, nullable)
+  + workflow_process_id  (FK → WorkflowProcess, nullable)
+```
+
+These link each process-level Job back to its parent workflow run and to the specific graph node it represents, enabling the sequencing service to determine which outgoing links to follow on completion.
+
+---
+
+#### 12d — Sequencing Service
+
+Triggered whenever a `Job` status transitions to `Completed`. If the job has a `WorkflowJobId`:
+
+1. Look up the `WorkflowProcess` node the job corresponded to (`WorkflowProcessId`)
+2. Find all outgoing `WorkflowLink` edges from that node
+3. Evaluate routing: `Always` links always fire; `GradeBased` links fire when the job's item grades match a `WorkflowLinkCondition`; `Manual` links wait for an operator to confirm
+4. For each link that fires, create a new `Job` for the target `WorkflowProcess.ProcessId`, set `WorkflowJobId` and `WorkflowProcessId`, and notify `WorkflowProcess.AssigneeId`
+5. If no outgoing links fire (terminal node), mark the `WorkflowJob` as `Completed`
+
+This is the complete sequencing loop. No changes to `WorkflowLink` or `WorkflowLinkCondition` are required — the graph routing model is already sufficient.
+
+---
+
+**Key entities added:**
+- `OrgUnit` (Id, Code, Name, Type, ParentId, IsActive)
+- `WorkflowJob` (Id, WorkflowId, Subject, Status, StartedAt, CompletedAt)
+- `WorkflowJobStatus` enum: `Running`, `Completed`, `Cancelled`
+- `OrgUnitType` enum: `Department`, `WorkArea`, `Role`, `Person`
+
+**Existing entities modified:**
+- `WorkflowProcess` + `assignee_id` (FK → OrgUnit, nullable)
+- `Job` + `workflow_job_id` (FK → WorkflowJob, nullable) + `workflow_process_id` (FK → WorkflowProcess, nullable)
+
+**Surfaces:**
+- `OrgUnitList.razor` — manage departments, work areas, roles
+- `WorkflowDetail` updated — assignee picker per node
+- `WorkflowJobList.razor` / `WorkflowJobDetail.razor` — start a workflow run, view all in-flight runs, track progress through the graph
+- `MyWork` page updated — operators see jobs assigned to their OrgUnit(s) in addition to directly assigned jobs
+- `POST /api/workflowjobs` — start a new workflow run
+- `GET /api/workflowjobs/{id}` — current state + graph progress
+- Notification hooks for assignees when a new process job is created for their OrgUnit
+
+#### 12e — WorkflowSchedule (Periodic Execution)
+
+Workflows that run on a fixed recurrence (e.g. monthly calibration, weekly safety walk, quarterly management review) need a schedule entity that fires automatically and injects a `WorkflowJob` into the OrgUnit queues at the right time. Once created by the scheduler, the `WorkflowJob` is indistinguishable from an ad-hoc run — the same sequencing service handles it.
+
+**Key entity: `WorkflowSchedule`**
+
+| Field | Type | Purpose |
+|---|---|---|
+| `WorkflowId` | FK → Workflow | Which workflow to execute on schedule |
+| `Name` | string(200) | Human label for this schedule (e.g. "Monthly PCB Final Inspection") |
+| `RecurrenceType` | enum | `Daily`, `Weekly`, `Monthly`, `Quarterly`, `Annually` |
+| `RecurrenceInterval` | int (default 1) | Every N units (e.g. every 2 weeks) |
+| `DayOfWeek` | int? | 0–6, used when RecurrenceType = Weekly |
+| `DayOfMonth` | int? | 1–31, used when RecurrenceType = Monthly/Quarterly/Annually |
+| `StartDate` | DateOnly | When this schedule becomes active |
+| `EndDate` | DateOnly? | When it expires (null = runs indefinitely) |
+| `SubjectTemplate` | string(500) | Template for WorkflowJob.Subject, e.g. `"Monthly QC Audit — {Month} {Year}"` |
+| `IsActive` | bool | Whether the scheduler should process this record |
+| `NextRunAt` | DateTimeOffset? | Computed datetime of the next scheduled fire |
+| `LastRunAt` | DateTimeOffset? | When the scheduler last fired this schedule |
+
+**`WorkflowJob` gains one field:**
+```
+WorkflowJob
+  + schedule_id  (FK → WorkflowSchedule, nullable)
+```
+Null for ad-hoc runs; set when the job was created by the scheduler. Allows filtering "all runs of this schedule" and tracking whether a scheduled window was missed.
+
+**Scheduler background service:**
+1. Runs on a configurable interval (e.g. every minute)
+2. Queries `WorkflowSchedule WHERE is_active = true AND next_run_at <= now`
+3. For each due schedule: creates a `WorkflowJob` (resolves subject template, sets `ScheduleId`), creates `Job` records for each entry-point `WorkflowProcess` node, pushes assignees from `WorkflowProcess.AssigneeId`
+4. Updates `last_run_at = now`, computes and writes `next_run_at` from the recurrence rule
+5. Handles missed windows gracefully — if the service was down, it fires once and advances `next_run_at` (no backfill of missed runs)
+
+**Surfaces:**
+- `WorkflowScheduleList.razor` — view and manage schedules per workflow
+- `WorkflowDetail` — "Add Schedule" action on the workflow
+- Schedule calendar view (future) — see all upcoming scheduled runs across all workflows
+
+---
+
+**Schema changes (migration required):**
+
+| Change | Effort |
+|---|---|
+| New `OrgUnits` table | Small |
+| `assignee_id` on `WorkflowProcesses` | Trivial |
+| New `WorkflowJobs` table | Small |
+| `workflow_job_id` + `workflow_process_id` on `Jobs` | Trivial |
+| New `WorkflowSchedules` table | Small |
+| `schedule_id` on `WorkflowJobs` | Trivial |
+| Sequencing service (job completion hook) | Medium |
+| Scheduler background service | Medium |
+
+**Status:** Designed, not yet built.
+
+---
+
+### Phase 13+ — Integrations (future)
 
 **Goal:** Connect the process system to peripheral business functions.
 
@@ -1047,6 +1220,7 @@ Additional capability added post-Phase 6:
 - **Phase 9 — Process Change Control & Approval** ✅ built: ProcessStatus lifecycle (Draft→PendingApproval→Released→Superseded→Retired), ApprovalRecord entity, PFMEA staleness tracking, job-level process version pinning, Submit/Approve/Reject/NewRevision/Retire endpoints, ApprovalQueue page, status badges across all list/detail views, NavMenu pending badge
 - **Phase 10 — Root Cause Analysis** designed, not yet built: Root Cause Library, Ishikawa fishbone diagrams, branching 5 Whys, linkage to non-conformances and PFMEA failure modes
 - **Phase 11 — Production Management** designed, not yet built: expected durations + job due dates, equipment catalog, downtime tracking, PM scheduling, production visibility dashboard (WIP board, late jobs, bottleneck flags, equipment status)
+- **Phase 12 — Workflow Execution & Department Assignment** designed, not yet built: OrgUnit entity (department/work area/role/person), assignee on WorkflowProcess nodes, WorkflowJob execution record, sequencing service that advances the workflow graph on job completion, WorkflowSchedule entity for periodic recurrence with background scheduler service
 - Multi-tenancy deferred until second SaaS tenant is onboarded (database-per-tenant approach selected — see Architecture Decision above)
 - Email/webhook notifications for out-of-range alerts not yet implemented
 - MCP server uses short-lived JWT tokens; a long-lived API-key auth path would improve service-account ergonomics for AI integrations

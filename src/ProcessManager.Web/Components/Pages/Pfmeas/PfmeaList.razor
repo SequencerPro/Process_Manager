@@ -5,13 +5,12 @@
 
 <PageTitle>PFMEAs</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-1">
+<div class="d-flex justify-content-between align-items-center mb-3">
     <h3 class="mb-0">PFMEAs</h3>
     <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
         <i class="bi bi-plus-lg me-1"></i> New PFMEA
     </button>
 </div>
-<p class="text-muted small mb-3">Process Failure Mode and Effects Analysis — a structured risk register per Process, rating the Severity, Occurrence, and Detectability of each potential failure mode. Risk Priority Number (RPN) = S × O × D.</p>
 
 <div class="d-flex gap-3 mb-3">
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search PFMEAs..." />
@@ -46,13 +45,7 @@ else if (_data is not null)
             <tbody>
                 @if (!_data.Items.Any())
                 {
-                    <tr>
-                        <td colspan="9" class="text-center py-5">
-                            <i class="bi bi-shield-exclamation d-block fs-1 text-muted opacity-50 mb-3"></i>
-                            <div class="fw-medium mb-1">No PFMEAs yet</div>
-                            <div class="text-muted small">Create a PFMEA for any Process to document how each step can fail, what the consequences are, and what controls are in place. The system pre-populates one entry per Process Step to get you started.</div>
-                        </td>
-                    </tr>
+                    <tr><td colspan="9" class="text-center text-muted py-3">No PFMEAs found.</td></tr>
                 }
                 else
                 {

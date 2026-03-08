@@ -5,13 +5,12 @@
 
 <PageTitle>Step Templates</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-1">
+<div class="d-flex justify-content-between align-items-center mb-3">
     <h3 class="mb-0">Step Templates</h3>
     <button class="btn btn-primary btn-sm" @onclick="ShowCreateForm">
         <i class="bi bi-plus-lg me-1"></i> New Template
     </button>
 </div>
-<p class="text-muted small mb-3">Reusable operation definitions. Each template describes what a step does, what it consumes (inputs), and what it produces (outputs). Templates are assembled into Processes.</p>
 
 <div class="d-flex gap-3 mb-3 flex-wrap">
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search templates..." />
@@ -54,13 +53,7 @@ else if (_data is not null)
             <tbody>
                 @if (!_data.Items.Any())
                 {
-                    <tr>
-                        <td colspan="9" class="text-center py-5">
-                            <i class="bi bi-puzzle d-block fs-1 text-muted opacity-50 mb-3"></i>
-                            <div class="fw-medium mb-1">No Step Templates defined yet</div>
-                            <div class="text-muted small">Step Templates are the building blocks of every Process — define your first operation to get started. Each template specifies the inputs consumed, outputs produced, and work instructions for that operation.</div>
-                        </td>
-                    </tr>
+                    <tr><td colspan="9" class="text-center text-muted py-3">No step templates found.</td></tr>
                 }
                 else
                 {

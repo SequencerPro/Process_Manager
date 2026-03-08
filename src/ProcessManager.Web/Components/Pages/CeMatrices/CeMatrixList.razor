@@ -5,13 +5,12 @@
 
 <PageTitle>C&amp;E Matrices</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-1">
+<div class="d-flex justify-content-between align-items-center mb-3">
     <h3 class="mb-0">C&amp;E Matrices</h3>
     <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
         <i class="bi bi-plus-lg me-1"></i> New Matrix
     </button>
 </div>
-<p class="text-muted small mb-3">Cause and Effect matrices that score how strongly each step input influences each output. The ranked result guides engineers toward the highest-impact improvement opportunities for each Process Step.</p>
 
 <div class="mb-3">
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search matrices..." />
@@ -38,13 +37,7 @@ else if (_data is not null)
             <tbody>
                 @if (!_data.Items.Any())
                 {
-                    <tr>
-                        <td colspan="6" class="text-center py-5">
-                            <i class="bi bi-grid-3x3 d-block fs-1 text-muted opacity-50 mb-3"></i>
-                            <div class="fw-medium mb-1">No C&amp;E Matrices yet</div>
-                            <div class="text-muted small">Create a matrix for a Process Step to score how each input (material, parameter, or noise factor) affects each output. The system ranks inputs by their total influence score so you know where to focus.</div>
-                        </td>
-                    </tr>
+                    <tr><td colspan="6" class="text-center text-muted py-3">No C&amp;E matrices found.</td></tr>
                 }
                 else
                 {

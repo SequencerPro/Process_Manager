@@ -5,13 +5,12 @@
 
 <PageTitle>Jobs</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-1">
+<div class="d-flex justify-content-between align-items-center mb-3">
     <h3 class="mb-0">Jobs</h3>
     <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
         <i class="bi bi-plus-lg me-1"></i> New Job
     </button>
 </div>
-<p class="text-muted small mb-3">A specific instance of work being executed against a defined Process. Jobs track real-time progress through each step, the Items and Batches being worked on, and the data captured during execution.</p>
 
 <div class="d-flex gap-3 mb-3 flex-wrap">
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search jobs..." />
@@ -47,13 +46,7 @@ else if (_data is not null)
             <tbody>
                 @if (!_data.Items.Any())
                 {
-                    <tr>
-                        <td colspan="7" class="text-center py-5">
-                            <i class="bi bi-briefcase d-block fs-1 text-muted opacity-50 mb-3"></i>
-                            <div class="fw-medium mb-1">No Jobs yet</div>
-                            <div class="text-muted small">Create a Job to execute a released Process against real work. The Job will generate Step Executions for each step in the Process, tracking progress as your team works through them.</div>
-                        </td>
-                    </tr>
+                    <tr><td colspan="7" class="text-center text-muted py-3">No jobs found.</td></tr>
                 }
                 else
                 {

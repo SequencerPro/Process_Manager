@@ -454,7 +454,6 @@ else
                         <div class="mb-3">
                             <label class="form-label small fw-semibold">
                                 <i class="bi bi-plug me-1 text-primary"></i>Port Overrides
-                                <span class="text-muted fw-normal ms-1">(Material ports only)</span>
                             </label>
                             <div class="form-text mb-2">Override individual port properties for this process step. Leave fields blank to use the template default.</div>
                             <div class="border rounded-2">
@@ -468,6 +467,7 @@ else
                                                 <span class="badge @(row.TemplateDirection == PortDirection.Input ? "bg-success-subtle text-success border border-success" : "bg-primary-subtle text-primary border border-primary") me-1">
                                                     @row.TemplateDirection
                                                 </span>
+                                                <span class="badge @PortTypeBadge(row.TemplatePortType) me-1" style="font-size:.65rem">@row.TemplatePortType</span>
                                                 <strong class="small">@row.TemplateName</strong>
                                                 @if (row.HasAnyOverride)
                                                 {
@@ -1129,7 +1129,7 @@ else
         _editPortOverrides.Clear();
         if (step.Template is not null)
         {
-            foreach (var port in step.Template.Ports.Where(p => p.PortType == PortType.Material).OrderBy(p => p.SortOrder))
+            foreach (var port in step.Template.Ports.OrderBy(p => p.SortOrder))
             {
                 var existing = step.PortOverrides.FirstOrDefault(po => po.PortId == port.Id);
                 _editPortOverrides.Add(new PortOverrideEditRow

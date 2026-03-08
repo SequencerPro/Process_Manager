@@ -5,13 +5,12 @@
 
 <PageTitle>Workflows</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-1">
+<div class="d-flex justify-content-between align-items-center mb-3">
     <h3 class="mb-0">Workflows</h3>
     <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
         <i class="bi bi-plus-lg me-1"></i> New Workflow
     </button>
 </div>
-<p class="text-muted small mb-3">A directed graph connecting multiple Processes — used when work can take different paths based on outcome, grade, or routing decisions. Most organisations start with simple Processes before building Workflows.</p>
 
 <div class="d-flex gap-3 mb-3">
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search workflows..." />
@@ -44,13 +43,7 @@ else if (_data is not null)
             <tbody>
                 @if (!_data.Items.Any())
                 {
-                    <tr>
-                        <td colspan="7" class="text-center py-5">
-                            <i class="bi bi-share d-block fs-1 text-muted opacity-50 mb-3"></i>
-                            <div class="fw-medium mb-1">No Workflows defined yet</div>
-                            <div class="text-muted small">Workflows connect multiple Processes into a graph where routing decisions — like grade-based branching — determine which Process an Item or Batch follows next.</div>
-                        </td>
-                    </tr>
+                    <tr><td colspan="7" class="text-center text-muted py-3">No workflows found.</td></tr>
                 }
                 else
                 {

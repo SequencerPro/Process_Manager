@@ -4,6 +4,7 @@
 @inject ApiClient Api
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject ToastService Toast
 
 <PageTitle>@(_name.Length > 0 ? $"Builder – {_name}" : "New Process")</PageTitle>
 
@@ -48,7 +49,7 @@ else
     @* ── Validation results ── *@
     @if (_validation is not null)
     {
-        <div class="alert @(_validation.Errors.Any() ? "alert-danger" : _validation.Warnings.Any() ? "alert-warning" : "alert-success") alert-dismissible py-2 mb-3">
+        <div class="alert @(_validation.Errors.Any() ? "alert-danger" : _validation.Warnings.Any() ? "alert-warning" : "alert-success") alert-dismissible py-2 mb-2">
             @if (!_validation.Errors.Any() && !_validation.Warnings.Any())
             {
                 <span><i class="bi bi-check-circle me-1"></i> Valid — no errors or warnings.</span>
@@ -66,216 +67,149 @@ else
     }
 
     @* ── Process metadata ── *@
-    <div class="card mb-4">
-        <div class="card-header py-2">
-            <strong><i class="bi bi-info-circle me-1"></i>Process Details</strong>
-        </div>
-        <div class="card-body py-3">
-            <div class="row g-3">
+    <div class="card mb-2">
+        <div class="card-body py-2">
+            <div class="row g-2">
                 <div class="col-md-3">
-                    <label class="form-label fw-semibold">Code <span class="text-danger">*</span></label>
-                    <input class="form-control" placeholder="e.g. WDG-FINISH-01" @bind="_code" disabled="@Id.HasValue" />
+                    <label class="form-label fw-semibold small mb-1">Code <span class="text-danger">*</span></label>
+                    <input class="form-control form-control-sm" placeholder="e.g. WDG-FINISH-01" @bind="_code" disabled="@Id.HasValue" />
                     @if (Id.HasValue)
                     {
-                        <div class="form-text">Code cannot be changed after creation.</div>
+                        <div class="form-text" style="font-size:.7rem">Code cannot be changed after creation.</div>
                     }
                 </div>
                 <div class="col-md-5">
-                    <label class="form-label fw-semibold">Name <span class="text-danger">*</span></label>
-                    <input class="form-control" placeholder="e.g. Widget Finishing Process" @bind="_name" />
+                    <label class="form-label fw-semibold small mb-1">Name <span class="text-danger">*</span></label>
+                    <input class="form-control form-control-sm" placeholder="e.g. Widget Finishing Process" @bind="_name" />
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label fw-semibold">Description</label>
-                    <input class="form-control" placeholder="Optional description" @bind="_description" />
+                    <label class="form-label fw-semibold small mb-1">Description</label>
+                    <input class="form-control form-control-sm" placeholder="Optional description" @bind="_description" />
                 </div>
             </div>
         </div>
     </div>
 
-    @* ── Step canvas ── *@
-    @if (_steps.Count == 0)
-    {
-        <div class="text-center py-5 border rounded-3 bg-light">
-            <i class="bi bi-diagram-3 text-muted" style="font-size:3rem"></i>
-            <p class="text-muted mt-2 mb-3">No steps yet. Add your first step to begin building the process.</p>
-            <button class="btn btn-primary" @onclick="() => OpenStepPicker(0)">
-                <i class="bi bi-plus-lg me-1"></i>Add First Step
-            </button>
-        </div>
-    }
-    else
-    {
-        @for (int i = 0; i < _steps.Count; i++)
-        {
-            var step = _steps[i];
-            var stepIdx = i;
+    @* ── Canvas + Sidebar ── *@
+    <div class="d-flex" style="height: calc(100vh - 285px); min-height: 380px;">
 
-            @* Add step button ABOVE first step *@
-            @if (i == 0)
+        @* ── Diagram Canvas ── *@
+        <div class="flex-grow-1 pb-canvas position-relative">
+            <CascadingValue Value="_diagram" IsFixed="true">
+                <DiagramCanvas></DiagramCanvas>
+            </CascadingValue>
+            @if (_steps.Count == 0)
             {
-                <div class="text-center mb-2">
-                    <button class="btn btn-outline-primary btn-sm" @onclick="() => OpenStepPicker(0)">
-                        <i class="bi bi-plus-lg me-1"></i>Insert Step Here
-                    </button>
+                <div class="position-absolute top-50 start-50 translate-middle text-center" style="pointer-events:none;">
+                    <i class="bi bi-diagram-3 text-muted" style="font-size:3rem; opacity:.35"></i>
+                    <p class="text-muted mt-2 mb-0" style="font-size:.85rem;">No steps yet.<br />Use <strong>Add Step</strong> in the panel on the right.</p>
                 </div>
             }
+        </div>
 
-            @* ── Step card ── *@
-            <div class="card border-2 mb-0" style="border-color: #0d6efd !important;" @key="step.LocalId">
-                <div class="card-header py-2 d-flex justify-content-between align-items-center" style="background:#f0f5ff">
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge bg-primary rounded-pill">@(stepIdx + 1)</span>
-                        @if (step.Template is not null)
-                        {
-                            <strong class="me-1">@(step.NameOverride ?? step.Template.Name)</strong>
-                            <code class="text-muted small">@step.Template.Code</code>
-                            <span class="badge bg-light text-dark border small">@step.Template.Pattern</span>
-                        }
-                        else
-                        {
-                            <span class="text-muted fst-italic small">Loading template…</span>
-                        }
-                    </div>
-                    <div class="d-flex gap-1">
-                        <button class="btn btn-outline-secondary btn-sm py-0 px-2" title="Move up"
-                                disabled="@(stepIdx == 0)"
-                                @onclick="() => MoveStep(stepIdx, -1)">
-                            <i class="bi bi-arrow-up"></i>
-                        </button>
-                        <button class="btn btn-outline-secondary btn-sm py-0 px-2" title="Move down"
-                                disabled="@(stepIdx == _steps.Count - 1)"
-                                @onclick="() => MoveStep(stepIdx, 1)">
-                            <i class="bi bi-arrow-down"></i>
-                        </button>
-                        <button class="btn btn-outline-secondary btn-sm py-0 px-2" title="Edit step"
-                                @onclick="() => ShowEditStep(stepIdx)">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button class="btn btn-outline-danger btn-sm py-0 px-2" title="Remove step"
-                                @onclick="() => RemoveStep(stepIdx)">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
-                </div>
+        @* ── Right Sidebar ── *@
+        <div class="pb-sidebar d-flex flex-column">
 
-                @if (step.Template is not null)
-                {
-                    <div class="card-body py-2">
-                        <div class="row g-0">
-                            <div class="col-md-6 pe-3">
-                                <div class="text-uppercase text-muted fw-semibold mb-2" style="font-size:.7rem">
-                                    <i class="bi bi-box-arrow-in-right text-success me-1"></i>Inputs
-                                </div>
-                                @{
-                                    var inputs = step.Template.Ports
-                                        .Where(p => p.Direction == PortDirection.Input)
-                                        .OrderBy(p => p.SortOrder).ToList();
-                                }
-                                @if (!inputs.Any())
-                                {
-                                    <div class="text-muted small fst-italic">No inputs</div>
-                                }
-                                @foreach (var p in inputs)
-                                {
-                                    <div class="d-flex align-items-center gap-2 mb-1 small">
-                                        <i class="bi bi-circle-fill text-success" style="font-size:.45rem;flex-shrink:0"></i>
-                                        <span>
-                                            <strong>@p.Name</strong>
-                                            <span class="badge @PortTypeBadge(p.PortType) ms-1" style="font-size:.65rem">@p.PortType</span>
-                                            <span class="text-muted ms-1">@PortInfo(p)</span>
-                                        </span>
-                                    </div>
-                                }
-                            </div>
-                            <div class="col-md-6 ps-3 border-start">
-                                <div class="text-uppercase text-muted fw-semibold mb-2" style="font-size:.7rem">
-                                    <i class="bi bi-box-arrow-right text-primary me-1"></i>Outputs
-                                </div>
-                                @{
-                                    var outputs = step.Template.Ports
-                                        .Where(p => p.Direction == PortDirection.Output)
-                                        .OrderBy(p => p.SortOrder).ToList();
-                                }
-                                @if (!outputs.Any())
-                                {
-                                    <div class="text-muted small fst-italic">No outputs</div>
-                                }
-                                @foreach (var p in outputs)
-                                {
-                                    <div class="d-flex align-items-center justify-content-end gap-2 mb-1 small">
-                                        <span>
-                                            <strong>@p.Name</strong>
-                                            <span class="badge @PortTypeBadge(p.PortType) ms-1" style="font-size:.65rem">@p.PortType</span>
-                                            <span class="text-muted ms-1">@PortInfo(p)</span>
-                                        </span>
-                                        <i class="bi bi-circle-fill text-primary" style="font-size:.45rem;flex-shrink:0"></i>
-                                    </div>
-                                }
-                            </div>
-                        </div>
-                    </div>
-                }
+            @* — Add Step — *@
+            <div class="sidebar-section">
+                <button class="btn btn-primary btn-sm w-100" @onclick="() => OpenStepPicker(_steps.Count)">
+                    <i class="bi bi-plus-lg me-1"></i>Add Step
+                </button>
             </div>
 
-            @* ── Connection row between this step and the next ── *@
-            @if (stepIdx < _steps.Count - 1)
+            @* — Selected Node — *@
+            @if (_selectedNode is not null)
             {
-                var conn = GetConnection(stepIdx);
-                <div class="d-flex flex-column align-items-center py-2 gap-1" @key="@($"conn-{stepIdx}")">
-                    <i class="bi bi-arrow-down text-muted"></i>
-                    @if (conn.Status == ConnectionStatus.AutoMatched || conn.Status == ConnectionStatus.UserSelected)
-                    {
-                        <span class="badge rounded-pill bg-success-subtle text-success border border-success px-3 py-1">
-                            <i class="bi bi-check-circle me-1"></i>
-                            @conn.SourcePort!.Name
-                            <i class="bi bi-arrow-right mx-1"></i>
-                            @conn.TargetPort!.Name
-                            <span class="ms-1 opacity-75 small">(@PortInfo(conn.SourcePort))</span>
-                        </span>
-                    }
-                    else if (conn.Status == ConnectionStatus.Ambiguous)
-                    {
-                        <div class="d-flex align-items-center gap-2">
-                            <i class="bi bi-exclamation-triangle-fill text-warning"></i>
-                            <span class="text-warning small">Multiple possible connections — select one:</span>
-                            <select class="form-select form-select-sm" style="width:auto;min-width:280px"
-                                    @onchange="e => SetConnection(stepIdx, e.Value?.ToString())">
-                                <option value="">Select connection…</option>
-                                @foreach (var opt in conn.Options)
-                                {
-                                    <option value="@($"{opt.Out.Id}|{opt.In.Id}")">
-                                        @opt.Out.Name → @opt.In.Name (@PortInfo(opt.Out))
-                                    </option>
-                                }
-                            </select>
+                var selStep = _selectedNode.Step;
+                var selIdx  = GetStepIndex(selStep);
+                <div class="sidebar-section">
+                    <h6>Step Configuration</h6>
+                    <div class="mb-2">
+                        <div class="fw-semibold small">@(selStep.NameOverride ?? selStep.Template?.Name)</div>
+                        <div>
+                            <code style="font-size:.72rem">@selStep.Template?.Code</code>
+                            <span class="badge bg-light text-dark border ms-1" style="font-size:.6rem">@selStep.Template?.Pattern</span>
                         </div>
-                    }
-                    else
-                    {
-                        <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger px-3 py-1">
-                            <i class="bi bi-x-circle me-1"></i>No compatible connection — output types don't match input types
-                        </span>
-                    }
-                    <i class="bi bi-arrow-down text-muted"></i>
-                </div>
-
-                @* Add step between these two steps *@
-                <div class="text-center mb-0">
-                    <button class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:.75rem"
-                            @onclick="() => OpenStepPicker(stepIdx + 1)">
-                        <i class="bi bi-plus-lg me-1"></i>Insert Step Here
+                    </div>
+                    <div class="d-flex gap-1 mb-1">
+                        <button class="btn btn-outline-secondary btn-sm py-0 px-2 flex-fill" style="font-size:.75rem"
+                                disabled="@(selIdx == 0)" @onclick="MoveSelectedStepLeft">
+                            <i class="bi bi-arrow-left me-1"></i>Earlier
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm py-0 px-2 flex-fill" style="font-size:.75rem"
+                                disabled="@(selIdx == _steps.Count - 1)" @onclick="MoveSelectedStepRight">
+                            Later<i class="bi bi-arrow-right ms-1"></i>
+                        </button>
+                    </div>
+                    <div class="d-flex gap-1 mb-2">
+                        <button class="btn btn-outline-primary btn-sm py-0 px-2 flex-fill" style="font-size:.75rem"
+                                @onclick="() => OpenStepPicker(selIdx)">
+                            <i class="bi bi-plus-lg me-1"></i>Before
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm py-0 px-2 flex-fill" style="font-size:.75rem"
+                                @onclick="() => OpenStepPicker(selIdx + 1)">
+                            <i class="bi bi-plus-lg me-1"></i>After
+                        </button>
+                    </div>
+                    <hr class="my-2" />
+                    <button class="btn btn-outline-secondary btn-sm w-100 mb-1"
+                            @onclick="() => ShowEditStep(selIdx)">
+                        <i class="bi bi-pencil me-1"></i>Edit Work Instructions
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm w-100" @onclick="RemoveSelectedStep">
+                        <i class="bi bi-trash me-1"></i>Remove Step
                     </button>
                 </div>
             }
-        }
 
-        @* ── Add step at end ── *@
-        <div class="text-center mt-3">
-            <button class="btn btn-outline-primary" @onclick="() => OpenStepPicker(_steps.Count)">
-                <i class="bi bi-plus-lg me-1"></i>Add Step
-            </button>
+            @* — Selected Link — *@
+            @if (_selectedLink is not null)
+            {
+                <div class="sidebar-section">
+                    <h6>Flow Connection</h6>
+                    @if (_linkData.TryGetValue(_selectedLink, out var fl))
+                    {
+                        <div class="mb-2 small">
+                            <div class="fw-semibold mb-1">@(fl.Source.Step.NameOverride ?? fl.Source.Step.Template?.Name)</div>
+                            <div class="d-flex align-items-center gap-1 ms-2 mb-2">
+                                <span class="pb-port pb-port-output d-inline-block" style="width:8px;height:8px;flex-shrink:0;"></span>
+                                <span>@fl.SourcePort.PortData.Name</span>
+                                <span class="text-muted" style="font-size:.65rem">(@PortInfo(fl.SourcePort.PortData))</span>
+                            </div>
+                            <div class="text-center text-muted my-1" style="font-size:.75rem"><i class="bi bi-arrow-down"></i></div>
+                            <div class="fw-semibold mb-1">@(fl.Target.Step.NameOverride ?? fl.Target.Step.Template?.Name)</div>
+                            <div class="d-flex align-items-center gap-1 ms-2">
+                                <span class="pb-port pb-port-input d-inline-block" style="width:8px;height:8px;flex-shrink:0;"></span>
+                                <span>@fl.TargetPort.PortData.Name</span>
+                            </div>
+                        </div>
+                    }
+                    <hr class="my-2" />
+                    <button class="btn btn-outline-danger btn-sm w-100" @onclick="DeleteSelectedLink">
+                        <i class="bi bi-trash me-1"></i>Delete Connection
+                    </button>
+                </div>
+            }
+
+            @* — Empty state / hints — *@
+            @if (_selectedNode is null && _selectedLink is null)
+            {
+                <div class="sidebar-section text-muted small text-center flex-grow-1 d-flex align-items-center justify-content-center">
+                    <div>
+                        <i class="bi bi-diagram-2 d-block mb-2" style="font-size:1.5rem"></i>
+                        Click a step to configure it.<br /><br />
+                        Drag from an output port
+                        <span class="pb-port pb-port-output d-inline-block" style="width:9px;height:9px;vertical-align:middle;"></span><br />
+                        to an input port
+                        <span class="pb-port pb-port-input d-inline-block" style="width:9px;height:9px;vertical-align:middle;"></span>
+                        to connect steps.<br /><br />
+                        Double-click a step to edit work instructions.<br /><br />
+                        <kbd>Delete</kbd> removes a selected connection.
+                    </div>
+                </div>
+            }
         </div>
-    }
+    </div>
 }
 
 @* ══════════════════════════════════════════
@@ -692,9 +626,14 @@ else
     private string? _description;
     private ProcessResponseDto? _origProc;
 
+    // ── Diagram ──
+    private BlazorDiagram _diagram = null!;
+    private ProcessStepNodeModel? _selectedNode;
+    private LinkModel? _selectedLink;
+    private Dictionary<LinkModel, FlowLink> _linkData = new();
+
     // ── Builder state ──
     private List<BuilderStep> _steps = new();
-    private Dictionary<int, Connection> _connCache = new();
 
     // ── Page state ──
     private bool _loading = true;
@@ -741,11 +680,12 @@ else
     private string _editPromptChoicesRaw = string.Empty;
 
     // ──────────────────────────────────────────────
-    // Initialization
+    // Initialization + Diagram setup
     // ──────────────────────────────────────────────
 
     protected override async Task OnInitializedAsync()
     {
+        SetupDiagram();
         if (Id.HasValue)
         {
             _origProc = await Api.GetProcessAsync(Id.Value);
@@ -767,107 +707,238 @@ else
                     });
                 }
 
-                // Load all step templates in parallel
                 await Task.WhenAll(_steps.Select(async step =>
                     step.Template = await Api.GetStepTemplateAsync(step.StepTemplateId)));
 
-                RecomputeConnections();
+                PopulateDiagram();
                 RestoreFlowsFromOriginal();
             }
         }
         _loading = false;
     }
 
+    private void SetupDiagram()
+    {
+        var options = new BlazorDiagramOptions();
+        options.AllowMultiSelection = false;
+        options.Zoom.Enabled = true;
+        options.Zoom.Minimum = 0.25;
+        options.Zoom.Maximum = 2.0;
+        _diagram = new BlazorDiagram(options);
+        _diagram.RegisterComponent<ProcessStepNodeModel, ProcessStepNode>();
+        _diagram.SelectionChanged += OnSelectionChanged;
+        _diagram.Links.Added += OnLinkAdded;
+        _diagram.KeyDown += OnKeyDown;
+        _diagram.PointerDoubleClick += OnDoubleClick;
+    }
+
+    private void PopulateDiagram()
+    {
+        _diagram.Nodes.Clear();
+        _diagram.Links.Clear();
+        _linkData.Clear();
+        _selectedNode = null;
+        _selectedLink = null;
+
+        const double nodeWidth = 220;
+        const double nodeGap   = 80;
+        for (int i = 0; i < _steps.Count; i++)
+        {
+            var node = new ProcessStepNodeModel(_steps[i],
+                new Blazor.Diagrams.Core.Geometry.Point(i * (nodeWidth + nodeGap), 80));
+            _diagram.Nodes.Add(node);
+        }
+    }
+
     private void RestoreFlowsFromOriginal()
     {
         if (_origProc is null) return;
+        var nodes = _diagram.Nodes.OfType<ProcessStepNodeModel>().ToList();
         foreach (var flow in _origProc.Flows)
         {
-            int srcIdx = _steps.FindIndex(s => s.ServerId == flow.SourceProcessStepId);
-            if (srcIdx < 0 || !_connCache.ContainsKey(srcIdx)) continue;
-            var conn = _connCache[srcIdx];
-            var srcPort = conn.Source.Template?.Ports.FirstOrDefault(p => p.Id == flow.SourcePortId);
-            var tgtPort = conn.Target.Template?.Ports.FirstOrDefault(p => p.Id == flow.TargetPortId);
-            if (srcPort is not null && tgtPort is not null)
-            {
-                conn.SourcePort = srcPort;
-                conn.TargetPort = tgtPort;
-                conn.Status = ConnectionStatus.UserSelected;
-            }
+            var srcNode = nodes.FirstOrDefault(n => n.Step.ServerId == flow.SourceProcessStepId);
+            var tgtNode = nodes.FirstOrDefault(n => n.Step.ServerId == flow.TargetProcessStepId);
+            if (srcNode is null || tgtNode is null) continue;
+
+            var srcPort = srcNode.OutputPorts.FirstOrDefault(p => p.PortData.Id == flow.SourcePortId);
+            var tgtPort = tgtNode.InputPorts.FirstOrDefault(p => p.PortData.Id == flow.TargetPortId);
+            if (srcPort is null || tgtPort is null) continue;
+
+            var linkModel = new LinkModel(srcPort, tgtPort);
+            _linkData[linkModel] = new FlowLink(srcNode, srcPort, tgtNode, tgtPort);
+            _diagram.Links.Add(linkModel);
         }
     }
 
-    // ──────────────────────────────────────────────
-    // Connection logic
-    // ──────────────────────────────────────────────
-
-    private void RecomputeConnections()
+    private void TryAutoConnect(ProcessStepNodeModel src, ProcessStepNodeModel tgt)
     {
-        _connCache.Clear();
-        for (int i = 0; i < _steps.Count - 1; i++)
+        var pairs = (from o   in src.OutputPorts
+                     from inp in tgt.InputPorts
+                     where o.PortData.PortType   == PortType.Material
+                        && inp.PortData.PortType == PortType.Material
+                        && o.PortData.KindId     == inp.PortData.KindId
+                        && o.PortData.GradeId    == inp.PortData.GradeId
+                     select (Out: o, In: inp)).ToList();
+
+        if (pairs.Count == 1)
         {
-            var src = _steps[i];
-            var tgt = _steps[i + 1];
-            var conn = new Connection { Source = src, Target = tgt };
-
-            if (src.Template is null || tgt.Template is null)
-            {
-                conn.Status = ConnectionStatus.Incompatible;
-                _connCache[i] = conn;
-                continue;
-            }
-
-            var outs = src.Template.Ports.Where(p => p.Direction == PortDirection.Output && p.PortType == PortType.Material).ToList();
-            var ins  = tgt.Template.Ports.Where(p => p.Direction == PortDirection.Input && p.PortType == PortType.Material).ToList();
-
-            var pairs = (from o in outs
-                         from inp in ins
-                         where o.KindId == inp.KindId && o.GradeId == inp.GradeId
-                         select (Out: o, In: inp)).ToList();
-
-            if (pairs.Count == 0)
-            {
-                conn.Status = ConnectionStatus.Incompatible;
-            }
-            else if (pairs.Count == 1)
-            {
-                conn.SourcePort = pairs[0].Out;
-                conn.TargetPort = pairs[0].In;
-                conn.Status = ConnectionStatus.AutoMatched;
-            }
-            else
-            {
-                conn.Options = pairs;
-                conn.Status = ConnectionStatus.Ambiguous;
-            }
-
-            _connCache[i] = conn;
+            var linkModel = new LinkModel(pairs[0].Out, pairs[0].In);
+            _linkData[linkModel] = new FlowLink(src, pairs[0].Out, tgt, pairs[0].In);
+            _diagram.Links.Add(linkModel);
         }
     }
 
-    private Connection GetConnection(int index)
+    // ──────────────────────────────────────────────
+    // Diagram events
+    // ──────────────────────────────────────────────
+
+    private void OnSelectionChanged(SelectableModel model)
     {
-        if (_connCache.TryGetValue(index, out var c)) return c;
-        RecomputeConnections();
-        return _connCache.TryGetValue(index, out var c2)
-            ? c2
-            : new Connection { Source = _steps[index], Target = _steps[index + 1], Status = ConnectionStatus.Incompatible };
+        if (model is ProcessStepNodeModel node && model.Selected)
+        {
+            _selectedNode = node;
+            _selectedLink = null;
+        }
+        else if (model is LinkModel link && model.Selected)
+        {
+            _selectedLink = link;
+            _selectedNode = null;
+        }
+        else
+        {
+            _selectedNode = null;
+            _selectedLink = null;
+        }
+        InvokeAsync(StateHasChanged);
     }
 
-    private void SetConnection(int index, string? value)
+    private void OnLinkAdded(BaseLinkModel link)
     {
-        if (string.IsNullOrEmpty(value) || !_connCache.ContainsKey(index)) return;
-        var parts = value.Split('|');
-        if (parts.Length != 2) return;
-        if (!Guid.TryParse(parts[0], out var outId) || !Guid.TryParse(parts[1], out var inId)) return;
-        var conn = _connCache[index];
-        var sp = conn.Source.Template?.Ports.FirstOrDefault(p => p.Id == outId);
-        var tp = conn.Target.Template?.Ports.FirstOrDefault(p => p.Id == inId);
-        if (sp is null || tp is null) return;
-        conn.SourcePort = sp;
-        conn.TargetPort = tp;
-        conn.Status = ConnectionStatus.UserSelected;
+        if (link is LinkModel lm && !_linkData.ContainsKey(lm))
+            link.TargetChanged += OnLinkTargetChanged;
     }
+
+    private void OnLinkTargetChanged(BaseLinkModel link, Anchor oldTarget, Anchor newTarget)
+    {
+        link.TargetChanged -= OnLinkTargetChanged;
+        if (link is not LinkModel lm) { _diagram.Links.Remove(link); return; }
+        if (link.Source is not SinglePortAnchor srcAnchor || link.Target is not SinglePortAnchor tgtAnchor)
+        { _diagram.Links.Remove(lm); return; }
+
+        var srcPort = srcAnchor.Port as ProcessStepPortModel;
+        var tgtPort = tgtAnchor.Port as ProcessStepPortModel;
+        if (srcPort is null || tgtPort is null) { _diagram.Links.Remove(lm); return; }
+
+        // Auto-swap if user dragged from input→output
+        if (srcPort.Alignment == PortAlignment.Left && tgtPort.Alignment == PortAlignment.Right)
+            (srcPort, tgtPort) = (tgtPort, srcPort);
+
+        if (srcPort.PortData.PortType  != PortType.Material ||
+            tgtPort.PortData.PortType  != PortType.Material ||
+            srcPort.PortData.KindId    != tgtPort.PortData.KindId ||
+            srcPort.PortData.GradeId   != tgtPort.PortData.GradeId)
+        {
+            _diagram.Links.Remove(lm);
+            Toast.ShowError("Ports must be Material type with matching Kind and Grade.");
+            InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var srcNode = srcPort.Parent as ProcessStepNodeModel;
+        var tgtNode = tgtPort.Parent as ProcessStepNodeModel;
+        if (srcNode is null || tgtNode is null || srcNode == tgtNode)
+        { _diagram.Links.Remove(lm); return; }
+
+        _linkData[lm] = new FlowLink(srcNode, srcPort, tgtNode, tgtPort);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnKeyDown(Blazor.Diagrams.Core.Events.KeyboardEventArgs e)
+    {
+        if (e.Key == "Delete" || e.Key == "Backspace")
+            DeleteSelectedLink();
+    }
+
+    private void OnDoubleClick(Blazor.Diagrams.Core.Models.Base.Model? model,
+        Blazor.Diagrams.Core.Events.PointerEventArgs e)
+    {
+        if (model is ProcessStepNodeModel node)
+        {
+            var idx = GetStepIndex(node.Step);
+            if (idx >= 0) _ = ShowEditStep(idx);
+        }
+    }
+
+    private void DeleteSelectedLink()
+    {
+        if (_selectedLink is null) return;
+        _linkData.Remove(_selectedLink);
+        _diagram.Links.Remove(_selectedLink);
+        _selectedLink = null;
+        InvokeAsync(StateHasChanged);
+    }
+
+    // ──────────────────────────────────────────────
+    // Step canvas actions
+    // ──────────────────────────────────────────────
+
+    private void MoveSelectedStepLeft()
+    {
+        if (_selectedNode is null) return;
+        var idx = GetStepIndex(_selectedNode.Step);
+        if (idx <= 0) return;
+        (_steps[idx], _steps[idx - 1]) = (_steps[idx - 1], _steps[idx]);
+        for (int i = 0; i < _steps.Count; i++) _steps[i].Sequence = i + 1;
+        _validation = null;
+        RebuildDiagram();
+    }
+
+    private void MoveSelectedStepRight()
+    {
+        if (_selectedNode is null) return;
+        var idx = GetStepIndex(_selectedNode.Step);
+        if (idx < 0 || idx >= _steps.Count - 1) return;
+        (_steps[idx], _steps[idx + 1]) = (_steps[idx + 1], _steps[idx]);
+        for (int i = 0; i < _steps.Count; i++) _steps[i].Sequence = i + 1;
+        _validation = null;
+        RebuildDiagram();
+    }
+
+    private void RemoveSelectedStep()
+    {
+        if (_selectedNode is null) return;
+        var idx = GetStepIndex(_selectedNode.Step);
+        if (idx < 0) return;
+        _steps.RemoveAt(idx);
+        for (int i = 0; i < _steps.Count; i++) _steps[i].Sequence = i + 1;
+        _validation = null;
+        RebuildDiagram();
+    }
+
+    private void RebuildDiagram()
+    {
+        var existingLinks = _linkData.ToList();
+        _selectedNode = null;
+        _selectedLink = null;
+        PopulateDiagram();
+        var nodes = _diagram.Nodes.OfType<ProcessStepNodeModel>().ToList();
+        foreach (var (_, fl) in existingLinks)
+        {
+            var srcNode = nodes.FirstOrDefault(n => n.Step == fl.Source.Step);
+            var tgtNode = nodes.FirstOrDefault(n => n.Step == fl.Target.Step);
+            if (srcNode is null || tgtNode is null) continue;
+
+            var srcPort = srcNode.OutputPorts.FirstOrDefault(p => p.PortData.Id == fl.SourcePort.PortData.Id);
+            var tgtPort = tgtNode.InputPorts.FirstOrDefault(p => p.PortData.Id == fl.TargetPort.PortData.Id);
+            if (srcPort is null || tgtPort is null) continue;
+
+            var newLink = new LinkModel(srcPort, tgtPort);
+            _linkData[newLink] = new FlowLink(srcNode, srcPort, tgtNode, tgtPort);
+            _diagram.Links.Add(newLink);
+        }
+    }
+
+    private int GetStepIndex(BuilderStep step) => _steps.IndexOf(step);
 
     // ──────────────────────────────────────────────
     // Step manipulation
@@ -921,27 +992,9 @@ else
             Template = template
         });
         for (int i = 0; i < _steps.Count; i++) _steps[i].Sequence = i + 1;
-        RecomputeConnections();
         _showPicker = false;
         _validation = null;
-    }
-
-    private void MoveStep(int index, int direction)
-    {
-        int newIdx = index + direction;
-        if (newIdx < 0 || newIdx >= _steps.Count) return;
-        (_steps[index], _steps[newIdx]) = (_steps[newIdx], _steps[index]);
-        for (int i = 0; i < _steps.Count; i++) _steps[i].Sequence = i + 1;
-        RecomputeConnections();
-        _validation = null;
-    }
-
-    private void RemoveStep(int index)
-    {
-        _steps.RemoveAt(index);
-        for (int i = 0; i < _steps.Count; i++) _steps[i].Sequence = i + 1;
-        RecomputeConnections();
-        _validation = null;
+        RebuildDiagram();
     }
 
     private async Task ShowEditStep(int index)
@@ -977,6 +1030,9 @@ else
     {
         _steps[_editStepIndex].NameOverride = string.IsNullOrWhiteSpace(_editNameValue) ? null : _editNameValue.Trim();
         _steps[_editStepIndex].DescriptionOverride = string.IsNullOrWhiteSpace(_editDescriptionValue) ? null : _editDescriptionValue.Trim();
+        var node = _diagram.Nodes.OfType<ProcessStepNodeModel>()
+            .FirstOrDefault(n => n.Step == _steps[_editStepIndex]);
+        node?.Refresh();
         CloseEditStepModal();
     }
 
@@ -1205,7 +1261,6 @@ else
         {
             Guid processId;
 
-            // 1. Create or update the process header
             if (!Id.HasValue)
             {
                 var created = await Api.CreateProcessAsync(
@@ -1221,13 +1276,11 @@ else
                         new ProcessUpdateDto(_name.Trim(), _description, _origProc.IsActive));
             }
 
-            // 2. Remove steps that were deleted
             var origStepIds = _origProc?.Steps.Select(s => s.Id).ToHashSet() ?? new HashSet<Guid>();
             var keptStepIds = _steps.Where(s => s.ServerId.HasValue).Select(s => s.ServerId!.Value).ToHashSet();
             foreach (var removedId in origStepIds.Except(keptStepIds))
                 await Api.DeleteProcessStepAsync(processId, removedId);
 
-            // 3. Add new steps / update changed existing steps
             foreach (var step in _steps)
             {
                 if (!step.ServerId.HasValue)
@@ -1245,25 +1298,20 @@ else
                 }
             }
 
-            // 4. Rebuild all flows: delete originals, create from current connections
             if (_origProc is not null)
                 foreach (var flow in _origProc.Flows)
                     await Api.DeleteFlowAsync(processId, flow.Id);
 
-            for (int i = 0; i < _steps.Count - 1; i++)
+            foreach (var (_, fl) in _linkData)
             {
-                var conn = GetConnection(i);
-                if ((conn.Status == ConnectionStatus.AutoMatched || conn.Status == ConnectionStatus.UserSelected)
-                    && conn.SourcePort is not null && conn.TargetPort is not null
-                    && conn.Source.ServerId.HasValue && conn.Target.ServerId.HasValue)
+                if (fl.Source.Step.ServerId.HasValue && fl.Target.Step.ServerId.HasValue)
                 {
                     await Api.AddFlowAsync(processId, new FlowCreateDto(
-                        conn.Source.ServerId.Value, conn.SourcePort.Id,
-                        conn.Target.ServerId.Value, conn.TargetPort.Id));
+                        fl.Source.Step.ServerId.Value, fl.SourcePort.PortData.Id,
+                        fl.Target.Step.ServerId.Value, fl.TargetPort.PortData.Id));
                 }
             }
 
-            // Navigate to builder URL for the (possibly new) process
             Nav.NavigateTo($"processes/{processId}/builder", forceLoad: true);
         }
         catch (HttpRequestException ex)
@@ -1280,28 +1328,9 @@ else
     // Inner types
     // ──────────────────────────────────────────────
 
-    private sealed class BuilderStep
-    {
-        public Guid LocalId { get; } = Guid.NewGuid();
-        public Guid? ServerId { get; set; }
-        public int Sequence { get; set; }
-        public Guid StepTemplateId { get; set; }
-        public StepTemplateResponseDto? Template { get; set; }
-        public string? NameOverride { get; set; }
-        public string? DescriptionOverride { get; set; }
-    }
-
-    private sealed class Connection
-    {
-        public BuilderStep Source { get; set; } = null!;
-        public BuilderStep Target { get; set; } = null!;
-        public PortResponseDto? SourcePort { get; set; }
-        public PortResponseDto? TargetPort { get; set; }
-        public ConnectionStatus Status { get; set; } = ConnectionStatus.Incompatible;
-        public List<(PortResponseDto Out, PortResponseDto In)> Options { get; set; } = new();
-    }
-
-    private enum ConnectionStatus { AutoMatched, Ambiguous, UserSelected, Incompatible }
+    private sealed record FlowLink(
+        ProcessStepNodeModel Source, ProcessStepPortModel SourcePort,
+        ProcessStepNodeModel Target, ProcessStepPortModel TargetPort);
 
     private static string PortInfo(PortResponseDto p) => p.PortType switch
     {

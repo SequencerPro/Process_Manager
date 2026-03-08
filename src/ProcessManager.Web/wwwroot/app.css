@@ -241,6 +241,26 @@ h1:focus {
     fill: #6c757d;
 }
 
+/* ── Sequence arrows (implicit step-order in Process Builder) ── */
+.sequence-link path.outline {
+    stroke: transparent;
+    stroke-width: 8;
+    fill: none;
+}
+.sequence-link path.main {
+    stroke: #adb5bd;
+    stroke-width: 1.5;
+    stroke-dasharray: 8 4;
+    fill: none;
+    pointer-events: none;
+}
+.sequence-link:hover path.main {
+    stroke: #6c757d;
+}
+.sequence-link .seq-arrow-fill {
+    fill: #adb5bd;
+}
+
 /* ── Process Builder ── */
 
 .pb-canvas {

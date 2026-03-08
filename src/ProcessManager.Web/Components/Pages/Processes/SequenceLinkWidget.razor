@@ -1,0 +1,28 @@
+@using Blazor.Diagrams.Core.Models.Base
+
+@* Renders an implicit sequence-order arrow between two adjacent steps.
+   Uses class "sequence-link" (in addition to "diagram-link") so it can be
+   styled independently from user-drawn flow links. *@
+<g class="diagram-link sequence-link">
+    @if (Link.PathGeneratorResult is not null)
+    {
+        @foreach (var path in Link.PathGeneratorResult.Paths!)
+        {
+            <path class="outline" d="@path" fill="none" />
+            <path class="main"    d="@path" fill="none"
+                  marker-end="url(#seq-arrowhead)" />
+        }
+        @* Inline arrowhead marker definition — re-defined per instance, which is
+           harmless; the browser uses the last-defined version. *@
+        <defs>
+            <marker id="seq-arrowhead" markerWidth="8" markerHeight="6"
+                    refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+                <polygon points="0 0, 8 3, 0 6" class="seq-arrow-fill" />
+            </marker>
+        </defs>
+    }
+</g>
+
+@code {
+    [Parameter] public BaseLinkModel Link { get; set; } = null!;
+}

@@ -895,6 +895,7 @@ else
         options.Zoom.Maximum = 2.0;
         _diagram = new BlazorDiagram(options);
         _diagram.RegisterComponent<ProcessStepNodeModel, ProcessStepNode>();
+        _diagram.RegisterComponent<SequenceLinkModel, SequenceLinkWidget>();
         _diagram.SelectionChanged += OnSelectionChanged;
         _diagram.Links.Added += OnLinkAdded;
         _diagram.KeyDown += OnKeyDown;
@@ -916,6 +917,14 @@ else
             var node = new ProcessStepNodeModel(_steps[i],
                 new Blazor.Diagrams.Core.Geometry.Point(i * (nodeWidth + nodeGap), 80));
             _diagram.Nodes.Add(node);
+        }
+
+        // Add implicit sequence arrows between adjacent steps
+        var nodes = _diagram.Nodes.OfType<ProcessStepNodeModel>().OrderBy(n => n.Step.Sequence).ToList();
+        for (int i = 0; i < nodes.Count - 1; i++)
+        {
+            var seq = new SequenceLinkModel(nodes[i], nodes[i + 1]);
+            _diagram.Links.Add(seq);
         }
     }
 
@@ -968,7 +977,7 @@ else
             _selectedNode = node;
             _selectedLink = null;
         }
-        else if (model is LinkModel link && model.Selected)
+        else if (model is LinkModel link && link is not SequenceLinkModel && model.Selected)
         {
             _selectedLink = link;
             _selectedNode = null;
@@ -983,6 +992,7 @@ else
 
     private void OnLinkAdded(BaseLinkModel link)
     {
+        if (link is SequenceLinkModel) return;
         if (link is LinkModel lm && !_linkData.ContainsKey(lm))
             link.TargetChanged += OnLinkTargetChanged;
     }

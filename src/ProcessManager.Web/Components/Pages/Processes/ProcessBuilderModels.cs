@@ -1,3 +1,4 @@
+using Blazor.Diagrams.Core.Anchors;
 using Blazor.Diagrams.Core.Geometry;
 using Blazor.Diagrams.Core.Models;
 using ProcessManager.Api.DTOs;
@@ -6,8 +7,18 @@ using ProcessManager.Domain.Enums;
 namespace ProcessManager.Web.Components.Pages.Processes;
 
 /// <summary>
-/// In-memory representation of a step being designed in the Process Builder.
+/// A diagram link representing the implicit sequence order between two adjacent steps.
+/// Rendered as a dashed grey arrow; not saved as a Flow and not user-selectable.
 /// </summary>
+public sealed class SequenceLinkModel : LinkModel
+{
+    public SequenceLinkModel(NodeModel source, NodeModel target)
+        : base(new ShapeIntersectionAnchor(source), new ShapeIntersectionAnchor(target))
+    {
+        Segmentable = false;
+    }
+}
+
 public sealed class BuilderStep
 {
     public Guid LocalId { get; } = Guid.NewGuid();

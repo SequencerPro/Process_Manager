@@ -31,6 +31,8 @@
 | 1.15    | 2026-03-02 | Admin: Display Name field added to Add User form; Edit User modal (Display Name + Role) on UserList; PATCH api/auth/users/{id} admin endpoint |
 | 1.16    | 2026-03-08 | Phase 12 design: workflow execution with OrgUnit assignment, automated process sequencing, and periodic scheduling via WorkflowSchedule |
 | 1.17    | 2026-03-08 | Phase 2 design gap addressed: PromptDefinition and PromptOption entities added to data model; ExecutionData updated with prompt_definition_id FK, widened value field (text), and extended DataType enum |
+| 1.18    | 2026-03-08 | Phase 13 plan: pre-populated process content library with seeded StepTemplates, Processes, and Workflows for common business functions |
+| 1.19    | 2026-03-08 | Phase 12f plan: Participant Portal — execution-only UI surface with Participant role; hides all design, admin, and quality engineering tools |
 
 ---
 
@@ -1142,7 +1144,128 @@ Null for ad-hoc runs; set when the job was created by the scheduler. Allows filt
 
 ---
 
-### Phase 13+ — Integrations (future)
+#### 12f — Participant Portal (Execution-Only UI)
+
+When a workflow is deployed for participants who have no business touching the design layer — survey respondents, production operators, onboarding new hires, maintenance technicians completing a PM — they must see *only* the work assigned to them. Every design tool, quality module, analytics dashboard, and admin screen must be invisible and inaccessible to them.
+
+This is the same reason a survey platform shows respondents a clean form and not the survey builder: exposing the back office to participants creates confusion, risk of accidental or deliberate data corruption, and a poor user experience.
+
+**New role: `Participant`**
+
+Added alongside the existing `Admin` and `Engineer` roles:
+
+| Role | Capabilities |
+|---|---|
+| `Admin` | Full access + user management |
+| `Engineer` | Design tools, quality tools, analytics, reports, approval queue |
+| `Participant` | Work queue and execution *only* |
+
+A `Participant` role user is typically a member of one or more `OrgUnit`s. Their visible interface is their queue of assigned jobs and the ExecutionWizard.
+
+**What Participants can see:**
+
+| Surface | Access |
+|---|---|
+| My Work (assigned job queue) | ✅ Full access |
+| ExecutionWizard (`/execute/{id}`) | ✅ Full access |
+| Job status / step progress (read-only) | ✅ Read only |
+| Everything else | ❌ Hidden — route guard returns 403 |
+
+**What Participants cannot see (route-guarded):**
+- StepTemplate list/detail and editor
+- Process list/detail, Process Builder
+- Workflow list/detail and graph editor
+- PFMEA, C&E Matrix, Non-Conformances
+- Analytics, Reports, Alerts
+- Approval Queue
+- Admin / User Management
+- Kind / Grade management
+- WorkflowJob management (they receive work, they don't launch workflow runs)
+
+**Implementation:**
+
+- `NavMenu.razor` conditioned on role — Participant sees only "My Work" and their profile
+- All design/admin routes decorated with `[Authorize(Roles = "Admin,Engineer")]`; Participant hitting a guarded route gets a friendly "You don’t have access to this page" screen, not a generic error
+- A separate, stripped-down layout (`ParticipantLayout.razor`) removes the full sidebar and replaces it with a minimal header — clean enough to embed in a kiosk device or iframe
+- Optional: `/portal` URL prefix as an entry point that forces `ParticipantLayout` regardless of role, suitable for sharing as a QR code link or embedded link in a notification email
+- `OrgUnit` membership drives the work queue: a Participant sees jobs assigned to any OrgUnit they belong to, plus jobs directly assigned to them by name
+
+**User management additions:**
+- `POST /api/auth/users/{id}/org-units` — assign a user to one or more OrgUnits
+- Admin UI: OrgUnit membership picker on user edit form
+
+**Status:** Designed, not yet built.
+
+---
+
+### Phase 13 — Pre-populated Process Content Library
+
+**Goal:** Ship a curated library of ready-to-run processes so that a new customer can begin executing real work without building their process definitions from scratch.
+
+**Design premise:** Everything in this phase is *data*, not code. The process model (Phases 1–5), structured prompts (Phase 2 PromptDefinition), and workflow execution with OrgUnit assignment (Phase 12) must all be built first. Once they are, a library of well-designed content becomes immediately runnable with no additional development.
+
+---
+
+#### Prerequisites
+
+This phase cannot deliver useful content until the following are built:
+
+| Prerequisite | Why |
+|---|---|
+| Phase 2 PromptDefinition + PromptOption | Structured data collection on steps — without this, processes can't capture meaningful data |
+| Phase 12 OrgUnit + WorkflowProcess.AssigneeId | Department routing — without this, multi-department workflows can't be assigned |
+| Phase 12 WorkflowJob + sequencing service | Workflow execution — without this, workflows are diagrams, not running operations |
+| Phase 12 WorkflowSchedule | Periodic processes (audits, calibrations, reviews) require a schedule trigger |
+
+#### Delivery Mechanism
+
+Content is delivered as a versioned EF Core data seeder (or SQL seed script) that:
+- Runs on startup if the library has not yet been seeded (idempotent)
+- Tags all seeded records as `is_system_content = true` (a flag to be added to `StepTemplate`, `Process`, and `Workflow`)
+- System content can be *copied* by users to create their own variants but cannot be deleted or overwritten by the seeder after initial load
+- New library entries are additive — a re-run of the seeder on an existing deployment adds new content without touching existing records
+
+#### Initial Content Areas
+
+**Quality & Compliance**
+- Incoming Inspection — supplier material receipt, visual check, dimensional verification, hold vs. accept decision
+- Final Inspection — finished-product checklist, customer spec verification, pass/fail/rework routing
+- Non-Conformance Handling — log, investigate, disposition (accept/rework/scrap), corrective action, closure
+- Calibration Schedule — recurring workflow per instrument type: retrieve, calibrate, record result, label, return
+- Internal Audit — scheduled workflow: plan, conduct, record findings, issue CARs, verify closure
+- Supplier Audit — annual or triggered: questionnaire, on-site review, score, corrective action if needed
+
+**Human Resources**
+- Employee Onboarding — offer accepted → IT setup → payroll setup → orientation → department induction → 30-day check-in
+- Employee Offboarding — notice received → IT access revocation → equipment return → final pay → exit interview
+
+**Operations & Maintenance**
+- Preventive Maintenance — recurring workflow per asset: notify, prepare parts, perform PM, record readings, sign off, reschedule
+- Customer Complaint Handling — complaint received → acknowledge → investigate → respond → corrective action → close
+- Change Request — request → impact assessment → approval → implementation → verification → close
+
+**Management**
+- Management Review — annual or quarterly: collect inputs, conduct review meeting, record outputs, assign actions, verify actions closed
+- Document Control — draft → review → approve → release → distribute → archive
+
+#### `is_system_content` Flag
+
+Added to `StepTemplate`, `Process`, and `Workflow`:
+
+```
+is_system_content  boolean  Not Null, Default: false
+```
+
+UI behaviour when `is_system_content = true`:
+- Edit and Delete buttons replaced with a **"Copy to My Library"** action
+- Records displayed in a separate "Library" section / filter
+- Seeder will not overwrite on subsequent runs
+
+**Status:** Planned — depends on Phase 12 completion.
+
+---
+
+### Phase 14+ — Integrations (future)
 
 **Goal:** Connect the process system to peripheral business functions.
 
@@ -1221,6 +1344,8 @@ Additional capability added post-Phase 6:
 - **Phase 10 — Root Cause Analysis** designed, not yet built: Root Cause Library, Ishikawa fishbone diagrams, branching 5 Whys, linkage to non-conformances and PFMEA failure modes
 - **Phase 11 — Production Management** designed, not yet built: expected durations + job due dates, equipment catalog, downtime tracking, PM scheduling, production visibility dashboard (WIP board, late jobs, bottleneck flags, equipment status)
 - **Phase 12 — Workflow Execution & Department Assignment** designed, not yet built: OrgUnit entity (department/work area/role/person), assignee on WorkflowProcess nodes, WorkflowJob execution record, sequencing service that advances the workflow graph on job completion, WorkflowSchedule entity for periodic recurrence with background scheduler service
+- **Phase 12f — Participant Portal** designed, not yet built: `Participant` role with execution-only access (My Work + ExecutionWizard); all design/admin/quality routes hidden and route-guarded; stripped `ParticipantLayout`; optional `/portal` URL entry point; OrgUnit membership on users driving queue assignment
+- **Phase 13 — Pre-populated Process Content Library** planned, not yet built: versioned EF Core seeder delivering ready-to-run StepTemplates, Processes, and Workflows for quality, HR, operations, and management functions; `is_system_content` flag; "Copy to My Library" UX; depends on Phase 12 being complete
 - Multi-tenancy deferred until second SaaS tenant is onboarded (database-per-tenant approach selected — see Architecture Decision above)
 - Email/webhook notifications for out-of-range alerts not yet implemented
 - MCP server uses short-lived JWT tokens; a long-lived API-key auth path would improve service-account ergonomics for AI integrations

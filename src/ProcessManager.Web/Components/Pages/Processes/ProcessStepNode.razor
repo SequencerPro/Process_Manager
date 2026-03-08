@@ -1,0 +1,108 @@
+@using Blazor.Diagrams.Components.Renderers
+
+@* ── Outer wrapper: pointer-events:none lets drag fall through to the library's node handler ── *@
+<div style="min-width:260px; max-width:340px;">
+    <div style="pointer-events:none; user-select:none;">
+
+        @* ── Header ── *@
+        <div style="background:@HeaderBg; border:2px solid @BorderColor; border-radius:0.5rem 0.5rem 0 0;
+                     padding:0.3rem 0.6rem; display:flex; align-items:center; gap:0.4rem; overflow:hidden;">
+            <span style="background:@BorderColor; color:white; border-radius:999px; padding:0.05rem 0.4rem;
+                          font-size:0.68rem; font-weight:700; flex-shrink:0;">
+                @Node.Step.Sequence
+            </span>
+            <strong style="font-size:0.82rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
+                @(Node.Step.NameOverride ?? Node.Step.Template?.Name ?? "…")
+            </strong>
+        </div>
+
+        @* ── Port body: left column = inputs, right column = outputs ── *@
+        <div style="border:2px solid @BorderColor; border-top:none; background:white; display:flex; min-height:2rem;">
+
+            @* Input ports (left) *@
+            <div style="flex:1; padding:0.25rem 0.25rem 0.25rem 0; border-right:1px solid #e9ecef; min-width:0; overflow:visible;">
+                @if (!Node.InputPorts.Any())
+                {
+                    <div style="font-size:0.6rem; color:#adb5bd; font-style:italic; padding:0.3rem 0.5rem;">(no inputs)</div>
+                }
+                @foreach (var port in Node.InputPorts)
+                {
+                    @* position:relative on row + position:absolute on port dot = dot sits on left card edge *@
+                    <div style="position:relative; display:flex; align-items:center; gap:3px;
+                                 padding:2px 4px 2px 10px; margin-bottom:2px; pointer-events:all;"
+                         title="@port.PortData.Name — @PortInfo(port.PortData)">
+                        <div style="position:absolute; left:-7px; top:50%; transform:translateY(-50%);">
+                            <PortRenderer Port="port" Class="pb-port pb-port-input" />
+                        </div>
+                        <span style="font-size:0.67rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">@port.PortData.Name</span>
+                        <span class="badge @PortTypeBadge(port.PortData.PortType)" style="font-size:0.5rem; padding:1px 3px; flex-shrink:0;">@PortTypeAbbr(port.PortData.PortType)</span>
+                    </div>
+                }
+            </div>
+
+            @* Output ports (right) *@
+            <div style="flex:1; padding:0.25rem 0 0.25rem 0.25rem; min-width:0; overflow:visible;">
+                @if (!Node.OutputPorts.Any())
+                {
+                    <div style="font-size:0.6rem; color:#adb5bd; font-style:italic; padding:0.3rem 0.5rem; text-align:right;">(no outputs)</div>
+                }
+                @foreach (var port in Node.OutputPorts)
+                {
+                    <div style="position:relative; display:flex; align-items:center; justify-content:flex-end; gap:3px;
+                                 padding:2px 10px 2px 4px; margin-bottom:2px; pointer-events:all;"
+                         title="@port.PortData.Name — @PortInfo(port.PortData)">
+                        <span class="badge @PortTypeBadge(port.PortData.PortType)" style="font-size:0.5rem; padding:1px 3px; flex-shrink:0;">@PortTypeAbbr(port.PortData.PortType)</span>
+                        <span style="font-size:0.67rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:right; flex:1;">@port.PortData.Name</span>
+                        <div style="position:absolute; right:-7px; top:50%; transform:translateY(-50%);">
+                            <PortRenderer Port="port" Class="pb-port pb-port-output" />
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* ── Footer: template code + pattern ── *@
+        @if (Node.Step.Template is not null)
+        {
+            <div style="background:#f8f9fa; border:2px solid @BorderColor; border-top:none;
+                         border-radius:0 0 0.5rem 0.5rem; padding:0.15rem 0.6rem; font-size:0.6rem; color:#6c757d;">
+                <code>@Node.Step.Template.Code</code>
+                <span class="ms-2">@Node.Step.Template.Pattern</span>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public ProcessStepNodeModel Node { get; set; } = null!;
+
+    private string BorderColor => Node.Selected ? "#0a58ca" : "#0d6efd";
+    private string HeaderBg   => Node.Selected ? "#dce8ff" : "#f0f5ff";
+
+    private static string PortInfo(PortResponseDto p) => p.PortType switch
+    {
+        PortType.Material => $"{p.KindName} / {p.GradeName}",
+        PortType.Parameter or PortType.Characteristic =>
+            string.IsNullOrEmpty(p.Units) ? $"{p.DataType}" : $"{p.DataType} ({p.Units})",
+        PortType.Condition => "Pass / Fail",
+        _ => ""
+    };
+
+    private static string PortTypeBadge(PortType t) => t switch
+    {
+        PortType.Material => "bg-secondary",
+        PortType.Parameter => "bg-warning text-dark",
+        PortType.Characteristic => "bg-info text-dark",
+        PortType.Condition => "bg-light text-dark border",
+        _ => "bg-secondary"
+    };
+
+    private static string PortTypeAbbr(PortType t) => t switch
+    {
+        PortType.Material => "M",
+        PortType.Parameter => "P",
+        PortType.Characteristic => "C",
+        PortType.Condition => "Cond",
+        _ => "?"
+    };
+}

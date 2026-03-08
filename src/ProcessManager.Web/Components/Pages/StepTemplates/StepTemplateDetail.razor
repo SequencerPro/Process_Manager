@@ -135,6 +135,20 @@ else
         }
     }
 
+    @if (!_dismissedSetupHint && !InputPorts.Any() && !OutputPorts.Any())
+    {
+        <div class="alert alert-dismissible small py-2 mb-3" role="alert"
+             style="border-left:3px solid #0d6efd;background:#eef4ff;color:#212529">
+            <i class="bi bi-lightbulb-fill me-2 text-primary"></i>
+            <strong>Getting started:</strong> A complete Step Template has three parts:
+            <strong>Input Ports</strong> (what flows in),
+            <strong>Output Ports</strong> (what flows out), and
+            <strong>Work Instructions</strong> (text, images, and data prompts operators see during execution).
+            Use the sections below to add all three.
+            <button type="button" class="btn-close py-2" @onclick="() => _dismissedSetupHint = true"></button>
+        </div>
+    }
+
     <!-- Input Ports -->
 
     <div class="row">
@@ -1055,6 +1069,7 @@ else
 
     private StepTemplateResponseDto? _st;
     private bool _loading = true;
+    private bool _dismissedSetupHint;
 
     private List<PortResponseDto> InputPorts =>
         _st?.Ports?.Where(p => p.Direction == PortDirection.Input).OrderBy(p => p.SortOrder).ToList() ?? new();

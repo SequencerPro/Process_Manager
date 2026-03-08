@@ -86,52 +86,64 @@ else if (_data is not null)
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Name</label>
-                        <input class="form-control" @bind="_formName" />
+                        <input class="form-control" @bind="_formName"
+                               title="A label for this vocabulary set. e.g. Manufacturing, Lab, Warehouse" />
                     </div>
                     <div class="row g-3">
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Term: Kind</label>
-                            <input class="form-control" @bind="_formTermKind" />
+                            <input class="form-control" @bind="_formTermKind"
+                                   title="The category or type of thing. e.g. Part Type, Material, Component" />
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Term: Kind Code</label>
-                            <input class="form-control" @bind="_formTermKindCode" />
+                            <input class="form-control" @bind="_formTermKindCode"
+                                   title="The short identifier for a Kind. e.g. Part Number, SKU, Material ID" />
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Term: Grade</label>
-                            <input class="form-control" @bind="_formTermGrade" />
+                            <input class="form-control" @bind="_formTermGrade"
+                                   title="The quality or disposition state of an item. e.g. Disposition, Quality Level, Condition" />
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Term: Item</label>
-                            <input class="form-control" @bind="_formTermItem" />
+                            <input class="form-control" @bind="_formTermItem"
+                                   title="A single trackable unit. e.g. Unit, Asset, Serial Number" />
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Term: Item ID</label>
-                            <input class="form-control" @bind="_formTermItemId" />
+                            <input class="form-control" @bind="_formTermItemId"
+                                   title="The unique identifier for an individual item. e.g. Serial Number, Asset Tag, VIN" />
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Term: Batch</label>
-                            <input class="form-control" @bind="_formTermBatch" />
+                            <input class="form-control" @bind="_formTermBatch"
+                                   title="A group of items produced or processed together. e.g. Lot, Run, Spool, Heat" />
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Term: Batch ID</label>
-                            <input class="form-control" @bind="_formTermBatchId" />
+                            <input class="form-control" @bind="_formTermBatchId"
+                                   title="The unique identifier for a batch. e.g. Lot Number, Heat Number, Run Code" />
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Term: Job</label>
-                            <input class="form-control" @bind="_formTermJob" />
+                            <input class="form-control" @bind="_formTermJob"
+                                   title="A production execution instance. e.g. Work Order, Production Run, Campaign" />
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Term: Workflow</label>
-                            <input class="form-control" @bind="_formTermWorkflow" />
+                            <input class="form-control" @bind="_formTermWorkflow"
+                                   title="A directed graph of processes. e.g. Routing, Value Stream, Product Flow" />
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Term: Process</label>
-                            <input class="form-control" @bind="_formTermProcess" />
+                            <input class="form-control" @bind="_formTermProcess"
+                                   title="An ordered sequence of steps. e.g. Operation, Stage, Phase" />
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Term: Step</label>
-                            <input class="form-control" @bind="_formTermStep" />
+                            <input class="form-control" @bind="_formTermStep"
+                                   title="A single unit of work within a process. e.g. Activity, Task, Operation" />
                         </div>
                     </div>
                 </div>

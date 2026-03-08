@@ -102,6 +102,7 @@ public class ProcessesController : ControllerBase
         process.Name = dto.Name;
         process.Description = dto.Description;
         if (dto.IsActive.HasValue) process.IsActive = dto.IsActive.Value;
+        process.Version++;
 
         await _db.SaveChangesAsync();
         return MapToDto(process);

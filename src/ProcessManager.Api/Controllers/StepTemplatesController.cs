@@ -154,6 +154,7 @@ public class StepTemplatesController : ControllerBase
         step.Description = dto.Description;
         step.Pattern = dto.Pattern;
         if (dto.IsActive.HasValue) step.IsActive = dto.IsActive.Value;
+        step.Version++;
 
         await _db.SaveChangesAsync();
         return MapToDto(step);

@@ -129,7 +129,17 @@ else
                         {
                             <strong class="me-1">@(step.NameOverride ?? step.Template.Name)</strong>
                             <code class="text-muted small">@step.Template.Code</code>
-                            <span class="badge bg-light text-dark border small">@step.Template.Pattern</span>
+                            <span class="badge @(step.PatternOverride.HasValue ? "bg-warning text-dark" : "bg-light text-dark border") small"
+                                  title="@(step.PatternOverride.HasValue ? $"Overridden (template: {step.Template.Pattern})" : "")">
+                                @(step.PatternOverride ?? step.Template.Pattern)
+                                @if (step.PatternOverride.HasValue) { <i class="bi bi-pencil-fill ms-1" style="font-size:.55rem"></i> }
+                            </span>
+                            @if (step.PortOverrides.Any())
+                            {
+                                <span class="badge bg-warning-subtle text-warning border border-warning small ms-1" title="Has port overrides">
+                                    <i class="bi bi-plug-fill" style="font-size:.6rem"></i> @step.PortOverrides.Count override(s)
+                                </span>
+                            }
                         }
                         else
                         {
@@ -161,13 +171,16 @@ else
                 @if (step.Template is not null)
                 {
                     <div class="card-body py-2">
+                        @{
+                            var effectivePorts = GetEffectivePorts(step);
+                        }
                         <div class="row g-0">
                             <div class="col-md-6 pe-3">
                                 <div class="text-uppercase text-muted fw-semibold mb-2" style="font-size:.7rem">
                                     <i class="bi bi-box-arrow-in-right text-success me-1"></i>Inputs
                                 </div>
                                 @{
-                                    var inputs = step.Template.Ports
+                                    var inputs = effectivePorts
                                         .Where(p => p.Direction == PortDirection.Input)
                                         .OrderBy(p => p.SortOrder).ToList();
                                 }
@@ -182,7 +195,11 @@ else
                                         <span>
                                             <strong>@p.Name</strong>
                                             <span class="badge @PortTypeBadge(p.PortType) ms-1" style="font-size:.65rem">@p.PortType</span>
-                                            <span class="text-muted ms-1">@PortInfo(p)</span>
+                                            <span class="text-muted ms-1">@EffectivePortInfo(p)</span>
+                                            @if (p.IsOverridden)
+                                            {
+                                                <i class="bi bi-pencil-fill text-warning ms-1" style="font-size:.55rem" title="Overridden"></i>
+                                            }
                                         </span>
                                     </div>
                                 }
@@ -192,7 +209,7 @@ else
                                     <i class="bi bi-box-arrow-right text-primary me-1"></i>Outputs
                                 </div>
                                 @{
-                                    var outputs = step.Template.Ports
+                                    var outputs = effectivePorts
                                         .Where(p => p.Direction == PortDirection.Output)
                                         .OrderBy(p => p.SortOrder).ToList();
                                 }
@@ -206,7 +223,11 @@ else
                                         <span>
                                             <strong>@p.Name</strong>
                                             <span class="badge @PortTypeBadge(p.PortType) ms-1" style="font-size:.65rem">@p.PortType</span>
-                                            <span class="text-muted ms-1">@PortInfo(p)</span>
+                                            <span class="text-muted ms-1">@EffectivePortInfo(p)</span>
+                                            @if (p.IsOverridden)
+                                            {
+                                                <i class="bi bi-pencil-fill text-warning ms-1" style="font-size:.55rem" title="Overridden"></i>
+                                            }
                                         </span>
                                         <i class="bi bi-circle-fill text-primary" style="font-size:.45rem;flex-shrink:0"></i>
                                     </div>
@@ -409,6 +430,132 @@ else
                                   placeholder="Brief description or summary of this step’s purpose in this process…"></textarea>
                         <div class="form-text">Overrides the template’s default description.</div>
                     </div>
+
+                    @* ── Pattern Override ── *@
+                    @if (editStep.Template is not null)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Pattern Override <span class="text-muted fw-normal">(optional)</span></label>
+                            <select class="form-select" value="@(_editPatternOverride?.ToString() ?? "")"
+                                    @onchange="e => _editPatternOverride = string.IsNullOrEmpty(e.Value?.ToString()) ? null : Enum.Parse<StepPattern>(e.Value!.ToString()!)">
+                                <option value="">Use template default (@editStep.Template.Pattern)</option>
+                                @foreach (var pat in Enum.GetValues<StepPattern>())
+                                {
+                                    <option value="@pat">@pat</option>
+                                }
+                            </select>
+                            <div class="form-text">Overrides the step template's pattern (Transform, Assembly, Division, etc.).</div>
+                        </div>
+                    }
+
+                    @* ── Port Overrides ── *@
+                    @if (_editPortOverrides.Any())
+                    {
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">
+                                <i class="bi bi-plug me-1 text-primary"></i>Port Overrides
+                                <span class="text-muted fw-normal ms-1">(Material ports only)</span>
+                            </label>
+                            <div class="form-text mb-2">Override individual port properties for this process step. Leave fields blank to use the template default.</div>
+                            <div class="border rounded-2">
+                                @for (int pi = 0; pi < _editPortOverrides.Count; pi++)
+                                {
+                                    var row = _editPortOverrides[pi];
+                                    var portIdx = pi;
+                                    <div class="p-2 @(pi > 0 ? "border-top" : "")" @key="row.PortId">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <div>
+                                                <span class="badge @(row.TemplateDirection == PortDirection.Input ? "bg-success-subtle text-success border border-success" : "bg-primary-subtle text-primary border border-primary") me-1">
+                                                    @row.TemplateDirection
+                                                </span>
+                                                <strong class="small">@row.TemplateName</strong>
+                                                @if (row.HasAnyOverride)
+                                                {
+                                                    <i class="bi bi-pencil-fill text-warning ms-1" style="font-size:.65rem" title="Has overrides"></i>
+                                                }
+                                            </div>
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Reset all overrides"
+                                                    disabled="@(!row.HasAnyOverride)"
+                                                    @onclick="() => ResetPortOverride(portIdx)">
+                                                <i class="bi bi-arrow-counterclockwise" style="font-size:.75rem"></i>
+                                            </button>
+                                        </div>
+                                        <div class="row g-2">
+                                            <div class="col-md-4">
+                                                <label class="form-label form-label-sm text-muted mb-0">Name</label>
+                                                <input class="form-control form-control-sm" placeholder="@row.TemplateName"
+                                                       value="@(row.NameOverride ?? "")"
+                                                       @onchange="e => row.NameOverride = string.IsNullOrWhiteSpace(e.Value?.ToString()) ? null : e.Value!.ToString()!.Trim()" />
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label form-label-sm text-muted mb-0">Direction</label>
+                                                <select class="form-select form-select-sm"
+                                                        value="@(row.DirectionOverride?.ToString() ?? "")"
+                                                        @onchange="e => row.DirectionOverride = string.IsNullOrEmpty(e.Value?.ToString()) ? null : Enum.Parse<PortDirection>(e.Value!.ToString()!)">
+                                                    <option value="">Default (@row.TemplateDirection)</option>
+                                                    <option value="Input">Input</option>
+                                                    <option value="Output">Output</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label form-label-sm text-muted mb-0">Kind</label>
+                                                <select class="form-select form-select-sm"
+                                                        value="@(row.KindIdOverride?.ToString() ?? "")"
+                                                        @onchange="e => OnPortKindChanged(portIdx, e.Value?.ToString())">
+                                                    <option value="">Default (@(row.TemplateKindName ?? "none"))</option>
+                                                    @foreach (var kind in _availableKinds)
+                                                    {
+                                                        <option value="@kind.Id">@kind.Name</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label form-label-sm text-muted mb-0">Grade</label>
+                                                @{
+                                                    var gradesForPort = GetGradesForPort(row);
+                                                }
+                                                <select class="form-select form-select-sm"
+                                                        value="@(row.GradeIdOverride?.ToString() ?? "")"
+                                                        @onchange="e => row.GradeIdOverride = string.IsNullOrEmpty(e.Value?.ToString()) ? null : Guid.Parse(e.Value!.ToString()!)">
+                                                    <option value="">Default (@(row.TemplateGradeName ?? "none"))</option>
+                                                    @foreach (var grade in gradesForPort)
+                                                    {
+                                                        <option value="@grade.Id">@grade.Name</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <label class="form-label form-label-sm text-muted mb-0">Qty Mode</label>
+                                                <select class="form-select form-select-sm"
+                                                        value="@(row.QtyRuleModeOverride?.ToString() ?? "")"
+                                                        @onchange="e => row.QtyRuleModeOverride = string.IsNullOrEmpty(e.Value?.ToString()) ? null : Enum.Parse<QuantityRuleMode>(e.Value!.ToString()!)">
+                                                    <option value="">Default (@(row.TemplateQtyRuleMode?.ToString() ?? "none"))</option>
+                                                    @foreach (var mode in Enum.GetValues<QuantityRuleMode>())
+                                                    {
+                                                        <option value="@mode">@mode</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label form-label-sm text-muted mb-0">N</label>
+                                                <input type="number" class="form-control form-control-sm"
+                                                       placeholder="@(row.TemplateQtyRuleN?.ToString() ?? "—")"
+                                                       value="@(row.QtyRuleNOverride?.ToString() ?? "")"
+                                                       @onchange="e => row.QtyRuleNOverride = int.TryParse(e.Value?.ToString(), out var n) ? n : null" />
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="form-label form-label-sm text-muted mb-0">Sort</label>
+                                                <input type="number" class="form-control form-control-sm"
+                                                       placeholder="@row.TemplateSortOrder"
+                                                       value="@(row.SortOrderOverride?.ToString() ?? "")"
+                                                       @onchange="e => row.SortOrderOverride = int.TryParse(e.Value?.ToString(), out var s) ? s : null" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
 
                     <hr class="my-3" />
 
@@ -739,6 +886,11 @@ else
     private string _editPromptMin = string.Empty;
     private string _editPromptMax = string.Empty;
     private string _editPromptChoicesRaw = string.Empty;
+    // Port override editing state
+    private StepPattern? _editPatternOverride;
+    private List<PortOverrideEditRow> _editPortOverrides = new();
+    private List<KindResponseDto> _availableKinds = new();
+    private List<GradeResponseDto> _filteredGrades = new();
 
     // ──────────────────────────────────────────────
     // Initialization
@@ -763,7 +915,13 @@ else
                         Sequence = s.Sequence,
                         StepTemplateId = s.StepTemplateId,
                         NameOverride = s.NameOverride,
-                        DescriptionOverride = s.DescriptionOverride
+                        DescriptionOverride = s.DescriptionOverride,
+                        PatternOverride = s.PatternOverride,
+                        PortOverrides = s.PortOverrides?.Select(po => new ProcessStepPortOverrideDto(
+                            po.PortId, po.NameOverride, po.DirectionOverride,
+                            po.KindIdOverride, po.GradeIdOverride,
+                            po.QtyRuleModeOverride, po.QtyRuleNOverride,
+                            po.SortOrderOverride)).ToList() ?? new()
                     });
                 }
 
@@ -817,13 +975,20 @@ else
                 continue;
             }
 
-            var outs = src.Template.Ports.Where(p => p.Direction == PortDirection.Output && p.PortType == PortType.Material).ToList();
-            var ins  = tgt.Template.Ports.Where(p => p.Direction == PortDirection.Input && p.PortType == PortType.Material).ToList();
+            // Use effective ports (with overrides applied) for connection matching
+            var srcEffective = GetEffectivePorts(src);
+            var tgtEffective = GetEffectivePorts(tgt);
 
+            var outs = srcEffective.Where(p => p.Direction == PortDirection.Output && p.PortType == PortType.Material).ToList();
+            var ins  = tgtEffective.Where(p => p.Direction == PortDirection.Input && p.PortType == PortType.Material).ToList();
+
+            // Match by effective Kind+Grade, but map back to original PortResponseDto for connection storage
             var pairs = (from o in outs
                          from inp in ins
                          where o.KindId == inp.KindId && o.GradeId == inp.GradeId
-                         select (Out: o, In: inp)).ToList();
+                         let srcPort = src.Template.Ports.First(p => p.Id == o.Id)
+                         let tgtPort = tgt.Template.Ports.First(p => p.Id == inp.Id)
+                         select (Out: srcPort, In: tgtPort)).ToList();
 
             if (pairs.Count == 0)
             {
@@ -947,8 +1112,10 @@ else
     private async Task ShowEditStep(int index)
     {
         _editStepIndex = index;
-        _editNameValue = _steps[index].NameOverride ?? "";
-        _editDescriptionValue = _steps[index].DescriptionOverride ?? "";
+        var step = _steps[index];
+        _editNameValue = step.NameOverride ?? "";
+        _editDescriptionValue = step.DescriptionOverride ?? "";
+        _editPatternOverride = step.PatternOverride;
         _contentBlocks.Clear();
         _addingTextBlock = false;
         _editingTextBlockId = null;
@@ -957,9 +1124,53 @@ else
         _newTextBody = "";
         _editingTextBody = "";
         _contentError = null;
+
+        // Build port override edit rows from the template ports
+        _editPortOverrides.Clear();
+        if (step.Template is not null)
+        {
+            foreach (var port in step.Template.Ports.Where(p => p.PortType == PortType.Material).OrderBy(p => p.SortOrder))
+            {
+                var existing = step.PortOverrides.FirstOrDefault(po => po.PortId == port.Id);
+                _editPortOverrides.Add(new PortOverrideEditRow
+                {
+                    PortId = port.Id,
+                    TemplateName = port.Name,
+                    TemplateDirection = port.Direction,
+                    TemplatePortType = port.PortType,
+                    TemplateKindId = port.KindId,
+                    TemplateKindName = port.KindName,
+                    TemplateGradeId = port.GradeId,
+                    TemplateGradeName = port.GradeName,
+                    TemplateQtyRuleMode = port.QtyRuleMode,
+                    TemplateQtyRuleN = port.QtyRuleN,
+                    TemplateSortOrder = port.SortOrder,
+                    // Populate existing overrides
+                    NameOverride = existing?.NameOverride,
+                    DirectionOverride = existing?.DirectionOverride,
+                    KindIdOverride = existing?.KindIdOverride,
+                    GradeIdOverride = existing?.GradeIdOverride,
+                    QtyRuleModeOverride = existing?.QtyRuleModeOverride,
+                    QtyRuleNOverride = existing?.QtyRuleNOverride,
+                    SortOrderOverride = existing?.SortOrderOverride,
+                });
+            }
+        }
+
+        // Load kinds for dropdowns
+        if (!_availableKinds.Any())
+        {
+            try
+            {
+                var kindsResult = await Api.GetKindsAsync(pageSize: 200);
+                _availableKinds = kindsResult?.Items?.ToList() ?? new();
+            }
+            catch { /* non-fatal */ }
+        }
+
         _showEditStepModal = true;
         StateHasChanged();
-        if (_steps[index].ServerId.HasValue && Id.HasValue)
+        if (step.ServerId.HasValue && Id.HasValue)
             await LoadStepContent();
     }
 
@@ -975,9 +1186,56 @@ else
 
     private void ApplyStepEdit()
     {
-        _steps[_editStepIndex].NameOverride = string.IsNullOrWhiteSpace(_editNameValue) ? null : _editNameValue.Trim();
-        _steps[_editStepIndex].DescriptionOverride = string.IsNullOrWhiteSpace(_editDescriptionValue) ? null : _editDescriptionValue.Trim();
+        var step = _steps[_editStepIndex];
+        step.NameOverride = string.IsNullOrWhiteSpace(_editNameValue) ? null : _editNameValue.Trim();
+        step.DescriptionOverride = string.IsNullOrWhiteSpace(_editDescriptionValue) ? null : _editDescriptionValue.Trim();
+        step.PatternOverride = _editPatternOverride;
+
+        // Collect only rows that have at least one override set
+        step.PortOverrides = _editPortOverrides
+            .Where(r => r.HasAnyOverride)
+            .Select(r => new ProcessStepPortOverrideDto(
+                r.PortId,
+                r.NameOverride,
+                r.DirectionOverride,
+                r.KindIdOverride,
+                r.GradeIdOverride,
+                r.QtyRuleModeOverride,
+                r.QtyRuleNOverride,
+                r.SortOrderOverride))
+            .ToList();
+
+        RecomputeConnections();
         CloseEditStepModal();
+    }
+
+    private void ResetPortOverride(int portIdx)
+    {
+        var row = _editPortOverrides[portIdx];
+        row.NameOverride = null;
+        row.DirectionOverride = null;
+        row.KindIdOverride = null;
+        row.GradeIdOverride = null;
+        row.QtyRuleModeOverride = null;
+        row.QtyRuleNOverride = null;
+        row.SortOrderOverride = null;
+    }
+
+    private void OnPortKindChanged(int portIdx, string? value)
+    {
+        var row = _editPortOverrides[portIdx];
+        row.KindIdOverride = string.IsNullOrEmpty(value) ? null : Guid.Parse(value);
+        // Clear grade when kind changes since grades are kind-specific
+        row.GradeIdOverride = null;
+    }
+
+    private List<GradeResponseDto> GetGradesForPort(PortOverrideEditRow row)
+    {
+        // Use the overridden kind if set, otherwise the template kind
+        var effectiveKindId = row.KindIdOverride ?? row.TemplateKindId;
+        if (effectiveKindId is null) return new();
+        var kind = _availableKinds.FirstOrDefault(k => k.Id == effectiveKindId);
+        return kind?.Grades?.ToList() ?? new();
     }
 
     private async Task LoadStepContent()
@@ -1230,18 +1488,27 @@ else
             // 3. Add new steps / update changed existing steps
             foreach (var step in _steps)
             {
+                var portOverrides = step.PortOverrides.Any() ? step.PortOverrides : null;
                 if (!step.ServerId.HasValue)
                 {
                     var added = await Api.AddProcessStepAsync(processId,
-                        new ProcessStepCreateDto(step.StepTemplateId, step.Sequence, step.NameOverride, step.DescriptionOverride));
+                        new ProcessStepCreateDto(step.StepTemplateId, step.Sequence, step.NameOverride, step.DescriptionOverride,
+                            step.PatternOverride, portOverrides));
                     if (added is not null) step.ServerId = added.Id;
                 }
                 else
                 {
                     var orig = _origProc?.Steps.FirstOrDefault(s => s.Id == step.ServerId);
-                    if (orig is not null && (orig.Sequence != step.Sequence || orig.NameOverride != step.NameOverride || orig.DescriptionOverride != step.DescriptionOverride))
+                    bool needsUpdate = orig is not null && (
+                        orig.Sequence != step.Sequence ||
+                        orig.NameOverride != step.NameOverride ||
+                        orig.DescriptionOverride != step.DescriptionOverride ||
+                        orig.PatternOverride != step.PatternOverride ||
+                        PortOverridesChanged(orig, step));
+                    if (needsUpdate)
                         await Api.UpdateProcessStepAsync(processId, step.ServerId.Value,
-                            new ProcessStepUpdateDto(step.Sequence, step.NameOverride, step.DescriptionOverride));
+                            new ProcessStepUpdateDto(step.Sequence, step.NameOverride, step.DescriptionOverride,
+                                step.PatternOverride, portOverrides));
                 }
             }
 
@@ -1289,6 +1556,8 @@ else
         public StepTemplateResponseDto? Template { get; set; }
         public string? NameOverride { get; set; }
         public string? DescriptionOverride { get; set; }
+        public StepPattern? PatternOverride { get; set; }
+        public List<ProcessStepPortOverrideDto> PortOverrides { get; set; } = new();
     }
 
     private sealed class Connection
@@ -1302,6 +1571,141 @@ else
     }
 
     private enum ConnectionStatus { AutoMatched, Ambiguous, UserSelected, Incompatible }
+
+    /// <summary>Mutable row used by the edit modal for per-port overrides.</summary>
+    private sealed class PortOverrideEditRow
+    {
+        public Guid PortId { get; set; }
+        public string TemplateName { get; set; } = "";
+        public PortDirection TemplateDirection { get; set; }
+        public PortType TemplatePortType { get; set; }
+        public Guid? TemplateKindId { get; set; }
+        public string? TemplateKindName { get; set; }
+        public Guid? TemplateGradeId { get; set; }
+        public string? TemplateGradeName { get; set; }
+        public QuantityRuleMode? TemplateQtyRuleMode { get; set; }
+        public int? TemplateQtyRuleN { get; set; }
+        public int TemplateSortOrder { get; set; }
+
+        // Override values — null means "use template default"
+        public string? NameOverride { get; set; }
+        public PortDirection? DirectionOverride { get; set; }
+        public Guid? KindIdOverride { get; set; }
+        public Guid? GradeIdOverride { get; set; }
+        public QuantityRuleMode? QtyRuleModeOverride { get; set; }
+        public int? QtyRuleNOverride { get; set; }
+        public int? SortOrderOverride { get; set; }
+
+        public bool HasAnyOverride =>
+            NameOverride is not null || DirectionOverride.HasValue ||
+            KindIdOverride.HasValue || GradeIdOverride.HasValue ||
+            QtyRuleModeOverride.HasValue || QtyRuleNOverride.HasValue ||
+            SortOrderOverride.HasValue;
+    }
+
+    private static bool PortOverridesChanged(ProcessStepResponseDto orig, BuilderStep step)
+    {
+        var origOverrides = orig.PortOverrides ?? new();
+        var newOverrides = step.PortOverrides;
+        if (origOverrides.Count != newOverrides.Count) return true;
+        foreach (var n in newOverrides)
+        {
+            var o = origOverrides.FirstOrDefault(x => x.PortId == n.PortId);
+            if (o is null) return true;
+            if (o.NameOverride != n.NameOverride || o.DirectionOverride != n.DirectionOverride ||
+                o.KindIdOverride != n.KindIdOverride || o.GradeIdOverride != n.GradeIdOverride ||
+                o.QtyRuleModeOverride != n.QtyRuleModeOverride || o.QtyRuleNOverride != n.QtyRuleNOverride ||
+                o.SortOrderOverride != n.SortOrderOverride)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>A port with effective (overridden) values merged in, for display and connection logic.</summary>
+    private sealed class EffectivePort
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = "";
+        public PortDirection Direction { get; set; }
+        public PortType PortType { get; set; }
+        public Guid? KindId { get; set; }
+        public string? KindName { get; set; }
+        public Guid? GradeId { get; set; }
+        public string? GradeName { get; set; }
+        public QuantityRuleMode? QtyRuleMode { get; set; }
+        public int? QtyRuleN { get; set; }
+        public int SortOrder { get; set; }
+        public bool IsOverridden { get; set; }
+        // Keep original port data for PortInfo display
+        public DataValueType? DataType { get; set; }
+        public string? Units { get; set; }
+    }
+
+    /// <summary>Merge template ports with any overrides from the BuilderStep.</summary>
+    private List<EffectivePort> GetEffectivePorts(BuilderStep step)
+    {
+        if (step.Template is null) return new();
+
+        return step.Template.Ports.Select(p =>
+        {
+            var ov = step.PortOverrides.FirstOrDefault(o => o.PortId == p.Id);
+            var hasOverride = ov is not null && (
+                ov.NameOverride is not null || ov.DirectionOverride.HasValue ||
+                ov.KindIdOverride.HasValue || ov.GradeIdOverride.HasValue ||
+                ov.QtyRuleModeOverride.HasValue || ov.QtyRuleNOverride.HasValue ||
+                ov.SortOrderOverride.HasValue);
+
+            // Resolve Kind/Grade names for overridden values
+            string? effectiveKindName = p.KindName;
+            string? effectiveGradeName = p.GradeName;
+            if (ov?.KindIdOverride is not null)
+            {
+                var kind = _availableKinds.FirstOrDefault(k => k.Id == ov.KindIdOverride);
+                effectiveKindName = kind?.Name ?? "Unknown";
+                if (ov.GradeIdOverride is not null)
+                {
+                    effectiveGradeName = kind?.Grades?.FirstOrDefault(g => g.Id == ov.GradeIdOverride)?.Name ?? "Unknown";
+                }
+                else
+                {
+                    effectiveGradeName = p.GradeName; // Keep template grade if only kind overridden
+                }
+            }
+            else if (ov?.GradeIdOverride is not null)
+            {
+                // Grade overridden but not Kind — look up from template Kind
+                var kind = _availableKinds.FirstOrDefault(k => k.Id == p.KindId);
+                effectiveGradeName = kind?.Grades?.FirstOrDefault(g => g.Id == ov.GradeIdOverride)?.Name ?? "Unknown";
+            }
+
+            return new EffectivePort
+            {
+                Id = p.Id,
+                Name = ov?.NameOverride ?? p.Name,
+                Direction = ov?.DirectionOverride ?? p.Direction,
+                PortType = p.PortType,
+                KindId = ov?.KindIdOverride ?? p.KindId,
+                KindName = effectiveKindName,
+                GradeId = ov?.GradeIdOverride ?? p.GradeId,
+                GradeName = effectiveGradeName,
+                QtyRuleMode = ov?.QtyRuleModeOverride ?? p.QtyRuleMode,
+                QtyRuleN = ov?.QtyRuleNOverride ?? p.QtyRuleN,
+                SortOrder = ov?.SortOrderOverride ?? p.SortOrder,
+                IsOverridden = hasOverride,
+                DataType = p.DataType,
+                Units = p.Units,
+            };
+        }).ToList();
+    }
+
+    private static string EffectivePortInfo(EffectivePort p) => p.PortType switch
+    {
+        PortType.Material => $"{p.KindName} / {p.GradeName}",
+        PortType.Parameter or PortType.Characteristic =>
+            string.IsNullOrEmpty(p.Units) ? $"{p.DataType}" : $"{p.DataType} ({p.Units})",
+        PortType.Condition => "Pass / Fail",
+        _ => ""
+    };
 
     private static string PortInfo(PortResponseDto p) => p.PortType switch
     {

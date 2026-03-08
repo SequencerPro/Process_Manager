@@ -350,6 +350,101 @@ public class WorkflowTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    // ───── Terminal (End) Node Tests ─────
+
+    [Fact]
+    public async Task AddTerminalNode_Succeeds()
+    {
+        var wf = await CreateWorkflow();
+
+        var dto = new AddWorkflowProcessDto(
+            ProcessId: null,
+            IsEntryPoint: false,
+            SortOrder: 0,
+            PositionX: 100,
+            PositionY: 200,
+            IsTerminalNode: true);
+        var response = await Client.PostAsJsonAsync(
+            $"/api/workflows/{wf.Id}/processes", dto, JsonOptions);
+
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<WorkflowProcessResponseDto>(JsonOptions);
+        Assert.NotNull(result);
+        Assert.True(result.IsTerminalNode);
+        Assert.Null(result.ProcessId);
+        Assert.Equal("End", result.ProcessName);
+        Assert.Equal("END", result.ProcessCode);
+        Assert.False(result.IsEntryPoint);
+    }
+
+    [Fact]
+    public async Task AddTerminalNode_CannotBeEntryPoint()
+    {
+        var wf = await CreateWorkflow();
+
+        var dto = new AddWorkflowProcessDto(
+            ProcessId: null,
+            IsEntryPoint: true,
+            IsTerminalNode: true);
+        var response = await Client.PostAsJsonAsync(
+            $"/api/workflows/{wf.Id}/processes", dto, JsonOptions);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddTerminalNode_CanBeLinkedTo()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var wf = await CreateWorkflow();
+
+        // Add a regular process as entry point
+        var wp = await AddWorkflowProcess(wf.Id, scenario.Process.Id, isEntryPoint: true);
+
+        // Add a terminal node
+        var termDto = new AddWorkflowProcessDto(
+            ProcessId: null,
+            IsTerminalNode: true,
+            PositionX: 100,
+            PositionY: 300);
+        var termResponse = await Client.PostAsJsonAsync(
+            $"/api/workflows/{wf.Id}/processes", termDto, JsonOptions);
+        termResponse.EnsureSuccessStatusCode();
+        var termNode = await termResponse.Content.ReadFromJsonAsync<WorkflowProcessResponseDto>(JsonOptions);
+
+        // Link from process to terminal node
+        var link = await AddWorkflowLink(wf.Id, wp.Id, termNode!.Id);
+        Assert.NotNull(link);
+        Assert.Equal(wp.Id, link.SourceWorkflowProcessId);
+        Assert.Equal(termNode.Id, link.TargetWorkflowProcessId);
+    }
+
+    [Fact]
+    public async Task AddTerminalNode_AppearsInWorkflowGet()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var wf = await CreateWorkflow();
+
+        await AddWorkflowProcess(wf.Id, scenario.Process.Id, isEntryPoint: true);
+
+        var termDto = new AddWorkflowProcessDto(
+            ProcessId: null,
+            IsTerminalNode: true);
+        var termResponse = await Client.PostAsJsonAsync(
+            $"/api/workflows/{wf.Id}/processes", termDto, JsonOptions);
+        termResponse.EnsureSuccessStatusCode();
+
+        // Reload the full workflow
+        var loaded = await Client.GetFromJsonAsync<WorkflowResponseDto>(
+            $"/api/workflows/{wf.Id}", JsonOptions);
+        Assert.NotNull(loaded?.Processes);
+        Assert.Equal(2, loaded.Processes.Count);
+
+        var terminal = loaded.Processes.Single(p => p.IsTerminalNode);
+        Assert.Null(terminal.ProcessId);
+        Assert.Equal("End", terminal.ProcessName);
+    }
+
     [Fact]
     public async Task UpdateProcess_ChangesEntryPoint()
     {

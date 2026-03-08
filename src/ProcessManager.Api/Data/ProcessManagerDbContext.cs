@@ -32,6 +32,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Process> Processes => Set<Process>();
     public DbSet<ProcessStep> ProcessSteps => Set<ProcessStep>();
     public DbSet<ProcessStepContent> ProcessStepContents => Set<ProcessStepContent>();
+    public DbSet<ProcessStepPortOverride> ProcessStepPortOverrides => Set<ProcessStepPortOverride>();
     public DbSet<StepTemplateContent> StepTemplateContents => Set<StepTemplateContent>();
     public DbSet<Flow> Flows => Set<Flow>();
 
@@ -190,6 +191,9 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(ps => new { ps.ProcessId, ps.Sequence }).IsUnique();
 
             e.Property(ps => ps.NameOverride).HasMaxLength(200);
+            e.Property(ps => ps.PatternOverride)
+                .HasConversion<string?>()
+                .HasMaxLength(20);
 
             e.HasOne(ps => ps.Process)
                 .WithMany(p => p.ProcessSteps)
@@ -199,6 +203,43 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne(ps => ps.StepTemplate)
                 .WithMany()
                 .HasForeignKey(ps => ps.StepTemplateId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- ProcessStepPortOverride ---
+        modelBuilder.Entity<ProcessStepPortOverride>(e =>
+        {
+            e.HasKey(po => po.Id);
+            e.HasIndex(po => new { po.ProcessStepId, po.PortId }).IsUnique();
+
+            e.Property(po => po.NameOverride).HasMaxLength(200);
+            e.Property(po => po.DirectionOverride)
+                .HasConversion<string?>()
+                .HasMaxLength(20);
+            e.Property(po => po.QtyRuleModeOverride)
+                .HasConversion<string?>()
+                .HasMaxLength(20);
+
+            e.HasOne(po => po.ProcessStep)
+                .WithMany(ps => ps.PortOverrides)
+                .HasForeignKey(po => po.ProcessStepId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(po => po.Port)
+                .WithMany()
+                .HasForeignKey(po => po.PortId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(po => po.KindOverride)
+                .WithMany()
+                .HasForeignKey(po => po.KindIdOverride)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(po => po.GradeOverride)
+                .WithMany()
+                .HasForeignKey(po => po.GradeIdOverride)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

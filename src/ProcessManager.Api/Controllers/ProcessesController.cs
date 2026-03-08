@@ -147,16 +147,40 @@ public class ProcessesController : ControllerBase
             StepTemplateId = dto.StepTemplateId,
             Sequence = dto.Sequence,
             NameOverride = dto.NameOverride,
-            DescriptionOverride = dto.DescriptionOverride
+            DescriptionOverride = dto.DescriptionOverride,
+            PatternOverride = dto.PatternOverride
         };
 
         _db.ProcessSteps.Add(processStep);
+
+        // Add port overrides if provided
+        if (dto.PortOverrides is not null)
+        {
+            foreach (var po in dto.PortOverrides)
+            {
+                _db.ProcessStepPortOverrides.Add(new ProcessStepPortOverride
+                {
+                    ProcessStepId = processStep.Id,
+                    PortId = po.PortId,
+                    NameOverride = po.NameOverride,
+                    DirectionOverride = po.DirectionOverride,
+                    KindIdOverride = po.KindIdOverride,
+                    GradeIdOverride = po.GradeIdOverride,
+                    QtyRuleModeOverride = po.QtyRuleModeOverride,
+                    QtyRuleNOverride = po.QtyRuleNOverride,
+                    SortOrderOverride = po.SortOrderOverride
+                });
+            }
+        }
+
         process.Version++;
         await _db.SaveChangesAsync();
 
         // Reload with nav props
         var result = await _db.ProcessSteps
             .Include(ps => ps.StepTemplate)
+            .Include(ps => ps.PortOverrides).ThenInclude(po => po.KindOverride)
+            .Include(ps => ps.PortOverrides).ThenInclude(po => po.GradeOverride)
             .FirstAsync(ps => ps.Id == processStep.Id);
 
         return CreatedAtAction(nameof(GetById), new { id = processId }, MapProcessStepToDto(result));
@@ -168,6 +192,7 @@ public class ProcessesController : ControllerBase
     {
         var processStep = await _db.ProcessSteps
             .Include(ps => ps.StepTemplate)
+            .Include(ps => ps.PortOverrides)
             .FirstOrDefaultAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
 
         if (processStep is null) return NotFound();
@@ -175,12 +200,43 @@ public class ProcessesController : ControllerBase
         processStep.Sequence = dto.Sequence;
         processStep.NameOverride = dto.NameOverride;
         processStep.DescriptionOverride = dto.DescriptionOverride;
+        processStep.PatternOverride = dto.PatternOverride;
+
+        // Replace port overrides if provided
+        if (dto.PortOverrides is not null)
+        {
+            _db.ProcessStepPortOverrides.RemoveRange(processStep.PortOverrides);
+
+            foreach (var po in dto.PortOverrides)
+            {
+                _db.ProcessStepPortOverrides.Add(new ProcessStepPortOverride
+                {
+                    ProcessStepId = stepId,
+                    PortId = po.PortId,
+                    NameOverride = po.NameOverride,
+                    DirectionOverride = po.DirectionOverride,
+                    KindIdOverride = po.KindIdOverride,
+                    GradeIdOverride = po.GradeIdOverride,
+                    QtyRuleModeOverride = po.QtyRuleModeOverride,
+                    QtyRuleNOverride = po.QtyRuleNOverride,
+                    SortOrderOverride = po.SortOrderOverride
+                });
+            }
+        }
 
         var process = await _db.Processes.FindAsync(processId);
         if (process is not null) process.Version++;
 
         await _db.SaveChangesAsync();
-        return MapProcessStepToDto(processStep);
+
+        // Reload with Kind/Grade nav props for response
+        var result = await _db.ProcessSteps
+            .Include(ps => ps.StepTemplate)
+            .Include(ps => ps.PortOverrides).ThenInclude(po => po.KindOverride)
+            .Include(ps => ps.PortOverrides).ThenInclude(po => po.GradeOverride)
+            .FirstAsync(ps => ps.Id == stepId);
+
+        return MapProcessStepToDto(result);
     }
 
     [HttpDelete("{processId:guid}/steps/{stepId:guid}")]
@@ -717,6 +773,8 @@ public class ProcessesController : ControllerBase
     {
         return await _db.Processes
             .Include(p => p.ProcessSteps).ThenInclude(ps => ps.StepTemplate).ThenInclude(st => st.Contents)
+            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.PortOverrides).ThenInclude(po => po.KindOverride)
+            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.PortOverrides).ThenInclude(po => po.GradeOverride)
             .Include(p => p.Flows).ThenInclude(f => f.SourcePort)
             .Include(p => p.Flows).ThenInclude(f => f.TargetPort)
             .FirstOrDefaultAsync(p => p.Id == id);
@@ -737,7 +795,15 @@ public class ProcessesController : ControllerBase
         ps.StepTemplate.Code, ps.StepTemplate.Name,
         ps.Sequence, ps.NameOverride, ps.DescriptionOverride,
         ps.CreatedAt, ps.UpdatedAt,
-        MaturityScoringService.Summarise(ps.StepTemplate)
+        MaturityScoringService.Summarise(ps.StepTemplate),
+        ps.PatternOverride,
+        ps.PortOverrides.Select(po => new ProcessStepPortOverrideResponseDto(
+            po.Id, po.PortId,
+            po.NameOverride, po.DirectionOverride,
+            po.KindIdOverride, po.KindOverride?.Name,
+            po.GradeIdOverride, po.GradeOverride?.Name,
+            po.QtyRuleModeOverride, po.QtyRuleNOverride,
+            po.SortOrderOverride)).ToList()
     );
 
     private static FlowResponseDto MapFlowToDto(Flow f) => new(

@@ -23,6 +23,7 @@ public class StepTemplatesController : ControllerBase
         [FromQuery] string? search = null,
         [FromQuery] bool? active = null,
         [FromQuery] string? status = null,
+        [FromQuery] bool? sharedOnly = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
@@ -42,6 +43,9 @@ public class StepTemplatesController : ControllerBase
         if (!string.IsNullOrWhiteSpace(status) &&
             Enum.TryParse<ProcessStatus>(status, ignoreCase: true, out var statusEnum))
             query = query.Where(s => s.Status == statusEnum);
+
+        if (sharedOnly == true)
+            query = query.Where(s => s.IsShared);
 
         var totalCount = await query.CountAsync();
 
@@ -75,19 +79,25 @@ public class StepTemplatesController : ControllerBase
         if (await _db.StepTemplates.AnyAsync(s => s.Code == dto.Code))
             return Conflict($"A StepTemplate with code '{dto.Code}' already exists.");
 
-        // Validate ports
-        var validationErrors = await ValidatePorts(dto.Ports, dto.Pattern);
-        if (validationErrors.Count > 0)
-            return BadRequest(new { errors = validationErrors });
+        // Validate ports (only if provided)
+        if (dto.Ports is { Count: > 0 })
+        {
+            var validationErrors = await ValidatePorts(dto.Ports, dto.Pattern);
+            if (validationErrors.Count > 0)
+                return BadRequest(new { errors = validationErrors });
+        }
 
         var step = new StepTemplate
         {
             Code = dto.Code,
             Name = dto.Name,
             Description = dto.Description,
-            Pattern = dto.Pattern
+            Pattern = dto.Pattern,
+            IsShared = dto.IsShared
         };
 
+        if (dto.Ports is { Count: > 0 })
+        {
         foreach (var portDto in dto.Ports)
         {
             step.Ports.Add(new Port
@@ -108,6 +118,7 @@ public class StepTemplatesController : ControllerBase
                 UpperTolerance = portDto.UpperTolerance,
                 SortOrder = portDto.SortOrder
             });
+        }
         }
 
         _db.StepTemplates.Add(step);
@@ -1004,7 +1015,7 @@ public class StepTemplatesController : ControllerBase
 
     private static StepTemplateResponseDto MapToDto(StepTemplate step) => new(
         step.Id, step.Code, step.Name, step.Description,
-        step.Pattern, step.Version, step.Status.ToString(), step.IsActive,
+        step.Pattern, step.Version, step.Status.ToString(), step.IsActive, step.IsShared,
         step.CreatedAt, step.UpdatedAt,
         step.Ports.OrderBy(p => p.Direction).ThenBy(p => p.SortOrder).Select(MapPortToDto).ToList(),
         step.Images.OrderBy(i => i.SortOrder).Select(MapImageToDto).ToList(),

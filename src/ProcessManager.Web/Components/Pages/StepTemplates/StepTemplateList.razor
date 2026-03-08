@@ -332,7 +332,7 @@ else if (_data is not null)
         _loading = true;
         try
         {
-            _data = await Api.GetStepTemplatesAsync(_search, _active, _status, _page, _pageSize);
+            _data = await Api.GetStepTemplatesAsync(_search, _active, _status, page: _page, pageSize: _pageSize);
         }
         catch (Exception ex)
         {

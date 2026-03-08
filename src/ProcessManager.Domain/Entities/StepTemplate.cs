@@ -28,6 +28,12 @@ public class StepTemplate : BaseEntity
     /// <summary>Formal lifecycle state — mirrors Process lifecycle for step templates.</summary>
     public ProcessStatus Status { get; set; } = ProcessStatus.Draft;
 
+    /// <summary>
+    /// When true this template appears in the shared library and can be reused across processes.
+    /// When false it is a private step owned by a single process (created inline from the Builder).
+    /// </summary>
+    public bool IsShared { get; set; } = true;
+
     // Navigation properties
     public ICollection<Port> Ports { get; set; } = new List<Port>();
     public ICollection<StepTemplateImage> Images { get; set; } = new List<StepTemplateImage>();

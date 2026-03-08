@@ -10,7 +10,8 @@ public record StepTemplateCreateDto(
     [Required, StringLength(200, MinimumLength = 1)] string Name,
     [StringLength(2000)] string? Description,
     StepPattern Pattern,
-    [Required, MinLength(1)] List<PortCreateDto> Ports
+    List<PortCreateDto>? Ports = null,
+    bool IsShared = true
 );
 
 public record StepTemplateUpdateDto(
@@ -29,6 +30,7 @@ public record StepTemplateResponseDto(
     int Version,
     string Status,
     bool IsActive,
+    bool IsShared,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     List<PortResponseDto> Ports,

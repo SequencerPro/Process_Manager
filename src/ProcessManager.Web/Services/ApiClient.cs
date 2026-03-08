@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components.Forms;
 using ProcessManager.Api.DTOs;
+using ProcessManager.Domain.Enums;
 
 namespace ProcessManager.Web.Services;
 
@@ -76,15 +77,25 @@ public class ApiClient
     // ═══════════════════ Step Templates ═══════════════════
 
     public Task<PaginatedResponse<StepTemplateResponseDto>?> GetStepTemplatesAsync(
-        string? search = null, bool? active = null, string? status = null, int page = 1, int pageSize = 25)
+        string? search = null, bool? active = null, string? status = null,
+        bool? sharedOnly = null, int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<StepTemplateResponseDto>>(
-            $"api/steptemplates?search={search}&active={active}&status={status}&page={page}&pageSize={pageSize}", _json);
+            $"api/steptemplates?search={search}&active={active}&status={status}&sharedOnly={sharedOnly}&page={page}&pageSize={pageSize}", _json);
 
     public Task<StepTemplateResponseDto?> GetStepTemplateAsync(Guid id)
         => _http.GetFromJsonAsync<StepTemplateResponseDto>($"api/steptemplates/{id}", _json);
 
     public async Task<StepTemplateResponseDto?> CreateStepTemplateAsync(StepTemplateCreateDto dto)
     {
+        var resp = await _http.PostAsJsonAsync("api/steptemplates", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<StepTemplateResponseDto>(_json);
+    }
+
+    public async Task<StepTemplateResponseDto?> CreatePrivateStepTemplateAsync(string name)
+    {
+        var code = $"PRIV-{Guid.NewGuid().ToString("N")[..8].ToUpper()}";
+        var dto = new StepTemplateCreateDto(code, name, null, StepPattern.Transform, null, IsShared: false);
         var resp = await _http.PostAsJsonAsync("api/steptemplates", dto, _json);
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<StepTemplateResponseDto>(_json);

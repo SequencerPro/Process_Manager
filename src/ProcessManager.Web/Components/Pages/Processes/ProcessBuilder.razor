@@ -215,7 +215,7 @@ else
 @* ══════════════════════════════════════════
    Step Picker — right-side slide panel
    ══════════════════════════════════════════ *@
-@if (_showPicker)
+@if (_pickerMode is not null)
 {
     <div class="position-fixed top-0 start-0 w-100 h-100" style="background:rgba(0,0,0,.35);z-index:1050"
          @onclick="ClosePicker"></div>
@@ -223,89 +223,120 @@ else
     <div class="position-fixed top-0 end-0 h-100 bg-white shadow-lg border-start d-flex flex-column"
          style="width:400px;z-index:1051">
         <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
-            <h6 class="mb-0"><i class="bi bi-box-seam me-1"></i>Add Step</h6>
+            <h6 class="mb-0">
+                @if (_pickerMode != "choice")
+                {
+                    <button class="btn btn-sm btn-link p-0 me-2 text-body" style="line-height:1"
+                            @onclick='() => _pickerMode = "choice"' @onclick:stopPropagation="true">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                }
+                <i class="bi bi-plus-circle me-1"></i>Add Step
+            </h6>
             <button class="btn-close" @onclick="ClosePicker"></button>
         </div>
 
-        <div class="p-3 border-bottom">
-            <input class="form-control" placeholder="Search step templates…"
-                   value="@_pickerSearch"
-                   @oninput="OnPickerSearch" />
-        </div>
-
-        <div class="flex-grow-1 overflow-auto p-3">
-            @if (_pickerLoading)
-            {
-                <div class="text-center py-4">
-                    <div class="spinner-border text-primary"></div>
-                </div>
-            }
-            else if (_pickerTemplates is null || !_pickerTemplates.Items.Any())
-            {
-                <div class="text-center text-muted py-4">
-                    <i class="bi bi-search d-block mb-2" style="font-size:1.8rem"></i>
-                    No templates found.
-                </div>
-            }
-            else
-            {
-                @foreach (var t in _pickerTemplates.Items)
-                {
-                    var tpl = t;
-                    <div class="border rounded-2 p-3 mb-2 d-flex justify-content-between align-items-start"
-                         style="cursor:pointer;transition:background .15s"
-                         @onclick="() => AddStep(tpl)"
-                         @onmouseenter="e => { }" @onmouseleave="e => { }">
-                        <div class="flex-grow-1 pe-2">
-                            <div class="fw-semibold">@t.Name</div>
-                            <div class="text-muted small"><code>@t.Code</code> &bull; @t.Pattern</div>
-                            <div class="mt-1 small">
-                                <span class="text-success me-3">
-                                    <i class="bi bi-box-arrow-in-right me-1"></i>@t.Ports.Count(p => p.Direction == PortDirection.Input) input(s)
-                                </span>
-                                <span class="text-primary">
-                                    <i class="bi bi-box-arrow-right me-1"></i>@t.Ports.Count(p => p.Direction == PortDirection.Output) output(s)
-                                </span>
-                            </div>
-                            @if (t.Ports.Any())
-                            {
-                                <div class="mt-1">
-                                    @foreach (var p in t.Ports.OrderBy(p => p.SortOrder).Take(4))
-                                    {
-                                        <span class="badge @(p.Direction == PortDirection.Input ? "bg-success-subtle text-success border border-success" : "bg-primary-subtle text-primary border border-primary") me-1 mb-1 small">
-                                            @p.Name
-                                        </span>
-                                    }
-                                    @if (t.Ports.Count > 4)
-                                    {
-                                        <span class="text-muted small">+@(t.Ports.Count - 4) more</span>
-                                    }
-                                </div>
-                            }
-                        </div>
-                        <button class="btn btn-primary btn-sm ms-2 flex-shrink-0" @onclick:stopPropagation="true"
-                                @onclick="() => AddStep(tpl)">
-                            Add
-                        </button>
-                    </div>
-                }
-                @if (_pickerTemplates.TotalCount > _pickerTemplates.Items.Count)
-                {
-                    <div class="text-center text-muted small mt-2">
-                        Showing @_pickerTemplates.Items.Count of @_pickerTemplates.TotalCount — refine search to narrow results.
-                    </div>
-                }
-            }
-
-            <hr />
-            <div class="text-center">
-                <p class="text-muted small mb-2">Need to create a new step template first?</p>
-                <a href="step-templates" target="_blank" class="btn btn-outline-secondary btn-sm">
-                    <i class="bi bi-box-seam me-1"></i>Manage Step Templates
-                    <i class="bi bi-box-arrow-up-right ms-1 small"></i>
-                </a>
+        @if (_pickerMode == "choice")
+        {
+            <div class="p-4 d-flex flex-column gap-3">
+                <button class="btn btn-outline-primary p-3 text-start rounded-3"
+                        @onclick='() => _pickerMode = "blank"'>
+                    <div class="fw-semibold"><i class="bi bi-file-earmark-plus me-2"></i>New blank step</div>
+                    <div class="text-muted small mt-1">Create a named placeholder step. Add ports and content later in the step editor.</div>
+                </button>
+                <button class="btn btn-outline-secondary p-3 text-start rounded-3"
+                        @onclick='async () => { _pickerMode = "library"; await LoadPickerTemplates(); }'>
+                    <div class="fw-semibold"><i class="bi bi-box-seam me-2"></i>From library</div>
+                    <div class="text-muted small mt-1">Pick a shared step template from the library.</div>
+                </button>
             </div>
-        </div>
+        }
+        else if (_pickerMode == "blank")
+        {
+            <div class="p-4">
+                <label class="form-label fw-semibold">Step name</label>
+                <input class="form-control mb-3" placeholder="e.g. Incoming Inspection"
+                       @bind="_newStepName" @bind:event="oninput" />
+                <button class="btn btn-primary w-100"
+                        disabled="@(string.IsNullOrWhiteSpace(_newStepName))"
+                        @onclick="CreateBlankStepAndAdd">
+                    <i class="bi bi-plus-lg me-1"></i>Create step
+                </button>
+            </div>
+        }
+        else if (_pickerMode == "library")
+        {
+            <div class="p-3 border-bottom">
+                <input class="form-control" placeholder="Search step templates…"
+                       value="@_pickerSearch"
+                       @oninput="OnPickerSearch" />
+            </div>
+
+            <div class="flex-grow-1 overflow-auto p-3">
+                @if (_pickerLoading)
+                {
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary"></div>
+                    </div>
+                }
+                else if (_pickerTemplates is null || !_pickerTemplates.Items.Any())
+                {
+                    <div class="text-center text-muted py-4">
+                        <i class="bi bi-search d-block mb-2" style="font-size:1.8rem"></i>
+                        No templates found.
+                    </div>
+                }
+                else
+                {
+                    @foreach (var t in _pickerTemplates.Items)
+                    {
+                        var tpl = t;
+                        <div class="border rounded-2 p-3 mb-2 d-flex justify-content-between align-items-start"
+                             style="cursor:pointer;transition:background .15s"
+                             @onclick="() => AddStep(tpl)"
+                             @onmouseenter="e => { }" @onmouseleave="e => { }">
+                            <div class="flex-grow-1 pe-2">
+                                <div class="fw-semibold">@t.Name</div>
+                                <div class="text-muted small"><code>@t.Code</code> &bull; @t.Pattern</div>
+                                <div class="mt-1 small">
+                                    <span class="text-success me-3">
+                                        <i class="bi bi-box-arrow-in-right me-1"></i>@t.Ports.Count(p => p.Direction == PortDirection.Input) input(s)
+                                    </span>
+                                    <span class="text-primary">
+                                        <i class="bi bi-box-arrow-right me-1"></i>@t.Ports.Count(p => p.Direction == PortDirection.Output) output(s)
+                                    </span>
+                                </div>
+                                @if (t.Ports.Any())
+                                {
+                                    <div class="mt-1">
+                                        @foreach (var p in t.Ports.OrderBy(p => p.SortOrder).Take(4))
+                                        {
+                                            <span class="badge @(p.Direction == PortDirection.Input ? "bg-success-subtle text-success border border-success" : "bg-primary-subtle text-primary border border-primary") me-1 mb-1 small">
+                                                @p.Name
+                                            </span>
+                                        }
+                                        @if (t.Ports.Count > 4)
+                                        {
+                                            <span class="text-muted small">+@(t.Ports.Count - 4) more</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                            <button class="btn btn-primary btn-sm ms-2 flex-shrink-0" @onclick:stopPropagation="true"
+                                    @onclick="() => AddStep(tpl)">
+                                Add
+                            </button>
+                        </div>
+                    }
+                    @if (_pickerTemplates.TotalCount > _pickerTemplates.Items.Count)
+                    {
+                        <div class="text-center text-muted small mt-2">
+                            Showing @_pickerTemplates.Items.Count of @_pickerTemplates.TotalCount — refine search to narrow results.
+                        </div>
+                    }
+                }
+            </div>
+        }
     </div>
 }
 
@@ -767,7 +798,8 @@ else
     private ProcessValidationResultDto? _validation;
 
     // ── Step picker ──
-    private bool _showPicker;
+    private string? _pickerMode;   // null=closed, "choice", "blank", "library"
+    private string _newStepName = "";
     private int _insertAtIndex;
     private string _pickerSearch = "";
     private bool _pickerLoading;
@@ -1002,7 +1034,7 @@ else
         if (model is ProcessStepNodeModel node)
         {
             var idx = GetStepIndex(node.Step);
-            if (idx >= 0) _ = ShowEditStep(idx);
+            if (idx >= 0) _ = InvokeAsync(() => ShowEditStep(idx));
         }
     }
 
@@ -1081,15 +1113,15 @@ else
     // Step manipulation
     // ──────────────────────────────────────────────
 
-    private async Task OpenStepPicker(int insertAtIndex)
+    private void OpenStepPicker(int insertAtIndex)
     {
         _insertAtIndex = insertAtIndex;
         _pickerSearch = "";
-        _showPicker = true;
-        await LoadPickerTemplates();
+        _newStepName = "";
+        _pickerMode = "choice";
     }
 
-    private void ClosePicker() => _showPicker = false;
+    private void ClosePicker() => _pickerMode = null;
 
     private async Task OnPickerSearch(ChangeEventArgs e)
     {
@@ -1108,7 +1140,7 @@ else
         StateHasChanged();
         try
         {
-            _pickerTemplates = await Api.GetStepTemplatesAsync(_pickerSearch, true, pageSize: 20);
+            _pickerTemplates = await Api.GetStepTemplatesAsync(_pickerSearch, true, sharedOnly: true, pageSize: 20);
         }
         catch (Exception ex)
         {
@@ -1117,6 +1149,20 @@ else
         finally
         {
             _pickerLoading = false;
+        }
+    }
+
+    private async Task CreateBlankStepAndAdd()
+    {
+        if (string.IsNullOrWhiteSpace(_newStepName)) return;
+        try
+        {
+            var template = await Api.CreatePrivateStepTemplateAsync(_newStepName.Trim());
+            if (template is not null) AddStep(template);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to create step: {ex.Message}");
         }
     }
 
@@ -1129,7 +1175,7 @@ else
             Template = template
         });
         for (int i = 0; i < _steps.Count; i++) _steps[i].Sequence = i + 1;
-        _showPicker = false;
+        _pickerMode = null;
         _validation = null;
         RebuildDiagram();
     }
@@ -1283,6 +1329,7 @@ else
         finally
         {
             _contentLoading = false;
+            StateHasChanged();
         }
     }
 

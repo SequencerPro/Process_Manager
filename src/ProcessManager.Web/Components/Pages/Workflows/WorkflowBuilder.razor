@@ -543,6 +543,8 @@ else
 
     private void OnLinkAdded(BaseLinkModel link)
     {
+        link.TargetMarker = LinkMarker.Arrow;
+
         // Only handle user-drawn links (those not already in our map)
         if (link is LinkModel lm && !_linkDataMap.ContainsKey(lm))
         {

@@ -993,6 +993,7 @@ else
     private void OnLinkAdded(BaseLinkModel link)
     {
         if (link is SequenceLinkModel) return;
+        link.TargetMarker = LinkMarker.Arrow;
         if (link is LinkModel lm && !_linkData.ContainsKey(lm))
             link.TargetChanged += OnLinkTargetChanged;
     }

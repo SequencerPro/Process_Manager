@@ -221,76 +221,6 @@ namespace ProcessManager.Api.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.ApprovalRecord", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Decision")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid>("EntityId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("EntityType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<int>("EntityVersion")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<Guid?>("ProcessId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("ReviewedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ReviewedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid?>("StepTemplateId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("SubmittedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("SubmittedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProcessId");
-
-                    b.HasIndex("StepTemplateId");
-
-                    b.HasIndex("EntityType", "EntityId");
-
-                    b.ToTable("ApprovalRecords");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.Batch", b =>
                 {
                     b.Property<Guid>("Id")
@@ -343,179 +273,6 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("KindId");
 
                     b.ToTable("Batches");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.CeCorrelation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CeInputId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("CeMatrixId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CeOutputId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<int>("Score")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CeMatrixId");
-
-                    b.HasIndex("CeOutputId");
-
-                    b.HasIndex("CeInputId", "CeOutputId")
-                        .IsUnique();
-
-                    b.ToTable("CeCorrelations");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.CeInput", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<Guid>("CeMatrixId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid?>("PortId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CeMatrixId");
-
-                    b.HasIndex("PortId");
-
-                    b.ToTable("CeInputs");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.CeMatrix", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid>("ProcessStepId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProcessStepId");
-
-                    b.ToTable("CeMatrices");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.CeOutput", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<Guid>("CeMatrixId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<int>("Importance")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid?>("PortId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CeMatrixId");
-
-                    b.HasIndex("PortId");
-
-                    b.ToTable("CeOutputs");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.DomainVocabulary", b =>
@@ -844,9 +601,6 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid>("ProcessId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("ProcessVersion")
-                        .HasColumnType("integer");
-
                     b.Property<DateTime?>("StartedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -914,258 +668,6 @@ namespace ProcessManager.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Kinds");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.NonConformance", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ActualValue")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<Guid>("ContentBlockId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("DisposedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DisposedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("DispositionStatus")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("JustificationText")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("LimitType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid>("StepExecutionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ContentBlockId");
-
-                    b.HasIndex("StepExecutionId");
-
-                    b.ToTable("NonConformances");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.Pfmea", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsStale")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid>("ProcessId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("ProcessVersion")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("StalenessClearanceNotes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTime?>("StalenessClearedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("StalenessClearedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<int>("Version")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.HasIndex("ProcessId");
-
-                    b.ToTable("Pfmeas");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.PfmeaAction", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("CompletedDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CompletionNotes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<Guid>("FailureModeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ResponsiblePerson")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<int?>("RevisedDetection")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("RevisedOccurrence")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTime?>("TargetDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FailureModeId");
-
-                    b.ToTable("PfmeaActions");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.PfmeaFailureMode", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<int>("Detection")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("DetectionControls")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("FailureCause")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("FailureEffect")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<string>("FailureMode")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<int>("Occurrence")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("PfmeaId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("PreventionControls")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<Guid>("ProcessStepId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Severity")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("StepFunction")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PfmeaId");
-
-                    b.HasIndex("ProcessStepId");
-
-                    b.ToTable("PfmeaFailureModes");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Port", b =>
@@ -1303,49 +805,6 @@ namespace ProcessManager.Api.Migrations
                     b.ToTable("PortTransactions");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.PowerBiDashboard", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("EmbedUrl")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("PowerBiDashboards");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.Process", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1374,14 +833,6 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<Guid?>("ParentProcessId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1395,8 +846,6 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("Code")
                         .IsUnique();
-
-                    b.HasIndex("ParentProcessId");
 
                     b.ToTable("Processes");
                 });
@@ -1419,10 +868,6 @@ namespace ProcessManager.Api.Migrations
                     b.Property<string>("NameOverride")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
-
-                    b.Property<string>("PatternOverride")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
 
                     b.Property<Guid>("ProcessId")
                         .HasColumnType("uuid");
@@ -1455,9 +900,6 @@ namespace ProcessManager.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("AcknowledgmentRequired")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("Body")
                         .HasMaxLength(10000)
                         .HasColumnType("character varying(10000)");
@@ -1465,10 +907,6 @@ namespace ProcessManager.Api.Migrations
                     b.Property<string>("Choices")
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
-
-                    b.Property<string>("ContentCategory")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("ContentType")
                         .IsRequired()
@@ -1485,9 +923,6 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<bool>("IsHardLimit")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("IsRequired")
                         .HasColumnType("boolean");
 
@@ -1503,9 +938,6 @@ namespace ProcessManager.Api.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<decimal?>("MinValue")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("NominalValue")
                         .HasColumnType("numeric");
 
                     b.Property<string>("OriginalFileName")
@@ -1537,68 +969,6 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("ProcessStepId");
 
                     b.ToTable("ProcessStepContents");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.ProcessStepPortOverride", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("DirectionOverride")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid?>("GradeIdOverride")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("KindIdOverride")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("NameOverride")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid>("PortId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ProcessStepId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("QtyRuleModeOverride")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<int?>("QtyRuleNOverride")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("SortOrderOverride")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("GradeIdOverride");
-
-                    b.HasIndex("KindIdOverride");
-
-                    b.HasIndex("PortId");
-
-                    b.HasIndex("ProcessStepId", "PortId")
-                        .IsUnique();
-
-                    b.ToTable("ProcessStepPortOverrides");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.PromptResponse", b =>
@@ -1652,56 +1022,6 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("StepTemplateContentId");
 
                     b.ToTable("PromptResponses");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.RunChartWidget", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("ChartWindowSize")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<int>("DisplayOrder")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Label")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<Guid>("SourceContentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal?>("SpecMax")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("SpecMin")
-                        .HasColumnType("numeric");
-
-                    b.Property<Guid>("StepTemplateId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SourceContentId");
-
-                    b.HasIndex("StepTemplateId");
-
-                    b.ToTable("RunChartWidgets");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepExecution", b =>
@@ -1778,20 +1098,12 @@ namespace ProcessManager.Api.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsShared")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
                     b.Property<string>("Pattern")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
@@ -1819,9 +1131,6 @@ namespace ProcessManager.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("AcknowledgmentRequired")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("Body")
                         .HasMaxLength(10000)
                         .HasColumnType("character varying(10000)");
@@ -1829,10 +1138,6 @@ namespace ProcessManager.Api.Migrations
                     b.Property<string>("Choices")
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
-
-                    b.Property<string>("ContentCategory")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("ContentType")
                         .IsRequired()
@@ -1849,12 +1154,6 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<int>("IntroducedInVersion")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("IsHardLimit")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("IsRequired")
                         .HasColumnType("boolean");
 
@@ -1870,9 +1169,6 @@ namespace ProcessManager.Api.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<decimal?>("MinValue")
-                        .HasColumnType("numeric");
-
-                    b.Property<decimal?>("NominalValue")
                         .HasColumnType("numeric");
 
                     b.Property<string>("OriginalFileName")
@@ -2009,9 +1305,6 @@ namespace ProcessManager.Api.Migrations
                     b.Property<string>("CreatedBy")
                         .HasColumnType("text");
 
-                    b.Property<string>("LineShape")
-                        .HasColumnType("text");
-
                     b.Property<string>("Name")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -2091,9 +1384,6 @@ namespace ProcessManager.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("Color")
-                        .HasColumnType("text");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2103,16 +1393,7 @@ namespace ProcessManager.Api.Migrations
                     b.Property<bool>("IsEntryPoint")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsTerminalNode")
-                        .HasColumnType("boolean");
-
-                    b.Property<double>("PositionX")
-                        .HasColumnType("double precision");
-
-                    b.Property<double>("PositionY")
-                        .HasColumnType("double precision");
-
-                    b.Property<Guid?>("ProcessId")
+                    b.Property<Guid>("ProcessId")
                         .HasColumnType("uuid");
 
                     b.Property<int>("SortOrder")
@@ -2131,7 +1412,8 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("ProcessId");
 
-                    b.HasIndex("WorkflowId", "ProcessId");
+                    b.HasIndex("WorkflowId", "ProcessId")
+                        .IsUnique();
 
                     b.ToTable("WorkflowProcesses");
                 });
@@ -2187,23 +1469,6 @@ namespace ProcessManager.Api.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.ApprovalRecord", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.Process", "Process")
-                        .WithMany("ApprovalRecords")
-                        .HasForeignKey("ProcessId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("ProcessManager.Domain.Entities.StepTemplate", "StepTemplate")
-                        .WithMany("ApprovalRecords")
-                        .HasForeignKey("StepTemplateId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.Navigation("Process");
-
-                    b.Navigation("StepTemplate");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.Batch", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.Grade", "Grade")
@@ -2229,76 +1494,6 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Job");
 
                     b.Navigation("Kind");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.CeCorrelation", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.CeInput", "Input")
-                        .WithMany("Correlations")
-                        .HasForeignKey("CeInputId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ProcessManager.Domain.Entities.CeMatrix", null)
-                        .WithMany("Correlations")
-                        .HasForeignKey("CeMatrixId");
-
-                    b.HasOne("ProcessManager.Domain.Entities.CeOutput", "Output")
-                        .WithMany("Correlations")
-                        .HasForeignKey("CeOutputId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Input");
-
-                    b.Navigation("Output");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.CeInput", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.CeMatrix", "CeMatrix")
-                        .WithMany("Inputs")
-                        .HasForeignKey("CeMatrixId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ProcessManager.Domain.Entities.Port", "Port")
-                        .WithMany()
-                        .HasForeignKey("PortId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("CeMatrix");
-
-                    b.Navigation("Port");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.CeMatrix", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.ProcessStep", "ProcessStep")
-                        .WithMany()
-                        .HasForeignKey("ProcessStepId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ProcessStep");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.CeOutput", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.CeMatrix", "CeMatrix")
-                        .WithMany("Outputs")
-                        .HasForeignKey("CeMatrixId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ProcessManager.Domain.Entities.Port", "Port")
-                        .WithMany()
-                        .HasForeignKey("PortId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("CeMatrix");
-
-                    b.Navigation("Port");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.ExecutionData", b =>
@@ -2424,66 +1619,6 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Process");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.NonConformance", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.ProcessStepContent", "ContentBlock")
-                        .WithMany()
-                        .HasForeignKey("ContentBlockId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("ProcessManager.Domain.Entities.StepExecution", "StepExecution")
-                        .WithMany("NonConformances")
-                        .HasForeignKey("StepExecutionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ContentBlock");
-
-                    b.Navigation("StepExecution");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.Pfmea", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.Process", "Process")
-                        .WithMany()
-                        .HasForeignKey("ProcessId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Process");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.PfmeaAction", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.PfmeaFailureMode", "FailureMode")
-                        .WithMany("Actions")
-                        .HasForeignKey("FailureModeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("FailureMode");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.PfmeaFailureMode", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.Pfmea", "Pfmea")
-                        .WithMany("FailureModes")
-                        .HasForeignKey("PfmeaId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ProcessManager.Domain.Entities.ProcessStep", "ProcessStep")
-                        .WithMany()
-                        .HasForeignKey("ProcessStepId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Pfmea");
-
-                    b.Navigation("ProcessStep");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.Port", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.Grade", "Grade")
@@ -2542,16 +1677,6 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("StepExecution");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.Process", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.Process", "ParentProcess")
-                        .WithMany()
-                        .HasForeignKey("ParentProcessId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("ParentProcess");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.ProcessStep", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.Process", "Process")
@@ -2582,39 +1707,6 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("ProcessStep");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.ProcessStepPortOverride", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.Grade", "GradeOverride")
-                        .WithMany()
-                        .HasForeignKey("GradeIdOverride")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("ProcessManager.Domain.Entities.Kind", "KindOverride")
-                        .WithMany()
-                        .HasForeignKey("KindIdOverride")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("ProcessManager.Domain.Entities.Port", "Port")
-                        .WithMany()
-                        .HasForeignKey("PortId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("ProcessManager.Domain.Entities.ProcessStep", "ProcessStep")
-                        .WithMany("PortOverrides")
-                        .HasForeignKey("ProcessStepId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("GradeOverride");
-
-                    b.Navigation("KindOverride");
-
-                    b.Navigation("Port");
-
-                    b.Navigation("ProcessStep");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.PromptResponse", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.ProcessStepContent", "ProcessStepContent")
@@ -2638,25 +1730,6 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("StepExecution");
 
                     b.Navigation("StepTemplateContent");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.RunChartWidget", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.StepTemplateContent", "SourceContent")
-                        .WithMany()
-                        .HasForeignKey("SourceContentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("ProcessManager.Domain.Entities.StepTemplate", "StepTemplate")
-                        .WithMany("RunChartWidgets")
-                        .HasForeignKey("StepTemplateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("SourceContent");
-
-                    b.Navigation("StepTemplate");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepExecution", b =>
@@ -2751,7 +1824,8 @@ namespace ProcessManager.Api.Migrations
                     b.HasOne("ProcessManager.Domain.Entities.Process", "Process")
                         .WithMany()
                         .HasForeignKey("ProcessId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("ProcessManager.Domain.Entities.Workflow", "Workflow")
                         .WithMany("WorkflowProcesses")
@@ -2771,25 +1845,6 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Items");
 
                     b.Navigation("PortTransactions");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.CeInput", b =>
-                {
-                    b.Navigation("Correlations");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.CeMatrix", b =>
-                {
-                    b.Navigation("Correlations");
-
-                    b.Navigation("Inputs");
-
-                    b.Navigation("Outputs");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.CeOutput", b =>
-                {
-                    b.Navigation("Correlations");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Item", b =>
@@ -2813,20 +1868,8 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Grades");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.Pfmea", b =>
-                {
-                    b.Navigation("FailureModes");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.PfmeaFailureMode", b =>
-                {
-                    b.Navigation("Actions");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.Process", b =>
                 {
-                    b.Navigation("ApprovalRecords");
-
                     b.Navigation("Flows");
 
                     b.Navigation("ProcessSteps");
@@ -2835,15 +1878,11 @@ namespace ProcessManager.Api.Migrations
             modelBuilder.Entity("ProcessManager.Domain.Entities.ProcessStep", b =>
                 {
                     b.Navigation("Contents");
-
-                    b.Navigation("PortOverrides");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepExecution", b =>
                 {
                     b.Navigation("ExecutionData");
-
-                    b.Navigation("NonConformances");
 
                     b.Navigation("PortTransactions");
 
@@ -2852,15 +1891,11 @@ namespace ProcessManager.Api.Migrations
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepTemplate", b =>
                 {
-                    b.Navigation("ApprovalRecords");
-
                     b.Navigation("Contents");
 
                     b.Navigation("Images");
 
                     b.Navigation("Ports");
-
-                    b.Navigation("RunChartWidgets");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Workflow", b =>

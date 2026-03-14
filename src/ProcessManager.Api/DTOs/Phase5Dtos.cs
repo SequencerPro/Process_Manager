@@ -24,8 +24,6 @@ public record JobResponseDto(
     string? Description,
     Guid ProcessId,
     string ProcessName,
-    string ProcessStatus,
-    int ProcessVersion,
     string Status,
     int Priority,
     DateTime? StartedAt,
@@ -103,10 +101,7 @@ public record StepExecutionResponseDto(
     string? Notes,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    List<PortTransactionResponseDto>? PortTransactions = null,
-    string? JobCode = null,
-    string? JobName = null,
-    Guid? ProcessId = null);
+    List<PortTransactionResponseDto>? PortTransactions = null);
 
 public record UpdateStepExecutionNotesDto(
     string? Notes);

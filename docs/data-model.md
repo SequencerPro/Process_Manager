@@ -9,8 +9,6 @@
 | 0.3     | 2026-02-16 | Added Phase 4 — Workflows      |
 | 0.4     | 2026-02-22 | Corrections: RoutingType values (Always/GradeBased/Manual, not Sequential); noted JobName/BatchCode denormalized fields on Item/Batch response DTOs for display performance |
 | 0.5     | 2026-02-27 | Extended Port model with PortType enum (Material, Parameter, Characteristic, Condition); Kind/Grade/QtyRule fields now Material-only; added DataType/Units/NominalValue/Tolerance fields for Parameter and Characteristic ports |
-| 0.6     | 2026-03-08 | Phase 4 extensions for workflow execution: OrgUnit entity, assignee_id on WorkflowProcess, new WorkflowJob entity (with schedule_id), WorkflowSchedule entity; Phase 5 extension: workflow_job_id and workflow_process_id on Job |
-| 0.7     | 2026-03-08 | Phase 2 additions: PromptDefinition and PromptOption entities; ExecutionData: prompt_definition_id FK, value widened to text, extended DataType enum (Select, MultiSelect, Barcode, Photo, Signature) |
 
 ---
 
@@ -174,7 +172,6 @@ A reusable definition of a unit of work. "Template" distinguishes the design-tim
 
 **Notes:**
 - The `pattern` field is informational/classificatory. The actual behavior is determined by the port configuration. A StepTemplate marked as "Transform" that has 2 input ports would be caught by validation.
-- A `StepTemplate` has two independent extension points: **Ports** (quality-tool connection points for PFMEA, C&E, Control Plan) and **PromptDefinitions** (operator data-collection form fields). Both hang off the same `StepTemplate` but serve different layers and neither requires the other.
 
 ### Port
 
@@ -227,80 +224,6 @@ A named connection point on a StepTemplate. Every port has a `port_type` that go
 | Assembly  | 2 or more                    | Exactly 1                       |
 | Division  | Exactly 1                    | 2 or more                       |
 | General   | Any                          | Any                             |
-
-### PromptDefinition
-
-A design-time specification of a single data-collection field presented to the operator when executing a step. `PromptDefinition` definitions are owned by a `StepTemplate` and drive both the UI form (ordering, labels, validation) and completeness gating (a step cannot be completed until all `is_required` prompts have a corresponding `ExecutionData` record).
-
-This is intentionally separate from `Port` (Parameter/Characteristic). A `Port` models process-knowledge relationships for quality tools. A `PromptDefinition` models operator UI and data capture. They coexist on the same `StepTemplate` and may represent the same physical measurement, but they serve different purposes and neither depends on the other.
-
-| Attribute           | Type        | Constraints                         | Description                                                                 |
-|---------------------|-------------|-------------------------------------|-----------------------------------------------------------------------------|
-| id                  | UUID        | PK                                  | Unique identifier                                                           |
-| step_template_id    | UUID        | FK → StepTemplate, Not Null         | The StepTemplate this prompt belongs to                                     |
-| key                 | string(100) | Unique per step_template, Not Null  | Machine-readable field name (e.g., `solder_temp`, `operator_id`)           |
-| label               | string(200) | Not Null                            | Question or field label shown to the operator                               |
-| description         | text        |                                     | Additional guidance / help text                                             |
-| data_type           | enum        | Not Null                            | See DataType enum below                                                     |
-| collection_scope    | enum        | Not Null, Default: PerStep          | One of: PerStep, PerItem, PerBatch                                          |
-| is_required         | boolean     | Not Null, Default: true             | Whether an answer must exist before the step can be completed               |
-| units               | string(50)  |                                     | Unit of measure for numeric prompts (e.g., `°C`, `mm`, `kPa`)              |
-| nominal_value       | string(200) |                                     | Expected/target value (stored as string; interpretation depends on data_type) |
-| lower_limit         | string(200) |                                     | Minimum acceptable value (numeric prompts)                                  |
-| upper_limit         | string(200) |                                     | Maximum acceptable value (numeric prompts)                                  |
-| validation_pattern  | string(500) |                                     | Regex applied to String and Barcode answers to validate format              |
-| sort_order          | integer     | Not Null, Default: 0                | Display order within the step's form                                        |
-| created_at          | timestamp   | Not Null                            | Record creation time                                                        |
-| updated_at          | timestamp   | Not Null                            | Last modification time                                                      |
-
-**DataType enum values** (shared with `ExecutionData.data_type`):
-
-| Value       | Stored as          | Use cases                                                          |
-|-------------|--------------------|--------------------------------------------------------------------||
-| String      | text               | Free-text notes, names, addresses, survey answers                  |
-| Integer     | text (parsed)      | Counts, cycles, quantities                                         |
-| Decimal     | text (parsed)      | Temperatures, pressures, dimensions                                |
-| Boolean     | "true"/"false"     | Pass/Fail flags, yes/no questions                                  |
-| DateTime    | ISO-8601 string    | Timestamps, dates, scheduled times                                 |
-| Select      | option value       | Single-choice from a predefined list (e.g., failure reason)        |
-| MultiSelect | comma-delimited    | Multiple choices from a list (e.g., checklist items completed)     |
-| Barcode     | scanned string     | Part serial number, workpiece ID, asset tag (with optional regex validation) |
-| Photo       | file reference     | Defect photo, completed assembly evidence, condition documentation |
-| Signature   | encoded string     | Operator sign-off, approval capture                                |
-
-**CollectionScope enum values:**
-
-| Value    | Description                                                                           |
-|----------|---------------------------------------------------------------------------------------|
-| PerStep  | One answer per step execution — entered once regardless of how many items are in scope |
-| PerItem  | One answer per item flowing through the step — form repeats for each serialized item   |
-| PerBatch | One answer per batch — entered once per batch passing through the step                 |
-
-**Constraints:**
-- `key` must be unique within a `step_template_id`
-- `lower_limit` and `upper_limit` only apply when `data_type` is Integer or Decimal
-- `validation_pattern` only applies when `data_type` is String or Barcode
-- `units` and `nominal_value` only apply when `data_type` is Integer or Decimal
-- Prompts with `data_type` = Select or MultiSelect must have at least one associated `PromptOption`
-
-### PromptOption
-
-A single choice in the option list for a `Select` or `MultiSelect` prompt. The operator sees `label`; the stored value in `ExecutionData` is `value`.
-
-| Attribute              | Type        | Constraints                         | Description                                         |
-|------------------------|-------------|-------------------------------------|-----------------------------------------------------|
-| id                     | UUID        | PK                                  | Unique identifier                                   |
-| prompt_definition_id   | UUID        | FK → PromptDefinition, Not Null     | The prompt this option belongs to                   |
-| label                  | string(200) | Not Null                            | Human-readable option text shown in the UI          |
-| value                  | string(200) | Not Null                            | Stored value in ExecutionData (may differ from label) |
-| sort_order             | integer     | Not Null, Default: 0                | Display order in the option list                    |
-| is_active              | boolean     | Not Null, Default: true             | Whether this option is currently offered            |
-| created_at             | timestamp   | Not Null                            | Record creation time                                |
-| updated_at             | timestamp   | Not Null                            | Last modification time                              |
-
-**Constraints:**
-- `value` must be unique within a `prompt_definition_id`
-- Only valid when the parent `PromptDefinition.data_type` is Select or MultiSelect
 
 ---
 
@@ -483,7 +406,6 @@ A placement of a Process within a Workflow (a node in the graph).
 | id             | UUID        | PK                             | Unique identifier                              |
 | workflow_id    | UUID        | FK → Workflow, Not Null        | The Workflow this placement belongs to         |
 | process_id     | UUID        | FK → Process, Not Null         | The Process being placed                       |
-| assignee_id    | UUID        | FK → OrgUnit, nullable         | Department/role responsible for executing this node |
 | is_entry_point | boolean     | Not Null, Default: false       | Is this a starting point in the workflow?      |
 | sort_order     | integer     | Not Null, Default: 0           | Display ordering                               |
 | created_at     | timestamp   | Not Null                       | Record creation time                           |
@@ -491,7 +413,6 @@ A placement of a Process within a Workflow (a node in the graph).
 
 **Constraints:**
 - Unique on (workflow_id, process_id) — a process appears at most once per workflow
-- assignee_id, when set, must reference an OrgUnit with is_active = true
 
 ### WorkflowLink
 
@@ -529,84 +450,6 @@ A grade-based routing condition on a WorkflowLink. When a link has routing_type 
 **Constraints:**
 - Only valid when the link's routing_type = GradeBased
 - Unique on (workflow_link_id, grade_id) — no duplicate conditions per link
-
-### OrgUnit
-
-An assignable entity representing any responsible party: a department, work area, role, or individual. Used to declare responsibility for a `WorkflowProcess` node at design time, and to route notifications when execution advances to that node.
-
-| Attribute      | Type        | Constraints                    | Description                                    |
-|----------------|-------------|--------------------------------|------------------------------------------------|
-| id             | UUID        | PK                             | Unique identifier                              |
-| code           | string(50)  | Unique, Not Null               | Short identifier (e.g., "QC", "ASSY", "ENG")  |
-| name           | string(200) | Not Null                       | Human-readable name (e.g., "Quality Control")  |
-| type           | enum        | Not Null                       | One of: Department, WorkArea, Role, Person     |
-| parent_id      | UUID        | FK → OrgUnit, nullable         | Parent in the hierarchy (self-referential)     |
-| is_active      | boolean     | Not Null, Default: true        | Whether available for assignment               |
-| created_at     | timestamp   | Not Null                       | Record creation time                           |
-| updated_at     | timestamp   | Not Null                       | Last modification time                         |
-
-**OrgUnitType enum values:**
-
-| Value      | Description                                                         |
-|------------|---------------------------------------------------------------------|
-| Department | A functional department (e.g. Engineering, Quality, Assembly)       |
-| WorkArea   | A physical area or cell (e.g. SMT Line, CMM Room, Rework Bench)     |
-| Role       | A job function regardless of person (e.g. Process Engineer, Approver) |
-| Person     | A specific named individual (least preferred — use Role when possible) |
-
-### WorkflowJob
-
-A top-level execution record for a complete workflow run. Analogous to `Job` for a single process. When a workflow is started, a `WorkflowJob` is created, and `Job` records are created for each active node as the workflow graph is traversed.
-
-| Attribute      | Type        | Constraints                    | Description                                                    |
-|----------------|-------------|--------------------------------|----------------------------------------------------------------|
-| id             | UUID        | PK                             | Unique identifier                                              |
-| workflow_id    | UUID        | FK → Workflow, Not Null        | The Workflow being executed                                     || schedule_id    | UUID          | FK → WorkflowSchedule, nullable | The schedule that created this run; null for ad-hoc runs        || subject        | string(500) |                                | What this run is about (e.g. "Batch #4421", "New hire: J. Smith") |
-| status         | enum        | Not Null, Default: Running     | Current lifecycle state                                        |
-| started_at     | timestamp   |                                | When the first process job was created                         |
-| completed_at   | timestamp   |                                | When the final node completed                                  |
-| created_at     | timestamp   | Not Null                       | Record creation time                                           |
-| updated_at     | timestamp   | Not Null                       | Last modification time                                         |
-
-**WorkflowJobStatus enum values:**
-
-| Value     | Description                                           |
-|-----------|-------------------------------------------------------|
-| Running   | One or more process jobs are in progress              |
-| Completed | All terminal nodes have reached Completed status      |
-| Cancelled | The workflow run was cancelled before completion      |
-
-### WorkflowSchedule
-
-Defines a recurrence rule for automatically creating `WorkflowJob` instances at a fixed cadence. The scheduler background service polls active schedules and fires them when `next_run_at` falls due. Once a `WorkflowJob` is created by the scheduler, it proceeds through the standard sequencing pipeline.
-
-| Attribute           | Type          | Constraints                      | Description                                                                 |
-|---------------------|---------------|----------------------------------|-----------------------------------------------------------------------------|
-| id                  | UUID          | PK                               | Unique identifier                                                           |
-| workflow_id         | UUID          | FK → Workflow, Not Null          | The Workflow to execute on this schedule                                    |
-| name                | string(200)   | Not Null                         | Human label (e.g. "Monthly PCB Final Inspection")                           |
-| recurrence_type     | enum          | Not Null                         | One of: Daily, Weekly, Monthly, Quarterly, Annually                         |
-| recurrence_interval | integer       | Not Null, Default: 1             | Every N recurrence units (e.g. 2 = every 2 weeks)                          |
-| day_of_week         | integer       | nullable, 0–6                    | Which weekday to fire; used when recurrence_type = Weekly                  |
-| day_of_month        | integer       | nullable, 1–31                   | Which day of month to fire; used for Monthly/Quarterly/Annually             |
-| start_date          | date          | Not Null                         | Earliest date this schedule may fire                                        |
-| end_date            | date          | nullable                         | Date after which this schedule will not fire; null = no expiry              |
-| subject_template    | string(500)   |                                  | Template for WorkflowJob.Subject; supports tokens like `{Month}`, `{Year}` |
-| is_active           | boolean       | Not Null, Default: true          | Whether the scheduler should process this record                            |
-| next_run_at         | timestamptz   | nullable                         | Computed datetime of the next scheduled fire                                |
-| last_run_at         | timestamptz   | nullable                         | When the scheduler last fired this schedule                                 |
-| created_at          | timestamp     | Not Null                         | Record creation time                                                        |
-| updated_at          | timestamp     | Not Null                         | Last modification time                                                      |
-
-**RecurrenceType enum values:**
-
-| Value     | Description                                                              |
-|-----------|--------------------------------------------------------------------------|
-| Daily     | Fires every N days                                                       |
-| Weekly    | Fires every N weeks on the specified day_of_week                        |
-| Monthly   | Fires every N months on the specified day_of_month                      |
-| Quarterly | Fires every 3 months on the specified day_of_month                      |
-| Annually  | Fires once per year on the specified day_of_month (and month_of_year)   |
 
 ---
 
@@ -754,23 +597,21 @@ These fields exist to avoid extra round-trips from list views. They are not pers
 
 ### Job
 
-The overarching work order that drives items through a process. A Job ties together the entire execution lifecycle. When a Job is part of a workflow run, `workflow_job_id` and `workflow_process_id` link it back to its parent `WorkflowJob` and the specific graph node it represents.
+The overarching work order that drives items through a process. A Job ties together the entire execution lifecycle.
 
-| Attribute              | Type          | Constraints                         | Description                                              |
-|------------------------|---------------|-------------------------------------|----------------------------------------------------------|
-| id                     | UUID          | PK                                  | Unique identifier                                        |
-| code                   | string(50)    | Unique, Not Null                    | Short identifier (e.g., "JOB-2026-001")                  |
-| name                   | string(200)   | Not Null                            | Human-readable name                                      |
-| description            | text          |                                     | Purpose/scope of this job                                |
-| process_id             | UUID          | FK → Process, Not Null              | The Process being executed                               |
-| workflow_job_id        | UUID          | FK → WorkflowJob, nullable          | Parent workflow run (null for standalone jobs)           |
-| workflow_process_id    | UUID          | FK → WorkflowProcess, nullable      | Graph node this job represents in the workflow           |
-| status                 | enum          | Not Null, Default: Created          | Current lifecycle state                                  |
-| priority               | integer       | Not Null, Default: 0                | Relative priority (higher = more urgent)                 |
-| started_at             | timestamp     |                                     | When work actually began                                 |
-| completed_at           | timestamp     |                                     | When job finished (completed or cancelled)               |
-| created_at             | timestamp     | Not Null                            | Record creation time                                     |
-| updated_at             | timestamp     | Not Null                            | Last modification time                                   |
+| Attribute      | Type          | Constraints                    | Description                                    |
+|----------------|---------------|--------------------------------|------------------------------------------------|
+| id             | UUID          | PK                             | Unique identifier                              |
+| code           | string(50)    | Unique, Not Null               | Short identifier (e.g., "JOB-2026-001")        |
+| name           | string(200)   | Not Null                       | Human-readable name                            |
+| description    | text          |                                | Purpose/scope of this job                      |
+| process_id     | UUID          | FK → Process, Not Null         | The Process being executed                     |
+| status         | enum          | Not Null, Default: Created     | Current lifecycle state                        |
+| priority       | integer       | Not Null, Default: 0           | Relative priority (higher = more urgent)       |
+| started_at     | timestamp     |                                | When work actually began                       |
+| completed_at   | timestamp     |                                | When job finished (completed or cancelled)     |
+| created_at     | timestamp     | Not Null                       | Record creation time                           |
+| updated_at     | timestamp     | Not Null                       | Last modification time                         |
 
 **Behavior:**
 - When a Job is created, a StepExecution record is automatically created for each ProcessStep in the Process, all with status = Pending.
@@ -866,30 +707,24 @@ Records an item or batch flowing through a specific port during a step execution
 
 ### ExecutionData
 
-A single collected answer captured during execution. Each record corresponds to one prompt answer (or ad-hoc data entry) and is associated at one of three levels: Step Execution, Batch, or Item.
+Key-value data captured during execution, associated at one of three levels: Step Execution, Batch, or Item.
 
-When created by the structured form engine, `prompt_definition_id` is set and `key` is copied from `PromptDefinition.key` at write time (denormalised for queryability). Ad-hoc or legacy records may leave `prompt_definition_id` null and supply `key` directly.
-
-| Attribute              | Type          | Constraints                         | Description                                                          |
-|------------------------|---------------|-------------------------------------|----------------------------------------------------------------------|
-| id                     | UUID          | PK                                  | Unique identifier                                                    |
-| prompt_definition_id   | UUID          | FK → PromptDefinition, nullable     | The prompt this answer responds to; null for ad-hoc data            |
-| key                    | string(200)   | Not Null                            | Field name — copied from PromptDefinition.key, or free-text if ad-hoc |
-| value                  | text          | Not Null                            | Stored answer; interpretation depends on data_type                  |
-| data_type              | enum          | Not Null, Default: String           | See DataType enum on PromptDefinition                               |
-| unit_of_measure        | string(50)    |                                     | Unit (e.g., "mm", "°C", "psi")                                       |
-| step_execution_id      | UUID          | FK → StepExecution                  | Association level 1: step-wide data                                 |
-| batch_id               | UUID          | FK → Batch                          | Association level 2: batch-level data                               |
-| item_id                | UUID          | FK → Item                           | Association level 3: item-level data                                |
-| created_at             | timestamp     | Not Null                            | Record creation time                                                |
-| updated_at             | timestamp     | Not Null                            | Last modification time                                              |
+| Attribute              | Type          | Constraints                    | Description                                    |
+|------------------------|---------------|--------------------------------|------------------------------------------------|
+| id                     | UUID          | PK                             | Unique identifier                              |
+| key                    | string(200)   | Not Null                       | Data field name (e.g., "Temperature")          |
+| value                  | string(1000)  | Not Null                       | Data value stored as string                    |
+| data_type              | enum          | Not Null, Default: String      | How to interpret the value                     |
+| unit_of_measure        | string(50)    |                                | Unit (e.g., "mm", "°C", "psi")                |
+| step_execution_id      | UUID          | FK → StepExecution             | Association level 1: step-wide data            |
+| batch_id               | UUID          | FK → Batch                     | Association level 2: batch-level data          |
+| item_id                | UUID          | FK → Item                      | Association level 3: item-level data           |
+| created_at             | timestamp     | Not Null                       | Record creation time                           |
+| updated_at             | timestamp     | Not Null                       | Last modification time                         |
 
 **Constraints:**
 - Exactly one of step_execution_id, batch_id, item_id must be non-null
 - Multiple data points can exist at the same level (e.g., many measurements per item)
-- When `prompt_definition_id` is set, `key` must match `PromptDefinition.key` for that record
-- When `prompt_definition_id` is set, `data_type` must match `PromptDefinition.data_type`
-- A step execution that has `is_required = true` prompts cannot be marked Completed until an `ExecutionData` record exists for each such prompt at the appropriate `collection_scope` level
 
 ---
 

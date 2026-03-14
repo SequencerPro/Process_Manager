@@ -12,20 +12,12 @@
     </a>
 </div>
 
-<div class="d-flex gap-3 mb-3 flex-wrap">
+<div class="d-flex gap-3 mb-3">
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search processes..." />
     <select class="form-select form-select-sm" style="width:auto" @onchange="OnActiveFilter">
         <option value="">All</option>
         <option value="true">Active</option>
         <option value="false">Inactive</option>
-    </select>
-    <select class="form-select form-select-sm" style="width:auto" @onchange="OnStatusFilter">
-        <option value="">Any Status</option>
-        <option value="Draft">Draft</option>
-        <option value="PendingApproval">Pending Approval</option>
-        <option value="Released">Released</option>
-        <option value="Superseded">Superseded</option>
-        <option value="Retired">Retired</option>
     </select>
 </div>
 
@@ -43,7 +35,6 @@ else if (_data is not null)
                     <th>Name</th>
                     <th>Steps</th>
                     <th>Version</th>
-                    <th>Status</th>
                     <th>Active</th>
                     <th style="width:140px">Actions</th>
                 </tr>
@@ -51,7 +42,7 @@ else if (_data is not null)
             <tbody>
                 @if (!_data.Items.Any())
                 {
-                    <tr><td colspan="7" class="text-center text-muted py-3">No processes found.</td></tr>
+                    <tr><td colspan="6" class="text-center text-muted py-3">No processes found.</td></tr>
                 }
                 else
                 {
@@ -62,7 +53,6 @@ else if (_data is not null)
                         <td><a href="processes/@p.Id">@p.Name</a></td>
                         <td><span class="badge bg-secondary">@p.StepCount</span></td>
                         <td>v@p.Version</td>
-                        <td><span class="badge @StatusBadgeClass(p.Status)">@p.Status</span></td>
                         <td>
                             @if (p.IsActive)
                             {
@@ -135,7 +125,6 @@ else if (_data is not null)
     private bool _loading = true;
     private string _search = "";
     private bool? _active;
-    private string? _status;
     private int _page = 1;
     private int _pageSize = 25;
 
@@ -153,7 +142,7 @@ else if (_data is not null)
         _loading = true;
         try
         {
-            _data = await Api.GetProcessesAsync(_search, _active, _status, _page, _pageSize);
+            _data = await Api.GetProcessesAsync(_search, _active, _page, _pageSize);
         }
         catch (Exception ex)
         {
@@ -171,13 +160,6 @@ else if (_data is not null)
     private async Task OnActiveFilter(ChangeEventArgs e)
     {
         _active = string.IsNullOrEmpty(e.Value?.ToString()) ? null : bool.Parse(e.Value.ToString()!);
-        _page = 1;
-        await LoadData();
-    }
-
-    private async Task OnStatusFilter(ChangeEventArgs e)
-    {
-        _status = string.IsNullOrEmpty(e.Value?.ToString()) ? null : e.Value.ToString();
         _page = 1;
         await LoadData();
     }
@@ -211,14 +193,4 @@ else if (_data is not null)
         try { await Api.DeleteProcessAsync(id); await LoadData(); }
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
-
-    private static string StatusBadgeClass(string? status) => status switch
-    {
-        "Draft"          => "bg-secondary",
-        "PendingApproval" => "bg-warning text-dark",
-        "Released"       => "bg-success",
-        "Superseded"     => "bg-dark",
-        "Retired"        => "bg-danger",
-        _                => "bg-light text-dark"
-    };
 }

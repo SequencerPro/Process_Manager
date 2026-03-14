@@ -13,22 +13,12 @@ public record RegisterRequestDto(
     [Required][StringLength(50)] string UserName,
     [Required][EmailAddress] string Email,
     [Required][StringLength(100, MinimumLength = 8)] string Password,
-    [Required] string Role,         // "Admin" or "Engineer"
-    [StringLength(100)] string? DisplayName = null
-);
-
-public record AdminUpdateUserDto(
-    [StringLength(100)] string? DisplayName,
-    string? Role
+    [Required] string Role          // "Admin" or "Engineer"
 );
 
 public record ChangePasswordRequestDto(
     [Required] string CurrentPassword,
     [Required][StringLength(100, MinimumLength = 8)] string NewPassword
-);
-
-public record UpdateProfileRequestDto(
-    [StringLength(100)] string? DisplayName
 );
 
 // ── Response DTOs ─────────────────────────────────────────────────────────────

@@ -20,9 +20,6 @@ public class Job : BaseEntity
     /// <summary>The Process being executed.</summary>
     public Guid ProcessId { get; set; }
 
-    /// <summary>The Process version this Job was started against (pinned at creation).</summary>
-    public int ProcessVersion { get; set; } = 1;
-
     /// <summary>Current lifecycle state.</summary>
     public JobStatus Status { get; set; } = JobStatus.Created;
 

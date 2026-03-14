@@ -112,7 +112,7 @@ public class WorkflowsController : ControllerBase
     public async Task<ActionResult<WorkflowValidationResultDto>> Validate(Guid id)
     {
         var workflow = await _db.Workflows
-            .Include(w => w.WorkflowProcesses).ThenInclude(wp => wp.Process!)
+            .Include(w => w.WorkflowProcesses).ThenInclude(wp => wp.Process)
                 .ThenInclude(p => p.ProcessSteps).ThenInclude(ps => ps.StepTemplate).ThenInclude(st => st.Ports)
             .Include(w => w.WorkflowLinks).ThenInclude(wl => wl.Conditions)
             .Include(w => w.WorkflowLinks).ThenInclude(wl => wl.SourceWorkflowProcess).ThenInclude(wp => wp.Process)
@@ -139,14 +139,9 @@ public class WorkflowsController : ControllerBase
             }
         }
 
-        // Rule 15: Process interface compatibility (warning) — skip terminal nodes
+        // Rule 15: Process interface compatibility (warning)
         foreach (var link in workflow.WorkflowLinks)
         {
-            // Skip compatibility check for links to/from terminal nodes
-            if (link.SourceWorkflowProcess?.IsTerminalNode == true ||
-                link.TargetWorkflowProcess?.IsTerminalNode == true)
-                continue;
-
             var srcProcess = link.SourceWorkflowProcess?.Process;
             var tgtProcess = link.TargetWorkflowProcess?.Process;
             if (srcProcess?.ProcessSteps == null || tgtProcess?.ProcessSteps == null)
@@ -175,26 +170,15 @@ public class WorkflowsController : ControllerBase
         }
 
         // Check for unreachable nodes (no incoming links and not entry points)
-        // Terminal nodes are expected to only have incoming links, so skip them
         var hasIncoming = workflow.WorkflowLinks
             .Select(l => l.TargetWorkflowProcessId)
             .ToHashSet();
         foreach (var wp in workflow.WorkflowProcesses)
         {
-            if (!wp.IsEntryPoint && !wp.IsTerminalNode && !hasIncoming.Contains(wp.Id))
+            if (!wp.IsEntryPoint && !hasIncoming.Contains(wp.Id))
             {
-                var name = wp.Process?.Name ?? wp.ProcessId?.ToString() ?? "Unknown";
-                warnings.Add($"Process '{name}' " +
+                warnings.Add($"Process '{wp.Process?.Name ?? wp.ProcessId.ToString()}' " +
                     "is not an entry point and has no incoming links (unreachable).");
-            }
-        }
-
-        // Terminal nodes should have at least one incoming link
-        foreach (var wp in workflow.WorkflowProcesses.Where(wp => wp.IsTerminalNode))
-        {
-            if (!hasIncoming.Contains(wp.Id))
-            {
-                warnings.Add("Terminal 'End' node has no incoming links.");
             }
         }
 
@@ -228,36 +212,22 @@ public class WorkflowsController : ControllerBase
         var workflow = await _db.Workflows.FindAsync(workflowId);
         if (workflow is null) return NotFound();
 
-        Process? process = null;
+        var process = await _db.Processes.FindAsync(dto.ProcessId);
+        if (process is null)
+            return BadRequest($"Process '{dto.ProcessId}' not found.");
+        if (!process.IsActive)
+            return BadRequest($"Process '{process.Code}' is not active.");
 
-        if (dto.IsTerminalNode)
-        {
-            // Terminal nodes cannot also be entry points
-            if (dto.IsEntryPoint)
-                return BadRequest("Terminal nodes cannot be entry points.");
-        }
-        else
-        {
-            if (dto.ProcessId is null)
-                return BadRequest("ProcessId is required for non-terminal nodes.");
-
-            process = await _db.Processes.FindAsync(dto.ProcessId.Value);
-            if (process is null)
-                return BadRequest($"Process '{dto.ProcessId}' not found.");
-            if (!process.IsActive)
-                return BadRequest($"Process '{process.Code}' is not active.");
-        }
+        if (await _db.WorkflowProcesses.AnyAsync(
+            wp => wp.WorkflowId == workflowId && wp.ProcessId == dto.ProcessId))
+            return Conflict($"Process '{process.Code}' is already in this workflow.");
 
         var wp = new WorkflowProcess
         {
             WorkflowId = workflowId,
-            ProcessId = dto.IsTerminalNode ? null : dto.ProcessId,
-            IsTerminalNode = dto.IsTerminalNode,
+            ProcessId = dto.ProcessId,
             IsEntryPoint = dto.IsEntryPoint,
-            SortOrder = dto.SortOrder,
-            PositionX = dto.PositionX,
-            PositionY = dto.PositionY,
-            Color = dto.Color
+            SortOrder = dto.SortOrder
         };
 
         _db.WorkflowProcesses.Add(wp);
@@ -278,9 +248,6 @@ public class WorkflowsController : ControllerBase
 
         if (dto.IsEntryPoint.HasValue) wp.IsEntryPoint = dto.IsEntryPoint.Value;
         if (dto.SortOrder.HasValue) wp.SortOrder = dto.SortOrder.Value;
-        if (dto.PositionX.HasValue) wp.PositionX = dto.PositionX.Value;
-        if (dto.PositionY.HasValue) wp.PositionY = dto.PositionY.Value;
-        if (dto.Color is not null) wp.Color = string.IsNullOrEmpty(dto.Color) ? null : dto.Color;
 
         await _db.SaveChangesAsync();
         return MapWorkflowProcessToDto(wp);
@@ -300,31 +267,6 @@ public class WorkflowsController : ControllerBase
             return Conflict("Cannot remove a process that has workflow links. Remove the links first.");
 
         _db.WorkflowProcesses.Remove(wp);
-        await _db.SaveChangesAsync();
-        return NoContent();
-    }
-
-    [HttpPut("{workflowId:guid}/processes/positions")]
-    public async Task<IActionResult> UpdatePositions(
-        Guid workflowId, UpdateWorkflowProcessPositionsDto dto)
-    {
-        if (!await _db.Workflows.AnyAsync(w => w.Id == workflowId))
-            return NotFound();
-
-        var wps = await _db.WorkflowProcesses
-            .Where(wp => wp.WorkflowId == workflowId)
-            .ToListAsync();
-
-        foreach (var pos in dto.Positions)
-        {
-            var wp = wps.FirstOrDefault(w => w.Id == pos.WorkflowProcessId);
-            if (wp is not null)
-            {
-                wp.PositionX = pos.PositionX;
-                wp.PositionY = pos.PositionY;
-            }
-        }
-
         await _db.SaveChangesAsync();
         return NoContent();
     }
@@ -390,8 +332,7 @@ public class WorkflowsController : ControllerBase
             TargetWorkflowProcessId = dto.TargetWorkflowProcessId,
             RoutingType = dto.RoutingType,
             Name = dto.Name,
-            SortOrder = dto.SortOrder,
-            LineShape = dto.LineShape
+            SortOrder = dto.SortOrder
         };
 
         _db.WorkflowLinks.Add(link);
@@ -438,7 +379,6 @@ public class WorkflowsController : ControllerBase
 
         if (dto.Name is not null) link.Name = dto.Name;
         if (dto.SortOrder.HasValue) link.SortOrder = dto.SortOrder.Value;
-        if (dto.LineShape is not null) link.LineShape = string.IsNullOrEmpty(dto.LineShape) ? null : dto.LineShape;
 
         await _db.SaveChangesAsync();
         return MapWorkflowLinkToDto(link);
@@ -527,26 +467,20 @@ public class WorkflowsController : ControllerBase
     {
         return new WorkflowProcessResponseDto(
             wp.Id, wp.WorkflowId, wp.ProcessId,
-            wp.IsTerminalNode ? "End" : (wp.Process?.Name ?? ""),
-            wp.IsTerminalNode ? "END" : (wp.Process?.Code ?? ""),
-            wp.IsEntryPoint, wp.IsTerminalNode, wp.SortOrder,
-            wp.PositionX, wp.PositionY, wp.Color,
+            wp.Process?.Name ?? "", wp.Process?.Code ?? "",
+            wp.IsEntryPoint, wp.SortOrder,
             wp.CreatedAt, wp.UpdatedAt);
     }
 
     private static WorkflowLinkResponseDto MapWorkflowLinkToDto(WorkflowLink wl)
     {
-        var srcName = wl.SourceWorkflowProcess?.IsTerminalNode == true
-            ? "End" : (wl.SourceWorkflowProcess?.Process?.Name ?? "");
-        var tgtName = wl.TargetWorkflowProcess?.IsTerminalNode == true
-            ? "End" : (wl.TargetWorkflowProcess?.Process?.Name ?? "");
-
         return new WorkflowLinkResponseDto(
             wl.Id, wl.WorkflowId,
-            wl.SourceWorkflowProcessId, srcName,
-            wl.TargetWorkflowProcessId, tgtName,
+            wl.SourceWorkflowProcessId,
+            wl.SourceWorkflowProcess?.Process?.Name ?? "",
+            wl.TargetWorkflowProcessId,
+            wl.TargetWorkflowProcess?.Process?.Name ?? "",
             wl.RoutingType, wl.Name, wl.SortOrder,
-            wl.LineShape,
             wl.Conditions?.Select(c => new WorkflowLinkConditionResponseDto(
                 c.Id, c.WorkflowLinkId, c.GradeId,
                 c.Grade?.Code ?? "", c.Grade?.Name ?? "")).ToList(),

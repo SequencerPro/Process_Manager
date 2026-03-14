@@ -10,8 +10,7 @@ public record StepTemplateCreateDto(
     [Required, StringLength(200, MinimumLength = 1)] string Name,
     [StringLength(2000)] string? Description,
     StepPattern Pattern,
-    List<PortCreateDto>? Ports = null,
-    bool IsShared = true
+    [Required, MinLength(1)] List<PortCreateDto> Ports
 );
 
 public record StepTemplateUpdateDto(
@@ -28,14 +27,11 @@ public record StepTemplateResponseDto(
     string? Description,
     StepPattern Pattern,
     int Version,
-    string Status,
     bool IsActive,
-    bool IsShared,
     DateTime CreatedAt,
     DateTime UpdatedAt,
     List<PortResponseDto> Ports,
-    List<StepTemplateImageResponseDto> Images,
-    MaturitySummaryDto? Maturity = null
+    List<StepTemplateImageResponseDto> Images
 );
 
 public record StepTemplateImageResponseDto(
@@ -67,24 +63,17 @@ public record StepTemplateContentResponseDto(
     string? Units,
     decimal? MinValue,
     decimal? MaxValue,
-    string? Choices,
-    // Phase 8a — categorisation + spec enrichment
-    string? ContentCategory,
-    bool AcknowledgmentRequired,
-    decimal? NominalValue,
-    bool IsHardLimit
+    string? Choices
 );
 
 public record AddStepTemplateTextBlockDto(
     [System.ComponentModel.DataAnnotations.Required,
-     System.ComponentModel.DataAnnotations.StringLength(10000, MinimumLength = 1)] string Body,
-    string? ContentCategory = null
+     System.ComponentModel.DataAnnotations.StringLength(10000, MinimumLength = 1)] string Body
 );
 
 public record UpdateStepTemplateTextBlockDto(
     [System.ComponentModel.DataAnnotations.Required,
-     System.ComponentModel.DataAnnotations.StringLength(10000, MinimumLength = 1)] string Body,
-    string? ContentCategory = null
+     System.ComponentModel.DataAnnotations.StringLength(10000, MinimumLength = 1)] string Body
 );
 
 public record AddStepTemplatePromptBlockDto(
@@ -95,10 +84,7 @@ public record AddStepTemplatePromptBlockDto(
     [System.ComponentModel.DataAnnotations.StringLength(50)] string? Units = null,
     decimal? MinValue = null,
     decimal? MaxValue = null,
-    [System.ComponentModel.DataAnnotations.StringLength(4000)] string? Choices = null,
-    string? ContentCategory = null,
-    decimal? NominalValue = null,
-    bool IsHardLimit = false
+    [System.ComponentModel.DataAnnotations.StringLength(4000)] string? Choices = null
 );
 
 public record UpdateStepTemplatePromptBlockDto(
@@ -108,20 +94,11 @@ public record UpdateStepTemplatePromptBlockDto(
     [System.ComponentModel.DataAnnotations.StringLength(50)] string? Units = null,
     decimal? MinValue = null,
     decimal? MaxValue = null,
-    [System.ComponentModel.DataAnnotations.StringLength(4000)] string? Choices = null,
-    string? ContentCategory = null,
-    decimal? NominalValue = null,
-    bool IsHardLimit = false
+    [System.ComponentModel.DataAnnotations.StringLength(4000)] string? Choices = null
 );
 
 public record ReorderStepTemplateContentBlocksDto(
     [System.ComponentModel.DataAnnotations.Required] List<Guid> OrderedIds
-);
-
-/// <summary>PATCH payload for updating the ContentCategory of any block type (including images).</summary>
-public record PatchContentCategoryDto(
-    string? ContentCategory,
-    bool? AcknowledgmentRequired = null
 );
 
 // ──────────────────── Port ────────────────────

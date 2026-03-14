@@ -1,5 +1,3 @@
-using ProcessManager.Domain.Enums;
-
 namespace ProcessManager.Domain.Entities;
 
 /// <summary>
@@ -22,15 +20,7 @@ public class Process : BaseEntity
     /// <summary>Whether this process is available for use.</summary>
     public bool IsActive { get; set; } = true;
 
-    /// <summary>Formal lifecycle state — controls availability for new Jobs and edit permissions.</summary>
-    public ProcessStatus Status { get; set; } = ProcessStatus.Draft;
-
-    /// <summary>The Process this revision was branched from (null for originals).</summary>
-    public Guid? ParentProcessId { get; set; }
-
     // Navigation properties
-    public Process? ParentProcess { get; set; }
     public ICollection<ProcessStep> ProcessSteps { get; set; } = new List<ProcessStep>();
     public ICollection<Flow> Flows { get; set; } = new List<Flow>();
-    public ICollection<ApprovalRecord> ApprovalRecords { get; set; } = new List<ApprovalRecord>();
 }

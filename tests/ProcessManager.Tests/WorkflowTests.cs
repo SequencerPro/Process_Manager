@@ -222,120 +222,17 @@ public class WorkflowTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task AddProcess_SameProcessTwice_Succeeds()
+    public async Task AddProcess_DuplicateInWorkflow_ReturnsConflict()
     {
         var scenario = await BuildWidgetFinishingScenario();
         var wf = await CreateWorkflow();
-        var wp1 = await AddWorkflowProcess(wf.Id, scenario.Process.Id);
+        await AddWorkflowProcess(wf.Id, scenario.Process.Id);
 
         var dto = new AddWorkflowProcessDto(scenario.Process.Id);
         var response = await Client.PostAsJsonAsync(
             $"/api/workflows/{wf.Id}/processes", dto, JsonOptions);
-        response.EnsureSuccessStatusCode();
 
-        var wp2 = await response.Content.ReadFromJsonAsync<WorkflowProcessResponseDto>(JsonOptions);
-        Assert.NotNull(wp2);
-        Assert.NotEqual(wp1.Id, wp2!.Id); // Different WorkflowProcess IDs
-        Assert.Equal(wp1.ProcessId, wp2.ProcessId); // Same underlying Process
-    }
-
-    [Fact]
-    public async Task AddProcess_SameProcessThreeTimes_AllAppearInWorkflow()
-    {
-        var scenario = await BuildWidgetFinishingScenario();
-        var wf = await CreateWorkflow();
-
-        var wp1 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, isEntryPoint: true, sortOrder: 1);
-        var wp2 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, sortOrder: 2);
-        var wp3 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, sortOrder: 3);
-
-        // Reload workflow with children
-        var loaded = await Client.GetFromJsonAsync<WorkflowResponseDto>(
-            $"/api/workflows/{wf.Id}", JsonOptions);
-
-        Assert.NotNull(loaded);
-        Assert.Equal(3, loaded!.Processes!.Count);
-        Assert.All(loaded.Processes, p => Assert.Equal(scenario.Process.Id, p.ProcessId));
-        // All have distinct WorkflowProcess IDs
-        var wpIds = loaded.Processes.Select(p => p.Id).ToList();
-        Assert.Equal(3, wpIds.Distinct().Count());
-    }
-
-    [Fact]
-    public async Task AddProcess_DuplicateProcesses_CanBeLinkSeparately()
-    {
-        var scenario = await BuildWidgetFinishingScenario();
-        var wf = await CreateWorkflow();
-
-        // Add same process three times: entry → middle → end
-        var wp1 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, isEntryPoint: true, sortOrder: 1);
-        var wp2 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, sortOrder: 2);
-        var wp3 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, sortOrder: 3);
-
-        // Link them: wp1 → wp2 → wp3
-        var link1 = await AddWorkflowLink(wf.Id, wp1.Id, wp2.Id, RoutingType.Always, "First to Second");
-        var link2 = await AddWorkflowLink(wf.Id, wp2.Id, wp3.Id, RoutingType.Always, "Second to Third");
-
-        Assert.Equal(wp1.Id, link1.SourceWorkflowProcessId);
-        Assert.Equal(wp2.Id, link1.TargetWorkflowProcessId);
-        Assert.Equal(wp2.Id, link2.SourceWorkflowProcessId);
-        Assert.Equal(wp3.Id, link2.TargetWorkflowProcessId);
-    }
-
-    [Fact]
-    public async Task AddProcess_DuplicateProcesses_CanDeleteOneKeepOthers()
-    {
-        var scenario = await BuildWidgetFinishingScenario();
-        var wf = await CreateWorkflow();
-
-        var wp1 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, sortOrder: 1);
-        var wp2 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, sortOrder: 2);
-        var wp3 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, sortOrder: 3);
-
-        // Delete the middle one
-        var response = await Client.DeleteAsync(
-            $"/api/workflows/{wf.Id}/processes/{wp2.Id}");
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-
-        // Remaining should be wp1 and wp3
-        var processes = await Client.GetFromJsonAsync<List<WorkflowProcessResponseDto>>(
-            $"/api/workflows/{wf.Id}/processes", JsonOptions);
-        Assert.Equal(2, processes!.Count);
-        Assert.Contains(processes, p => p.Id == wp1.Id);
-        Assert.Contains(processes, p => p.Id == wp3.Id);
-        Assert.DoesNotContain(processes, p => p.Id == wp2.Id);
-    }
-
-    [Fact]
-    public async Task AddProcess_DuplicateProcesses_IndependentConfiguration()
-    {
-        var scenario = await BuildWidgetFinishingScenario();
-        var wf = await CreateWorkflow();
-
-        // Add same process twice with different configurations
-        var wp1 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, isEntryPoint: true, sortOrder: 1);
-        var wp2 = await AddWorkflowProcess(wf.Id, scenario.Process.Id, isEntryPoint: false, sortOrder: 5);
-
-        Assert.True(wp1.IsEntryPoint);
-        Assert.False(wp2.IsEntryPoint);
-        Assert.Equal(1, wp1.SortOrder);
-        Assert.Equal(5, wp2.SortOrder);
-
-        // Update wp2 independently — should not affect wp1
-        var response = await Client.PutAsJsonAsync(
-            $"/api/workflows/{wf.Id}/processes/{wp2.Id}",
-            new UpdateWorkflowProcessDto(IsEntryPoint: true, SortOrder: 10), JsonOptions);
-        response.EnsureSuccessStatusCode();
-        var updated = await response.Content.ReadFromJsonAsync<WorkflowProcessResponseDto>(JsonOptions);
-        Assert.True(updated!.IsEntryPoint);
-        Assert.Equal(10, updated.SortOrder);
-
-        // wp1 should still have its original values
-        var loaded = await Client.GetFromJsonAsync<WorkflowResponseDto>(
-            $"/api/workflows/{wf.Id}", JsonOptions);
-        var loadedWp1 = loaded!.Processes!.Single(p => p.Id == wp1.Id);
-        Assert.True(loadedWp1.IsEntryPoint);
-        Assert.Equal(1, loadedWp1.SortOrder);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
     }
 
     [Fact]
@@ -348,101 +245,6 @@ public class WorkflowTests : IntegrationTestBase
             $"/api/workflows/{wf.Id}/processes", dto, JsonOptions);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    // ───── Terminal (End) Node Tests ─────
-
-    [Fact]
-    public async Task AddTerminalNode_Succeeds()
-    {
-        var wf = await CreateWorkflow();
-
-        var dto = new AddWorkflowProcessDto(
-            ProcessId: null,
-            IsEntryPoint: false,
-            SortOrder: 0,
-            PositionX: 100,
-            PositionY: 200,
-            IsTerminalNode: true);
-        var response = await Client.PostAsJsonAsync(
-            $"/api/workflows/{wf.Id}/processes", dto, JsonOptions);
-
-        response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync<WorkflowProcessResponseDto>(JsonOptions);
-        Assert.NotNull(result);
-        Assert.True(result.IsTerminalNode);
-        Assert.Null(result.ProcessId);
-        Assert.Equal("End", result.ProcessName);
-        Assert.Equal("END", result.ProcessCode);
-        Assert.False(result.IsEntryPoint);
-    }
-
-    [Fact]
-    public async Task AddTerminalNode_CannotBeEntryPoint()
-    {
-        var wf = await CreateWorkflow();
-
-        var dto = new AddWorkflowProcessDto(
-            ProcessId: null,
-            IsEntryPoint: true,
-            IsTerminalNode: true);
-        var response = await Client.PostAsJsonAsync(
-            $"/api/workflows/{wf.Id}/processes", dto, JsonOptions);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task AddTerminalNode_CanBeLinkedTo()
-    {
-        var scenario = await BuildWidgetFinishingScenario();
-        var wf = await CreateWorkflow();
-
-        // Add a regular process as entry point
-        var wp = await AddWorkflowProcess(wf.Id, scenario.Process.Id, isEntryPoint: true);
-
-        // Add a terminal node
-        var termDto = new AddWorkflowProcessDto(
-            ProcessId: null,
-            IsTerminalNode: true,
-            PositionX: 100,
-            PositionY: 300);
-        var termResponse = await Client.PostAsJsonAsync(
-            $"/api/workflows/{wf.Id}/processes", termDto, JsonOptions);
-        termResponse.EnsureSuccessStatusCode();
-        var termNode = await termResponse.Content.ReadFromJsonAsync<WorkflowProcessResponseDto>(JsonOptions);
-
-        // Link from process to terminal node
-        var link = await AddWorkflowLink(wf.Id, wp.Id, termNode!.Id);
-        Assert.NotNull(link);
-        Assert.Equal(wp.Id, link.SourceWorkflowProcessId);
-        Assert.Equal(termNode.Id, link.TargetWorkflowProcessId);
-    }
-
-    [Fact]
-    public async Task AddTerminalNode_AppearsInWorkflowGet()
-    {
-        var scenario = await BuildWidgetFinishingScenario();
-        var wf = await CreateWorkflow();
-
-        await AddWorkflowProcess(wf.Id, scenario.Process.Id, isEntryPoint: true);
-
-        var termDto = new AddWorkflowProcessDto(
-            ProcessId: null,
-            IsTerminalNode: true);
-        var termResponse = await Client.PostAsJsonAsync(
-            $"/api/workflows/{wf.Id}/processes", termDto, JsonOptions);
-        termResponse.EnsureSuccessStatusCode();
-
-        // Reload the full workflow
-        var loaded = await Client.GetFromJsonAsync<WorkflowResponseDto>(
-            $"/api/workflows/{wf.Id}", JsonOptions);
-        Assert.NotNull(loaded?.Processes);
-        Assert.Equal(2, loaded.Processes.Count);
-
-        var terminal = loaded.Processes.Single(p => p.IsTerminalNode);
-        Assert.Null(terminal.ProcessId);
-        Assert.Equal("End", terminal.ProcessName);
     }
 
     [Fact]

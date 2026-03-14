@@ -73,8 +73,7 @@ public class AuthController : ControllerBase
         var user = new ApplicationUser
         {
             UserName = dto.UserName,
-            Email = dto.Email,
-            DisplayName = string.IsNullOrWhiteSpace(dto.DisplayName) ? null : dto.DisplayName.Trim()
+            Email = dto.Email
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);
@@ -118,29 +117,6 @@ public class AuthController : ControllerBase
         return Ok(new UserResponseDto(user.Id, user.UserName!, user.Email!, roles.FirstOrDefault() ?? "Engineer", user.DisplayName));
     }
 
-    // ── PATCH api/auth/users/{id} (Admin only) ────────────────────────────────
-
-    [Authorize(Roles = "Admin")]
-    [HttpPatch("users/{id}")]
-    public async Task<ActionResult<UserResponseDto>> UpdateUser(string id, AdminUpdateUserDto dto)
-    {
-        var user = await _userManager.FindByIdAsync(id);
-        if (user is null) return NotFound();
-
-        user.DisplayName = string.IsNullOrWhiteSpace(dto.DisplayName) ? null : dto.DisplayName.Trim();
-        await _userManager.UpdateAsync(user);
-
-        if (!string.IsNullOrWhiteSpace(dto.Role) && dto.Role is "Admin" or "Engineer")
-        {
-            var currentRoles = await _userManager.GetRolesAsync(user);
-            await _userManager.RemoveFromRolesAsync(user, currentRoles);
-            await _userManager.AddToRoleAsync(user, dto.Role);
-        }
-
-        var roles = await _userManager.GetRolesAsync(user);
-        return Ok(new UserResponseDto(user.Id, user.UserName!, user.Email!, roles.FirstOrDefault() ?? "Engineer", user.DisplayName));
-    }
-
     // ── DELETE api/auth/users/{id} (Admin only) ───────────────────────────────
 
     [Authorize(Roles = "Admin")]
@@ -175,24 +151,6 @@ public class AuthController : ControllerBase
             return BadRequest(result.Errors.Select(e => e.Description));
 
         return NoContent();
-    }
-
-    // ── PUT api/auth/profile (self) ─────────────────────────────────────
-
-    [Authorize]
-    [HttpPut("profile")]
-    public async Task<ActionResult<TokenResponseDto>> UpdateProfile(UpdateProfileRequestDto dto)
-    {
-        var user = await _userManager.FindByNameAsync(User.Identity!.Name!);
-        if (user is null) return Unauthorized();
-
-        user.DisplayName = string.IsNullOrWhiteSpace(dto.DisplayName) ? null : dto.DisplayName.Trim();
-        var result = await _userManager.UpdateAsync(user);
-        if (!result.Succeeded)
-            return BadRequest(result.Errors.Select(e => e.Description));
-
-        var roles = await _userManager.GetRolesAsync(user);
-        return Ok(GenerateJwt(user, roles.FirstOrDefault() ?? "Engineer"));
     }
 
     // ── Token generation ──────────────────────────────────────────────────────

@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Domain.Entities;
@@ -7,14 +6,9 @@ namespace ProcessManager.Api.Data;
 
 public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
 {
-    private readonly IHttpContextAccessor? _httpContextAccessor;
-
-    public ProcessManagerDbContext(
-        DbContextOptions<ProcessManagerDbContext> options,
-        IHttpContextAccessor? httpContextAccessor = null)
+    public ProcessManagerDbContext(DbContextOptions<ProcessManagerDbContext> options)
         : base(options)
     {
-        _httpContextAccessor = httpContextAccessor;
     }
 
     // Phase 1: Type System
@@ -26,13 +20,11 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<StepTemplate> StepTemplates => Set<StepTemplate>();
     public DbSet<Port> Ports => Set<Port>();
     public DbSet<StepTemplateImage> StepTemplateImages => Set<StepTemplateImage>();
-    public DbSet<RunChartWidget> RunChartWidgets => Set<RunChartWidget>();
 
     // Phase 3: Process Composition
     public DbSet<Process> Processes => Set<Process>();
     public DbSet<ProcessStep> ProcessSteps => Set<ProcessStep>();
     public DbSet<ProcessStepContent> ProcessStepContents => Set<ProcessStepContent>();
-    public DbSet<ProcessStepPortOverride> ProcessStepPortOverrides => Set<ProcessStepPortOverride>();
     public DbSet<StepTemplateContent> StepTemplateContents => Set<StepTemplateContent>();
     public DbSet<Flow> Flows => Set<Flow>();
 
@@ -44,26 +36,12 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PortTransaction> PortTransactions => Set<PortTransaction>();
     public DbSet<ExecutionData> ExecutionData => Set<ExecutionData>();
     public DbSet<PromptResponse> PromptResponses => Set<PromptResponse>();
-    public DbSet<NonConformance> NonConformances => Set<NonConformance>();
-    public DbSet<ApprovalRecord> ApprovalRecords => Set<ApprovalRecord>();
 
     // Phase 4: Workflow Composition
     public DbSet<Workflow> Workflows => Set<Workflow>();
     public DbSet<WorkflowProcess> WorkflowProcesses => Set<WorkflowProcess>();
     public DbSet<WorkflowLink> WorkflowLinks => Set<WorkflowLink>();
     public DbSet<WorkflowLinkCondition> WorkflowLinkConditions => Set<WorkflowLinkCondition>();
-
-    // Power BI Dashboards
-    public DbSet<PowerBiDashboard> PowerBiDashboards => Set<PowerBiDashboard>();
-
-    // Phase 7: Quality Engineering Tools
-    public DbSet<Pfmea> Pfmeas => Set<Pfmea>();
-    public DbSet<PfmeaFailureMode> PfmeaFailureModes => Set<PfmeaFailureMode>();
-    public DbSet<PfmeaAction> PfmeaActions => Set<PfmeaAction>();
-    public DbSet<CeMatrix> CeMatrices => Set<CeMatrix>();
-    public DbSet<CeInput> CeInputs => Set<CeInput>();
-    public DbSet<CeOutput> CeOutputs => Set<CeOutput>();
-    public DbSet<CeCorrelation> CeCorrelations => Set<CeCorrelation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -119,7 +97,6 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(s => s.Code).HasMaxLength(50).IsRequired();
             e.Property(s => s.Name).HasMaxLength(200).IsRequired();
             e.Property(s => s.Pattern).HasConversion<string>().HasMaxLength(20);
-            e.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
         });
 
         // --- StepTemplateImage ---
@@ -175,13 +152,6 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(p => p.Code).IsUnique();
             e.Property(p => p.Code).HasMaxLength(50).IsRequired();
             e.Property(p => p.Name).HasMaxLength(200).IsRequired();
-            e.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
-
-            e.HasOne(p => p.ParentProcess)
-                .WithMany()
-                .HasForeignKey(p => p.ParentProcessId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.Restrict);
         });
 
         // --- ProcessStep ---
@@ -191,9 +161,6 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(ps => new { ps.ProcessId, ps.Sequence }).IsUnique();
 
             e.Property(ps => ps.NameOverride).HasMaxLength(200);
-            e.Property(ps => ps.PatternOverride)
-                .HasConversion<string?>()
-                .HasMaxLength(20);
 
             e.HasOne(ps => ps.Process)
                 .WithMany(p => p.ProcessSteps)
@@ -204,63 +171,6 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(ps => ps.StepTemplateId)
                 .OnDelete(DeleteBehavior.Restrict);
-        });
-
-        // --- ProcessStepPortOverride ---
-        modelBuilder.Entity<ProcessStepPortOverride>(e =>
-        {
-            e.HasKey(po => po.Id);
-            e.HasIndex(po => new { po.ProcessStepId, po.PortId }).IsUnique();
-
-            e.Property(po => po.NameOverride).HasMaxLength(200);
-            e.Property(po => po.DirectionOverride)
-                .HasConversion<string?>()
-                .HasMaxLength(20);
-            e.Property(po => po.QtyRuleModeOverride)
-                .HasConversion<string?>()
-                .HasMaxLength(20);
-
-            e.HasOne(po => po.ProcessStep)
-                .WithMany(ps => ps.PortOverrides)
-                .HasForeignKey(po => po.ProcessStepId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            e.HasOne(po => po.Port)
-                .WithMany()
-                .HasForeignKey(po => po.PortId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            e.HasOne(po => po.KindOverride)
-                .WithMany()
-                .HasForeignKey(po => po.KindIdOverride)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            e.HasOne(po => po.GradeOverride)
-                .WithMany()
-                .HasForeignKey(po => po.GradeIdOverride)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
-        // --- RunChartWidget ---
-        modelBuilder.Entity<RunChartWidget>(e =>
-        {
-            e.HasKey(w => w.Id);
-            e.Property(w => w.Label).HasMaxLength(300).IsRequired();
-
-            e.HasOne(w => w.StepTemplate)
-                .WithMany(st => st.RunChartWidgets)
-                .HasForeignKey(w => w.StepTemplateId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            // Preserve widgets if the source prompt is deleted (set null handled in app layer)
-            e.HasOne(w => w.SourceContent)
-                .WithMany()
-                .HasForeignKey(w => w.SourceContentId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            e.HasIndex(w => w.StepTemplateId);
         });
 
         // --- StepTemplateContent ---
@@ -276,7 +186,6 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(c => c.Label).HasMaxLength(500);
             e.Property(c => c.Units).HasMaxLength(50);
             e.Property(c => c.Choices).HasMaxLength(4000);
-            e.Property(c => c.ContentCategory).HasConversion<string>().HasMaxLength(20);
 
             e.HasOne(c => c.StepTemplate)
                 .WithMany(st => st.Contents)
@@ -299,7 +208,6 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(c => c.Label).HasMaxLength(500);
             e.Property(c => c.Units).HasMaxLength(50);
             e.Property(c => c.Choices).HasMaxLength(4000);
-            e.Property(c => c.ContentCategory).HasConversion<string>().HasMaxLength(20);
 
             e.HasOne(c => c.ProcessStep)
                 .WithMany(ps => ps.Contents)
@@ -377,7 +285,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<WorkflowProcess>(e =>
         {
             e.HasKey(wp => wp.Id);
-            e.HasIndex(wp => new { wp.WorkflowId, wp.ProcessId });
+            e.HasIndex(wp => new { wp.WorkflowId, wp.ProcessId }).IsUnique();
 
             e.HasOne(wp => wp.Workflow)
                 .WithMany(w => w.WorkflowProcesses)
@@ -387,7 +295,6 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne(wp => wp.Process)
                 .WithMany()
                 .HasForeignKey(wp => wp.ProcessId)
-                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -570,189 +477,6 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(ed => ed.ItemId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
-
-        // ── Phase 7: Quality Engineering Tools ──────────────────────────────
-
-        // --- Pfmea ---
-        modelBuilder.Entity<Pfmea>(e =>
-        {
-            e.HasKey(p => p.Id);
-            e.HasIndex(p => p.Code).IsUnique();
-            e.Property(p => p.Code).HasMaxLength(100).IsRequired();
-            e.Property(p => p.Name).HasMaxLength(200).IsRequired();
-            e.Property(p => p.StalenessClearedBy).HasMaxLength(200);
-            e.Property(p => p.StalenessClearanceNotes).HasMaxLength(2000);
-
-            e.HasOne(p => p.Process)
-                .WithMany()
-                .HasForeignKey(p => p.ProcessId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
-        // --- PfmeaFailureMode ---
-        modelBuilder.Entity<PfmeaFailureMode>(e =>
-        {
-            e.HasKey(f => f.Id);
-            e.Property(f => f.StepFunction).HasMaxLength(500).IsRequired();
-            e.Property(f => f.FailureMode).HasMaxLength(500).IsRequired();
-            e.Property(f => f.FailureEffect).HasMaxLength(500).IsRequired();
-            e.Property(f => f.FailureCause).HasMaxLength(500);
-            e.Property(f => f.PreventionControls).HasMaxLength(1000);
-            e.Property(f => f.DetectionControls).HasMaxLength(1000);
-            // RPN is computed in entity, not stored
-            e.Ignore(f => f.Rpn);
-
-            e.HasOne(f => f.Pfmea)
-                .WithMany(p => p.FailureModes)
-                .HasForeignKey(f => f.PfmeaId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            e.HasOne(f => f.ProcessStep)
-                .WithMany()
-                .HasForeignKey(f => f.ProcessStepId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
-        // --- PfmeaAction ---
-        modelBuilder.Entity<PfmeaAction>(e =>
-        {
-            e.HasKey(a => a.Id);
-            e.Property(a => a.Description).HasMaxLength(1000).IsRequired();
-            e.Property(a => a.ResponsiblePerson).HasMaxLength(200);
-            e.Property(a => a.CompletionNotes).HasMaxLength(2000);
-            e.Property(a => a.Status).HasConversion<string>().HasMaxLength(20);
-            // RevisedRpn is computed in entity, not stored
-            e.Ignore(a => a.RevisedRpn);
-
-            e.HasOne(a => a.FailureMode)
-                .WithMany(f => f.Actions)
-                .HasForeignKey(a => a.FailureModeId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // --- CeMatrix ---
-        modelBuilder.Entity<CeMatrix>(e =>
-        {
-            e.HasKey(m => m.Id);
-            e.Property(m => m.Name).HasMaxLength(200).IsRequired();
-
-            e.HasOne(m => m.ProcessStep)
-                .WithMany()
-                .HasForeignKey(m => m.ProcessStepId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
-        // --- CeInput ---
-        modelBuilder.Entity<CeInput>(e =>
-        {
-            e.HasKey(i => i.Id);
-            e.Property(i => i.Name).HasMaxLength(200).IsRequired();
-            e.Property(i => i.Category).HasConversion<string>().HasMaxLength(30);
-
-            e.HasOne(i => i.CeMatrix)
-                .WithMany(m => m.Inputs)
-                .HasForeignKey(i => i.CeMatrixId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            e.HasOne(i => i.Port)
-                .WithMany()
-                .HasForeignKey(i => i.PortId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .IsRequired(false);
-        });
-
-        // --- CeOutput ---
-        modelBuilder.Entity<CeOutput>(e =>
-        {
-            e.HasKey(o => o.Id);
-            e.Property(o => o.Name).HasMaxLength(200).IsRequired();
-            e.Property(o => o.Category).HasConversion<string>().HasMaxLength(30);
-
-            e.HasOne(o => o.CeMatrix)
-                .WithMany(m => m.Outputs)
-                .HasForeignKey(o => o.CeMatrixId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            e.HasOne(o => o.Port)
-                .WithMany()
-                .HasForeignKey(o => o.PortId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .IsRequired(false);
-        });
-
-        // --- CeCorrelation ---
-        modelBuilder.Entity<CeCorrelation>(e =>
-        {
-            e.HasKey(c => c.Id);
-            // Unique constraint: one score per input/output pair
-            e.HasIndex(c => new { c.CeInputId, c.CeOutputId }).IsUnique();
-
-            e.HasOne(c => c.Input)
-                .WithMany(i => i.Correlations)
-                .HasForeignKey(c => c.CeInputId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            e.HasOne(c => c.Output)
-                .WithMany(o => o.Correlations)
-                .HasForeignKey(c => c.CeOutputId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // --- PowerBiDashboard ---
-        modelBuilder.Entity<PowerBiDashboard>(e =>
-        {
-            e.HasKey(d => d.Id);
-            e.HasIndex(d => d.Name).IsUnique();
-            e.Property(d => d.Name).HasMaxLength(200).IsRequired();
-            e.Property(d => d.EmbedUrl).HasMaxLength(2000).IsRequired();
-            e.Property(d => d.Description).HasMaxLength(1000);
-        });
-
-        // --- NonConformance ---
-        modelBuilder.Entity<NonConformance>(e =>
-        {
-            e.HasKey(nc => nc.Id);
-            e.Property(nc => nc.LimitType).HasConversion<string>().HasMaxLength(20);
-            e.Property(nc => nc.DispositionStatus).HasConversion<string>().HasMaxLength(20);
-            e.Property(nc => nc.ActualValue).HasMaxLength(500);
-            e.Property(nc => nc.DisposedBy).HasMaxLength(200);
-            e.Property(nc => nc.JustificationText).HasMaxLength(2000);
-
-            e.HasOne(nc => nc.StepExecution)
-                .WithMany(se => se.NonConformances)
-                .HasForeignKey(nc => nc.StepExecutionId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            e.HasOne(nc => nc.ContentBlock)
-                .WithMany()
-                .HasForeignKey(nc => nc.ContentBlockId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
-        // --- ApprovalRecord ---
-        modelBuilder.Entity<ApprovalRecord>(e =>
-        {
-            e.HasKey(a => a.Id);
-            e.Property(a => a.EntityType).HasMaxLength(20).IsRequired();
-            e.Property(a => a.SubmittedBy).HasMaxLength(200).IsRequired();
-            e.Property(a => a.ReviewedBy).HasMaxLength(200);
-            e.Property(a => a.Decision).HasMaxLength(20).IsRequired();
-            e.Property(a => a.Notes).HasMaxLength(2000);
-
-            e.HasOne(a => a.Process)
-                .WithMany(p => p.ApprovalRecords)
-                .HasForeignKey(a => a.ProcessId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            e.HasOne(a => a.StepTemplate)
-                .WithMany(s => s.ApprovalRecords)
-                .HasForeignKey(a => a.StepTemplateId)
-                .IsRequired(false)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            e.HasIndex(a => new { a.EntityType, a.EntityId });
-        });
     }
 
     public override int SaveChanges()
@@ -769,24 +493,21 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
 
     private void SetAuditFields()
     {
-        var now  = DateTime.UtcNow;
-        var user = _httpContextAccessor?.HttpContext?.User?.Identity?.Name;
+        var entries = ChangeTracker.Entries<BaseEntity>();
+        var now = DateTime.UtcNow;
 
-        foreach (var entry in ChangeTracker.Entries<BaseEntity>())
+        foreach (var entry in entries)
         {
             if (entry.State == EntityState.Added)
             {
                 entry.Entity.CreatedAt = now;
                 entry.Entity.UpdatedAt = now;
-                entry.Entity.CreatedBy = user;
-                entry.Entity.UpdatedBy = user;
                 if (entry.Entity.Id == Guid.Empty)
                     entry.Entity.Id = Guid.NewGuid();
             }
             else if (entry.State == EntityState.Modified)
             {
                 entry.Entity.UpdatedAt = now;
-                entry.Entity.UpdatedBy = user;
             }
         }
     }

@@ -23,7 +23,6 @@ public class ProcessesController : ControllerBase
     public async Task<ActionResult<PaginatedResponse<ProcessSummaryResponseDto>>> GetAll(
         [FromQuery] string? search = null,
         [FromQuery] bool? active = null,
-        [FromQuery] string? status = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
@@ -35,28 +34,18 @@ public class ProcessesController : ControllerBase
         if (active.HasValue)
             query = query.Where(p => p.IsActive == active.Value);
 
-        if (!string.IsNullOrWhiteSpace(status) &&
-            Enum.TryParse<ProcessStatus>(status, ignoreCase: true, out var statusEnum))
-            query = query.Where(p => p.Status == statusEnum);
-
         var totalCount = await query.CountAsync();
 
-        var rawProcesses = await query
+        var processes = await query
             .OrderBy(p => p.Name)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(p => new {
+            .Select(p => new ProcessSummaryResponseDto(
                 p.Id, p.Code, p.Name, p.Description,
-                p.Version, p.Status, p.IsActive,
-                StepCount = p.ProcessSteps.Count,
-                p.CreatedAt, p.UpdatedAt
-            })
+                p.Version, p.IsActive,
+                p.ProcessSteps.Count,
+                p.CreatedAt, p.UpdatedAt))
             .ToListAsync();
-
-        var processes = rawProcesses.Select(p => new ProcessSummaryResponseDto(
-                p.Id, p.Code, p.Name, p.Description,
-                p.Version, p.Status.ToString(), p.IsActive,
-                p.StepCount, p.CreatedAt, p.UpdatedAt)).ToList();
 
         return new PaginatedResponse<ProcessSummaryResponseDto>(
             processes, totalCount, page, pageSize);
@@ -95,9 +84,6 @@ public class ProcessesController : ControllerBase
     {
         var process = await LoadProcess(id);
         if (process is null) return NotFound();
-
-        if (process.Status == ProcessStatus.Released || process.Status == ProcessStatus.PendingApproval)
-            return BadRequest($"A {process.Status} process cannot be edited directly. Create a new revision instead.");
 
         process.Name = dto.Name;
         process.Description = dto.Description;
@@ -148,40 +134,16 @@ public class ProcessesController : ControllerBase
             StepTemplateId = dto.StepTemplateId,
             Sequence = dto.Sequence,
             NameOverride = dto.NameOverride,
-            DescriptionOverride = dto.DescriptionOverride,
-            PatternOverride = dto.PatternOverride
+            DescriptionOverride = dto.DescriptionOverride
         };
 
         _db.ProcessSteps.Add(processStep);
-
-        // Add port overrides if provided
-        if (dto.PortOverrides is not null)
-        {
-            foreach (var po in dto.PortOverrides)
-            {
-                _db.ProcessStepPortOverrides.Add(new ProcessStepPortOverride
-                {
-                    ProcessStepId = processStep.Id,
-                    PortId = po.PortId,
-                    NameOverride = po.NameOverride,
-                    DirectionOverride = po.DirectionOverride,
-                    KindIdOverride = po.KindIdOverride,
-                    GradeIdOverride = po.GradeIdOverride,
-                    QtyRuleModeOverride = po.QtyRuleModeOverride,
-                    QtyRuleNOverride = po.QtyRuleNOverride,
-                    SortOrderOverride = po.SortOrderOverride
-                });
-            }
-        }
-
         process.Version++;
         await _db.SaveChangesAsync();
 
         // Reload with nav props
         var result = await _db.ProcessSteps
             .Include(ps => ps.StepTemplate)
-            .Include(ps => ps.PortOverrides).ThenInclude(po => po.KindOverride)
-            .Include(ps => ps.PortOverrides).ThenInclude(po => po.GradeOverride)
             .FirstAsync(ps => ps.Id == processStep.Id);
 
         return CreatedAtAction(nameof(GetById), new { id = processId }, MapProcessStepToDto(result));
@@ -193,7 +155,6 @@ public class ProcessesController : ControllerBase
     {
         var processStep = await _db.ProcessSteps
             .Include(ps => ps.StepTemplate)
-            .Include(ps => ps.PortOverrides)
             .FirstOrDefaultAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
 
         if (processStep is null) return NotFound();
@@ -201,43 +162,12 @@ public class ProcessesController : ControllerBase
         processStep.Sequence = dto.Sequence;
         processStep.NameOverride = dto.NameOverride;
         processStep.DescriptionOverride = dto.DescriptionOverride;
-        processStep.PatternOverride = dto.PatternOverride;
-
-        // Replace port overrides if provided
-        if (dto.PortOverrides is not null)
-        {
-            _db.ProcessStepPortOverrides.RemoveRange(processStep.PortOverrides);
-
-            foreach (var po in dto.PortOverrides)
-            {
-                _db.ProcessStepPortOverrides.Add(new ProcessStepPortOverride
-                {
-                    ProcessStepId = stepId,
-                    PortId = po.PortId,
-                    NameOverride = po.NameOverride,
-                    DirectionOverride = po.DirectionOverride,
-                    KindIdOverride = po.KindIdOverride,
-                    GradeIdOverride = po.GradeIdOverride,
-                    QtyRuleModeOverride = po.QtyRuleModeOverride,
-                    QtyRuleNOverride = po.QtyRuleNOverride,
-                    SortOrderOverride = po.SortOrderOverride
-                });
-            }
-        }
 
         var process = await _db.Processes.FindAsync(processId);
         if (process is not null) process.Version++;
 
         await _db.SaveChangesAsync();
-
-        // Reload with Kind/Grade nav props for response
-        var result = await _db.ProcessSteps
-            .Include(ps => ps.StepTemplate)
-            .Include(ps => ps.PortOverrides).ThenInclude(po => po.KindOverride)
-            .Include(ps => ps.PortOverrides).ThenInclude(po => po.GradeOverride)
-            .FirstAsync(ps => ps.Id == stepId);
-
-        return MapProcessStepToDto(result);
+        return MapProcessStepToDto(processStep);
     }
 
     [HttpDelete("{processId:guid}/steps/{stepId:guid}")]
@@ -619,163 +549,12 @@ public class ProcessesController : ControllerBase
         return Ok(new ProcessValidationResultDto(errors, warnings));
     }
 
-    // ──────────── Lifecycle ────────────
-
-    /// <summary>Submit a Draft for approval. Status → PendingApproval.</summary>
-    [HttpPost("{id:guid}/submit")]
-    public async Task<ActionResult<ProcessResponseDto>> Submit(Guid id, SubmitForApprovalDto dto)
-    {
-        var process = await LoadProcess(id);
-        if (process is null) return NotFound();
-        if (process.Status != ProcessStatus.Draft)
-            return BadRequest($"Only Draft processes can be submitted (current: {process.Status}).");
-
-        process.Status = ProcessStatus.PendingApproval;
-        _db.ApprovalRecords.Add(new ApprovalRecord
-        {
-            EntityType = "Process",
-            EntityId = process.Id,
-            ProcessId = process.Id,
-            EntityVersion = process.Version,
-            SubmittedBy = dto.SubmittedBy,
-            SubmittedAt = DateTime.UtcNow,
-            Decision = "Pending",
-            Notes = dto.SubmissionNotes
-        });
-        await _db.SaveChangesAsync();
-        return MapToDto(process);
-    }
-
-    /// <summary>Approve a PendingApproval process. Status → Released; supersedes prior Released.</summary>
-    [HttpPost("{id:guid}/approve")]
-    public async Task<ActionResult<ProcessResponseDto>> Approve(Guid id, ApproveDto dto)
-    {
-        var process = await LoadProcess(id);
-        if (process is null) return NotFound();
-        if (process.Status != ProcessStatus.PendingApproval)
-            return BadRequest($"Only PendingApproval processes can be approved (current: {process.Status}).");
-
-        // Supersede any currently Released version with the same code
-        var priorReleased = await _db.Processes
-            .Where(p => p.Code == process.Code && p.Status == ProcessStatus.Released && p.Id != process.Id)
-            .ToListAsync();
-        foreach (var prior in priorReleased)
-            prior.Status = ProcessStatus.Superseded;
-
-        process.Status = ProcessStatus.Released;
-
-        // Flag linked PFMEAs as stale
-        var linkedPfmeas = await _db.Pfmeas
-            .Where(p => p.ProcessId == process.Id && !p.IsStale)
-            .ToListAsync();
-        foreach (var pfmea in linkedPfmeas)
-        {
-            pfmea.IsStale = true;
-            pfmea.ProcessVersion = process.Version;
-        }
-
-        // Update approval record
-        var record = await _db.ApprovalRecords
-            .Where(a => a.ProcessId == process.Id && a.Decision == "Pending")
-            .OrderByDescending(a => a.SubmittedAt).FirstOrDefaultAsync();
-        if (record is not null)
-        {
-            record.ReviewedBy = dto.ApprovedBy;
-            record.ReviewedAt = DateTime.UtcNow;
-            record.Decision = "Approved";
-            record.Notes ??= dto.ApprovalNotes;
-        }
-
-        await _db.SaveChangesAsync();
-        return MapToDto(process);
-    }
-
-    /// <summary>Reject a PendingApproval process. Status → Draft with rejection reason.</summary>
-    [HttpPost("{id:guid}/reject")]
-    public async Task<ActionResult<ProcessResponseDto>> Reject(Guid id, RejectDto dto)
-    {
-        var process = await LoadProcess(id);
-        if (process is null) return NotFound();
-        if (process.Status != ProcessStatus.PendingApproval)
-            return BadRequest($"Only PendingApproval processes can be rejected (current: {process.Status}).");
-
-        process.Status = ProcessStatus.Draft;
-        var record = await _db.ApprovalRecords
-            .Where(a => a.ProcessId == process.Id && a.Decision == "Pending")
-            .OrderByDescending(a => a.SubmittedAt).FirstOrDefaultAsync();
-        if (record is not null)
-        {
-            record.ReviewedBy = dto.RejectedBy;
-            record.ReviewedAt = DateTime.UtcNow;
-            record.Decision = "Rejected";
-            record.Notes = dto.RejectionReason;
-        }
-
-        await _db.SaveChangesAsync();
-        return MapToDto(process);
-    }
-
-    /// <summary>Create a new Draft revision from a Released process. Steps are copied; flows are not.</summary>
-    [HttpPost("{id:guid}/new-revision")]
-    public async Task<ActionResult<ProcessResponseDto>> NewRevision(Guid id, NewRevisionDto dto)
-    {
-        var source = await LoadProcess(id);
-        if (source is null) return NotFound();
-        if (source.Status != ProcessStatus.Released)
-            return BadRequest($"Only Released processes can have new revisions created (current: {source.Status}).");
-
-        var newProcess = new Process
-        {
-            Code = source.Code,
-            Name = source.Name,
-            Description = source.Description,
-            Version = source.Version + 1,
-            IsActive = source.IsActive,
-            Status = ProcessStatus.Draft,
-            ParentProcessId = source.Id
-        };
-        _db.Processes.Add(newProcess);
-        await _db.SaveChangesAsync();
-
-        foreach (var ps in source.ProcessSteps.OrderBy(s => s.Sequence))
-        {
-            _db.ProcessSteps.Add(new ProcessStep
-            {
-                ProcessId = newProcess.Id,
-                StepTemplateId = ps.StepTemplateId,
-                Sequence = ps.Sequence,
-                NameOverride = ps.NameOverride,
-                DescriptionOverride = ps.DescriptionOverride
-            });
-        }
-        await _db.SaveChangesAsync();
-
-        var result = await LoadProcess(newProcess.Id);
-        return CreatedAtAction(nameof(GetById), new { id = newProcess.Id }, MapToDto(result!));
-    }
-
-    /// <summary>Retire a Released or Superseded process.</summary>
-    [HttpPost("{id:guid}/retire")]
-    public async Task<ActionResult<ProcessResponseDto>> Retire(Guid id)
-    {
-        var process = await LoadProcess(id);
-        if (process is null) return NotFound();
-        if (process.Status == ProcessStatus.Draft || process.Status == ProcessStatus.PendingApproval)
-            return BadRequest($"Draft and PendingApproval processes should be deleted, not retired.");
-
-        process.Status = ProcessStatus.Retired;
-        await _db.SaveChangesAsync();
-        return MapToDto(process);
-    }
-
     // ──────────── Helpers ────────────
 
     private async Task<Process?> LoadProcess(Guid id)
     {
         return await _db.Processes
-            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.StepTemplate).ThenInclude(st => st.Contents)
-            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.PortOverrides).ThenInclude(po => po.KindOverride)
-            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.PortOverrides).ThenInclude(po => po.GradeOverride)
+            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.StepTemplate)
             .Include(p => p.Flows).ThenInclude(f => f.SourcePort)
             .Include(p => p.Flows).ThenInclude(f => f.TargetPort)
             .FirstOrDefaultAsync(p => p.Id == id);
@@ -785,7 +564,7 @@ public class ProcessesController : ControllerBase
 
     private static ProcessResponseDto MapToDto(Process process) => new(
         process.Id, process.Code, process.Name, process.Description,
-        process.Version, process.Status.ToString(), process.IsActive,
+        process.Version, process.IsActive,
         process.CreatedAt, process.UpdatedAt,
         process.ProcessSteps.OrderBy(ps => ps.Sequence).Select(MapProcessStepToDto).ToList(),
         process.Flows.Select(MapFlowToDto).ToList()
@@ -795,16 +574,7 @@ public class ProcessesController : ControllerBase
         ps.Id, ps.ProcessId, ps.StepTemplateId,
         ps.StepTemplate.Code, ps.StepTemplate.Name,
         ps.Sequence, ps.NameOverride, ps.DescriptionOverride,
-        ps.CreatedAt, ps.UpdatedAt,
-        MaturityScoringService.Summarise(ps.StepTemplate),
-        ps.PatternOverride,
-        ps.PortOverrides.Select(po => new ProcessStepPortOverrideResponseDto(
-            po.Id, po.PortId,
-            po.NameOverride, po.DirectionOverride,
-            po.KindIdOverride, po.KindOverride?.Name,
-            po.GradeIdOverride, po.GradeOverride?.Name,
-            po.QtyRuleModeOverride, po.QtyRuleNOverride,
-            po.SortOrderOverride)).ToList()
+        ps.CreatedAt, ps.UpdatedAt
     );
 
     private static FlowResponseDto MapFlowToDto(Flow f) => new(
@@ -824,7 +594,6 @@ public class ProcessesController : ControllerBase
             ? $"uploads/process-steps/{c.FileName}"
             : null,
         c.CreatedAt,
-        c.PromptType?.ToString(), c.Label, c.IsRequired, c.Units, c.MinValue, c.MaxValue, c.Choices,
-        c.ContentCategory?.ToString(), c.AcknowledgmentRequired, c.NominalValue, c.IsHardLimit
+        c.PromptType?.ToString(), c.Label, c.IsRequired, c.Units, c.MinValue, c.MaxValue, c.Choices
     );
 }

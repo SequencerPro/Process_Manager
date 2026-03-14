@@ -71,7 +71,6 @@ builder.Services.AddAuthentication(options =>
     });
 
 builder.Services.AddAuthorization();
-builder.Services.AddHttpContextAccessor();
 
 // ── Controllers ───────────────────────────────────────────────────────────────
 builder.Services.AddControllers()

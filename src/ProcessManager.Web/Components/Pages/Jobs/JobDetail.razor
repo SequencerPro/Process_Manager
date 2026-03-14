@@ -34,7 +34,6 @@ else
                     {
                         <span class="badge bg-warning text-dark ms-1">Priority @_job.Priority</span>
                     }
-                    <span class="badge bg-dark ms-1">Process v@_job.ProcessVersion</span>
                 </div>
                 <div class="d-flex gap-1 flex-wrap">
                     <button class="btn btn-outline-secondary btn-sm" @onclick="ShowEditForm">
@@ -75,7 +74,7 @@ else
             }
             <div class="mt-2">
                 <small class="text-muted">
-                    Process: <strong>@_job.ProcessName</strong> (@_job.ProcessStatus) &bull;
+                    Process: <strong>@_job.ProcessName</strong> &bull;
                     Created @_job.CreatedAt.ToString("g")
                     @if (_job.StartedAt.HasValue) { <text> &bull; Started @_job.StartedAt.Value.ToString("g")</text> }
                     @if (_job.CompletedAt.HasValue) { <text> &bull; Completed @_job.CompletedAt.Value.ToString("g")</text> }
@@ -83,17 +82,6 @@ else
             </div>
         </div>
     </div>
-
-    @if (_job.ProcessStatus == "Superseded")
-    {
-        <div class="alert alert-warning d-flex align-items-center py-2 mb-4" role="alert">
-            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-            <div>
-                This job was started against <strong>@_job.ProcessName v@_job.ProcessVersion</strong>, which has since been
-                superseded by a newer release. You are executing the version that was in use when this job was created.
-            </div>
-        </div>
-    }
 
     <!-- Step Executions — visual progress tracker -->
     <div class="card mb-4">
@@ -155,8 +143,8 @@ else
                             <span class="badge @badgeClass">@se.Status</span>
                             @if (canWork && _job.Status == "InProgress")
                             {
-                                <a href="execute/@se.Id" class="btn btn-sm btn-primary">
-                                    <i class="bi bi-play-fill me-1"></i>Execute
+                                <a href="step-executions/@se.Id" class="btn btn-sm btn-primary">
+                                    <i class="bi bi-play-fill me-1"></i>Work
                                 </a>
                             }
                             else
@@ -175,22 +163,6 @@ else
             <div class="card-body text-muted small">No step executions yet. Start the job to generate them.</div>
         }
     </div>
-
-    @* Execution Timeline Gantt *@
-    @if (_hasGanttData)
-    {
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-bar-chart-steps me-1"></i> Execution Timeline</span>
-                <a href="/api/export/step-executions?jobId=@Id" class="btn btn-sm btn-outline-secondary">
-                    <i class="bi bi-download me-1"></i>Export CSV
-                </a>
-            </div>
-            <div class="card-body p-2" style="overflow-x:auto">
-                @RenderGantt()
-            </div>
-        </div>
-    }
 
     <!-- Items & Batches tabs -->
     <ul class="nav nav-tabs mb-3">
@@ -311,13 +283,6 @@ else
     private List<ItemResponseDto>? _items;
     private List<BatchResponseDto>? _batches;
 
-    // Gantt state
-    private bool _hasGanttData;
-    private DateTime _ganttStart;
-    private DateTime _ganttEnd;
-    private double _ganttTotalSecs;
-    private const int GanttW = 660, GanttML = 145, GanttMR = 10, GanttMT = 22, GanttRH = 30, GanttBH = 16;
-
     // Edit form
     private bool _showEditForm;
     private string _editName = "";
@@ -333,7 +298,6 @@ else
         {
             _job = await Api.GetJobAsync(Id);
             await LoadSubResources();
-            ComputeGanttParams();
         }
         catch (Exception ex)
         {
@@ -392,95 +356,5 @@ else
         if (!await JS.InvokeAsync<bool>("confirm", "Delete this job? This cannot be undone.")) return;
         try { await Api.DeleteJobAsync(Id); Nav.NavigateTo("jobs"); }
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
-    }
-
-    // ──────────────────── Gantt ────────────────────
-
-    private void ComputeGanttParams()
-    {
-        var ses = _job?.StepExecutions?.Where(s => s.StartedAt.HasValue).ToList();
-        if (ses == null || ses.Count == 0) { _hasGanttData = false; return; }
-        _hasGanttData = true;
-        _ganttStart = ses.Min(s => s.StartedAt!.Value);
-        _ganttEnd   = ses.Max(s => s.CompletedAt ?? DateTime.UtcNow);
-        if (_ganttEnd <= _ganttStart) _ganttEnd = _ganttStart.AddMinutes(1);
-        _ganttTotalSecs = (_ganttEnd - _ganttStart).TotalSeconds;
-    }
-
-    private double GanttX(DateTime dt)
-        => GanttML + Math.Clamp((dt - _ganttStart).TotalSeconds / _ganttTotalSecs * (GanttW - GanttML - GanttMR), 0, GanttW - GanttML - GanttMR);
-
-    private int GanttH => GanttMT + (_job?.StepExecutions?.Count ?? 0) * GanttRH + 20;
-
-    private static MarkupString GanttText(double x, double y, string text, string anchor = "start", string fill = "#495057")
-    {
-        var esc = System.Net.WebUtility.HtmlEncode(text);
-        return (MarkupString)$"<text x=\"{x:F1}\" y=\"{y:F1}\" font-size=\"11\" font-family=\"sans-serif\" fill=\"{fill}\" text-anchor=\"{anchor}\" dominant-baseline=\"middle\">{esc}</text>";
-    }
-
-    private MarkupString RenderGantt()
-    {
-        if (_job?.StepExecutions is null) return (MarkupString)"";
-
-        var allSes = _job.StepExecutions.OrderBy(s => s.Sequence).ToList();
-        double chartW = GanttW - GanttML - GanttMR;
-        int h = GanttH;
-        var sb = new System.Text.StringBuilder();
-        sb.Append($"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {GanttW} {h}' width='100%' style='min-width:420px'>");
-
-        for (int i = 0; i < allSes.Count; i++)
-        {
-            var se   = allSes[i];
-            double y    = GanttMT + i * GanttRH;
-            double midY = y + GanttRH / 2.0;
-            string bg   = i % 2 == 0 ? "#f8f9fa" : "#ffffff";
-
-            sb.Append($"<rect x='{GanttML}' y='{y:F0}' width='{chartW:F0}' height='{GanttRH}' fill='{bg}'/>");
-
-            // Step name label
-            string lbl = (se.StepName?.Length > 18 ? se.StepName[..18] + "\u2026" : se.StepName) ?? "";
-            sb.Append(GanttText(GanttML - 6, midY, lbl, "end").Value);
-
-            if (se.StartedAt.HasValue)
-            {
-                double x1 = GanttX(se.StartedAt.Value);
-                double x2 = GanttX(se.CompletedAt ?? DateTime.UtcNow);
-                double bw = Math.Max(x2 - x1, 2);
-                double by = y + (GanttRH - GanttBH) / 2.0;
-                string color = se.Status switch
-                {
-                    "Completed"  => "#198754",
-                    "InProgress" => "#0d6efd",
-                    "Failed"     => "#dc3545",
-                    "Skipped"    => "#adb5bd",
-                    _            => "#ced4da"
-                };
-                sb.Append($"<rect x='{x1:F1}' y='{by:F1}' width='{bw:F1}' height='{GanttBH}' rx='3' fill='{color}'/>");
-
-                if (se.CompletedAt.HasValue)
-                {
-                    var dur      = se.CompletedAt.Value - se.StartedAt.Value;
-                    string durTxt = dur.TotalMinutes < 60
-                        ? $"{(int)dur.TotalMinutes}m {dur.Seconds}s"
-                        : $"{(int)dur.TotalHours}h {dur.Minutes}m";
-                    if (bw > 44)
-                        sb.Append(GanttText(x1 + bw / 2, midY, durTxt, "middle", "white").Value);
-                    else
-                        sb.Append(GanttText(x2 + 4, midY, durTxt, "start", "#495057").Value);
-                }
-            }
-        }
-
-        // Axis lines
-        int axisY = GanttMT + allSes.Count * GanttRH;
-        sb.Append($"<line x1='{GanttML}' y1='{GanttMT}' x2='{GanttW - GanttMR}' y2='{GanttMT}' stroke='#dee2e6' stroke-width='1'/>");
-        sb.Append($"<line x1='{GanttML}' y1='{axisY}' x2='{GanttW - GanttMR}' y2='{axisY}' stroke='#dee2e6' stroke-width='1'/>");
-
-        // Time labels
-        sb.Append(GanttText(GanttML, h - 5, _ganttStart.ToLocalTime().ToString("g"), "start", "#6c757d").Value);
-        sb.Append(GanttText(GanttW - GanttMR, h - 5, _ganttEnd.ToLocalTime().ToString("g"), "end", "#6c757d").Value);
-
-        sb.Append("</svg>");
-        return (MarkupString)sb.ToString();
     }
 }

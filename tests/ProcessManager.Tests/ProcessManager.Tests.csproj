@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="bunit" Version="1.28.9" />
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.13" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="8.0.13" />
@@ -25,6 +26,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ProcessManager.Domain\ProcessManager.Domain.csproj" />
     <ProjectReference Include="..\..\src\ProcessManager.Api\ProcessManager.Api.csproj" />
+    <ProjectReference Include="..\..\src\ProcessManager.Web\ProcessManager.Web.csproj" />
   </ItemGroup>
 
 </Project>

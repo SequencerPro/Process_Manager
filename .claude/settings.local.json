@@ -19,7 +19,9 @@
       "Bash(unzip:*)",
       "WebFetch(domain:blazor-diagrams.zhaytam.com)",
       "WebFetch(domain:www.nuget.org)",
-      "WebFetch(domain:api.github.com)"
+      "WebFetch(domain:api.github.com)",
+      "Bash(find /c/Users/James/source/repos/Process_Manager/.claude/worktrees/peaceful-pare/src/ProcessManager.Web -name *.razor.cs)",
+      "Bash(wc -l /c/Users/James/source/repos/Process_Manager/tests/ProcessManager.Tests/*.cs)"
     ]
   }
 }

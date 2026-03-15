@@ -26,12 +26,32 @@
             }
         </ol>
     </nav>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 align-items-center">
         @if (Id.HasValue)
         {
             <button class="btn btn-outline-info btn-sm" @onclick="RunValidation">
                 <i class="bi bi-check2-all me-1"></i>Validate
             </button>
+        }
+        @if (Id.HasValue)
+        {
+            <div class="btn-group btn-group-sm" role="group" title="Switch view">
+                <button type="button" title="Diagram view"
+                        class="btn @(_viewMode == "Diagram" ? "btn-secondary" : "btn-outline-secondary")"
+                        @onclick='() => _ = SetViewMode("Diagram")'>
+                    <i class="bi bi-diagram-3"></i>
+                </button>
+                <button type="button" title="Slide view"
+                        class="btn @(_viewMode == "Slide" ? "btn-secondary" : "btn-outline-secondary")"
+                        @onclick='() => _ = SetViewMode("Slide")'>
+                    <i class="bi bi-easel"></i>
+                </button>
+                <button type="button" title="Document view"
+                        class="btn @(_viewMode == "Document" ? "btn-secondary" : "btn-outline-secondary")"
+                        @onclick='() => _ = SetViewMode("Document")'>
+                    <i class="bi bi-file-earmark-richtext"></i>
+                </button>
+            </div>
         }
         <button class="btn btn-primary btn-sm" @onclick="Save" disabled="@_saving">
             @if (_saving)
@@ -121,6 +141,8 @@ else
         </div>
     </div>
 
+    @if (_viewMode == "Diagram")
+    {
     @* ── Canvas + Sidebar ── *@
     <div class="d-flex" style="height: calc(100vh - 285px); min-height: 380px;">
 
@@ -241,6 +263,476 @@ else
             }
         </div>
     </div>
+    } @* ── end Diagram view ── *@
+
+    @* ══════════════════════════════════════════
+       Slide View
+       ══════════════════════════════════════════ *@
+    @if (_viewMode == "Slide")
+    {
+    <div class="pb-slide-layout">
+
+        @* ── Left: step thumbnail rail ── *@
+        <div class="pb-slide-rail d-flex flex-column">
+            <div class="p-2 border-bottom">
+                <button class="btn btn-primary btn-sm w-100" @onclick="() => OpenStepPicker(_steps.Count)">
+                    <i class="bi bi-plus-lg me-1"></i>Add Step
+                </button>
+            </div>
+            @if (!_steps.Any())
+            {
+                <div class="text-center text-muted small p-3 fst-italic">No steps yet.</div>
+            }
+            @for (int si = 0; si < _steps.Count; si++)
+            {
+                var thumbIdx = si;
+                var thumbStep = _steps[si];
+                var thumbActive = thumbIdx == _editStepIndex;
+                <div class="pb-slide-thumbnail @(thumbActive ? "active" : "")"
+                     @onclick="() => _ = SelectSlideStep(thumbIdx)">
+                    <div class="d-flex align-items-start justify-content-between gap-1">
+                        <div style="min-width:0;flex:1">
+                            <div class="fw-semibold" style="font-size:.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                                @(thumbIdx + 1). @(thumbStep.NameOverride ?? thumbStep.Template?.Name ?? "Unnamed")
+                            </div>
+                            @if (thumbStep.Template is not null)
+                            {
+                                <div class="text-muted" style="font-size:.68rem"><code>@thumbStep.Template.Code</code></div>
+                            }
+                        </div>
+                        <div class="d-flex flex-column" style="flex-shrink:0">
+                            <button class="btn btn-sm p-0 @(thumbActive ? "text-white" : "text-secondary")"
+                                    style="font-size:.6rem;line-height:1.6;opacity:.75"
+                                    title="Move earlier" disabled="@(thumbIdx == 0)"
+                                    @onclick:stopPropagation="true"
+                                    @onclick="() => _ = MoveSlideStep(thumbIdx, -1)">
+                                <i class="bi bi-chevron-up"></i>
+                            </button>
+                            <button class="btn btn-sm p-0 @(thumbActive ? "text-white" : "text-secondary")"
+                                    style="font-size:.6rem;line-height:1.6;opacity:.75"
+                                    title="Move later" disabled="@(thumbIdx == _steps.Count - 1)"
+                                    @onclick:stopPropagation="true"
+                                    @onclick="() => _ = MoveSlideStep(thumbIdx, 1)">
+                                <i class="bi bi-chevron-down"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ── Right: slide editor ── *@
+        <div class="pb-slide-editor">
+            @if (!_steps.Any())
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-easel d-block mb-2" style="font-size:2.5rem;opacity:.35"></i>
+                    <p class="mb-0">Add your first step using the panel on the left.</p>
+                </div>
+            }
+            else if (_editStepIndex >= 0 && _editStepIndex < _steps.Count)
+            {
+                var slideStep = _steps[_editStepIndex];
+
+                @* ── Step header ── *@
+                <div class="d-flex justify-content-between align-items-start mb-4">
+                    <div>
+                        <span class="badge bg-primary me-2" style="font-size:.85rem">Step @(_editStepIndex + 1) of @_steps.Count</span>
+                        @if (slideStep.Template is not null)
+                        {
+                            <code class="text-muted ms-1">@slideStep.Template.Code</code>
+                            <span class="badge bg-light text-dark border ms-1" style="font-size:.65rem">
+                                @(slideStep.PatternOverride?.ToString() ?? slideStep.Template.Pattern.ToString())
+                            </span>
+                        }
+                    </div>
+                    <button class="btn btn-outline-danger btn-sm"
+                            @onclick="() => _ = RemoveSlideStep(_editStepIndex)">
+                        <i class="bi bi-trash me-1"></i>Remove Step
+                    </button>
+                </div>
+
+                @* ── Identity ── *@
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Display Name <span class="text-muted fw-normal">(optional)</span></label>
+                        <input class="form-control" @bind="_editNameValue"
+                               placeholder="@(slideStep.Template?.Name ?? "Step name")" />
+                        <div class="form-text">Leave blank to use the template default.</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Short Description <span class="text-muted fw-normal">(optional)</span></label>
+                        <textarea class="form-control" rows="2" @bind="_editDescriptionValue"
+                                  placeholder="Brief purpose of this step in this process…"></textarea>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-primary mb-4" @onclick="ApplySlideStepEdit">
+                    <i class="bi bi-check-lg me-1"></i>Apply Name / Description
+                </button>
+
+                <hr class="mb-4" />
+
+                @* ── Work Instructions ── *@
+                <div class="d-flex align-items-center mb-3">
+                    <h6 class="mb-0 me-2"><i class="bi bi-list-ul me-1 text-primary"></i>Work Instructions</h6>
+                    <span class="badge bg-info text-dark fw-normal" style="font-size:.7rem">saved immediately</span>
+                </div>
+                @if (!slideStep.ServerId.HasValue)
+                {
+                    <div class="alert alert-info py-2 small">
+                        <i class="bi bi-info-circle me-1"></i>Save the process first to add content to this step.
+                    </div>
+                }
+                else
+                {
+                    @if (_contentLoading)
+                    {
+                        <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+                    }
+                    else
+                    {
+                        @if (_contentError is not null)
+                        {
+                            <div class="alert alert-danger alert-dismissible py-2 small mb-2">
+                                @_contentError
+                                <button type="button" class="btn-close btn-sm" @onclick="() => _contentError = null"></button>
+                            </div>
+                        }
+                        @if (!_contentBlocks.Any() && !_addingPromptBlock)
+                        {
+                            <div class="text-muted small fst-italic py-2">No content yet. Add text, images, or prompts below.</div>
+                        }
+                        @for (int ci = 0; ci < _contentBlocks.Count; ci++)
+                        {
+                            var block = _contentBlocks[ci];
+                            var blockIdx = ci;
+                            <div class="border rounded-2 mb-3 p-3" @key="block.Id">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <div class="flex-grow-1">
+                                        @if (block.ContentType == "Text")
+                                        {
+                                            @if (_editingTextBlockId == block.Id)
+                                            {
+                                                <textarea class="form-control" rows="6" @bind="_editingTextBody"></textarea>
+                                                <div class="mt-2 d-flex gap-1">
+                                                    <button class="btn btn-sm btn-primary" @onclick="SaveTextEdit">
+                                                        <i class="bi bi-check-lg me-1"></i>Save
+                                                    </button>
+                                                    <button class="btn btn-sm btn-secondary" @onclick="() => _editingTextBlockId = null">Cancel</button>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div style="white-space:pre-wrap;word-break:break-word">@block.Body</div>
+                                            }
+                                        }
+                                        else if (block.ContentType == "Image")
+                                        {
+                                            <img src="@Api.GetImageUrl(block.ImageUrl!)" alt="@block.OriginalFileName"
+                                                 class="img-fluid rounded" style="max-height:320px;object-fit:contain" />
+                                            <div class="text-muted small mt-1">@block.OriginalFileName</div>
+                                        }
+                                        else if (block.ContentType == "Prompt")
+                                        {
+                                            @if (_editingPromptBlockId == block.Id)
+                                            {
+                                                <div class="mb-2">
+                                                    <label class="form-label form-label-sm fw-semibold">Question / Label</label>
+                                                    <input class="form-control form-control-sm" @bind="_editPromptLabel" />
+                                                </div>
+                                                @if (_editPromptType == "NumericEntry")
+                                                {
+                                                    <div class="row g-2 mb-2">
+                                                        <div class="col-4">
+                                                            <label class="form-label form-label-sm">Min</label>
+                                                            <input class="form-control form-control-sm" @bind="_editPromptMin" placeholder="no min" />
+                                                        </div>
+                                                        <div class="col-4">
+                                                            <label class="form-label form-label-sm">Max</label>
+                                                            <input class="form-control form-control-sm" @bind="_editPromptMax" placeholder="no max" />
+                                                        </div>
+                                                        <div class="col-4">
+                                                            <label class="form-label form-label-sm">Units</label>
+                                                            <input class="form-control form-control-sm" @bind="_editPromptUnits" placeholder="mm, rpm…" />
+                                                        </div>
+                                                    </div>
+                                                }
+                                                @if (_editPromptType == "MultipleChoice")
+                                                {
+                                                    <div class="mb-2">
+                                                        <label class="form-label form-label-sm">Choices <span class="text-muted">(one per line)</span></label>
+                                                        <textarea class="form-control form-control-sm" rows="3" @bind="_editPromptChoicesRaw"></textarea>
+                                                    </div>
+                                                }
+                                                <div class="form-check mb-2">
+                                                    <input type="checkbox" class="form-check-input" @bind="_editPromptRequired" />
+                                                    <label class="form-check-label small">Required</label>
+                                                </div>
+                                                <div class="d-flex gap-1">
+                                                    <button class="btn btn-primary btn-sm" @onclick="SaveEditedPromptBlock">Save</button>
+                                                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => _editingPromptBlockId = null">Cancel</button>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="d-flex align-items-start gap-2">
+                                                    <i class="bi bi-input-cursor-text text-primary mt-1" style="font-size:1.15rem;flex-shrink:0"></i>
+                                                    <div>
+                                                        <div class="fw-semibold">@block.Label</div>
+                                                        <div class="d-flex flex-wrap gap-1 mt-1">
+                                                            <span class="badge bg-info text-dark">@block.PromptType</span>
+                                                            @if (block.IsRequired) { <span class="badge bg-warning text-dark">Required</span> }
+                                                            @if (!string.IsNullOrEmpty(block.Units)) { <span class="badge bg-light text-dark border">@block.Units</span> }
+                                                            @if (block.MinValue.HasValue || block.MaxValue.HasValue)
+                                                            { <span class="badge bg-light text-dark border">@block.MinValue – @block.MaxValue</span> }
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        }
+                                    </div>
+                                    <div class="d-flex flex-column gap-1" style="flex-shrink:0">
+                                        <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Move up"
+                                                disabled="@(blockIdx == 0)"
+                                                @onclick="() => MoveContentBlockAsync(block.Id, -1)">
+                                            <i class="bi bi-arrow-up" style="font-size:.75rem"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Move down"
+                                                disabled="@(blockIdx == _contentBlocks.Count - 1)"
+                                                @onclick="() => MoveContentBlockAsync(block.Id, 1)">
+                                            <i class="bi bi-arrow-down" style="font-size:.75rem"></i>
+                                        </button>
+                                        @if (block.ContentType == "Text" && _editingTextBlockId != block.Id)
+                                        {
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Edit text"
+                                                    @onclick="() => StartEditText(block)">
+                                                <i class="bi bi-pencil" style="font-size:.75rem"></i>
+                                            </button>
+                                        }
+                                        @if (block.ContentType == "Prompt" && _editingPromptBlockId != block.Id)
+                                        {
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-1" title="Edit prompt"
+                                                    @onclick="() => StartEditPromptBlock(block)">
+                                                <i class="bi bi-pencil" style="font-size:.75rem"></i>
+                                            </button>
+                                        }
+                                        <button class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete"
+                                                @onclick="() => DeleteContentBlockAsync(block.Id)">
+                                            <i class="bi bi-trash" style="font-size:.75rem"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        @* Add text block *@
+                        @if (_addingTextBlock)
+                        {
+                            <div class="border rounded-2 mb-3 p-3 border-primary">
+                                <label class="form-label small fw-semibold">New Text Block</label>
+                                <textarea class="form-control" rows="6" @bind="_newTextBody"
+                                          placeholder="Enter instructions, notes, or any text for the operator…"></textarea>
+                                <div class="mt-2 d-flex gap-2">
+                                    <button class="btn btn-sm btn-primary" @onclick="AddTextBlockAsync">
+                                        <i class="bi bi-plus-lg me-1"></i>Add Block
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary"
+                                            @onclick="() => { _addingTextBlock = false; _newTextBody = string.Empty; }">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        }
+
+                        @* Add prompt block *@
+                        @if (_addingPromptBlock)
+                        {
+                            <div class="border border-primary rounded-2 mb-3 p-3">
+                                <label class="form-label small fw-semibold mb-2">
+                                    <i class="bi bi-input-cursor-text me-1 text-primary"></i>New Prompt Block
+                                </label>
+                                <div class="mb-2">
+                                    <label class="form-label form-label-sm">Question / Label <span class="text-danger">*</span></label>
+                                    <input class="form-control form-control-sm" @bind="_newPromptLabel"
+                                           placeholder="e.g. Measure outer diameter at point A" />
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label form-label-sm">Prompt Type</label>
+                                    <select class="form-select form-select-sm" @bind="_newPromptType">
+                                        <option value="NumericEntry">Numeric Entry</option>
+                                        <option value="PassFail">Pass / Fail</option>
+                                        <option value="MultipleChoice">Multiple Choice</option>
+                                        <option value="TextEntry">Text Entry (free form)</option>
+                                        <option value="Checkbox">Checkbox</option>
+                                        <option value="Scan">Scan (barcode / serial)</option>
+                                    </select>
+                                </div>
+                                @if (_newPromptType == "NumericEntry")
+                                {
+                                    <div class="row g-2 mb-2">
+                                        <div class="col-4">
+                                            <label class="form-label form-label-sm">Min</label>
+                                            <input class="form-control form-control-sm" @bind="_newPromptMin" placeholder="no min" />
+                                        </div>
+                                        <div class="col-4">
+                                            <label class="form-label form-label-sm">Max</label>
+                                            <input class="form-control form-control-sm" @bind="_newPromptMax" placeholder="no max" />
+                                        </div>
+                                        <div class="col-4">
+                                            <label class="form-label form-label-sm">Units</label>
+                                            <input class="form-control form-control-sm" @bind="_newPromptUnits" placeholder="mm, rpm…" />
+                                        </div>
+                                    </div>
+                                }
+                                @if (_newPromptType == "MultipleChoice")
+                                {
+                                    <div class="mb-2">
+                                        <label class="form-label form-label-sm">Choices <span class="text-muted">(one per line)</span></label>
+                                        <textarea class="form-control form-control-sm" rows="3" @bind="_newPromptChoicesRaw"
+                                                  placeholder="Option A&#10;Option B&#10;Option C"></textarea>
+                                    </div>
+                                }
+                                <div class="form-check mb-2">
+                                    <input type="checkbox" class="form-check-input" @bind="_newPromptRequired" />
+                                    <label class="form-check-label small">Required</label>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-primary" @onclick="AddPromptBlockAsync">
+                                        <i class="bi bi-plus-lg me-1"></i>Add Prompt
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" @onclick="() => _addingPromptBlock = false">Cancel</button>
+                                </div>
+                            </div>
+                        }
+
+                        @* Add buttons *@
+                        @if (!_addingTextBlock && !_addingPromptBlock)
+                        {
+                            <div class="d-flex gap-2 flex-wrap mt-2">
+                                <button class="btn btn-outline-secondary btn-sm"
+                                        @onclick="() => { _addingTextBlock = true; _newTextBody = string.Empty; }">
+                                    <i class="bi bi-text-paragraph me-1"></i>Add Text
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm" @onclick="StartAddPromptBlock">
+                                    <i class="bi bi-input-cursor-text me-1"></i>Add Prompt
+                                </button>
+                                <label class="btn btn-outline-secondary btn-sm mb-0" style="cursor:pointer">
+                                    <i class="bi bi-image me-1"></i>Add Image
+                                    <InputFile accept="image/*" style="display:none" OnChange="UploadImageBlock" />
+                                </label>
+                            </div>
+                        }
+                    }
+                }
+            }
+        </div>
+
+    </div>
+    } @* ── end Slide view ── *@
+
+    @* ══════════════════════════════════════════
+       Document View
+       ══════════════════════════════════════════ *@
+    @if (_viewMode == "Document")
+    {
+    <div class="pb-doc-view">
+        @if (_docBlocksLoading)
+        {
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary"></div>
+                <p class="text-muted mt-2 small">Loading document…</p>
+            </div>
+        }
+        else if (!_steps.Any())
+        {
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-file-earmark-richtext d-block mb-2" style="font-size:2.5rem;opacity:.35"></i>
+                <p class="mb-0">No steps yet. Switch to Diagram or Slide view to add steps.</p>
+            </div>
+        }
+        else
+        {
+            <div style="max-width:820px;margin:0 auto">
+                <p class="text-muted small mb-4">
+                    <i class="bi bi-eye me-1"></i>Read-only review.
+                    Click <strong>Edit</strong> on any step to switch to Slide view for that step.
+                </p>
+                @for (int di = 0; di < _steps.Count; di++)
+                {
+                    var docIdx = di;
+                    var docStep = _steps[di];
+                    var docBlocks = docStep.ServerId.HasValue && _docStepBlocks.TryGetValue(docStep.ServerId.Value, out var db) ? db : new List<ProcessStepContentResponseDto>();
+                    <div class="pb-doc-step" @key="docStep.Sequence">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <div>
+                                <div class="pb-doc-step-number">Step @(docIdx + 1)</div>
+                                <div class="pb-doc-step-title">
+                                    @(docStep.NameOverride ?? docStep.Template?.Name ?? "Unnamed Step")
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(docStep.DescriptionOverride ?? docStep.Template?.Description))
+                                {
+                                    <div class="pb-doc-step-desc">
+                                        @(docStep.DescriptionOverride ?? docStep.Template?.Description)
+                                    </div>
+                                }
+                                @if (docStep.Template is not null)
+                                {
+                                    <span class="badge bg-light text-dark border me-1" style="font-size:.68rem">
+                                        @(docStep.PatternOverride?.ToString() ?? docStep.Template.Pattern.ToString())
+                                    </span>
+                                    <code class="text-muted" style="font-size:.72rem">@docStep.Template.Code</code>
+                                }
+                            </div>
+                            <button class="btn btn-outline-primary btn-sm flex-shrink-0 ms-3"
+                                    @onclick="() => _ = SwitchToSlideStep(docIdx)">
+                                <i class="bi bi-pencil me-1"></i>Edit
+                            </button>
+                        </div>
+                        @if (!docBlocks.Any())
+                        {
+                            <p class="text-muted small fst-italic mt-2 mb-0">No content blocks.</p>
+                        }
+                        else
+                        {
+                            <div class="mt-3">
+                                @foreach (var docBlock in docBlocks)
+                                {
+                                    @if (docBlock.ContentType == "Text")
+                                    {
+                                        <p style="white-space:pre-wrap;word-break:break-word;margin-bottom:.75rem">@docBlock.Body</p>
+                                    }
+                                    else if (docBlock.ContentType == "Image")
+                                    {
+                                        <figure class="my-3">
+                                            <img src="@Api.GetImageUrl(docBlock.ImageUrl!)" alt="@docBlock.OriginalFileName"
+                                                 class="img-fluid rounded border" style="max-height:350px;object-fit:contain" />
+                                            @if (!string.IsNullOrEmpty(docBlock.OriginalFileName))
+                                            {
+                                                <figcaption class="text-muted small mt-1">@docBlock.OriginalFileName</figcaption>
+                                            }
+                                        </figure>
+                                    }
+                                    else if (docBlock.ContentType == "Prompt")
+                                    {
+                                        <div class="border rounded-2 p-2 mb-2 bg-light d-flex align-items-center flex-wrap gap-2" style="font-size:.88rem">
+                                            <i class="bi bi-input-cursor-text text-primary"></i>
+                                            <strong>@docBlock.Label</strong>
+                                            <span class="badge bg-info text-dark">@docBlock.PromptType</span>
+                                            @if (docBlock.IsRequired) { <span class="badge bg-warning text-dark">Required</span> }
+                                            @if (!string.IsNullOrEmpty(docBlock.Units)) { <span class="badge bg-light text-dark border">@docBlock.Units</span> }
+                                            @if (docBlock.MinValue.HasValue || docBlock.MaxValue.HasValue)
+                                            { <span class="badge bg-light text-dark border">@docBlock.MinValue – @docBlock.MaxValue</span> }
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+    } @* ── end Document view ── *@
 }
 
 @* ══════════════════════════════════════════
@@ -374,7 +866,7 @@ else
 @* ══════════════════════════════════════════
    Edit step modal
    ══════════════════════════════════════════ *@
-@if (_showEditStepModal && _editStepIndex < _steps.Count)
+@if (_viewMode == "Diagram" && _showEditStepModal && _editStepIndex < _steps.Count)
 {
     var editStep = _steps[_editStepIndex];
     <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5);z-index:1060">
@@ -825,6 +1317,13 @@ else
 
     // ── Builder state ──
     private List<BuilderStep> _steps = new();
+
+    // ── View mode ──
+    private string _viewMode = "Diagram";
+
+    // ── Document view ──
+    private Dictionary<Guid, List<ProcessStepContentResponseDto>> _docStepBlocks = new();
+    private bool _docBlocksLoading;
 
     // ── Page state ──
     private bool _loading = true;
@@ -1306,8 +1805,9 @@ else
         _contentError = null;
     }
 
-    private void ApplyStepEdit()
+    private void CommitStepEdit()
     {
+        if (_editStepIndex < 0 || _editStepIndex >= _steps.Count) return;
         var step = _steps[_editStepIndex];
         step.NameOverride = string.IsNullOrWhiteSpace(_editNameValue) ? null : _editNameValue.Trim();
         step.DescriptionOverride = string.IsNullOrWhiteSpace(_editDescriptionValue) ? null : _editDescriptionValue.Trim();
@@ -1330,8 +1830,15 @@ else
         var node = _diagram.Nodes.OfType<ProcessStepNodeModel>()
             .FirstOrDefault(n => n.Step == step);
         node?.Refresh();
+    }
+
+    private void ApplyStepEdit()
+    {
+        CommitStepEdit();
         CloseEditStepModal();
     }
+
+    private void ApplySlideStepEdit() => CommitStepEdit();
 
     private void ResetPortOverride(int portIdx)
     {
@@ -1658,6 +2165,123 @@ else
         finally
         {
             _saving = false;
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // View mode switching
+    // ──────────────────────────────────────────────
+
+    private async Task SetViewMode(string mode)
+    {
+        if (_viewMode == mode) return;
+        // Auto-commit pending name/description edits when leaving slide view
+        if (_viewMode == "Slide" && _editStepIndex >= 0 && _editStepIndex < _steps.Count)
+            CommitStepEdit();
+        _viewMode = mode;
+        if (mode == "Slide" && Id.HasValue && _steps.Any())
+        {
+            var idx = _editStepIndex >= 0 && _editStepIndex < _steps.Count ? _editStepIndex : 0;
+            await SelectSlideStep(idx);
+        }
+        else if (mode == "Document" && Id.HasValue)
+        {
+            await LoadAllDocContent();
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    // Slide view actions
+    // ──────────────────────────────────────────────
+
+    private async Task SelectSlideStep(int index)
+    {
+        if (index < 0 || index >= _steps.Count) return;
+        _editStepIndex = index;
+        var step = _steps[index];
+        _editNameValue = step.NameOverride ?? "";
+        _editDescriptionValue = step.DescriptionOverride ?? "";
+        _editPatternOverride = step.PatternOverride;
+        _contentBlocks.Clear();
+        _addingTextBlock = false;
+        _editingTextBlockId = null;
+        _addingPromptBlock = false;
+        _editingPromptBlockId = null;
+        _newTextBody = "";
+        _editingTextBody = "";
+        _contentError = null;
+        StateHasChanged();
+        if (step.ServerId.HasValue && Id.HasValue)
+            await LoadStepContent();
+    }
+
+    private Task MoveSlideStep(int index, int direction)
+    {
+        var newIdx = index + direction;
+        if (newIdx < 0 || newIdx >= _steps.Count) return Task.CompletedTask;
+        CommitStepEdit(); // Persist any pending name edit before reorder
+        (_steps[index], _steps[newIdx]) = (_steps[newIdx], _steps[index]);
+        for (int i = 0; i < _steps.Count; i++) _steps[i].Sequence = i + 1;
+        _validation = null;
+        if (_editStepIndex == index) _editStepIndex = newIdx;
+        else if (_editStepIndex == newIdx) _editStepIndex = index;
+        RebuildDiagram();
+        _editNameValue = _steps[_editStepIndex].NameOverride ?? "";
+        _editDescriptionValue = _steps[_editStepIndex].DescriptionOverride ?? "";
+        return Task.CompletedTask;
+    }
+
+    private async Task RemoveSlideStep(int index)
+    {
+        _steps.RemoveAt(index);
+        for (int i = 0; i < _steps.Count; i++) _steps[i].Sequence = i + 1;
+        _validation = null;
+        RebuildDiagram();
+        if (_steps.Any())
+            await SelectSlideStep(Math.Min(index, _steps.Count - 1));
+        else
+        {
+            _editStepIndex = 0;
+            _contentBlocks.Clear();
+        }
+    }
+
+    private async Task SwitchToSlideStep(int index)
+    {
+        _viewMode = "Slide";
+        await SelectSlideStep(index);
+    }
+
+    // ──────────────────────────────────────────────
+    // Document view
+    // ──────────────────────────────────────────────
+
+    private async Task LoadAllDocContent()
+    {
+        if (!Id.HasValue) return;
+        _docBlocksLoading = true;
+        StateHasChanged();
+        _docStepBlocks.Clear();
+        try
+        {
+            var tasks = _steps
+                .Where(s => s.ServerId.HasValue)
+                .Select(async s =>
+                {
+                    var blocks = await Api.GetStepContentAsync(Id!.Value, s.ServerId!.Value);
+                    return (s.ServerId!.Value, blocks ?? new List<ProcessStepContentResponseDto>());
+                });
+            var results = await Task.WhenAll(tasks);
+            foreach (var (stepId, blocks) in results)
+                _docStepBlocks[stepId] = blocks;
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load document content: {ex.Message}");
+        }
+        finally
+        {
+            _docBlocksLoading = false;
         }
     }
 

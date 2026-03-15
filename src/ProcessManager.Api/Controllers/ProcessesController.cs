@@ -64,7 +64,8 @@ public class ProcessesController : ControllerBase
                 StepCount = p.ProcessSteps.Count,
                 p.CreatedAt, p.UpdatedAt,
                 p.ProcessRole, p.ApprovalProcessId,
-                p.RevisionCode, p.ChangeDescription, p.EffectiveDate
+                p.RevisionCode, p.ChangeDescription, p.EffectiveDate,
+                p.CompetencyTitle, p.CompetencyExpiryDays
             })
             .ToListAsync();
 
@@ -73,7 +74,8 @@ public class ProcessesController : ControllerBase
                 p.Version, p.Status.ToString(), p.IsActive,
                 p.StepCount, p.CreatedAt, p.UpdatedAt,
                 p.ProcessRole.ToString(), p.ApprovalProcessId,
-                p.RevisionCode, p.ChangeDescription, p.EffectiveDate)).ToList();
+                p.RevisionCode, p.ChangeDescription, p.EffectiveDate,
+                p.CompetencyTitle, p.CompetencyExpiryDays)).ToList();
 
         return new PaginatedResponse<ProcessSummaryResponseDto>(
             processes, totalCount, page, pageSize);

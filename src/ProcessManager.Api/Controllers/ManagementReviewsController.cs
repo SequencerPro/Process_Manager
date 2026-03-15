@@ -175,6 +175,21 @@ public class ManagementReviewsController : ControllerBase
 
         review.MrbSummary = $"Open MRBs: {openMrbs}. MRBs open > 30 days: {mrbsOver30}.";
 
+        // Training compliance snapshot
+        var allCompetency = await _db.CompetencyRecords.AsNoTracking().ToListAsync();
+        var trainingTotal   = allCompetency.Count(c => c.Status != CompetencyStatus.Superseded);
+        var trainingCurrent = allCompetency.Count(c => c.Status == CompetencyStatus.Current);
+        var trainingExpired = allCompetency.Count(c => c.Status == CompetencyStatus.Expired);
+        var trainingExpiringSoon = allCompetency.Count(c =>
+            c.Status == CompetencyStatus.Current
+            && c.ExpiresAt.HasValue
+            && c.ExpiresAt.Value <= now.AddDays(30));
+        var trainingPct = trainingTotal > 0
+            ? Math.Round((double)trainingCurrent / trainingTotal * 100, 1)
+            : 0;
+        review.TrainingComplianceSummary =
+            $"Competency records: {trainingCurrent}/{trainingTotal} current ({trainingPct}%). Expired: {trainingExpired}. Expiring within 30 days: {trainingExpiringSoon}.";
+
         review.Status = ManagementReviewStatus.InProgress;
 
         await _db.SaveChangesAsync();
@@ -284,6 +299,7 @@ public class ManagementReviewsController : ControllerBase
         r.NcSummary,
         r.ActionCloseRateSummary,
         r.MrbSummary,
+        r.TrainingComplianceSummary,
         r.CustomerComplaintsNotes,
         r.SupplierQualityNotes,
         r.InternalAuditStatus,

@@ -60,7 +60,9 @@ public record ProcessSummaryResponseDto(
     Guid? ApprovalProcessId = null,
     string? RevisionCode = null,
     string? ChangeDescription = null,
-    DateTime? EffectiveDate = null
+    DateTime? EffectiveDate = null,
+    string? CompetencyTitle = null,
+    int? CompetencyExpiryDays = null
 );
 
 // ──────────────────── ProcessStep ────────────────────

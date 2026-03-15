@@ -40,7 +40,7 @@ public class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "1.9";
+    private const string ServerVersion   = "2.0";
 
     public McpController(ProcessManagerDbContext db) => _db = db;
 
@@ -170,6 +170,12 @@ public class McpController : ControllerBase
                  Schema(
                      ("status", "string", "Optional: Scheduled, InProgress, or Complete — leave empty for all"),
                      ("include_action_items", "string", "true to include a breakdown of action items per review"))),
+
+            Tool("get_competency_status",
+                 "Retrieve the training competency status for all users or a specific user. Returns Current, Expired, and Expiring Soon records. Useful for understanding workforce readiness and training compliance. Requires authentication.",
+                 Schema(
+                     ("user_id", "string", "Optional: filter to a specific user's competency records — leave empty for all users"),
+                     ("status",  "string", "Optional: Current, Expired, or Superseded — leave empty for Current and Expired only"))),
         }
     };
 
@@ -251,6 +257,7 @@ public class McpController : ControllerBase
             "get_rca_summary"               => OkResponse(id, TextContent(await ToolGetRcaSummary(args))),
             "get_mrb_summary"               => OkResponse(id, TextContent(await ToolGetMrbSummary(args))),
             "get_management_review_status"  => OkResponse(id, TextContent(await ToolGetManagementReviewStatus(args))),
+            "get_competency_status"          => OkResponse(id, TextContent(await ToolGetCompetencyStatus(args))),
             _                               => ErrorResponse(id, -32602, $"Unknown tool: {toolName}")
         };
     }
@@ -949,6 +956,65 @@ public class McpController : ControllerBase
         body.TryGetProperty("id", out id);
         body.TryGetProperty("params", out @params);
         return true;
+    }
+
+    private async Task<string> ToolGetCompetencyStatus(JsonElement args)
+    {
+        var userIdFilter  = args.TryGetProperty("user_id", out var ui) ? ui.GetString()?.Trim() : null;
+        var statusFilter  = args.TryGetProperty("status",  out var sf) ? sf.GetString()?.Trim() : null;
+
+        var query = _db.CompetencyRecords.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrEmpty(userIdFilter))
+            query = query.Where(r => r.UserId == userIdFilter);
+
+        if (!string.IsNullOrEmpty(statusFilter) &&
+            Enum.TryParse<Domain.Enums.CompetencyStatus>(statusFilter, true, out var parsedStatus))
+            query = query.Where(r => r.Status == parsedStatus);
+        else
+            query = query.Where(r => r.Status != Domain.Enums.CompetencyStatus.Superseded);
+
+        var records = await query
+            .Include(r => r.TrainingProcess)
+            .OrderBy(r => r.UserDisplayName)
+            .ThenBy(r => r.Status.ToString())
+            .Take(200)
+            .ToListAsync();
+
+        if (!records.Any())
+            return "No competency records found matching the criteria.";
+
+        var now = DateTime.UtcNow;
+        var soon = now.AddDays(30);
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Competency Records ({records.Count})\n");
+        sb.AppendLine("| User | Training Course | Competency | Status | Completed | Expires |");
+        sb.AppendLine("|---|---|---|---|---|---|");
+
+        foreach (var r in records)
+        {
+            var statusLabel = r.Status.ToString();
+            if (r.Status == Domain.Enums.CompetencyStatus.Current && r.ExpiresAt.HasValue && r.ExpiresAt.Value <= soon)
+                statusLabel = "Current (Expiring Soon)";
+
+            var expiry = r.ExpiresAt.HasValue
+                ? r.ExpiresAt.Value.ToString("yyyy-MM-dd")
+                : "No expiry";
+
+            var competencyTitle = r.TrainingProcess?.CompetencyTitle ?? r.TrainingProcess?.Name ?? r.TrainingProcessId.ToString();
+            sb.AppendLine($"| {r.UserDisplayName} | {r.TrainingProcess?.Name ?? r.TrainingProcessId.ToString()} | {competencyTitle} | **{statusLabel}** | {r.CompletedAt:yyyy-MM-dd} | {expiry} |");
+        }
+
+        // Summary
+        var total    = records.Count;
+        var current  = records.Count(r => r.Status == Domain.Enums.CompetencyStatus.Current);
+        var expired  = records.Count(r => r.Status == Domain.Enums.CompetencyStatus.Expired);
+        var expiring = records.Count(r => r.Status == Domain.Enums.CompetencyStatus.Current && r.ExpiresAt.HasValue && r.ExpiresAt.Value <= soon);
+
+        sb.AppendLine($"\n*Summary: {current}/{total} current, {expired} expired, {expiring} expiring within 30 days.*");
+
+        return sb.ToString();
     }
 
     private async Task<string> ToolGetManagementReviewStatus(JsonElement args)

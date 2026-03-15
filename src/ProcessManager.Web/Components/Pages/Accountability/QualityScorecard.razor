@@ -187,10 +187,63 @@ else
             </div>
         </div>
     </div>
+
+    @* ── Training Compliance ── *@
+    <div class="row g-3 mt-1">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-mortarboard me-1"></i>Training Compliance</span>
+                    <a href="competency-matrix" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-table me-1"></i>View Matrix
+                    </a>
+                </div>
+                @if (_training is null)
+                {
+                    <div class="card-body text-muted small text-center py-3">
+                        <div class="spinner-border spinner-border-sm"></div>
+                    </div>
+                }
+                else
+                {
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-sm-6 col-md-3 text-center">
+                                <div class="fs-3 fw-bold @(_training.CompliancePct >= 90 ? "text-success" : _training.CompliancePct >= 70 ? "text-warning" : "text-danger")">
+                                    @(_training.CompliancePct.ToString("F1"))%
+                                </div>
+                                <div class="small text-muted">Compliance Rate</div>
+                            </div>
+                            <div class="col-sm-6 col-md-3 text-center">
+                                <div class="fs-3 fw-bold text-success">@_training.Current</div>
+                                <div class="small text-muted">Current (@_training.TotalRequired total required)</div>
+                            </div>
+                            <div class="col-sm-6 col-md-3 text-center">
+                                <div class="fs-3 fw-bold @(_training.Expired > 0 ? "text-danger" : "text-muted")">@_training.Expired</div>
+                                <div class="small text-muted">Expired</div>
+                            </div>
+                            <div class="col-sm-6 col-md-3 text-center">
+                                <div class="fs-3 fw-bold @(_training.ExpiringSoon > 0 ? "text-warning" : "text-muted")">@_training.ExpiringSoon</div>
+                                <div class="small text-muted">Expiring Soon (&lt;30 days)</div>
+                            </div>
+                        </div>
+                        @if (_training.Missing > 0)
+                        {
+                            <div class="alert alert-warning py-1 small mt-3 mb-0">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                @_training.Missing operator(s) are missing required competency records.
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
 }
 
 @code {
-    private QualityScorecardDto? _data;
+    private QualityScorecardDto?        _data;
+    private TrainingComplianceSummaryDto? _training;
     private bool _loading;
 
     protected override async Task OnInitializedAsync() => await Load();
@@ -198,7 +251,14 @@ else
     private async Task Load()
     {
         _loading = true;
-        try { _data = await Api.GetQualityScorecardAsync(); }
+        try
+        {
+            var scoreTask    = Api.GetQualityScorecardAsync();
+            var trainingTask = Api.GetTrainingComplianceAsync();
+            await Task.WhenAll(scoreTask, trainingTask);
+            _data     = await scoreTask;
+            _training = await trainingTask;
+        }
         catch (Exception ex) { Toast.ShowError($"Failed to load scorecard: {ex.Message}"); }
         finally { _loading = false; }
     }

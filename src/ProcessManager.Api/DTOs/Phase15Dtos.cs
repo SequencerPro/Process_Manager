@@ -95,6 +95,7 @@ public record ManagementReviewDto(
     string?  NcSummary,
     string?  ActionCloseRateSummary,
     string?  MrbSummary,
+    string?  TrainingComplianceSummary,
     // Manual inputs
     string?  CustomerComplaintsNotes,
     string?  SupplierQualityNotes,

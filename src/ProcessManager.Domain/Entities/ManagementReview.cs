@@ -29,6 +29,9 @@ public class ManagementReview : BaseEntity
     /// <summary>Open MRB count and average age — auto-populated at review start.</summary>
     public string? MrbSummary { get; set; }
 
+    /// <summary>Training compliance % and expired/expiring counts — auto-populated at review start.</summary>
+    public string? TrainingComplianceSummary { get; set; }
+
     // ── Manual supplementary inputs ──────────────────────────────────────────
 
     public string? CustomerComplaintsNotes { get; set; }

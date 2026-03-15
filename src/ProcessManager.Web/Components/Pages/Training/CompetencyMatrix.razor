@@ -1,0 +1,151 @@
+@page "/competency-matrix"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@inject ApiClient Api
+
+<PageTitle>Competency Matrix — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-table me-2 text-primary"></i>Competency Matrix</h3>
+        <p class="text-muted small mb-0">Cross-reference of user competencies against training courses</p>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="Load" disabled="@_loading">
+        <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+    </button>
+</div>
+
+@* ── Filter ── *@
+<div class="card mb-3 shadow-sm">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small mb-1">Filter by Process</label>
+                <select class="form-select form-select-sm" @bind="_filterProcessId" @bind:after="Load">
+                    <option value="">All training courses</option>
+                    @if (_trainingProcesses is not null)
+                    {
+                        @foreach (var p in _trainingProcesses.Items)
+                        {
+                            <option value="@p.Id">@(p.CompetencyTitle ?? p.Name)</option>
+                        }
+                    }
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading matrix…
+    </div>
+}
+else if (_matrix is null || !_matrix.Any())
+{
+    <div class="card shadow-sm">
+        <div class="card-body text-muted small text-center py-4">No competency data found.</div>
+    </div>
+}
+else
+{
+    @* Build column set from first row (all rows have the same columns) *@
+    var columns = _matrix.First().Cells;
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0 align-middle" style="min-width: 600px;">
+                <thead class="table-light">
+                    <tr>
+                        <th class="text-nowrap">User</th>
+                        @foreach (var col in columns)
+                        {
+                            var proc = _trainingProcesses?.Items.FirstOrDefault(p => p.Id == col.TrainingProcessId);
+                            <th class="text-center text-nowrap small" style="min-width:90px">
+                                @(proc?.CompetencyTitle ?? proc?.Code ?? col.TrainingProcessId.ToString()[..8])
+                            </th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _matrix)
+                    {
+                        <tr>
+                            <td class="fw-medium text-nowrap">@row.UserDisplayName</td>
+                            @foreach (var cell in row.Cells)
+                            {
+                                <td class="text-center">
+                                    @if (cell.Status is null)
+                                    {
+                                        <span class="text-muted" title="No record">—</span>
+                                    }
+                                    else if (cell.Status == "Expired")
+                                    {
+                                        var expDate = cell.ExpiresAt?.ToString("MMM d, yyyy") ?? "";
+                                        <span title="Expired @expDate">
+                                            <i class="bi bi-x-circle-fill text-danger"></i>
+                                        </span>
+                                    }
+                                    else if (cell.ExpiringSoon)
+                                    {
+                                        var expDate = cell.ExpiresAt?.ToString("MMM d, yyyy") ?? "";
+                                        <span title="Expiring soon (@expDate)">
+                                            <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                                        </span>
+                                    }
+                                    else if (cell.Status == "Current")
+                                    {
+                                        var expiryNote = cell.ExpiresAt.HasValue ? ", expires " + cell.ExpiresAt.Value.ToString("MMM d, yyyy") : "";
+                                        var completedNote = cell.CompletedAt?.ToString("MMM d, yyyy") ?? "";
+                                        var currentTitle = "Current - completed " + completedNote + expiryNote;
+                                        <span title="@currentTitle">
+                                            <i class="bi bi-check-circle-fill text-success"></i>
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">@cell.Status</span>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @* Legend *@
+    <div class="d-flex gap-4 mt-2 small text-muted">
+        <span><i class="bi bi-check-circle-fill text-success me-1"></i>Current</span>
+        <span><i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>Expiring Soon (&lt;30 days)</span>
+        <span><i class="bi bi-x-circle-fill text-danger me-1"></i>Expired</span>
+        <span class="text-muted">— No record</span>
+    </div>
+}
+
+@code {
+    private List<CompetencyMatrixRowDto>?             _matrix;
+    private PaginatedResponse<ProcessSummaryResponseDto>? _trainingProcesses;
+    private bool   _loading;
+    private string _filterProcessId = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _trainingProcesses = await Api.GetProcessesAsync(processRole: "Training", active: true, pageSize: 200);
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            Guid? pid = Guid.TryParse(_filterProcessId, out var g) ? g : null;
+            _matrix = await Api.GetCompetencyMatrixAsync(subjectProcessId: pid);
+        }
+        catch (Exception ex) { Toast.ShowError($"Failed to load matrix: {ex.Message}"); }
+        finally { _loading = false; }
+    }
+}

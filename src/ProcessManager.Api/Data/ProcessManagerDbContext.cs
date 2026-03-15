@@ -89,6 +89,10 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ActionItem> ActionItems => Set<ActionItem>();
     public DbSet<ManagementReview> ManagementReviews => Set<ManagementReview>();
 
+    // Phase 16: Training & Competency Management
+    public DbSet<CompetencyRecord> CompetencyRecords => Set<CompetencyRecord>();
+    public DbSet<ProcessTrainingRequirement> ProcessTrainingRequirements => Set<ProcessTrainingRequirement>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -1054,6 +1058,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(r => r.NcSummary).HasMaxLength(2000);
             e.Property(r => r.ActionCloseRateSummary).HasMaxLength(500);
             e.Property(r => r.MrbSummary).HasMaxLength(500);
+            e.Property(r => r.TrainingComplianceSummary).HasMaxLength(500);
             e.Property(r => r.CustomerComplaintsNotes).HasMaxLength(2000);
             e.Property(r => r.SupplierQualityNotes).HasMaxLength(2000);
             e.Property(r => r.InternalAuditStatus).HasMaxLength(2000);
@@ -1063,6 +1068,49 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(r => r.CreatedBy).HasMaxLength(200);
             e.HasIndex(r => r.Status);
             e.HasIndex(r => r.ScheduledDate);
+        });
+
+        // ── Phase 16: Training & Competency Management ───────────────────────
+
+        // --- CompetencyRecord ---
+        modelBuilder.Entity<CompetencyRecord>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.UserId).HasMaxLength(450).IsRequired();
+            e.Property(c => c.UserDisplayName).HasMaxLength(200).IsRequired();
+            e.Property(c => c.InstructorUserId).HasMaxLength(450);
+            e.Property(c => c.InstructorDisplayName).HasMaxLength(200);
+            e.Property(c => c.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(c => c.Notes).HasMaxLength(2000);
+            e.Property(c => c.CreatedBy).HasMaxLength(200);
+            e.HasIndex(c => c.UserId);
+            e.HasIndex(c => c.Status);
+            e.HasIndex(c => new { c.UserId, c.TrainingProcessId, c.Status });
+
+            e.HasOne(c => c.TrainingProcess)
+                .WithMany()
+                .HasForeignKey(c => c.TrainingProcessId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(c => c.Job)
+                .WithMany()
+                .HasForeignKey(c => c.JobId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // --- ProcessTrainingRequirement ---
+        modelBuilder.Entity<ProcessTrainingRequirement>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.SubjectType).HasConversion<string>().HasMaxLength(20);
+            e.Property(r => r.CreatedBy).HasMaxLength(200);
+            e.HasIndex(r => new { r.SubjectType, r.SubjectEntityId });
+
+            e.HasOne(r => r.RequiredTrainingProcess)
+                .WithMany()
+                .HasForeignKey(r => r.RequiredTrainingProcessId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 

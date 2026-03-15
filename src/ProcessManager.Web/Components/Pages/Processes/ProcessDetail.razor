@@ -198,6 +198,123 @@ else
         }
     </div>
 
+    @* Training Requirements *@
+    @if (_proc.ProcessRole != "Training" && _proc.ProcessRole != "ApprovalProcess")
+    {
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-mortarboard me-1"></i> Training Requirements (@(_trainingRequirements?.Count ?? 0))</span>
+                <AuthorizeView Roles="Admin,Engineer">
+                    <Authorized>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="OpenAddRequirement">
+                            <i class="bi bi-plus-lg me-1"></i>Add Requirement
+                        </button>
+                    </Authorized>
+                </AuthorizeView>
+            </div>
+            @if (_trainingRequirements is null)
+            {
+                <div class="card-body text-muted small text-center py-3">
+                    <div class="spinner-border spinner-border-sm"></div>
+                </div>
+            }
+            else if (!_trainingRequirements.Any())
+            {
+                <div class="card-body text-muted small">No training requirements defined for this process.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Training Course</th>
+                                <th>Competency</th>
+                                <th>Enforcement</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var req in _trainingRequirements)
+                            {
+                                <tr>
+                                    <td><code>@req.TrainingProcessCode</code> — @req.TrainingProcessName</td>
+                                    <td class="small text-muted">@(req.CompetencyTitle ?? req.TrainingProcessName)</td>
+                                    <td>
+                                        @if (req.IsEnforced)
+                                        {
+                                            <span class="badge bg-danger">Enforced</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark">Advisory</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        <AuthorizeView Roles="Admin,Engineer">
+                                            <Authorized>
+                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveRequirement(req.Id)">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </Authorized>
+                                        </AuthorizeView>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    }
+
+    @* Add Training Requirement Modal *@
+    @if (_showAddReqModal)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-mortarboard me-2"></i>Add Training Requirement</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showAddReqModal = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Training Course <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="_reqTrainingProcessId">
+                                <option value="">Select a training course…</option>
+                                @if (_availableTrainingProcesses is not null)
+                                {
+                                    @foreach (var tp in _availableTrainingProcesses.Items)
+                                    {
+                                        <option value="@tp.Id">@(tp.CompetencyTitle ?? tp.Name) (@tp.Code)</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="reqEnforced" @bind="_reqIsEnforced" />
+                            <label class="form-check-label" for="reqEnforced">
+                                Enforced (blocks job creation if prerequisite not met)
+                            </label>
+                        </div>
+                        @if (_reqError is not null)
+                        {
+                            <div class="alert alert-danger py-1 small mt-2">@_reqError</div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showAddReqModal = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SubmitAddRequirement" disabled="@_reqSaving">
+                            @if (_reqSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Add
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
     @* Edit Process Modal *@
     @if (_showEditForm)
     {
@@ -369,6 +486,15 @@ else
     private string _lifecycleUser = "";
     private string _lifecycleNotes = "";
 
+    // Training requirements
+    private List<ProcessTrainingRequirementDto>? _trainingRequirements;
+    private PaginatedResponse<ProcessSummaryResponseDto>? _availableTrainingProcesses;
+    private bool _showAddReqModal;
+    private string _reqTrainingProcessId = "";
+    private bool   _reqIsEnforced = true;
+    private string? _reqError;
+    private bool    _reqSaving;
+
     protected override async Task OnInitializedAsync() => await LoadData();
 
     private async Task LoadData()
@@ -377,6 +503,8 @@ else
         try
         {
             _proc = await Api.GetProcessAsync(Id);
+            if (_proc is not null && _proc.ProcessRole != "Training" && _proc.ProcessRole != "ApprovalProcess")
+                _trainingRequirements = await Api.GetTrainingRequirementsAsync("Process", Id);
         }
         catch (Exception ex)
         {
@@ -504,4 +632,39 @@ else
         MaturityLevel.Developing => "bg-warning text-dark",
         _                        => "bg-secondary"
     };
+
+    // --- Training Requirements ---
+    private async Task OpenAddRequirement()
+    {
+        _reqTrainingProcessId = "";
+        _reqIsEnforced = true;
+        _reqError = null;
+        if (_availableTrainingProcesses is null)
+            _availableTrainingProcesses = await Api.GetProcessesAsync(processRole: "Training", active: true, pageSize: 200);
+        _showAddReqModal = true;
+    }
+
+    private async Task SubmitAddRequirement()
+    {
+        if (!Guid.TryParse(_reqTrainingProcessId, out var tpId)) { _reqError = "Please select a training course."; return; }
+        _reqSaving = true; _reqError = null;
+        try
+        {
+            await Api.AddTrainingRequirementAsync(new AddTrainingRequirementDto("Process", Id, tpId, _reqIsEnforced));
+            _trainingRequirements = await Api.GetTrainingRequirementsAsync("Process", Id);
+            _showAddReqModal = false;
+        }
+        catch (Exception ex) { _reqError = ex.Message; }
+        finally { _reqSaving = false; }
+    }
+
+    private async Task RemoveRequirement(Guid reqId)
+    {
+        try
+        {
+            await Api.DeleteTrainingRequirementAsync(reqId);
+            _trainingRequirements = await Api.GetTrainingRequirementsAsync("Process", Id);
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
 }

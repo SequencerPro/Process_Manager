@@ -245,6 +245,33 @@
             </AuthorizeView>
         }
 
+        @* ── Training ── *@
+        <li class="mt-2">
+            <button type="button"
+                    class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
+                    @onclick='() => ToggleSection("training")'>
+                <span>Training</span>
+                <i class='bi @(_openSection == "training" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
+            </button>
+        </li>
+        @if (_openSection == "training")
+        {
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="training">
+                    <i class="bi bi-mortarboard me-2"></i> Training Catalogue
+                </NavLink>
+            </li>
+            <AuthorizeView Roles="Admin,Engineer">
+                <Authorized>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="competency-matrix">
+                            <i class="bi bi-table me-2"></i> Competency Matrix
+                        </NavLink>
+                    </li>
+                </Authorized>
+            </AuthorizeView>
+        }
+
         @* ── Admin (role-gated) ── *@
         <AuthorizeView Roles="Admin">
             <Authorized>

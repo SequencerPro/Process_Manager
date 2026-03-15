@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -83,6 +84,36 @@ public class JobsController : ControllerBase
         if (process.Status != ProcessManager.Domain.Enums.ProcessStatus.Released &&
             process.Status != ProcessManager.Domain.Enums.ProcessStatus.Superseded)
             return BadRequest($"Process '{process.Code}' is not Released (current status: {process.Status}). Only Released or Superseded processes can be used for new Jobs.");
+
+        // ── Training prerequisite enforcement (Phase 16) ──────────────────────
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (currentUserId is not null)
+        {
+            var enforcedReqs = await _db.ProcessTrainingRequirements
+                .Include(r => r.RequiredTrainingProcess)
+                .Where(r => r.SubjectType == TrainingRequirementSubjectType.Process
+                         && r.SubjectEntityId == dto.ProcessId
+                         && r.IsEnforced)
+                .ToListAsync();
+
+            var missing = new List<string>();
+            foreach (var req in enforcedReqs)
+            {
+                var hasCompetency = await _db.CompetencyRecords.AnyAsync(c =>
+                    c.UserId == currentUserId
+                    && c.TrainingProcessId == req.RequiredTrainingProcessId
+                    && c.Status == CompetencyStatus.Current);
+
+                if (!hasCompetency)
+                    missing.Add(req.RequiredTrainingProcess?.CompetencyTitle
+                             ?? req.RequiredTrainingProcess?.Name
+                             ?? req.RequiredTrainingProcessId.ToString());
+            }
+
+            if (missing.Count > 0)
+                return BadRequest(
+                    $"You must hold current competency in: {string.Join(", ", missing)}.");
+        }
 
         var job = new Job
         {
@@ -193,6 +224,45 @@ public class JobsController : ControllerBase
 
         job.Status = JobStatus.Completed;
         job.CompletedAt = DateTime.UtcNow;
+
+        // ── Auto-create CompetencyRecord for Training-role jobs (Phase 16) ─────
+        if (job.Process.ProcessRole == ProcessRole.Training)
+        {
+            var traineeId   = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var traineeName = User.FindFirstValue("display_name")
+                           ?? User.Identity?.Name
+                           ?? "Unknown";
+
+            if (traineeId is not null)
+            {
+                // Supersede any existing Current record for this trainee + training process
+                var existing = await _db.CompetencyRecords
+                    .Where(c => c.UserId == traineeId
+                             && c.TrainingProcessId == job.ProcessId
+                             && c.Status == CompetencyStatus.Current)
+                    .ToListAsync();
+
+                foreach (var old in existing)
+                    old.Status = CompetencyStatus.Superseded;
+
+                var now = DateTime.UtcNow;
+                var expiresAt = job.Process.CompetencyExpiryDays.HasValue
+                    ? now.AddDays(job.Process.CompetencyExpiryDays.Value)
+                    : (DateTime?)null;
+
+                _db.CompetencyRecords.Add(new CompetencyRecord
+                {
+                    UserId                 = traineeId,
+                    UserDisplayName        = traineeName,
+                    TrainingProcessId      = job.ProcessId,
+                    TrainingProcessVersion = job.ProcessVersion,
+                    JobId                  = job.Id,
+                    CompletedAt            = now,
+                    ExpiresAt              = expiresAt,
+                    Status                 = CompetencyStatus.Current
+                });
+            }
+        }
 
         await _db.SaveChangesAsync();
         return MapJobToDto(job);

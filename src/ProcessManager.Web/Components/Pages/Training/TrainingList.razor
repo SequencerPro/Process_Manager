@@ -1,0 +1,261 @@
+@page "/training"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Training Catalogue — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-mortarboard me-2 text-primary"></i>Training Catalogue</h3>
+        <p class="text-muted small mb-0">Training courses available for launch — your competency records are shown below each course</p>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="Load" disabled="@_loading">
+        <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+    </button>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_processes is null || !_processes.Items.Any())
+{
+    <div class="card shadow-sm">
+        <div class="card-body text-muted small text-center py-4">No training courses found.</div>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var proc in _processes.Items)
+        {
+            var myRecords = _myRecords?.Where(r => r.TrainingProcessId == proc.Id).ToList() ?? new();
+            var current = myRecords.FirstOrDefault(r => r.Status == "Current");
+
+            <div class="col-md-6 col-xl-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header d-flex justify-content-between align-items-start py-2">
+                        <div>
+                            <span class="badge bg-secondary me-1">@proc.Code</span>
+                            <span class="badge @StatusBadge(proc.Status)">@proc.Status</span>
+                        </div>
+                        @if (current is not null)
+                        {
+                            <span class="badge @CompetencyBadge(current) ms-1">
+                                <i class="bi bi-patch-check-fill me-1"></i>@CompetencyLabel(current)
+                            </span>
+                        }
+                    </div>
+                    <div class="card-body">
+                        <h6 class="mb-1">@(proc.CompetencyTitle ?? proc.Name)</h6>
+                        @if (proc.CompetencyTitle is not null)
+                        {
+                            <div class="text-muted small mb-1">@proc.Name</div>
+                        }
+                        @if (proc.Description is not null)
+                        {
+                            <p class="text-muted small mb-2">@proc.Description</p>
+                        }
+                        @if (proc.CompetencyExpiryDays.HasValue)
+                        {
+                            <div class="text-muted small mb-2">
+                                <i class="bi bi-clock me-1"></i>Competency valid for @proc.CompetencyExpiryDays days
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-muted small mb-2">
+                                <i class="bi bi-infinity me-1"></i>Competency does not expire
+                            </div>
+                        }
+
+                        @* My competency history for this course *@
+                        @if (myRecords.Any())
+                        {
+                            <div class="border-top pt-2 mt-2">
+                                <div class="text-muted small fw-semibold mb-1">My Records</div>
+                                @foreach (var rec in myRecords.Take(3))
+                                {
+                                    <div class="d-flex align-items-center justify-content-between small mb-1">
+                                        <span class="badge @CompetencyBadge(rec)">@rec.Status</span>
+                                        <span class="text-muted">@rec.CompletedAt.ToString("MMM d, yyyy")</span>
+                                        @if (rec.ExpiresAt.HasValue)
+                                        {
+                                            <span class="text-muted">expires @rec.ExpiresAt.Value.ToString("MMM d, yyyy")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">no expiry</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                    <div class="card-footer text-end py-2">
+                        @if (proc.Status == "Released")
+                        {
+                            <button class="btn btn-sm btn-primary" @onclick="() => OpenLaunch(proc)">
+                                <i class="bi bi-play-fill me-1"></i>Launch Training
+                            </button>
+                        }
+                        else
+                        {
+                            <span class="text-muted small">Not available (not released)</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (_processes.TotalPages > 1)
+    {
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <span class="small text-muted">Page @_page of @_processes.TotalPages (@_processes.TotalCount total)</span>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" disabled="@(_page <= 1)" @onclick="PrevPage">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                <button class="btn btn-outline-secondary" disabled="@(_page >= _processes.TotalPages)" @onclick="NextPage">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    }
+}
+
+@* ─── Launch Training Modal ─────────────────────────────────────────────── *@
+@if (_showLaunch && _launchProcess is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-play-fill me-2 text-primary"></i>Launch Training
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CloseLaunch"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small mb-3">
+                        Starting a training job for: <strong>@(_launchProcess.CompetencyTitle ?? _launchProcess.Name)</strong>
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label">Job Code <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_newCode" placeholder="e.g. TRN-001" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Job Name <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_newName" placeholder="e.g. Safety Induction — John Smith" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" rows="2" @bind="_newDesc"></textarea>
+                    </div>
+                    @if (_saveError is not null)
+                    {
+                        <div class="alert alert-danger py-1 small">@_saveError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseLaunch">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SubmitLaunch" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Launch
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResponse<ProcessSummaryResponseDto>? _processes;
+    private List<CompetencyRecordSummaryDto>?             _myRecords;
+    private bool   _loading;
+    private bool   _saving;
+    private string? _saveError;
+    private int     _page = 1;
+
+    private bool _showLaunch;
+    private ProcessSummaryResponseDto? _launchProcess;
+    private string _newCode = "";
+    private string _newName = "";
+    private string _newDesc = "";
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            var processTask = Api.GetProcessesAsync(processRole: "Training", active: true, pageSize: 50, page: _page);
+            var myTask      = Api.GetMyCompetencyRecordsAsync();
+            await Task.WhenAll(processTask, myTask);
+            _processes = await processTask;
+            _myRecords = await myTask;
+        }
+        catch (Exception ex) { Toast.ShowError($"Failed to load: {ex.Message}"); }
+        finally { _loading = false; }
+    }
+
+    private async Task PrevPage() { _page--; await Load(); }
+    private async Task NextPage() { _page++; await Load(); }
+
+    private void OpenLaunch(ProcessSummaryResponseDto proc)
+    {
+        _launchProcess = proc;
+        _newCode  = $"TRN-{DateTime.Today:yyyyMMdd}";
+        _newName  = proc.CompetencyTitle ?? proc.Name;
+        _newDesc  = "";
+        _saveError = null;
+        _showLaunch = true;
+    }
+
+    private void CloseLaunch() { _showLaunch = false; _saveError = null; }
+
+    private async Task SubmitLaunch()
+    {
+        if (string.IsNullOrWhiteSpace(_newCode) || string.IsNullOrWhiteSpace(_newName))
+        { _saveError = "Code and Name are required."; return; }
+
+        _saving = true; _saveError = null;
+        try
+        {
+            var result = await Api.CreateJobAsync(new CreateJobDto(_newCode, _newName, _newDesc, _launchProcess!.Id, 0));
+            CloseLaunch();
+            Nav.NavigateTo($"jobs/{result!.Id}");
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private static string StatusBadge(string status) => status switch
+    {
+        "Released"   => "bg-success",
+        "Draft"      => "bg-secondary",
+        "Superseded" => "bg-dark",
+        _            => "bg-light text-dark"
+    };
+
+    private static string CompetencyBadge(CompetencyRecordSummaryDto r)
+    {
+        if (r.Status == "Expired") return "bg-danger";
+        if (r.ExpiringSoon)        return "bg-warning text-dark";
+        if (r.Status == "Current") return "bg-success";
+        return "bg-secondary";
+    }
+
+    private static string CompetencyLabel(CompetencyRecordSummaryDto r)
+    {
+        if (r.Status == "Expired") return "Expired";
+        if (r.ExpiringSoon)        return "Expiring Soon";
+        return "Competent";
+    }
+}

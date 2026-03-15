@@ -1334,6 +1334,66 @@ public class ApiClient
         return await r.Content.ReadFromJsonAsync<ActionItemDto>(_json);
     }
 
+    // ══════════════════ Competency & Training (Phase 16) ══════════════════
+
+    public Task<PaginatedResponse<CompetencyRecordSummaryDto>?> GetCompetencyRecordsAsync(
+        string? userId = null, Guid? trainingProcessId = null, string? status = null,
+        int page = 1, int pageSize = 25)
+    {
+        var url = $"api/competency?page={page}&pageSize={pageSize}";
+        if (!string.IsNullOrEmpty(userId))          url += $"&userId={userId}";
+        if (trainingProcessId.HasValue)             url += $"&trainingProcessId={trainingProcessId}";
+        if (!string.IsNullOrEmpty(status))          url += $"&status={status}";
+        return _http.GetFromJsonAsync<PaginatedResponse<CompetencyRecordSummaryDto>>(url, _json);
+    }
+
+    public Task<List<CompetencyRecordSummaryDto>?> GetMyCompetencyRecordsAsync()
+        => _http.GetFromJsonAsync<List<CompetencyRecordSummaryDto>>("api/competency/my", _json);
+
+    public Task<CompetencyRecordDto?> GetCompetencyRecordAsync(Guid id)
+        => _http.GetFromJsonAsync<CompetencyRecordDto>($"api/competency/{id}", _json);
+
+    public async Task<CompetencyRecordDto?> CreateCompetencyRecordAsync(CreateCompetencyRecordDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/competency", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<CompetencyRecordDto>(_json);
+    }
+
+    public async Task DeleteCompetencyRecordAsync(Guid id)
+    {
+        var r = await _http.DeleteAsync($"api/competency/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    public Task<List<CompetencyMatrixRowDto>?> GetCompetencyMatrixAsync(Guid? subjectProcessId = null)
+    {
+        var url = "api/competency/matrix";
+        if (subjectProcessId.HasValue) url += $"?subjectProcessId={subjectProcessId}";
+        return _http.GetFromJsonAsync<List<CompetencyMatrixRowDto>>(url, _json);
+    }
+
+    public Task<TrainingComplianceSummaryDto?> GetTrainingComplianceAsync()
+        => _http.GetFromJsonAsync<TrainingComplianceSummaryDto>("api/competency/compliance", _json);
+
+    public Task<List<ProcessTrainingRequirementDto>?> GetTrainingRequirementsAsync(
+        string subjectType, Guid subjectEntityId)
+        => _http.GetFromJsonAsync<List<ProcessTrainingRequirementDto>>(
+            $"api/competency/requirements?subjectType={subjectType}&subjectEntityId={subjectEntityId}", _json);
+
+    public async Task<ProcessTrainingRequirementDto?> AddTrainingRequirementAsync(AddTrainingRequirementDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/competency/requirements", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ProcessTrainingRequirementDto>(_json);
+    }
+
+    public async Task DeleteTrainingRequirementAsync(Guid id)
+    {
+        var r = await _http.DeleteAsync($"api/competency/requirements/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
     // ══════════════════ Ishikawa Diagrams — additional (Phase 10b) ══════════════════
 
     public async Task<IshikawaDiagramResponseDto?> CloseIshikawaDiagramAsync(Guid id, IshikawaDiagramCloseDto dto)

@@ -8,5 +8,6 @@ public enum ActionItemSourceType
     RcaAnalysis,
     PfmeaAction,
     AuditFinding,
-    ManagementReview
+    ManagementReview,
+    CompetencyExpiry
 }

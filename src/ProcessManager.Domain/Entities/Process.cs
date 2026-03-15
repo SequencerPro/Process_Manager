@@ -43,6 +43,14 @@ public class Process : BaseEntity
     /// <summary>The Process this revision was branched from (null for originals).</summary>
     public Guid? ParentProcessId { get; set; }
 
+    // ── Training & Competency (Phase 16) ────────────────────────────────────
+
+    /// <summary>Short label shown on competency records (e.g. "Press Brake Operation"). Defaults to Name.</summary>
+    public string? CompetencyTitle { get; set; }
+
+    /// <summary>Days before a competency record expires and re-training is required. Null = never expires.</summary>
+    public int? CompetencyExpiryDays { get; set; }
+
     // Navigation properties
     public Process? ParentProcess { get; set; }
     public Process? ApprovalProcess { get; set; }

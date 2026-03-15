@@ -43,24 +43,6 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<WorkflowLink> WorkflowLinks => Set<WorkflowLink>();
     public DbSet<WorkflowLinkCondition> WorkflowLinkConditions => Set<WorkflowLinkCondition>();
 
-    // Phase 7: Quality Engineering Tools
-    public DbSet<Pfmea> Pfmeas => Set<Pfmea>();
-    public DbSet<PfmeaFailureMode> PfmeaFailureModes => Set<PfmeaFailureMode>();
-    public DbSet<PfmeaAction> PfmeaActions => Set<PfmeaAction>();
-    public DbSet<CeMatrix> CeMatrices => Set<CeMatrix>();
-    public DbSet<CeInput> CeInputs => Set<CeInput>();
-    public DbSet<CeOutput> CeOutputs => Set<CeOutput>();
-    public DbSet<CeCorrelation> CeCorrelations => Set<CeCorrelation>();
-
-    // Phase 8c: Non-Conformance
-    public DbSet<NonConformance> NonConformances => Set<NonConformance>();
-
-    // Phase 9: Approvals
-    public DbSet<ApprovalRecord> ApprovalRecords => Set<ApprovalRecord>();
-
-    // Power BI Dashboards
-    public DbSet<PowerBiDashboard> PowerBiDashboards => Set<PowerBiDashboard>();
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

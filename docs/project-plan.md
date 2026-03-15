@@ -31,14 +31,19 @@
 | 1.15    | 2026-03-02 | Admin: Display Name field added to Add User form; Edit User modal (Display Name + Role) on UserList; PATCH api/auth/users/{id} admin endpoint |
 | 1.16    | 2026-03-08 | Phase 12 design: workflow execution with OrgUnit assignment, automated process sequencing, and periodic scheduling via WorkflowSchedule |
 | 1.17    | 2026-03-08 | Phase 2 design gap addressed: PromptDefinition and PromptOption entities added to data model; ExecutionData updated with prompt_definition_id FK, widened value field (text), and extended DataType enum |
-| 1.18    | 2026-03-08 | Phase 13 plan: pre-populated process content library with seeded StepTemplates, Processes, and Workflows for common business functions |
+| 1.18    | 2026-03-08 | Phase 13 plan: pre-populated process content library with seeded StepTemplates, Processes, and Workflows for common manufacturing functions |
 | 1.19    | 2026-03-08 | Phase 12f plan: Participant Portal — execution-only UI surface with Participant role; hides all design, admin, and quality engineering tools |
+| 2.0     | 2026-03-15 | Scope narrowed to manufacturing only; Phase 7c Control Plan builder added to quality engineering tools |
+| 2.1     | 2026-03-15 | Phase 7c implemented: ControlPlan + ControlPlanEntry entities, CharacteristicType enum, ControlPlansController (CRUD + entries + CSV export + staleness), EF migration Phase7c_ControlPlan, ControlPlanList/Detail Blazor pages, ApiClient methods, staleness integration with ProcessesController.Approve, MCP tools get_control_plan/list_critical_characteristics, integration tests |
+| 2.2     | 2026-03-15 | Phase 14 design: Document Control & QMS — ProcessRole enum, DocumentApprovalRequest entity, ParallelGroup on StepExecution, revision metadata on Process (RevisionCode, ChangeDescription, EffectiveDate, ParentProcessId, ApprovalProcessId), approval-as-process architecture, seeded Standard Document Approval routing |
 
 ---
 
 ## Vision
 
-A system that treats manufacturing (and other business) process designs as the central organizing structure of an enterprise. The process model is the schema from which planning, accounting, sales, EHS, and other functions derive their data. By investing in rigorous process definition, a company maximizes its ability to understand, track, and improve its operations.
+A system that treats manufacturing process designs as the central organizing structure of a manufacturing enterprise. The process model is the primary instrument of operational discipline: defining what work looks like, how it is authorised, how it is executed, and how conformance is demonstrated. By investing in rigorous process definition, a manufacturing company maximises its ability to understand, control, and continuously improve its operations.
+
+**Scope:** This system is designed specifically for manufacturing operations. Generalisation to other business process domains (HR, finance, sales) is intentionally deferred until the manufacturing use case is fully mature.
 
 ---
 
@@ -345,11 +350,40 @@ A **Cause and Effect (C&E) Matrix** (also known as a Cause and Effect Diagram Ma
 
 ---
 
+#### 7c — Control Plan
+
+A **Control Plan** is the operational companion to the PFMEA and C&E Matrix. Where the PFMEA identifies what can go wrong and rates risk, and the C&E Matrix ranks which inputs most affect quality, the Control Plan specifies *what to actually do*: what characteristics to measure, with what equipment, at what sample rate, and what to do when a result falls out of specification. It is the document the production floor uses during execution — the source of truth for inspections, gauging steps, and reaction instructions.
+
+Building Control Plans inside the system rather than in spreadsheets means they stay in sync with the process model and the quality tools that informed them.
+
+**Delivers:**
+- Create a Control Plan for any Process; the system pre-populates one entry row per ProcessStep
+- For each step entry, define one or more **characteristic rows** (a step commonly has multiple measured characteristics):
+  - Characteristic name (e.g. "Torque", "Surface Finish Ra", "Insertion Depth")
+  - Characteristic type: **Product** (measuring the output item) or **Process** (measuring the process parameter)
+  - Specification or tolerance (e.g. "25 ± 2 Nm", "Ra ≤ 1.6 µm", "12–14 mm")
+  - Measurement technique — the tool or method used (torque wrench, CMM, calliper, visual, attribute gauge)
+  - Sample size (e.g. "100%", "1 per 50 pieces", "3 per batch")
+  - Sample frequency (e.g. "Each piece", "First article", "1 per shift")
+  - Control method (SPC chart, go/no-go gauge, poka-yoke, visual check)
+  - Reaction plan — what the operator must do when a measurement is out of specification
+  - Optional link to a `PfmeaFailureMode` row — tracing the control back to the risk that motivated it
+  - Optional link to a `Port` — connecting the Control Plan specification to the port where this characteristic is measured
+- PFMEA staleness integration: when a Process is released as a new version, linked Control Plans are marked stale alongside PFMEAs (same Phase 9 staleness mechanism)
+- CSV export of the full Control Plan (one row per characteristic)
+
+**Key entities:**
+- `ControlPlan` (Id, ProcessId, Name, Version, IsActive)
+- `ControlPlanEntry` (Id, ControlPlanId, ProcessStepId, CharacteristicName, CharacteristicType: Product/Process, SpecificationOrTolerance, MeasurementTechnique, SampleSize, SampleFrequency, ControlMethod, ReactionPlan, LinkedPfmeaFailureModeId nullable, LinkedPortId nullable, SortOrder)
+- `CharacteristicType` enum: `Product`, `Process`
+
+---
+
 ## Architecture Decision: Quality Engineering Tools (2026-03-02)
 
 ### Scope and Placement
 
-Quality tools are tightly coupled to the process model: a PFMEA is meaningless without the process structure it analyses, and a C&E matrix is meaningless without the step inputs and outputs it relates. Embedding them inside the same application (rather than exporting to Excel) means they stay in sync when processes are revised and their data can contribute to analytics and alerts.
+Quality tools are tightly coupled to the process model: a PFMEA is meaningless without the process structure it analyses, a C&E Matrix is meaningless without the step inputs and outputs it relates, and a Control Plan is meaningless without the process steps and measured characteristics it governs. The three tools form a complete quality planning loop — C&E identifies the inputs worth controlling, PFMEA rates the risk of failure modes and selects controls, and the Control Plan operationalises those controls for the shop floor. Embedding all three inside the same application (rather than in separate spreadsheets) means they stay in sync when processes are revised, and their traceability links remain intact.
 
 ### PFMEA Design Decisions
 
@@ -371,11 +405,24 @@ Quality tools are tightly coupled to the process model: a PFMEA is meaningless w
 | Port linkage | Port inputs/outputs are pre-linked but display name is editable | Keeps the matrix in sync with the process model while allowing user-friendly labels |
 | Priority formula | Σ (Score × OutputImportance) | Simple, widely understood, directly produces an actionable ranked list |
 
+### Control Plan Design Decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Granularity | One Control Plan per Process | A Control Plan covers the full manufacturing routing and is used as a single shop-floor document; process-level is the right scope, matching how PFMEA is scoped |
+| Entry scope | One or more characteristic rows per ProcessStep | Multiple characteristics per step are common (e.g. torque AND angle on a fastening step); forcing one row per step would lose information |
+| PFMEA traceability | Optional `LinkedPfmeaFailureModeId` per entry | Connects detection controls rated in the PFMEA to their operational specification in the Control Plan; not forced because not all characteristics originate from a PFMEA action |
+| Port traceability | Optional `LinkedPortId` per entry | Ties the Control Plan characteristic directly to the Port where it is measured; enables future validation that hard limits on prompts match Control Plan specifications |
+| Versioning | Control Plan marked stale when Process is released (same mechanism as Phase 9 PFMEA staleness) | Ensures the Control Plan is reviewed whenever the process changes — the same obligation applies to both quality documents |
+| Reaction plan | Free text per entry | Reaction plans vary significantly by characteristic and step; prescriptive structure adds no value here |
+
 ### Relationship to Existing Features
 
 - A high-RPN PFMEA failure mode whose `CurrentDetectionControls` describe a measurement prompt gives engineers a path to configure an **out-of-range alert** on that prompt — connecting PFMEA risk identification to live operational detection.
-- C&E matrix priority scores are natural candidates for future **analytics overlays** (e.g. colouring run-chart series by input priority).
-- Both tools will be exposed via the **MCP server** (Phase 7 MCP tools: `get_pfmea`, `list_high_rpn_failure_modes`, `get_ce_matrix`).
+- C&E matrix priority scores identify which inputs are worth writing Control Plan entries for — the matrix output drives the control plan content.
+- A Control Plan entry specifies *how to act* on what the PFMEA identified: the detection controls that rate `D` in the PFMEA become the measurement technique and sample plan in the Control Plan, closing the loop from risk rating to operational instruction.
+- Control Plan entries whose `LinkedPortId` matches a Step Template port connect the Control Plan specification directly to the operator's data-capture screen — the tolerance in the Control Plan and the hard limit on the prompt should agree.
+- All three tools will be exposed via the **MCP server** (Phase 7 MCP tools: `get_pfmea`, `list_high_rpn_failure_modes`, `get_ce_matrix`, `get_control_plan`, `list_critical_characteristics`).
 
 ---
 
@@ -1235,10 +1282,6 @@ Content is delivered as a versioned EF Core data seeder (or SQL seed script) tha
 - Internal Audit — scheduled workflow: plan, conduct, record findings, issue CARs, verify closure
 - Supplier Audit — annual or triggered: questionnaire, on-site review, score, corrective action if needed
 
-**Human Resources**
-- Employee Onboarding — offer accepted → IT setup → payroll setup → orientation → department induction → 30-day check-in
-- Employee Offboarding — notice received → IT access revocation → equipment return → final pay → exit interview
-
 **Operations & Maintenance**
 - Preventive Maintenance — recurring workflow per asset: notify, prepare parts, perform PM, record readings, sign off, reschedule
 - Customer Complaint Handling — complaint received → acknowledge → investigate → respond → corrective action → close
@@ -1265,7 +1308,127 @@ UI behaviour when `is_system_content = true`:
 
 ---
 
-### Phase 14+ — Integrations (future)
+### Phase 14 — Document Control & QMS
+
+**Goal:** Enable the system to operate as an ISO 9001-compliant Quality Management System. Every controlled document (procedure, work instruction, policy) is a Process. Revision control, formal approval routing, and lineage tracking are first-class features.
+
+---
+
+#### Core design decisions
+
+- **Approval routing is itself a Process.** An approval job executes against an `ApprovalProcess`-role template using the existing step / prompt / execution machinery. No separate approval engine is required.
+- **Parallel approvals.** All approvers act simultaneously (all `StepExecution` records share `ParallelGroup = 1`). Any single Reject cancels all remaining open executions, closes the job, and reverts the document to Draft.
+- **Binary decision.** Approve or Reject only — no "Approved with Conditions". If a reviewer is unhappy with a minor point they communicate out of band; the formal record is clean.
+- **Role-based assignment, editable at submission.** Default assignees flow from step template roles. The author overrides per-step user assignment in the submission dialog before confirming.
+- **Formal record via existing prompt machinery.** `ExecutionData` rows produced by the Decision + Comments prompts on each approval step are the permanent approval record. No separate signature table is required.
+
+---
+
+#### New entity: `DocumentApprovalRequest`
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `ProcessId` | Guid | FK → Process — the document being approved |
+| `ProcessVersion` | int | The version number being approved |
+| `ApprovalJobId` | Guid | FK → Job — the running approval job |
+| `Status` | enum | `Pending` / `Approved` / `Rejected` / `Withdrawn` |
+| `SubmittedBy` | string | Display name of the submitting author |
+| `SubmittedAt` | DateTime | UTC timestamp of submission |
+
+---
+
+#### Schema additions to existing entities
+
+**`Process` — new fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| `ProcessRole` | enum | `ManufacturingProcess` \| `ApprovalProcess` \| `QmsDocument` \| `WorkInstruction` — document classification, not execution capability |
+| `ApprovalProcessId` | Guid? | FK → Process (an `ApprovalProcess`-role process) that defines the approval routing for this document type |
+| `RevisionCode` | string? | Human-readable revision label alongside integer `Version`: "A", "B", "1.0", "Rev 2" |
+| `ChangeDescription` | string? | Summary of what changed in this revision; mandatory before submitting for approval |
+| `EffectiveDate` | DateTime? | When the released revision becomes effective; defaults to approval timestamp |
+| `ParentProcessId` | Guid? | FK to the exact Process row this revision was branched from; enables lineage view across all revisions |
+
+**`StepExecution` — new fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| `ParallelGroup` | int | Executions sharing the same group value start simultaneously; all approval steps use group 1 |
+| `AssignedToUserId` | string? | Identity user Id; set at job creation time, overridable by the author in the submission dialog |
+
+**`Job` — new field:**
+
+| Field | Type | Notes |
+|---|---|---|
+| `DocumentApprovalRequestId` | Guid? | Nullable; only populated on approval routing jobs |
+
+---
+
+#### Approval step template content (seeded)
+
+Each approval step template contains two prompts:
+
+| Prompt label | Type | Validation |
+|---|---|---|
+| Decision | MultipleChoice (Approve / Reject) | Always required |
+| Comments | LongText | Required when Decision = Reject |
+
+---
+
+#### Completion hook (`StepExecutionsController`)
+
+On any approval step completion:
+
+1. **Decision = Reject** → cancel all other open `StepExecution` records in the job, close the `Job`, set `DocumentApprovalRequest.Status = Rejected`, revert `Process.Status` to `Draft`.
+2. **Decision = Approve and all parallel steps are now complete** → set `DocumentApprovalRequest.Status = Approved`, set `Process.Status = Released`, set `Process.EffectiveDate`, walk the `ParentProcessId` chain to find the previous Released revision in the same lineage and set its status to `Superseded`.
+
+---
+
+#### Submission flow
+
+1. Author opens a document draft and clicks **Submit for Approval**.
+2. System reads the linked `ApprovalProcess` template steps.
+3. Author sees one user picker per step, pre-filtered to users with the required role — editable.
+4. Author confirms `ChangeDescription` is filled (required).
+5. Confirm → creates `DocumentApprovalRequest` + `Job` + all `StepExecution` records (`ParallelGroup = 1`) → all assignees see the task in their work queue immediately.
+
+---
+
+#### Admin bootstrap bypass
+
+Admin users retain a direct **Release** action on any Process in `Draft` or `PendingApproval` status. This is required for bootstrapping the QMS — the foundational approval process templates must be released before the self-referential machinery can work. After initial setup, this bypass should be used sparingly and is audited via `ApprovalRecord`.
+
+---
+
+#### Seeded data (`Phase14_Seed` migration)
+
+**Step templates (ApprovalProcess type):**
+- "Document Technical Review" — Decision + Comments prompts
+- "QE Sign-off" — Decision + Comments prompts
+- "Management Authorization" — Decision + Comments prompts
+
+**Process: "Standard Document Approval"**
+- `ProcessRole`: `ApprovalProcess`
+- Three steps in parallel (`ParallelGroup = 1`): Technical Reviewer, Quality Engineer, Authorizing Manager
+- Released via admin bootstrap so it is immediately available for use as an `ApprovalProcessId` on new QMS documents
+
+---
+
+#### Architecture notes
+
+- `ApprovalProcess`-role processes do not appear in the Create Job UI — they are only triggered by the Submit for Approval flow.
+- `QmsDocument` and `WorkInstruction`-role processes do not appear in the manufacturing job queue.
+- `ManufacturingProcess`-role processes remain exactly as they are today.
+- A process can be both executable (as a manufacturing routing) and governed (version-controlled, approval-routed) — `ProcessRole` describes its document classification, not its execution capability.
+- The existing `ProcessStatus` lifecycle (`Draft` → `PendingApproval` → `Released` → `Superseded` → `Retired`) introduced in Phase 9 applies unchanged; the Phase 14 machinery *drives* those transitions for QMS documents rather than the manual Approve button on `ApprovalsController`.
+
+**Status:** Designed — depends on Phase 9 (ProcessStatus lifecycle) being complete. ✅ Phase 9 is built.
+
+---
+
+### Phase 15+ — Integrations (future)
 
 **Goal:** Connect the process system to peripheral business functions.
 
@@ -1341,11 +1504,13 @@ Additional capability added post-Phase 6:
 
 - **Phase 8 — Process Maturity & Guided Execution** ✅ built: ContentCategory enum, NominalValue/IsHardLimit/AcknowledgmentRequired fields, MaturityScoringService (8 rules), maturity badges across list/detail views, NonConformance entity + disposition workflow, 5-phase ExecutionWizard at `/execute/{id}`
 - **Phase 9 — Process Change Control & Approval** ✅ built: ProcessStatus lifecycle (Draft→PendingApproval→Released→Superseded→Retired), ApprovalRecord entity, PFMEA staleness tracking, job-level process version pinning, Submit/Approve/Reject/NewRevision/Retire endpoints, ApprovalQueue page, status badges across all list/detail views, NavMenu pending badge
+- **Phase 7c — Control Plan Builder** designed, not yet built: per-process Control Plan with one or more characteristic entries per ProcessStep; optional PFMEA failure mode and Port linkage; staleness tracking alongside PFMEA on process version release; CSV export; MCP tools `get_control_plan`, `list_critical_characteristics`
 - **Phase 10 — Root Cause Analysis** designed, not yet built: Root Cause Library, Ishikawa fishbone diagrams, branching 5 Whys, linkage to non-conformances and PFMEA failure modes
 - **Phase 11 — Production Management** designed, not yet built: expected durations + job due dates, equipment catalog, downtime tracking, PM scheduling, production visibility dashboard (WIP board, late jobs, bottleneck flags, equipment status)
 - **Phase 12 — Workflow Execution & Department Assignment** designed, not yet built: OrgUnit entity (department/work area/role/person), assignee on WorkflowProcess nodes, WorkflowJob execution record, sequencing service that advances the workflow graph on job completion, WorkflowSchedule entity for periodic recurrence with background scheduler service
 - **Phase 12f — Participant Portal** designed, not yet built: `Participant` role with execution-only access (My Work + ExecutionWizard); all design/admin/quality routes hidden and route-guarded; stripped `ParticipantLayout`; optional `/portal` URL entry point; OrgUnit membership on users driving queue assignment
 - **Phase 13 — Pre-populated Process Content Library** planned, not yet built: versioned EF Core seeder delivering ready-to-run StepTemplates, Processes, and Workflows for quality, HR, operations, and management functions; `is_system_content` flag; "Copy to My Library" UX; depends on Phase 12 being complete
+- **Phase 14 — Document Control & QMS** designed, not yet built: `ProcessRole` enum on `Process`, `DocumentApprovalRequest` entity, `ParallelGroup` + `AssignedToUserId` on `StepExecution`, revision metadata fields on `Process` (`RevisionCode`, `ChangeDescription`, `EffectiveDate`, `ParentProcessId`, `ApprovalProcessId`), completion hook in `StepExecutionsController` driving Reject/Approve transitions, submission flow UI, admin bootstrap bypass, seeded "Standard Document Approval" routing process with three parallel approval steps; Phase 9 ProcessStatus lifecycle is a prerequisite (already built)
 - Multi-tenancy deferred until second SaaS tenant is onboarded (database-per-tenant approach selected — see Architecture Decision above)
 - Email/webhook notifications for out-of-range alerts not yet implemented
 - MCP server uses short-lived JWT tokens; a long-lived API-key auth path would improve service-account ergonomics for AI integrations

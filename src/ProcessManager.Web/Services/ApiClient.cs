@@ -1016,6 +1016,65 @@ public class ApiClient
         return await r.Content.ReadFromJsonAsync<CeMatrixResponseDto>(_json);
     }
 
+    // ══════════════════ Phase 7c — Control Plans ══════════════════════════════
+
+    public Task<PaginatedResponse<ControlPlanSummaryDto>?> GetControlPlansAsync(
+            string? search = null, Guid? processId = null, bool? active = null, bool? stale = null,
+            int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<ControlPlanSummaryDto>>(
+            $"api/controlplans?search={search}&processId={processId}&active={active}&stale={stale}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<ControlPlanResponseDto?> GetControlPlanAsync(Guid id)
+        => _http.GetFromJsonAsync<ControlPlanResponseDto>($"api/controlplans/{id}", _json);
+
+    public async Task<ControlPlanResponseDto?> CreateControlPlanAsync(ControlPlanCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/controlplans", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ControlPlanResponseDto>(_json);
+    }
+
+    public async Task<ControlPlanResponseDto?> UpdateControlPlanAsync(Guid id, ControlPlanUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/controlplans/{id}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ControlPlanResponseDto>(_json);
+    }
+
+    public async Task DeleteControlPlanAsync(Guid id)
+    {
+        var r = await _http.DeleteAsync($"api/controlplans/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    public async Task<ControlPlanResponseDto?> ClearControlPlanStalenessAsync(Guid id, ClearControlPlanStalenessDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/controlplans/{id}/clear-staleness", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ControlPlanResponseDto>(_json);
+    }
+
+    public async Task<ControlPlanResponseDto?> AddControlPlanEntryAsync(Guid cpId, ControlPlanEntryCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/controlplans/{cpId}/entries", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ControlPlanResponseDto>(_json);
+    }
+
+    public async Task<ControlPlanResponseDto?> UpdateControlPlanEntryAsync(Guid cpId, Guid entryId, ControlPlanEntryUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/controlplans/{cpId}/entries/{entryId}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ControlPlanResponseDto>(_json);
+    }
+
+    public async Task<ControlPlanResponseDto?> DeleteControlPlanEntryAsync(Guid cpId, Guid entryId)
+    {
+        var r = await _http.DeleteAsync($"api/controlplans/{cpId}/entries/{entryId}");
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ControlPlanResponseDto>(_json);
+    }
+
     // ══════════════════ Non-Conformances ══════════════════════════════════════
 
     public Task<PaginatedResponse<NonConformanceResponseDto>?> GetNonConformancesAsync(

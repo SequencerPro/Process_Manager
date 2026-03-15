@@ -15,7 +15,30 @@ public sealed class SequenceLinkModel : LinkModel
     public SequenceLinkModel(NodeModel source, NodeModel target)
         : base(new ShapeIntersectionAnchor(source), new ShapeIntersectionAnchor(target))
     {
+        SourceNode = source;
+        TargetNode = target;
         Segmentable = false;
+    }
+
+    /// <summary>The source (earlier) step node.</summary>
+    public NodeModel SourceNode { get; }
+
+    /// <summary>The target (later) step node.</summary>
+    public NodeModel TargetNode { get; }
+
+    /// <summary>
+    /// Computes the SVG path <c>d</c> attribute for a straight arrow from the right-center
+    /// of <paramref name="source"/> to the left-center of <paramref name="target"/>.
+    /// Returns <c>null</c> if either node lacks a <see cref="NodeModel.Size"/>.
+    /// </summary>
+    public static string? ComputePath(NodeModel source, NodeModel target)
+    {
+        if (source.Size is null || target.Size is null) return null;
+        var sx = source.Position.X + source.Size.Width;
+        var sy = source.Position.Y + source.Size.Height / 2;
+        var tx = target.Position.X;
+        var ty = target.Position.Y + target.Size.Height / 2;
+        return FormattableString.Invariant($"M {sx},{sy} L {tx},{ty}");
     }
 }
 

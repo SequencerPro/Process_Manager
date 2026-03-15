@@ -1,19 +1,17 @@
 @using Blazor.Diagrams.Core.Models.Base
+@using Blazor.Diagrams.Core.Models
+@implements IDisposable
 
 @* Renders an implicit sequence-order arrow between two adjacent steps.
-   Uses class "sequence-link" (in addition to "diagram-link") so it can be
-   styled independently from user-drawn flow links. *@
+   Computes the SVG path directly from node positions (bypasses PathGeneratorResult
+   which the library does not populate for custom link components).
+   Uses class "sequence-link" so it can be styled independently from flow links. *@
 <g class="diagram-link sequence-link">
-    @if (Link.PathGeneratorResult is not null)
+    @if (_path is not null)
     {
-        @foreach (var path in Link.PathGeneratorResult.Paths!)
-        {
-            <path class="outline" d="@path" fill="none" />
-            <path class="main"    d="@path" fill="none"
-                  marker-end="url(#seq-arrowhead)" />
-        }
-        @* Inline arrowhead marker definition — re-defined per instance, which is
-           harmless; the browser uses the last-defined version. *@
+        <path class="outline" d="@_path" fill="none" />
+        <path class="main"    d="@_path" fill="none"
+              marker-end="url(#seq-arrowhead)" />
         <defs>
             <marker id="seq-arrowhead" markerWidth="8" markerHeight="6"
                     refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
@@ -25,4 +23,44 @@
 
 @code {
     [Parameter] public BaseLinkModel Link { get; set; } = null!;
+
+    private SequenceLinkModel? _seqLink;
+    private string? _path;
+
+    protected override void OnInitialized()
+    {
+        _seqLink = Link as SequenceLinkModel;
+        if (_seqLink is not null)
+        {
+            _seqLink.SourceNode.Changed += OnNodeChanged;
+            _seqLink.TargetNode.Changed += OnNodeChanged;
+            RecalculatePath();
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        RecalculatePath();
+    }
+
+    private void OnNodeChanged(Model _)
+    {
+        RecalculatePath();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void RecalculatePath()
+    {
+        if (_seqLink is not null)
+            _path = SequenceLinkModel.ComputePath(_seqLink.SourceNode, _seqLink.TargetNode);
+    }
+
+    public void Dispose()
+    {
+        if (_seqLink is not null)
+        {
+            _seqLink.SourceNode.Changed -= OnNodeChanged;
+            _seqLink.TargetNode.Changed -= OnNodeChanged;
+        }
+    }
 }

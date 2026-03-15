@@ -33,6 +33,9 @@ else
                     <span class="badge bg-dark">v@_wf.Version</span>
                 </div>
                 <div class="d-flex gap-1">
+                    <a href="workflows/@Id/builder" class="btn btn-primary btn-sm">
+                        <i class="bi bi-diagram-3 me-1"></i>Builder
+                    </a>
                     <button class="btn btn-outline-info btn-sm" @onclick="Validate">
                         <i class="bi bi-check2-circle me-1"></i>Validate
                     </button>
@@ -523,7 +526,7 @@ else
     {
         _wpProcessId = ""; _wpIsEntry = false; _wpSortOrder = 0;
         _showProcessForm = true;
-        _availableProcesses = await Api.GetProcessesAsync("", true, 1, 100);
+        _availableProcesses = await Api.GetProcessesAsync("", true, pageSize: 100);
         StateHasChanged();
     }
 

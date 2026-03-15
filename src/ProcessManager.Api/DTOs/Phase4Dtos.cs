@@ -30,24 +30,45 @@ public record WorkflowResponseDto(
 // ──────────── WorkflowProcess ────────────
 
 public record AddWorkflowProcessDto(
-    Guid ProcessId,
+    Guid? ProcessId = null,
     bool IsEntryPoint = false,
-    int SortOrder = 0);
+    int SortOrder = 0,
+    double PositionX = 0,
+    double PositionY = 0,
+    string? Color = null,
+    bool IsTerminalNode = false);
 
 public record UpdateWorkflowProcessDto(
     bool? IsEntryPoint = null,
-    int? SortOrder = null);
+    int? SortOrder = null,
+    double? PositionX = null,
+    double? PositionY = null,
+    string? Color = null);
 
 public record WorkflowProcessResponseDto(
     Guid Id,
     Guid WorkflowId,
-    Guid ProcessId,
+    Guid? ProcessId,
     string ProcessName,
     string ProcessCode,
     bool IsEntryPoint,
+    bool IsTerminalNode,
     int SortOrder,
+    double PositionX,
+    double PositionY,
+    string? Color,
     DateTime CreatedAt,
     DateTime UpdatedAt);
+
+// ──────────── Bulk Position Update ────────────
+
+public record UpdateWorkflowProcessPositionsDto(
+    List<WorkflowProcessPositionDto> Positions);
+
+public record WorkflowProcessPositionDto(
+    Guid WorkflowProcessId,
+    double PositionX,
+    double PositionY);
 
 // ──────────── WorkflowLink ────────────
 
@@ -57,11 +78,13 @@ public record CreateWorkflowLinkDto(
     RoutingType RoutingType = RoutingType.Always,
     [StringLength(200)] string? Name = null,
     [Range(0, int.MaxValue)] int SortOrder = 0,
-    List<Guid>? ConditionGradeIds = null);
+    List<Guid>? ConditionGradeIds = null,
+    string? LineShape = null);
 
 public record UpdateWorkflowLinkDto(
     [StringLength(200)] string? Name = null,
-    [Range(0, int.MaxValue)] int? SortOrder = null);
+    [Range(0, int.MaxValue)] int? SortOrder = null,
+    string? LineShape = null);
 
 public record WorkflowLinkResponseDto(
     Guid Id,
@@ -73,6 +96,7 @@ public record WorkflowLinkResponseDto(
     RoutingType RoutingType,
     string? Name,
     int SortOrder,
+    string? LineShape,
     List<WorkflowLinkConditionResponseDto>? Conditions,
     DateTime CreatedAt,
     DateTime UpdatedAt);

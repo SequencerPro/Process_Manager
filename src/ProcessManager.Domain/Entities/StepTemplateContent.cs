@@ -55,6 +55,35 @@ public class StepTemplateContent : BaseEntity
     /// <summary>JSON array of option strings for MultipleChoice prompts.</summary>
     public string? Choices { get; set; }
 
+    // ── Phase 8a fields ──
+
+    /// <summary>
+    /// The StepTemplate version in which this block was first added or last substantively modified.
+    /// Used by the ExecutionWizard to highlight content that changed since the previous release.
+    /// </summary>
+    public int IntroducedInVersion { get; set; } = 1;
+
+    /// <summary>
+    /// Classifies the purpose of this content block (Setup/Safety/Inspection/Reference/Note).
+    /// Drives wizard phase assignment and maturity scoring.
+    /// </summary>
+    public ContentCategory? ContentCategory { get; set; }
+
+    /// <summary>
+    /// When true the operator must explicitly acknowledge this block before the wizard advances.
+    /// Automatically true for Safety blocks; can be set manually on any block type.
+    /// </summary>
+    public bool AcknowledgmentRequired { get; set; }
+
+    /// <summary>Target (nominal) value for NumericEntry prompts. Shown alongside LSL/USL in the wizard.</summary>
+    public decimal? NominalValue { get; set; }
+
+    /// <summary>
+    /// When true, an out-of-spec NumericEntry response or a PassFail=Fail response blocks step
+    /// sign-off and opens the non-conformance disposition modal.
+    /// </summary>
+    public bool IsHardLimit { get; set; }
+
     // Navigation
     public StepTemplate StepTemplate { get; set; } = null!;
 }

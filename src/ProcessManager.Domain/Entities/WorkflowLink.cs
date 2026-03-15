@@ -25,6 +25,9 @@ public class WorkflowLink : BaseEntity
     /// <summary>Display ordering among links from same source.</summary>
     public int SortOrder { get; set; }
 
+    /// <summary>Visual line shape in the builder ("straight" or "curved"). Null defaults to straight.</summary>
+    public string? LineShape { get; set; }
+
     // Navigation properties
     public Workflow Workflow { get; set; } = null!;
     public WorkflowProcess SourceWorkflowProcess { get; set; } = null!;

@@ -29,6 +29,7 @@ public class StepExecutionsController : ControllerBase
         var query = _db.StepExecutions
             .Include(se => se.ProcessStep)
                 .ThenInclude(ps => ps.StepTemplate)
+            .Include(se => se.Job)
             .AsQueryable();
 
         if (jobId.HasValue)
@@ -58,6 +59,7 @@ public class StepExecutionsController : ControllerBase
         var se = await _db.StepExecutions
             .Include(s => s.ProcessStep)
                 .ThenInclude(ps => ps.StepTemplate)
+            .Include(s => s.Job)
             .Include(s => s.PortTransactions)
                 .ThenInclude(pt => pt.Port)
             .Include(s => s.PortTransactions)

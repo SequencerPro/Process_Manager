@@ -197,10 +197,36 @@
 
         @* ── Document Library ── *@
         <li class="mt-2">
-            <NavLink class="nav-link text-white d-flex align-items-center" href="documents">
-                <i class="bi bi-file-earmark-text me-2"></i> Document Library
-            </NavLink>
+            <button type="button"
+                    class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
+                    @onclick='() => ToggleSection("documents")'>
+                <span>Document Library</span>
+                <i class='bi @(_openSection == "documents" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
+            </button>
         </li>
+        @if (_openSection == "documents")
+        {
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="documents" Match="NavLinkMatch.All">
+                    <i class="bi bi-files me-2"></i> All Documents
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="documents?type=QmsDocument">
+                    <i class="bi bi-journal-text me-2"></i> QMS Documents
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="documents?type=WorkInstruction">
+                    <i class="bi bi-list-check me-2"></i> Work Instructions
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="documents?type=Training">
+                    <i class="bi bi-mortarboard me-2"></i> Training
+                </NavLink>
+            </li>
+        }
 
         @* ── Accountability ── *@
         <li class="mt-2">
@@ -358,7 +384,8 @@
         ["design"]    = ["kinds", "step-templates", "processes", "approval-queue", "workflows"],
         ["execution"] = ["jobs", "items", "batches", "step-executions"],
         ["config"]    = ["vocabulary"],
-        ["quality"]   = ["pfmeas", "ce-matrices", "control-plans", "non-conformances", "documents", "root-cause-library", "ishikawa", "five-whys", "mrb"],
+        ["quality"]   = ["pfmeas", "ce-matrices", "control-plans", "non-conformances", "root-cause-library", "ishikawa", "five-whys", "mrb"],
+        ["documents"]  = ["documents"],
         ["accountability"] = ["my-actions", "team-actions", "quality-scorecard", "management-reviews"],
         ["admin"]     = ["admin"],
         ["reports"]   = ["reports", "reports/process-timing", "powerbi-dashboards"],

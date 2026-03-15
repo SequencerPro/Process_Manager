@@ -11,7 +11,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
         <h3 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>Document Library</h3>
-        <p class="text-muted small mb-0">QMS documents, procedures, and work instructions</p>
+        <p class="text-muted small mb-0">QMS documents, procedures, work instructions, and training courses</p>
     </div>
     <AuthorizeView Roles="Admin,Engineer">
         <Authorized>
@@ -28,11 +28,12 @@
         <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search documents..." />
     </div>
     <div class="col-auto">
-        <select class="form-select form-select-sm" @onchange="OnRoleFilter">
+        <select class="form-select form-select-sm" value="@_roleFilter" @onchange="OnRoleFilter">
             <option value="">All Types</option>
             <option value="ManufacturingProcess">Manufacturing Process</option>
             <option value="QmsDocument">QMS Document</option>
             <option value="WorkInstruction">Work Instruction</option>
+            <option value="Training">Training</option>
         </select>
     </div>
     <div class="col-auto">
@@ -262,6 +263,11 @@ else if (_data is not null)
     private int _page = 1;
     private const int _pageSize = 25;
 
+    // Query-string parameter — set by nav sub-links
+    [SupplyParameterFromQuery(Name = "type")]
+    [Parameter]
+    public string? TypeParam { get; set; }
+
     // Submit modal
     private bool _showSubmit;
     private ProcessSummaryResponseDto? _submitDoc;
@@ -287,7 +293,20 @@ else if (_data is not null)
     protected override async Task OnInitializedAsync()
     {
         _users = await Api.GetUserPickerListAsync() ?? new();
+        if (!string.IsNullOrEmpty(TypeParam))
+            _roleFilter = TypeParam;
         await LoadData();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var incoming = TypeParam ?? string.Empty;
+        if (incoming != _roleFilter)
+        {
+            _roleFilter = incoming;
+            _page = 1;
+            await LoadData();
+        }
     }
 
     private async Task LoadData()

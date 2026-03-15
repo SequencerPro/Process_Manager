@@ -48,7 +48,8 @@ public class ProcessesController : ControllerBase
         else if (documentRolesOnly)
             query = query.Where(p => p.ProcessRole == Domain.Enums.ProcessRole.QmsDocument
                                   || p.ProcessRole == Domain.Enums.ProcessRole.WorkInstruction
-                                  || p.ProcessRole == Domain.Enums.ProcessRole.ManufacturingProcess);
+                                  || p.ProcessRole == Domain.Enums.ProcessRole.ManufacturingProcess
+                                  || p.ProcessRole == Domain.Enums.ProcessRole.Training);
         else if (excludeDocumentRoles)
             query = query.Where(p => p.ProcessRole != Domain.Enums.ProcessRole.QmsDocument
                                   && p.ProcessRole != Domain.Enums.ProcessRole.WorkInstruction);

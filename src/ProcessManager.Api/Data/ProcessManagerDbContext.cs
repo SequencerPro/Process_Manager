@@ -81,6 +81,10 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<FiveWhysAnalysis> FiveWhysAnalyses => Set<FiveWhysAnalysis>();
     public DbSet<FiveWhysNode> FiveWhysNodes => Set<FiveWhysNode>();
 
+    // Phase 10d: Material Review Board
+    public DbSet<MrbReview> MrbReviews => Set<MrbReview>();
+    public DbSet<MrbParticipant> MrbParticipants => Set<MrbParticipant>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -960,6 +964,55 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
 
             e.HasIndex(n => n.AnalysisId);
         });
+
+        // ── Phase 10d: Material Review Board ─────────────────────────────────
+
+        // --- MrbReview ---
+        modelBuilder.Entity<MrbReview>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.Property(m => m.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(m => m.ItemDescription).HasMaxLength(1000).IsRequired();
+            e.Property(m => m.QuantityAffected).HasMaxLength(200);
+            e.Property(m => m.ProblemStatement).HasMaxLength(2000).IsRequired();
+            e.Property(m => m.DispositionDecision).HasConversion<string>().HasMaxLength(30);
+            e.Property(m => m.DispositionJustification).HasMaxLength(2000);
+            e.Property(m => m.DecidedBy).HasMaxLength(200);
+            e.Property(m => m.LinkedRcaAnalysisType).HasConversion<string>().HasMaxLength(20);
+            e.Property(m => m.CreatedBy).HasMaxLength(200);
+
+            e.HasOne(m => m.NonConformance)
+                .WithMany()
+                .HasForeignKey(m => m.NonConformanceId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Unique: one MRB per NC
+            e.HasIndex(m => m.NonConformanceId).IsUnique();
+            e.HasIndex(m => m.Status);
+        });
+
+        // --- MrbParticipant ---
+        modelBuilder.Entity<MrbParticipant>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.UserId).HasMaxLength(450).IsRequired();
+            e.Property(p => p.DisplayName).HasMaxLength(200).IsRequired();
+            e.Property(p => p.Role).HasConversion<string>().HasMaxLength(30);
+            e.Property(p => p.Assessment).HasMaxLength(2000);
+
+            e.HasOne(p => p.MrbReview)
+                .WithMany(m => m.Participants)
+                .HasForeignKey(p => p.MrbReviewId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(p => p.MrbReviewId);
+        });
+
+        // Update NonConformance to handle MrbReviewId (optional field added in Phase 10d)
+        // The FK relationship is owned by MrbReview (HasForeignKey(m => m.NonConformanceId));
+        // NonConformance.MrbReviewId is a stored convenience lookup — not a FK constraint.
+        modelBuilder.Entity<NonConformance>()
+            .Property(nc => nc.MrbReviewId).IsRequired(false);
     }
 
     public override int SaveChanges()

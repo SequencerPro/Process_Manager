@@ -1,0 +1,804 @@
+@page "/mrb/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>MRB Review — Process Manager</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border me-2"></div>Loading MRB review…
+    </div>
+}
+else if (_mrb is null)
+{
+    <div class="alert alert-danger">MRB review not found.</div>
+    <button class="btn btn-secondary btn-sm" @onclick='() => Nav.NavigateTo("/mrb")'>Back to list</button>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb small mb-1">
+                    <li class="breadcrumb-item"><a href="/mrb">MRB Reviews</a></li>
+                    <li class="breadcrumb-item active">@_mrb.ItemDescription</li>
+                </ol>
+            </nav>
+            <h3 class="mb-0">
+                <i class="bi bi-clipboard2-x-fill me-2 text-danger"></i>MRB Review
+                <span class="badge @StatusBadge(_mrb.Status) ms-2 fs-6">@StatusLabel(_mrb.Status)</span>
+            </h3>
+        </div>
+        <div class="d-flex gap-2">
+            @if (_mrb.Status == "Draft")
+            {
+                <button class="btn btn-outline-primary btn-sm" @onclick="StartReview" disabled="@_saving">
+                    <i class="bi bi-play-fill me-1"></i>Start Review
+                </button>
+            }
+            @if (_mrb.Status == "UnderReview")
+            {
+                <button class="btn btn-warning btn-sm" @onclick="() => _showDecideModal = true">
+                    <i class="bi bi-check2-circle me-1"></i>Record Decision
+                </button>
+            }
+            @if (_mrb.Status == "Decided")
+            {
+                <button class="btn btn-success btn-sm" @onclick="CloseReview" disabled="@_saving">
+                    <i class="bi bi-lock-fill me-1"></i>Close Review
+                </button>
+            }
+            @if (_mrb.Status == "Closed")
+            {
+                <button class="btn btn-outline-secondary btn-sm" @onclick="ReopenReview" disabled="@_saving">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Reopen
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger alert-dismissible py-2 small mb-3">
+            @_error
+            <button type="button" class="btn-close" @onclick="() => _error = null"></button>
+        </div>
+    }
+
+    @if (_mrb.RequiresRca && _mrb.LinkedRcaId is null && _mrb.Status != "Closed")
+    {
+        <div class="alert alert-warning py-2 small mb-3">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            This review requires a linked RCA analysis before a decision can be recorded.
+        </div>
+    }
+
+    <div class="row g-3 mb-4">
+        <!-- NC Summary card -->
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header small fw-semibold bg-light">
+                    <i class="bi bi-exclamation-triangle me-1 text-danger"></i>Non-Conformance
+                </div>
+                <div class="card-body small">
+                    <dl class="row mb-0">
+                        <dt class="col-5">Job</dt>
+                        <dd class="col-7"><code>@(_mrb.NcJobCode ?? "—")</code></dd>
+                        <dt class="col-5">Step</dt>
+                        <dd class="col-7">@(_mrb.NcStepName ?? "—")</dd>
+                        <dt class="col-5">Prompt / Block</dt>
+                        <dd class="col-7">@(_mrb.NcContentBlockLabel ?? "—")</dd>
+                        <dt class="col-5">Actual Value</dt>
+                        <dd class="col-7"><code>@(_mrb.NcActualValue ?? "—")</code></dd>
+                        <dt class="col-5">Limit Breached</dt>
+                        <dd class="col-7"><span class="badge @LimitBadge(_mrb.NcLimitType)">@(_mrb.NcLimitType ?? "—")</span></dd>
+                        <dt class="col-5">NC Disposition</dt>
+                        <dd class="col-7"><span class="badge @NcDispositionBadge(_mrb.NcDispositionStatus)">@(_mrb.NcDispositionStatus ?? "—")</span></dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+
+        <!-- MRB header card -->
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header small fw-semibold bg-light d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-info-circle me-1"></i>Review Details</span>
+                    @if (_mrb.Status != "Closed")
+                    {
+                        <button class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                @onclick="() => _showEditModal = true">
+                            <i class="bi bi-pencil me-1"></i>Edit
+                        </button>
+                    }
+                </div>
+                <div class="card-body small">
+                    <dl class="row mb-0">
+                        <dt class="col-5">Item Description</dt>
+                        <dd class="col-7">@_mrb.ItemDescription</dd>
+                        @if (!string.IsNullOrEmpty(_mrb.QuantityAffected))
+                        {
+                            <dt class="col-5">Qty Affected</dt>
+                            <dd class="col-7">@_mrb.QuantityAffected</dd>
+                        }
+                        <dt class="col-5">Problem Statement</dt>
+                        <dd class="col-7 text-wrap">@_mrb.ProblemStatement</dd>
+                        <dt class="col-5">Flags</dt>
+                        <dd class="col-7">
+                            @if (_mrb.ScarRequired) { <span class="badge bg-warning text-dark me-1">SCAR</span> }
+                            @if (_mrb.SupplierCaused) { <span class="badge bg-secondary me-1">Supplier</span> }
+                            @if (_mrb.CustomerNotificationRequired) { <span class="badge bg-danger me-1">Customer</span> }
+                            @if (_mrb.RequiresRca) { <span class="badge bg-info text-dark me-1">RCA Required</span> }
+                            @if (!_mrb.ScarRequired && !_mrb.SupplierCaused && !_mrb.CustomerNotificationRequired && !_mrb.RequiresRca)
+                            { <span class="text-muted">None</span> }
+                        </dd>
+                        <dt class="col-5">Opened By</dt>
+                        <dd class="col-7">@(_mrb.CreatedBy ?? "—")</dd>
+                        <dt class="col-5">Opened</dt>
+                        <dd class="col-7">@_mrb.CreatedAt.ToString("g")</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Decision card (shown when decided or closed) -->
+    @if (_mrb.Status is "Decided" or "Closed")
+    {
+        <div class="card mb-4 border-@DecisionBorderColor(_mrb.DispositionDecision)">
+            <div class="card-header small fw-semibold bg-light">
+                <i class="bi bi-check2-circle me-1"></i>Disposition Decision
+            </div>
+            <div class="card-body small">
+                <dl class="row mb-0">
+                    <dt class="col-md-3">Decision</dt>
+                    <dd class="col-md-9">
+                        <span class="badge @DecisionBadge(_mrb.DispositionDecision) fs-6">@DecisionLabel(_mrb.DispositionDecision)</span>
+                    </dd>
+                    @if (!string.IsNullOrEmpty(_mrb.DispositionJustification))
+                    {
+                        <dt class="col-md-3">Justification</dt>
+                        <dd class="col-md-9 text-wrap">@_mrb.DispositionJustification</dd>
+                    }
+                    <dt class="col-md-3">Decided By</dt>
+                    <dd class="col-md-9">@(_mrb.DecidedBy ?? "—")</dd>
+                    <dt class="col-md-3">Decided At</dt>
+                    <dd class="col-md-9">@(_mrb.DecidedAt?.ToString("g") ?? "—")</dd>
+                </dl>
+            </div>
+        </div>
+    }
+
+    <!-- RCA Linkage -->
+    <div class="card mb-4">
+        <div class="card-header small fw-semibold bg-light d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-diagram-3 me-1"></i>Root Cause Analysis</span>
+            @if (_mrb.LinkedRcaId is null && _mrb.Status != "Closed")
+            {
+                <button class="btn btn-outline-secondary btn-sm py-0 px-2"
+                        @onclick="() => _showLinkRcaModal = true">
+                    <i class="bi bi-link me-1"></i>Link RCA
+                </button>
+            }
+        </div>
+        <div class="card-body small">
+            @if (_mrb.LinkedRcaId is null)
+            {
+                <span class="text-muted fst-italic">No RCA analysis linked yet.</span>
+                @if (_mrb.RequiresRca)
+                {
+                    <span class="text-danger ms-2"><i class="bi bi-exclamation-triangle-fill me-1"></i>Required before decision</span>
+                }
+            }
+            else
+            {
+                <dl class="row mb-0">
+                    <dt class="col-4">Analysis Type</dt>
+                    <dd class="col-8">@(_mrb.LinkedRcaAnalysisType ?? "—")</dd>
+                    <dt class="col-4">Analysis ID</dt>
+                    <dd class="col-8">
+                        @if (_mrb.LinkedRcaAnalysisType == "Ishikawa")
+                        {
+                            <a href="/ishikawa/@_mrb.LinkedRcaId">View Ishikawa Diagram →</a>
+                        }
+                        else if (_mrb.LinkedRcaAnalysisType == "FiveWhys")
+                        {
+                            <a href="/five-whys/@_mrb.LinkedRcaId">View 5 Whys Analysis →</a>
+                        }
+                        else
+                        {
+                            <code>@_mrb.LinkedRcaId</code>
+                        }
+                    </dd>
+                </dl>
+            }
+        </div>
+    </div>
+
+    <!-- Participants -->
+    <div class="card mb-4">
+        <div class="card-header small fw-semibold bg-light d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-people me-1"></i>Participants (@_mrb.Participants.Count)</span>
+            @if (_mrb.Status != "Closed")
+            {
+                <button class="btn btn-outline-secondary btn-sm py-0 px-2"
+                        @onclick="() => _showAddParticipantModal = true">
+                    <i class="bi bi-plus me-1"></i>Add
+                </button>
+            }
+        </div>
+        @if (!_mrb.Participants.Any())
+        {
+            <div class="card-body text-muted fst-italic small">No participants added yet.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0 align-middle small">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Name</th>
+                            <th>Role</th>
+                            <th>Required</th>
+                            <th>Assessment</th>
+                            <th>Assessed</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in _mrb.Participants)
+                        {
+                            <tr>
+                                <td>@p.DisplayName</td>
+                                <td><span class="badge bg-light text-dark border">@RoleLabel(p.Role)</span></td>
+                                <td>@(p.IsRequired ? "✅" : "—")</td>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(p.Assessment))
+                                    {
+                                        <span class="text-truncate d-inline-block" style="max-width:250px"
+                                              title="@p.Assessment">@p.Assessment</span>
+                                    }
+                                    else if (_mrb.Status != "Closed")
+                                    {
+                                        <button class="btn btn-link btn-sm py-0 px-1 text-muted"
+                                                @onclick="() => OpenAssessmentModal(p)">
+                                            Add assessment…
+                                        </button>
+                                    }
+                                </td>
+                                <td class="text-muted">@(p.AssessedAt?.ToString("g") ?? "—")</td>
+                                <td>
+                                    @if (_mrb.Status != "Closed")
+                                    {
+                                        <button class="btn btn-outline-danger btn-sm py-0 px-1"
+                                                @onclick="() => RemoveParticipant(p.Id)"
+                                                title="Remove participant">
+                                            <i class="bi bi-x"></i>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+<!-- Edit Modal -->
+@if (_showEditModal && _mrb is not null)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Review Details</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showEditModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Item Description *</label>
+                        <input class="form-control" @bind="_editItemDescription" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantity Affected</label>
+                        <input class="form-control" @bind="_editQuantityAffected" placeholder="e.g. 12 pcs, Lot 4421-B" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Problem Statement *</label>
+                        <textarea class="form-control" rows="3" @bind="_editProblemStatement"></textarea>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="editScar" @bind="_editScarRequired" />
+                                <label class="form-check-label" for="editScar">SCAR Required</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="editSupplier" @bind="_editSupplierCaused" />
+                                <label class="form-check-label" for="editSupplier">Supplier Caused</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="editCustomer" @bind="_editCustomerNotification" />
+                                <label class="form-check-label" for="editCustomer">Customer Notification Required</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="editRca" @bind="_editRequiresRca" />
+                                <label class="form-check-label" for="editRca">Requires RCA Before Decision</label>
+                            </div>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_modalError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_modalError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showEditModal = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveEdit" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Decide Modal -->
+@if (_showDecideModal && _mrb is not null)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-check2-circle me-2"></i>Record Disposition Decision</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showDecideModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Disposition Decision *</label>
+                        <div class="d-grid gap-2">
+                            @foreach (var opt in new[]
+                            {
+                                ("UseAsIs",         "warning",   "Use As-Is",         "Accept with deviation — justification required"),
+                                ("Rework",          "info",      "Rework",            "Return for correction"),
+                                ("Scrap",           "dark",      "Scrap",             "Remove from flow entirely"),
+                                ("ReturnToSupplier","secondary", "Return to Supplier","Send nonconforming material back"),
+                                ("ReworkAndReturn", "secondary", "Rework & Return",   "Rework at supplier and resubmit")
+                            })
+                            {
+                                <label class="btn @(_decideDecision == opt.Item1 ? $"btn-{opt.Item2}" : $"btn-outline-{opt.Item2}") text-start py-2"
+                                       style="cursor:pointer">
+                                    <input type="radio" name="decision" value="@opt.Item1" class="d-none"
+                                           @onchange="() => _decideDecision = opt.Item1" />
+                                    <strong>@opt.Item3</strong>
+                                    <span class="small @(_decideDecision == opt.Item1 ? "" : "text-muted") ms-2">@opt.Item4</span>
+                                </label>
+                            }
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Justification</label>
+                        <textarea class="form-control" rows="3" @bind="_decideJustification"
+                                  placeholder="Technical justification for the decision"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Decided By</label>
+                        <input class="form-control" @bind="_decideBy" placeholder="Name of decision maker" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(_modalError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_modalError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showDecideModal = false">Cancel</button>
+                    <button class="btn btn-warning" @onclick="SaveDecision"
+                            disabled="@(string.IsNullOrEmpty(_decideDecision) || _saving)">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Record Decision
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Link RCA Modal -->
+@if (_showLinkRcaModal && _mrb is not null)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-link me-2"></i>Link RCA Analysis</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showLinkRcaModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Analysis Type *</label>
+                        <select class="form-select" @bind="_linkRcaType">
+                            <option value="">— Select type —</option>
+                            <option value="Ishikawa">Ishikawa Diagram</option>
+                            <option value="FiveWhys">5 Whys Analysis</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Analysis ID (GUID) *</label>
+                        <input class="form-control font-monospace" @bind="_linkRcaId"
+                               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                        <div class="form-text">
+                            Navigate to the
+                            <a href="/ishikawa" target="_blank">Ishikawa</a> or
+                            <a href="/five-whys" target="_blank">5 Whys</a> list to find the ID.
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_modalError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_modalError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showLinkRcaModal = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveLinkRca"
+                            disabled="@(string.IsNullOrEmpty(_linkRcaType) || string.IsNullOrEmpty(_linkRcaId) || _saving)">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Link
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Add Participant Modal -->
+@if (_showAddParticipantModal && _mrb is not null)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Add Participant</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showAddParticipantModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name / User ID *</label>
+                        <input class="form-control" @bind="_newParticipantName" placeholder="Display name" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Role *</label>
+                        <select class="form-select" @bind="_newParticipantRole">
+                            <option value="">— Select role —</option>
+                            <option value="QualityEngineer">Quality Engineer</option>
+                            <option value="ManufacturingEngineer">Manufacturing Engineer</option>
+                            <option value="DesignEngineer">Design Engineer</option>
+                            <option value="CustomerRepresentative">Customer Representative</option>
+                            <option value="SupplierRepresentative">Supplier Representative</option>
+                            <option value="ManagementApproval">Management Approval</option>
+                        </select>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="newRequired"
+                               @bind="_newParticipantRequired" />
+                        <label class="form-check-label" for="newRequired">Required — must assess before decision</label>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_modalError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_modalError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showAddParticipantModal = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveAddParticipant"
+                            disabled="@(string.IsNullOrEmpty(_newParticipantName) || string.IsNullOrEmpty(_newParticipantRole) || _saving)">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Add
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Assessment Modal -->
+@if (_assessParticipant is not null && _mrb is not null)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Assessment — @_assessParticipant.DisplayName</h5>
+                    <button type="button" class="btn-close" @onclick="() => _assessParticipant = null"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Technical Assessment / Notes *</label>
+                        <textarea class="form-control" rows="4" @bind="_assessText"
+                                  placeholder="Technical review notes from this participant"></textarea>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_modalError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_modalError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _assessParticipant = null">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveAssessment"
+                            disabled="@(string.IsNullOrEmpty(_assessText) || _saving)">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save Assessment
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private bool _loading = true;
+    private MrbReviewResponseDto? _mrb;
+    private bool _saving;
+    private string? _error;
+    private string? _modalError;
+
+    // Edit modal
+    private bool _showEditModal;
+    private string _editItemDescription = "";
+    private string _editQuantityAffected = "";
+    private string _editProblemStatement = "";
+    private bool _editScarRequired;
+    private bool _editSupplierCaused;
+    private bool _editCustomerNotification;
+    private bool _editRequiresRca;
+
+    // Decide modal
+    private bool _showDecideModal;
+    private string _decideDecision = "";
+    private string _decideJustification = "";
+    private string _decideBy = "";
+
+    // Link RCA modal
+    private bool _showLinkRcaModal;
+    private string _linkRcaType = "";
+    private string _linkRcaId = "";
+
+    // Add participant modal
+    private bool _showAddParticipantModal;
+    private string _newParticipantName = "";
+    private string _newParticipantRole = "";
+    private bool _newParticipantRequired;
+
+    // Assessment modal
+    private MrbParticipantDto? _assessParticipant;
+    private string _assessText = "";
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _loading = true;
+        try { _mrb = await Api.GetMrbReviewAsync(Id); }
+        finally { _loading = false; }
+    }
+
+    private void OpenEditModal()
+    {
+        if (_mrb is null) return;
+        _editItemDescription   = _mrb.ItemDescription;
+        _editQuantityAffected  = _mrb.QuantityAffected ?? "";
+        _editProblemStatement  = _mrb.ProblemStatement;
+        _editScarRequired      = _mrb.ScarRequired;
+        _editSupplierCaused    = _mrb.SupplierCaused;
+        _editCustomerNotification = _mrb.CustomerNotificationRequired;
+        _editRequiresRca       = _mrb.RequiresRca;
+        _modalError            = null;
+        _showEditModal         = true;
+    }
+
+    private async Task SaveEdit()
+    {
+        if (string.IsNullOrWhiteSpace(_editItemDescription) || string.IsNullOrWhiteSpace(_editProblemStatement))
+        {
+            _modalError = "Item Description and Problem Statement are required.";
+            return;
+        }
+        _saving = true; _modalError = null;
+        try
+        {
+            _mrb = await Api.UpdateMrbReviewAsync(Id, new MrbReviewUpdateDto(
+                _editItemDescription.Trim(),
+                _editProblemStatement.Trim(),
+                string.IsNullOrWhiteSpace(_editQuantityAffected) ? null : _editQuantityAffected.Trim(),
+                _editCustomerNotification, _editScarRequired, _editSupplierCaused, _editRequiresRca));
+            _showEditModal = false;
+        }
+        catch (HttpRequestException ex) { _modalError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task StartReview()
+    {
+        _saving = true; _error = null;
+        try { _mrb = await Api.StartMrbReviewAsync(Id); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task SaveDecision()
+    {
+        if (string.IsNullOrEmpty(_decideDecision)) return;
+        _saving = true; _modalError = null;
+        try
+        {
+            _mrb = await Api.DecideMrbReviewAsync(Id, new MrbDecisionDto(
+                _decideDecision,
+                string.IsNullOrWhiteSpace(_decideJustification) ? null : _decideJustification.Trim(),
+                string.IsNullOrWhiteSpace(_decideBy) ? null : _decideBy.Trim()));
+            _showDecideModal = false;
+            _decideDecision = "";
+        }
+        catch (HttpRequestException ex) { _modalError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task CloseReview()
+    {
+        _saving = true; _error = null;
+        try { _mrb = await Api.CloseMrbReviewAsync(Id); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task ReopenReview()
+    {
+        _saving = true; _error = null;
+        try { _mrb = await Api.ReopenMrbReviewAsync(Id); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task SaveLinkRca()
+    {
+        if (string.IsNullOrEmpty(_linkRcaType) || string.IsNullOrEmpty(_linkRcaId)) return;
+        if (!Guid.TryParse(_linkRcaId, out var rcaGuid))
+        {
+            _modalError = "Invalid GUID format.";
+            return;
+        }
+        _saving = true; _modalError = null;
+        try
+        {
+            _mrb = await Api.LinkMrbRcaAsync(Id, new MrbLinkRcaDto(_linkRcaType, rcaGuid));
+            _showLinkRcaModal = false;
+            _linkRcaType = ""; _linkRcaId = "";
+        }
+        catch (HttpRequestException ex) { _modalError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task SaveAddParticipant()
+    {
+        if (string.IsNullOrEmpty(_newParticipantName) || string.IsNullOrEmpty(_newParticipantRole)) return;
+        _saving = true; _modalError = null;
+        try
+        {
+            _mrb = await Api.AddMrbParticipantAsync(Id, new MrbAddParticipantDto(
+                _newParticipantName.Trim(),
+                _newParticipantName.Trim(),
+                _newParticipantRole,
+                _newParticipantRequired));
+            _showAddParticipantModal = false;
+            _newParticipantName = ""; _newParticipantRole = ""; _newParticipantRequired = false;
+        }
+        catch (HttpRequestException ex) { _modalError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private void OpenAssessmentModal(MrbParticipantDto p)
+    {
+        _assessParticipant = p;
+        _assessText = p.Assessment ?? "";
+        _modalError = null;
+    }
+
+    private async Task SaveAssessment()
+    {
+        if (_assessParticipant is null || string.IsNullOrEmpty(_assessText)) return;
+        _saving = true; _modalError = null;
+        try
+        {
+            _mrb = await Api.UpdateMrbParticipantAssessmentAsync(Id, _assessParticipant.Id,
+                new MrbUpdateAssessmentDto(_assessText.Trim()));
+            _assessParticipant = null;
+        }
+        catch (HttpRequestException ex) { _modalError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task RemoveParticipant(Guid participantId)
+    {
+        _saving = true; _error = null;
+        try { _mrb = await Api.RemoveMrbParticipantAsync(Id, participantId); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    // ─── Style helpers ──────────────────────────────────────────────────────
+
+    private static string StatusBadge(string? s) => s switch
+    {
+        "Draft"       => "bg-secondary",
+        "UnderReview" => "bg-primary",
+        "Decided"     => "bg-warning text-dark",
+        "Closed"      => "bg-success",
+        _             => "bg-light text-dark"
+    };
+
+    private static string StatusLabel(string? s) => s switch
+    {
+        "UnderReview" => "Under Review",
+        _             => s ?? "—"
+    };
+
+    private static string LimitBadge(string? l) => l switch
+    {
+        "LSL"        => "bg-warning text-dark",
+        "USL"        => "bg-danger",
+        "FailResult" => "bg-dark",
+        _            => "bg-secondary"
+    };
+
+    private static string NcDispositionBadge(string? d) => d switch
+    {
+        "Pending"    => "bg-warning text-dark",
+        "Quarantine" => "bg-danger",
+        "Scrap"      => "bg-dark",
+        "Rework"     => "bg-info text-dark",
+        _            => "bg-secondary"
+    };
+
+    private static string DecisionBadge(string? d) => d switch
+    {
+        "UseAsIs"         => "bg-warning text-dark",
+        "Rework"          => "bg-info text-dark",
+        "Scrap"           => "bg-dark",
+        "ReturnToSupplier" => "bg-secondary",
+        "ReworkAndReturn"  => "bg-secondary",
+        _                 => "bg-light text-dark"
+    };
+
+    private static string DecisionLabel(string? d) => d switch
+    {
+        "UseAsIs"         => "Use As-Is",
+        "ReturnToSupplier" => "Return to Supplier",
+        "ReworkAndReturn"  => "Rework & Return",
+        _                 => d ?? "—"
+    };
+
+    private static string DecisionBorderColor(string? d) => d switch
+    {
+        "UseAsIs" => "warning",
+        "Scrap"   => "dark",
+        _         => "success"
+    };
+
+    private static string RoleLabel(string? r) => r switch
+    {
+        "QualityEngineer"       => "Quality Eng.",
+        "ManufacturingEngineer" => "Mfg. Eng.",
+        "DesignEngineer"        => "Design Eng.",
+        "CustomerRepresentative" => "Customer",
+        "SupplierRepresentative" => "Supplier",
+        "ManagementApproval"    => "Management",
+        _                       => r ?? "—"
+    };
+}

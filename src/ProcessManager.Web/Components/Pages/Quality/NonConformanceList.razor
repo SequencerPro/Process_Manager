@@ -107,6 +107,20 @@ else
                                         Dispose
                                     </button>
                                 }
+                                else if (nc.MrbReviewId.HasValue)
+                                {
+                                    <button class="btn btn-outline-secondary btn-sm py-0 px-2"
+                                            @onclick='() => Nav.NavigateTo($"/mrb/{nc.MrbReviewId}")'>
+                                        <i class="bi bi-clipboard2-x me-1"></i>MRB
+                                    </button>
+                                }
+                                else if (nc.DispositionStatus == "Quarantine" || nc.MrbRequired)
+                                {
+                                    <button class="btn btn-outline-danger btn-sm py-0 px-2"
+                                            @onclick="() => OpenEscalateToMrb(nc)">
+                                        <i class="bi bi-arrow-up-circle me-1"></i>Escalate to MRB
+                                    </button>
+                                }
                                 else
                                 {
                                     <small class="text-muted">@(nc.DisposedBy ?? "—")</small>
@@ -197,6 +211,78 @@ else
     </div>
 }
 
+<!-- Escalate to MRB Modal -->
+@if (_escalateNc is not null)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-clipboard2-x me-2 text-danger"></i>Escalate to MRB</h5>
+                    <button type="button" class="btn-close" @onclick="() => _escalateNc = null"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info py-2 small mb-3">
+                        Creating an MRB review for this non-conformance:
+                        Job <strong>@(_escalateNc.JobCode ?? "—")</strong> /
+                        Step <strong>@(_escalateNc.StepName ?? "—")</strong> /
+                        Actual value <code>@(_escalateNc.ActualValue ?? "—")</code>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Item Description *</label>
+                        <input class="form-control" @bind="_escalateItemDescription"
+                               placeholder="Full description of the nonconforming item" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Problem Statement *</label>
+                        <textarea class="form-control" rows="3" @bind="_escalateProblemStatement"
+                                  placeholder="Technical description of the nonconformance"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantity Affected</label>
+                        <input class="form-control" @bind="_escalateQtyAffected"
+                               placeholder="e.g. 12 pcs, Lot 4421-B" />
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="escScar" @bind="_escalateScar" />
+                                <label class="form-check-label small" for="escScar">SCAR Required</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="escSupplier" @bind="_escalateSupplier" />
+                                <label class="form-check-label small" for="escSupplier">Supplier Caused</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="escCustomer" @bind="_escalateCustomer" />
+                                <label class="form-check-label small" for="escCustomer">Customer Notification Required</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="escRca" @bind="_escalateRequiresRca" />
+                                <label class="form-check-label small" for="escRca">Requires RCA Before Decision</label>
+                            </div>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_escalateError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_escalateError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _escalateNc = null">Cancel</button>
+                    <button class="btn btn-danger" @onclick="SaveEscalate"
+                            disabled="@(string.IsNullOrEmpty(_escalateItemDescription) || string.IsNullOrEmpty(_escalateProblemStatement) || _escalateSaving)">
+                        @if (_escalateSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Create MRB Review
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private bool _loading = true;
     private PaginatedResponse<NonConformanceResponseDto>? _data;
@@ -211,6 +297,18 @@ else
     private string _disposeJustification = "";
     private bool _disposeSaving;
     private string? _disposeError;
+
+    // Escalate to MRB modal state
+    private NonConformanceResponseDto? _escalateNc;
+    private string _escalateItemDescription = "";
+    private string _escalateProblemStatement = "";
+    private string _escalateQtyAffected = "";
+    private bool _escalateScar;
+    private bool _escalateSupplier;
+    private bool _escalateCustomer;
+    private bool _escalateRequiresRca;
+    private bool _escalateSaving;
+    private string? _escalateError;
 
     protected override async Task OnInitializedAsync() => await LoadData();
 
@@ -267,6 +365,47 @@ else
         }
         catch (HttpRequestException ex) { _disposeError = ex.Message; }
         finally { _disposeSaving = false; }
+    }
+
+    private void OpenEscalateToMrb(NonConformanceResponseDto nc)
+    {
+        _escalateNc = nc;
+        _escalateItemDescription = nc.StepName is not null
+            ? $"{nc.StepName} — nonconformance"
+            : "Nonconforming item";
+        _escalateProblemStatement = nc.ActualValue is not null
+            ? $"Actual value: {nc.ActualValue}"
+            : "";
+        _escalateQtyAffected = "";
+        _escalateScar = false;
+        _escalateSupplier = false;
+        _escalateCustomer = false;
+        _escalateRequiresRca = false;
+        _escalateError = null;
+    }
+
+    private async Task SaveEscalate()
+    {
+        if (string.IsNullOrWhiteSpace(_escalateItemDescription) || string.IsNullOrWhiteSpace(_escalateProblemStatement)) return;
+
+        _escalateSaving = true;
+        _escalateError = null;
+        try
+        {
+            var result = await Api.CreateMrbReviewAsync(new MrbReviewCreateDto(
+                NonConformanceId: _escalateNc!.Id,
+                ItemDescription: _escalateItemDescription.Trim(),
+                ProblemStatement: _escalateProblemStatement.Trim(),
+                QuantityAffected: string.IsNullOrWhiteSpace(_escalateQtyAffected) ? null : _escalateQtyAffected.Trim(),
+                CustomerNotificationRequired: _escalateCustomer,
+                ScarRequired: _escalateScar,
+                SupplierCaused: _escalateSupplier,
+                RequiresRca: _escalateRequiresRca));
+            _escalateNc = null;
+            Nav.NavigateTo($"/mrb/{result!.Id}");
+        }
+        catch (HttpRequestException ex) { _escalateError = ex.Message; }
+        finally { _escalateSaving = false; }
     }
 
     private static string LimitTypeBadgeClass(string? limitType) => limitType switch

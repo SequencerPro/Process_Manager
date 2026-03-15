@@ -40,7 +40,7 @@ public class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "1.7";
+    private const string ServerVersion   = "1.8";
 
     public McpController(ProcessManagerDbContext db) => _db = db;
 
@@ -157,6 +157,13 @@ public class McpController : ControllerBase
                  Schema(
                      ("linked_entity_id", "string", "The UUID of the linked entity (non-conformance, PFMEA failure mode, etc.) to filter by — or leave empty to list all open RCAs"),
                      ("status", "string", "Optional: Open or Closed — leave empty for all"))),
+
+            Tool("get_mrb_summary",
+                 "Retrieve a summary of Material Review Board (MRB) reviews, optionally filtered by status and/or SCAR/supplier flags. Useful for understanding nonconforming material awaiting MRB disposition decisions. Requires authentication.",
+                 Schema(
+                     ("status", "string", "Optional: Draft, UnderReview, Decided, or Closed — leave empty for all"),
+                     ("scar_required", "string", "Optional: true or false — filter by SCAR Required flag"),
+                     ("supplier_caused", "string", "Optional: true or false — filter by Supplier Caused flag"))),
         }
     };
 
@@ -236,6 +243,7 @@ public class McpController : ControllerBase
             "list_qms_documents"            => OkResponse(id, TextContent(await ToolListQmsDocuments(args))),
             "list_recurring_root_causes"    => OkResponse(id, TextContent(await ToolListRecurringRootCauses(args))),
             "get_rca_summary"               => OkResponse(id, TextContent(await ToolGetRcaSummary(args))),
+            "get_mrb_summary"               => OkResponse(id, TextContent(await ToolGetMrbSummary(args))),
             _                               => ErrorResponse(id, -32602, $"Unknown tool: {toolName}")
         };
     }
@@ -728,6 +736,75 @@ public class McpController : ControllerBase
                 sb.AppendLine($"| {a.Title} | {a.Status} | {a.Nodes.Count} | {rootCount} | {a.LinkedEntityType} |");
             }
         }
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolGetMrbSummary(JsonElement args)
+    {
+        var statusFilter       = args.TryGetProperty("status",         out var sf) ? sf.GetString()?.Trim() : null;
+        var scarStr            = args.TryGetProperty("scar_required",  out var sc) ? sc.GetString()?.Trim() : null;
+        var supplierStr        = args.TryGetProperty("supplier_caused", out var su) ? su.GetString()?.Trim() : null;
+
+        var query = _db.MrbReviews
+            .AsNoTracking()
+            .Include(m => m.NonConformance)
+                .ThenInclude(nc => nc!.StepExecution)
+                    .ThenInclude(se => se!.ProcessStep)
+                        .ThenInclude(ps => ps!.StepTemplate)
+            .Include(m => m.NonConformance)
+                .ThenInclude(nc => nc!.StepExecution)
+                    .ThenInclude(se => se!.Job)
+            .Include(m => m.Participants)
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(statusFilter) &&
+            Enum.TryParse<Domain.Enums.MrbStatus>(statusFilter, true, out var mrbStatus))
+            query = query.Where(m => m.Status == mrbStatus);
+
+        if (bool.TryParse(scarStr, out var scarBool))
+            query = query.Where(m => m.ScarRequired == scarBool);
+
+        if (bool.TryParse(supplierStr, out var supplierBool))
+            query = query.Where(m => m.SupplierCaused == supplierBool);
+
+        var reviews = await query
+            .OrderByDescending(m => m.CreatedAt)
+            .Take(50)
+            .ToListAsync();
+
+        if (!reviews.Any())
+            return "No MRB reviews found matching the criteria.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## MRB Reviews ({reviews.Count})\n");
+        sb.AppendLine("| # | Job / Step | Item Description | Status | Decision | Flags | Participants |");
+        sb.AppendLine("|---|---|---|---|---|---|---|");
+
+        int i = 1;
+        foreach (var m in reviews)
+        {
+            var nc      = m.NonConformance;
+            var job     = nc?.StepExecution?.Job?.Code ?? "—";
+            var step    = nc?.StepExecution?.ProcessStep?.NameOverride
+                          ?? nc?.StepExecution?.ProcessStep?.StepTemplate?.Name ?? "—";
+            var status  = m.Status.ToString();
+            var decision = m.DispositionDecision.HasValue ? m.DispositionDecision.Value.ToString() : "—";
+            var flags   = string.Join(", ", new[]
+            {
+                m.ScarRequired              ? "SCAR" : null,
+                m.SupplierCaused            ? "Supplier" : null,
+                m.CustomerNotificationRequired ? "Customer" : null,
+                m.RequiresRca               ? "RCA" : null,
+            }.Where(f => f is not null));
+            if (string.IsNullOrEmpty(flags)) flags = "—";
+            sb.AppendLine($"| {i++} | {job} / {step} | {m.ItemDescription} | **{status}** | {decision} | {flags} | {m.Participants.Count} |");
+        }
+
+        var byStatus = reviews.GroupBy(m => m.Status)
+            .Select(g => $"{g.Key}: {g.Count()}")
+            .ToList();
+        sb.AppendLine($"\n*Status breakdown: {string.Join(", ", byStatus)}*");
 
         return sb.ToString();
     }

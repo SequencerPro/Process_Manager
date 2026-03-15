@@ -124,6 +124,10 @@ public class NonConformancesController : ControllerBase
         nc.DisposedAt = DateTime.UtcNow;
         nc.JustificationText = dto.JustificationText;
 
+        // Quarantine automatically requires MRB review
+        if (status == DispositionStatus.Quarantine)
+            nc.MrbRequired = true;
+
         await _db.SaveChangesAsync();
         return MapToDto(nc);
     }
@@ -152,6 +156,8 @@ public class NonConformancesController : ControllerBase
         nc.DisposedBy,
         nc.DisposedAt,
         nc.JustificationText,
+        nc.MrbRequired,
+        nc.MrbReviewId,
         nc.CreatedAt,
         nc.UpdatedAt
     );

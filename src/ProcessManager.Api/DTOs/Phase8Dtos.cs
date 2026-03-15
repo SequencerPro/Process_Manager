@@ -56,6 +56,8 @@ public record NonConformanceResponseDto(
     string? DisposedBy,
     DateTime? DisposedAt,
     string? JustificationText,
+    bool MrbRequired,
+    Guid? MrbReviewId,
     DateTime CreatedAt,
     DateTime UpdatedAt
 );

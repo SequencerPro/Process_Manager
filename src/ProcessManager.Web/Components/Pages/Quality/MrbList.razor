@@ -1,0 +1,258 @@
+@page "/mrb"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Material Review Board — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-clipboard2-x-fill me-2 text-danger"></i>Material Review Board</h3>
+        <p class="text-muted small mb-0">Formal cross-functional disposition of nonconforming material</p>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadData" disabled="@_loading">
+        <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+    </button>
+</div>
+
+<!-- Filters -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Status</label>
+                <select class="form-select form-select-sm" @onchange="OnStatusFilter">
+                    <option value="">All statuses</option>
+                    <option value="Draft">Draft</option>
+                    <option value="UnderReview">Under Review</option>
+                    <option value="Decided">Decided</option>
+                    <option value="Closed">Closed</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Disposition</label>
+                <select class="form-select form-select-sm" @onchange="OnDecisionFilter">
+                    <option value="">All</option>
+                    <option value="UseAsIs">Use As-Is</option>
+                    <option value="Rework">Rework</option>
+                    <option value="Scrap">Scrap</option>
+                    <option value="ReturnToSupplier">Return to Supplier</option>
+                    <option value="ReworkAndReturn">Rework &amp; Return</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" id="scarCheck"
+                           @onchange="OnScarFilter" checked="@(_scarFilter == true)" />
+                    <label class="form-check-label small" for="scarCheck">SCAR Required</label>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" id="supplierCheck"
+                           @onchange="OnSupplierFilter" checked="@(_supplierFilter == true)" />
+                    <label class="form-check-label small" for="supplierCheck">Supplier Caused</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_data is null || !_data.Items.Any())
+{
+    <div class="card">
+        <div class="card-body text-muted fst-italic small text-center py-4">
+            <i class="bi bi-check-circle text-success fs-2 d-block mb-2"></i>
+            No MRB reviews found matching the current filters.
+        </div>
+    </div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Job / Step</th>
+                        <th>Item Description</th>
+                        <th>Status</th>
+                        <th>Disposition</th>
+                        <th>Flags</th>
+                        <th>Participants</th>
+                        <th>Created</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in _data.Items)
+                    {
+                        <tr>
+                            <td>
+                                <code class="small">@(r.NcJobCode ?? "—")</code>
+                                @if (!string.IsNullOrEmpty(r.NcStepName))
+                                {
+                                    <small class="text-muted d-block">@r.NcStepName</small>
+                                }
+                            </td>
+                            <td>
+                                <span class="text-truncate d-inline-block" style="max-width:200px"
+                                      title="@r.ItemDescription">@r.ItemDescription</span>
+                                @if (!string.IsNullOrEmpty(r.NcActualValue))
+                                {
+                                    <small class="text-muted d-block">Actual: <code>@r.NcActualValue</code></small>
+                                }
+                            </td>
+                            <td><span class="badge @StatusBadge(r.Status)">@StatusLabel(r.Status)</span></td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(r.DispositionDecision))
+                                {
+                                    <span class="badge @DecisionBadge(r.DispositionDecision)">@DecisionLabel(r.DispositionDecision)</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">Pending</span>
+                                }
+                            </td>
+                            <td>
+                                @if (r.ScarRequired)
+                                {
+                                    <span class="badge bg-warning text-dark me-1" title="Supplier Corrective Action Request required">SCAR</span>
+                                }
+                                @if (r.SupplierCaused)
+                                {
+                                    <span class="badge bg-secondary me-1" title="Supplier-caused nonconformance">Supplier</span>
+                                }
+                                @if (r.CustomerNotificationRequired)
+                                {
+                                    <span class="badge bg-danger" title="Customer notification required">Customer</span>
+                                }
+                                @if (!r.ScarRequired && !r.SupplierCaused && !r.CustomerNotificationRequired)
+                                {
+                                    <span class="text-muted small">—</span>
+                                }
+                            </td>
+                            <td class="small text-muted">@r.ParticipantCount</td>
+                            <td class="small text-muted">@r.CreatedAt.ToString("g")</td>
+                            <td>
+                                <button class="btn btn-outline-primary btn-sm py-0 px-2"
+                                        @onclick='() => Nav.NavigateTo($"/mrb/{r.Id}")'>
+                                    Open
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (_data.TotalCount > _data.PageSize)
+    {
+        <div class="d-flex justify-content-between align-items-center mt-2 small text-muted">
+            <span>Showing @((_data.Page - 1) * _data.PageSize + 1)–@Math.Min(_data.Page * _data.PageSize, _data.TotalCount) of @_data.TotalCount</span>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" @onclick="PrevPage" disabled="@(_page <= 1)">‹</button>
+                <button class="btn btn-outline-secondary" @onclick="NextPage" disabled="@(_page >= _data.TotalPages)">›</button>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private PaginatedResponse<MrbReviewSummaryDto>? _data;
+    private string? _statusFilter;
+    private string? _decisionFilter;
+    private bool? _scarFilter;
+    private bool? _supplierFilter;
+    private int _page = 1;
+    private const int PageSize = 25;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            _data = await Api.GetMrbReviewsAsync(
+                status: _statusFilter,
+                dispositionDecision: _decisionFilter,
+                scarRequired: _scarFilter,
+                supplierCaused: _supplierFilter,
+                page: _page, pageSize: PageSize);
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task OnStatusFilter(ChangeEventArgs e)
+    {
+        _statusFilter = e.Value?.ToString();
+        _page = 1;
+        await LoadData();
+    }
+
+    private async Task OnDecisionFilter(ChangeEventArgs e)
+    {
+        _decisionFilter = e.Value?.ToString();
+        _page = 1;
+        await LoadData();
+    }
+
+    private async Task OnScarFilter(ChangeEventArgs e)
+    {
+        _scarFilter = e.Value is bool b && b ? true : null;
+        _page = 1;
+        await LoadData();
+    }
+
+    private async Task OnSupplierFilter(ChangeEventArgs e)
+    {
+        _supplierFilter = e.Value is bool b && b ? true : null;
+        _page = 1;
+        await LoadData();
+    }
+
+    private async Task PrevPage() { _page--; await LoadData(); }
+    private async Task NextPage() { _page++; await LoadData(); }
+
+    private static string StatusBadge(string? s) => s switch
+    {
+        "Draft"       => "bg-secondary",
+        "UnderReview" => "bg-primary",
+        "Decided"     => "bg-warning text-dark",
+        "Closed"      => "bg-success",
+        _             => "bg-light text-dark"
+    };
+
+    private static string StatusLabel(string? s) => s switch
+    {
+        "UnderReview" => "Under Review",
+        _             => s ?? "—"
+    };
+
+    private static string DecisionBadge(string? d) => d switch
+    {
+        "UseAsIs"         => "bg-warning text-dark",
+        "Rework"          => "bg-info text-dark",
+        "Scrap"           => "bg-dark",
+        "ReturnToSupplier" => "bg-secondary",
+        "ReworkAndReturn"  => "bg-secondary",
+        _                 => "bg-light text-dark"
+    };
+
+    private static string DecisionLabel(string? d) => d switch
+    {
+        "UseAsIs"         => "Use As-Is",
+        "ReturnToSupplier" => "Return to Supplier",
+        "ReworkAndReturn"  => "Rework & Return",
+        _                 => d ?? "—"
+    };
+}

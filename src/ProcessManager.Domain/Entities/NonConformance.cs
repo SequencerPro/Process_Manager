@@ -32,6 +32,12 @@ public class NonConformance : BaseEntity
     /// <summary>Justification text (required for UseAsIs disposition).</summary>
     public string? JustificationText { get; set; }
 
+    /// <summary>Set to true when this NC requires a Material Review Board review.</summary>
+    public bool MrbRequired { get; set; }
+
+    /// <summary>FK to the MrbReview opened for this NC (stored for quick lookup; enforced via MrbReview.NonConformanceId).</summary>
+    public Guid? MrbReviewId { get; set; }
+
     // Navigation properties
     public StepExecution StepExecution { get; set; } = null!;
     public ProcessStepContent ContentBlock { get; set; } = null!;

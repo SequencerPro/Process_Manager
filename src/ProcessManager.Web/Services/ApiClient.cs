@@ -1373,4 +1373,86 @@ public class ApiClient
         r.EnsureSuccessStatusCode();
         return await r.Content.ReadFromJsonAsync<StepTemplateResponseDto>(_json);
     }
+
+    // ══════════════════ MRB (Phase 10d) ══════════════════════════════════════
+
+    public Task<PaginatedResponse<MrbReviewSummaryDto>?> GetMrbReviewsAsync(
+        string? status = null, Guid? nonConformanceId = null, bool? scarRequired = null,
+        bool? supplierCaused = null, string? dispositionDecision = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<MrbReviewSummaryDto>>(
+            $"api/mrb?status={status}&nonConformanceId={nonConformanceId}&scarRequired={scarRequired}&supplierCaused={supplierCaused}&dispositionDecision={dispositionDecision}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<MrbReviewResponseDto?> GetMrbReviewAsync(Guid id)
+        => _http.GetFromJsonAsync<MrbReviewResponseDto>($"api/mrb/{id}", _json);
+
+    public async Task<MrbReviewResponseDto?> CreateMrbReviewAsync(MrbReviewCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/mrb", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MrbReviewResponseDto>(_json);
+    }
+
+    public async Task<MrbReviewResponseDto?> UpdateMrbReviewAsync(Guid id, MrbReviewUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/mrb/{id}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MrbReviewResponseDto>(_json);
+    }
+
+    public async Task<MrbReviewResponseDto?> StartMrbReviewAsync(Guid id)
+    {
+        var r = await _http.PostAsJsonAsync<object?>($"api/mrb/{id}/start-review", null, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MrbReviewResponseDto>(_json);
+    }
+
+    public async Task<MrbReviewResponseDto?> DecideMrbReviewAsync(Guid id, MrbDecisionDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/mrb/{id}/decide", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MrbReviewResponseDto>(_json);
+    }
+
+    public async Task<MrbReviewResponseDto?> CloseMrbReviewAsync(Guid id)
+    {
+        var r = await _http.PostAsJsonAsync<object?>($"api/mrb/{id}/close", null, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MrbReviewResponseDto>(_json);
+    }
+
+    public async Task<MrbReviewResponseDto?> ReopenMrbReviewAsync(Guid id)
+    {
+        var r = await _http.PostAsJsonAsync<object?>($"api/mrb/{id}/reopen", null, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MrbReviewResponseDto>(_json);
+    }
+
+    public async Task<MrbReviewResponseDto?> LinkMrbRcaAsync(Guid id, MrbLinkRcaDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/mrb/{id}/link-rca", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MrbReviewResponseDto>(_json);
+    }
+
+    public async Task<MrbReviewResponseDto?> AddMrbParticipantAsync(Guid id, MrbAddParticipantDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/mrb/{id}/participants", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MrbReviewResponseDto>(_json);
+    }
+
+    public async Task<MrbReviewResponseDto?> UpdateMrbParticipantAssessmentAsync(
+        Guid id, Guid participantId, MrbUpdateAssessmentDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/mrb/{id}/participants/{participantId}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MrbReviewResponseDto>(_json);
+    }
+
+    public async Task<MrbReviewResponseDto?> RemoveMrbParticipantAsync(Guid id, Guid participantId)
+    {
+        var r = await _http.DeleteAsync($"api/mrb/{id}/participants/{participantId}");
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MrbReviewResponseDto>(_json);
+    }
 }

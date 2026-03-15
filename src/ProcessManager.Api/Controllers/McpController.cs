@@ -131,6 +131,14 @@ public class McpController : ControllerBase
             Tool("get_ce_matrix",
                  "Get a Cause &amp; Effect (Fishbone / C&amp;E) matrix by name or process step, showing input-to-output correlation scores and computed priority scores. Requires authentication.",
                  Schema(("query", "string", "Matrix name or process step name (partial match)"))),
+
+            Tool("get_control_plan",
+                 "Get a Control Plan by code or name, including all characteristic entries grouped by process step with specification, measurement technique, and reaction plan details. Requires authentication.",
+                 Schema(("query", "string", "Control plan code or name (partial match supported)"))),
+
+            Tool("list_critical_characteristics",
+                 "List all Product-type characteristics across active Control Plans, optionally filtered by process. Useful for identifying critical-to-quality parameters across the process. Requires authentication.",
+                 Schema(("process_query", "string", "Optional process name or code to filter by (leave empty for all)"))),
         }
     };
 
@@ -205,6 +213,8 @@ public class McpController : ControllerBase
             "get_pfmea"                  => OkResponse(id, TextContent(await ToolGetPfmea(args))),
             "list_high_rpn_failure_modes" => OkResponse(id, TextContent(await ToolListHighRpnFailureModes(args))),
             "get_ce_matrix"              => OkResponse(id, TextContent(await ToolGetCeMatrix(args))),
+            "get_control_plan"           => OkResponse(id, TextContent(await ToolGetControlPlan(args))),
+            "list_critical_characteristics" => OkResponse(id, TextContent(await ToolListCriticalCharacteristics(args))),
             _                            => ErrorResponse(id, -32602, $"Unknown tool: {toolName}")
         };
     }
@@ -500,6 +510,99 @@ public class McpController : ControllerBase
         }
 
         sb.AppendLine($"\n*Importance weights — " + string.Join(", ", outputs.Select(o => $"{o.Name}: {o.Importance}")) + "*");
+        return sb.ToString();
+    }
+
+    // ─── Phase 7c: Control Plan Tools ─────────────────────────────────────────
+
+    private async Task<string> ToolGetControlPlan(JsonElement args)
+    {
+        var query = args.TryGetProperty("query", out var q) ? q.GetString()?.Trim() : null;
+        if (string.IsNullOrEmpty(query))
+            return "Please provide a 'query' argument with the control plan code or name.";
+
+        var cp = await _db.ControlPlans
+            .AsNoTracking()
+            .Include(cp => cp.Process)
+            .Include(cp => cp.Entries)
+                .ThenInclude(e => e.ProcessStep)
+                    .ThenInclude(ps => ps.StepTemplate)
+            .FirstOrDefaultAsync(cp =>
+                cp.Code.ToLower().Contains(query.ToLower()) ||
+                cp.Name.ToLower().Contains(query.ToLower()));
+
+        if (cp is null)
+            return $"No control plan found matching '{query}'.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Control Plan: {cp.Name} (`{cp.Code}`) — v{cp.Version}\n");
+        sb.AppendLine($"- **Process:** {cp.Process.Name} (`{cp.Process.Code}`)");
+        sb.AppendLine($"- **Status:** {(cp.IsActive ? "Active" : "Inactive")}{(cp.IsStale ? " ⚠️ Stale" : "")}");
+        sb.AppendLine();
+
+        if (!cp.Entries.Any())
+        {
+            sb.AppendLine("No characteristic entries defined.");
+            return sb.ToString();
+        }
+
+        sb.AppendLine($"| Step | Characteristic | Type | Specification | Measurement | Sample Size | Frequency | Control Method |");
+        sb.AppendLine($"|---|---|---|---|---|---|---|---|");
+
+        foreach (var e in cp.Entries.OrderBy(e => e.ProcessStep?.StepTemplate?.Name).ThenBy(e => e.SortOrder))
+        {
+            var stepName = e.ProcessStep?.NameOverride ?? e.ProcessStep?.StepTemplate?.Name ?? "—";
+            sb.AppendLine($"| {stepName} | {e.CharacteristicName} | {e.CharacteristicType} | {e.SpecificationOrTolerance ?? "—"} | {e.MeasurementTechnique ?? "—"} | {e.SampleSize ?? "—"} | {e.SampleFrequency ?? "—"} | {e.ControlMethod ?? "—"} |");
+        }
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolListCriticalCharacteristics(JsonElement args)
+    {
+        var processQuery = args.TryGetProperty("process_query", out var pq) ? pq.GetString()?.Trim() : null;
+
+        var query = _db.ControlPlans
+            .AsNoTracking()
+            .Include(cp => cp.Process)
+            .Include(cp => cp.Entries)
+                .ThenInclude(e => e.ProcessStep)
+                    .ThenInclude(ps => ps!.StepTemplate)
+            .Where(cp => cp.IsActive);
+
+        if (!string.IsNullOrEmpty(processQuery))
+            query = query.Where(cp =>
+                cp.Process.Code.ToLower().Contains(processQuery.ToLower()) ||
+                cp.Process.Name.ToLower().Contains(processQuery.ToLower()));
+
+        var plans = await query.OrderBy(cp => cp.Process.Name).ThenBy(cp => cp.Name).ToListAsync();
+
+        var productEntries = plans
+            .SelectMany(cp => cp.Entries
+                .Where(e => e.CharacteristicType == Domain.Enums.CharacteristicType.Product)
+                .Select(e => new { cp, e }))
+            .OrderBy(x => x.cp.Process.Name)
+            .ThenBy(x => x.e.ProcessStep?.StepTemplate?.Name)
+            .ThenBy(x => x.e.SortOrder)
+            .ToList();
+
+        if (!productEntries.Any())
+        {
+            var scope = string.IsNullOrEmpty(processQuery) ? "any process" : $"process matching '{processQuery}'";
+            return $"No Product-type characteristics found for {scope}.";
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Critical (Product) Characteristics ({productEntries.Count})\n");
+        sb.AppendLine($"| Process | Control Plan | Step | Characteristic | Specification | Measurement |");
+        sb.AppendLine($"|---|---|---|---|---|---|");
+
+        foreach (var x in productEntries)
+        {
+            var stepName = x.e.ProcessStep?.NameOverride ?? x.e.ProcessStep?.StepTemplate?.Name ?? "—";
+            sb.AppendLine($"| {x.cp.Process.Name} | {x.cp.Name} | {stepName} | **{x.e.CharacteristicName}** | {x.e.SpecificationOrTolerance ?? "—"} | {x.e.MeasurementTechnique ?? "—"} |");
+        }
+
         return sb.ToString();
     }
 

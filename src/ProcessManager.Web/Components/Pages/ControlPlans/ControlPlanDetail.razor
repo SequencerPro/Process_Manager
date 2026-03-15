@@ -1,0 +1,491 @@
+@page "/control-plans/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Control Plan Detail</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_cp is null)
+{
+    <div class="alert alert-warning">Control Plan not found.</div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="control-plans">Control Plans</a></li>
+            <li class="breadcrumb-item active">@_cp.Name</li>
+        </ol>
+    </nav>
+
+    <!-- Staleness banner -->
+    @if (_cp.IsStale)
+    {
+        <div class="alert alert-warning d-flex justify-content-between align-items-center mb-3">
+            <div>
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <strong>This control plan is stale.</strong> The process was updated since this plan was last reviewed.
+                @if (_cp.StalenessClearedAt.HasValue)
+                {
+                    <span class="ms-2 text-muted small">Last cleared @_cp.StalenessClearedAt.Value.ToString("g") by @_cp.StalenessClearedBy</span>
+                }
+            </div>
+            <button class="btn btn-warning btn-sm" @onclick="ShowClearStaleness">
+                <i class="bi bi-check2-circle me-1"></i>Clear Staleness
+            </button>
+        </div>
+    }
+
+    <!-- Header card -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <h4 class="mb-1">@_cp.Name</h4>
+                    <span class="text-muted me-3"><code>@_cp.Code</code></span>
+                    <span class="badge me-1 @(_cp.IsActive ? "bg-success" : "bg-secondary")">
+                        @(_cp.IsActive ? "Active" : "Inactive")
+                    </span>
+                    <span class="badge bg-dark">v@_cp.Version</span>
+                    <span class="ms-3 text-muted small">Process: <a href="processes/@_cp.ProcessId">@_cp.ProcessName</a></span>
+                </div>
+                <div class="d-flex gap-1">
+                    <a class="btn btn-outline-success btn-sm" href="api/controlplans/@Id/export" target="_blank">
+                        <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV
+                    </a>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="ShowEdit">
+                        <i class="bi bi-pencil me-1"></i>Edit
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(_cp.Description))
+            {
+                <p class="text-muted mb-1">@_cp.Description</p>
+            }
+            <small class="text-muted">
+                @_cp.Entries.Count entry/entries &bull;
+                Updated @_cp.UpdatedAt.ToString("g")
+            </small>
+        </div>
+    </div>
+
+    <!-- Entries section -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Characteristic Entries</h5>
+        <button class="btn btn-primary btn-sm" @onclick="ShowAddEntry">
+            <i class="bi bi-plus-lg me-1"></i>Add Entry
+        </button>
+    </div>
+
+    @if (!_cp.Entries.Any())
+    {
+        <div class="alert alert-info py-2">
+            No characteristic entries yet. Click "Add Entry" to begin, or entries are auto-populated from process steps on plan creation.
+        </div>
+    }
+    else
+    {
+        <!-- Group by process step -->
+        @foreach (var grp in _cp.Entries
+            .GroupBy(e => new { e.ProcessStepId, e.ProcessStepName, e.ProcessStepSequence })
+            .OrderBy(g => g.Key.ProcessStepSequence))
+        {
+            <div class="card mb-3">
+                <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                    <span>
+                        <span class="badge bg-secondary me-2">Step @grp.Key.ProcessStepSequence</span>
+                        <strong>@grp.Key.ProcessStepName</strong>
+                    </span>
+                    <span class="badge bg-light text-dark border">@grp.Count() characteristic(s)</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Characteristic</th>
+                                    <th>Type</th>
+                                    <th>Specification / Tolerance</th>
+                                    <th>Measurement Technique</th>
+                                    <th>Sample Size</th>
+                                    <th>Frequency</th>
+                                    <th>Control Method</th>
+                                    <th>Reaction Plan</th>
+                                    <th>PFMEA Link</th>
+                                    <th style="width:80px"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var e in grp.OrderBy(x => x.SortOrder))
+                                {
+                                    <tr>
+                                        <td class="fw-semibold small">@e.CharacteristicName</td>
+                                        <td>
+                                            <span class="badge @(e.CharacteristicType == "Product" ? "bg-primary" : "bg-info text-dark")">
+                                                @e.CharacteristicType
+                                            </span>
+                                        </td>
+                                        <td class="small">@(e.SpecificationOrTolerance ?? "—")</td>
+                                        <td class="small">@(e.MeasurementTechnique ?? "—")</td>
+                                        <td class="small">@(e.SampleSize ?? "—")</td>
+                                        <td class="small">@(e.SampleFrequency ?? "—")</td>
+                                        <td class="small">@(e.ControlMethod ?? "—")</td>
+                                        <td class="small">@(e.ReactionPlan ?? "—")</td>
+                                        <td class="small">
+                                            @if (!string.IsNullOrEmpty(e.LinkedPfmeaFailureModeDescription))
+                                            {
+                                                <span class="text-muted" title="@e.LinkedPfmeaFailureModeDescription">
+                                                    <i class="bi bi-link-45deg"></i> Linked
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">—</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-outline-secondary btn-sm me-1"
+                                                    @onclick="() => ShowEditEntry(e)" title="Edit">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm"
+                                                    @onclick="() => DeleteEntry(e.Id)" title="Delete">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+}
+
+<!-- Edit Control Plan modal -->
+@if (_showEditForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Control Plan</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showEditForm = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input class="form-control form-control-sm" @bind="_editName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control form-control-sm" rows="3" @bind="_editDescription"></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="editActive" @bind="_editActive" />
+                        <label class="form-check-label" for="editActive">Active</label>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_formError)) { <div class="alert alert-danger py-2 mt-2">@_formError</div> }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showEditForm = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveEdit" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> } Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Clear Staleness modal -->
+@if (_showClearStalenessForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Clear Staleness</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showClearStalenessForm = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">Confirm that this control plan has been reviewed against the current process version and updated as necessary.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Reviewed By <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" @bind="_stalenessBy" placeholder="Your name" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Review Notes</label>
+                        <textarea class="form-control form-control-sm" rows="3" @bind="_stalenessNotes"
+                                  placeholder="Optional: what was reviewed or updated..."></textarea>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_formError)) { <div class="alert alert-danger py-2 mt-2">@_formError</div> }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showClearStalenessForm = false">Cancel</button>
+                    <button class="btn btn-success btn-sm" @onclick="ClearStaleness" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Confirm Review
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Add/Edit Entry modal -->
+@if (_showEntryForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_editEntryId.HasValue ? "Edit" : "Add") Characteristic Entry</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showEntryForm = false"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!_editEntryId.HasValue)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label small">Process Step <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-sm" @bind="_entryStepId">
+                                <option value="">Select a step...</option>
+                                @foreach (var s in _processSteps)
+                                {
+                                    <option value="@s.Id">@s.Sequence. @s.DisplayName</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-8">
+                            <label class="form-label small">Characteristic Name <span class="text-danger">*</span></label>
+                            <input class="form-control form-control-sm" @bind="_entryCharName"
+                                   placeholder="e.g. Outer Diameter, Torque, Surface Finish" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Type</label>
+                            <select class="form-select form-select-sm" @bind="_entryCharType">
+                                <option value="Product">Product</option>
+                                <option value="Process">Process</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label small">Specification / Tolerance</label>
+                            <input class="form-control form-control-sm" @bind="_entrySpec"
+                                   placeholder="e.g. 25.4 ± 0.05 mm" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small">Measurement Technique</label>
+                            <input class="form-control form-control-sm" @bind="_entryMeasure"
+                                   placeholder="e.g. Vernier caliper, CMM, Go/No-Go gauge" />
+                        </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-4">
+                            <label class="form-label small">Sample Size</label>
+                            <input class="form-control form-control-sm" @bind="_entrySampleSize"
+                                   placeholder="e.g. n=5" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Sample Frequency</label>
+                            <input class="form-control form-control-sm" @bind="_entrySampleFreq"
+                                   placeholder="e.g. Every hour, 1st/last off" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Sort Order</label>
+                            <input type="number" class="form-control form-control-sm" @bind="_entrySortOrder" />
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">Control Method</label>
+                        <input class="form-control form-control-sm" @bind="_entryControl"
+                               placeholder="e.g. SPC chart, poka-yoke, 100% visual inspection" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small">Reaction Plan</label>
+                        <textarea class="form-control form-control-sm" rows="2" @bind="_entryReaction"
+                                  placeholder="What to do if out of spec..."></textarea>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_formError)) { <div class="alert alert-danger py-2 mt-2">@_formError</div> }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showEntryForm = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveEntry" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> } Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    ControlPlanResponseDto? _cp;
+    bool _loading = true;
+    string? _formError;
+    bool _saving;
+
+    // Process steps for Add Entry dropdown
+    List<ProcessStepSummaryDto> _processSteps = [];
+
+    // Edit plan
+    bool _showEditForm;
+    string _editName = "", _editDescription = "";
+    bool _editActive;
+
+    // Clear staleness
+    bool _showClearStalenessForm;
+    string _stalenessBy = "", _stalenessNotes = "";
+
+    // Entry form
+    bool _showEntryForm;
+    Guid? _editEntryId;
+    string _entryStepId = "";
+    string _entryCharName = "", _entryCharType = "Product";
+    string _entrySpec = "", _entryMeasure = "", _entrySampleSize = "", _entrySampleFreq = "";
+    string _entryControl = "", _entryReaction = "";
+    int _entrySortOrder = 0;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    async Task Load()
+    {
+        _loading = true;
+        _cp = await Api.GetControlPlanAsync(Id);
+
+        if (_cp is not null)
+        {
+            var proc = await Api.GetProcessAsync(_cp.ProcessId);
+            _processSteps = proc?.Steps?.Select(s => new ProcessStepSummaryDto(
+                s.Id, s.Sequence, s.NameOverride ?? s.StepTemplateName, s.StepTemplateName)).ToList() ?? [];
+        }
+        _loading = false;
+    }
+
+    // ── Edit Control Plan ──────────────────────────────────────────────
+
+    void ShowEdit()
+    {
+        if (_cp is null) return;
+        _editName = _cp.Name; _editDescription = _cp.Description ?? ""; _editActive = _cp.IsActive;
+        _formError = null; _showEditForm = true;
+    }
+
+    async Task SaveEdit()
+    {
+        if (string.IsNullOrWhiteSpace(_editName)) { _formError = "Name is required."; return; }
+        _saving = true;
+        try
+        {
+            _cp = await Api.UpdateControlPlanAsync(Id, new(_editName, _editDescription, _editActive));
+            _showEditForm = false;
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    async Task Delete()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this control plan? This cannot be undone.")) return;
+        await Api.DeleteControlPlanAsync(Id);
+        Nav.NavigateTo("/control-plans");
+    }
+
+    // ── Clear Staleness ────────────────────────────────────────────────
+
+    void ShowClearStaleness()
+    {
+        _stalenessBy = ""; _stalenessNotes = ""; _formError = null; _showClearStalenessForm = true;
+    }
+
+    async Task ClearStaleness()
+    {
+        if (string.IsNullOrWhiteSpace(_stalenessBy)) { _formError = "Reviewed By is required."; return; }
+        _saving = true;
+        try
+        {
+            _cp = await Api.ClearControlPlanStalenessAsync(Id, new(_stalenessBy, _stalenessNotes));
+            _showClearStalenessForm = false;
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    // ── Entries ────────────────────────────────────────────────────────
+
+    void ShowAddEntry()
+    {
+        _editEntryId = null; _entryStepId = ""; _entryCharName = ""; _entryCharType = "Product";
+        _entrySpec = ""; _entryMeasure = ""; _entrySampleSize = ""; _entrySampleFreq = "";
+        _entryControl = ""; _entryReaction = ""; _entrySortOrder = 0;
+        _formError = null; _showEntryForm = true;
+    }
+
+    void ShowEditEntry(ControlPlanEntryResponseDto e)
+    {
+        _editEntryId = e.Id; _entryCharName = e.CharacteristicName; _entryCharType = e.CharacteristicType;
+        _entrySpec = e.SpecificationOrTolerance ?? ""; _entryMeasure = e.MeasurementTechnique ?? "";
+        _entrySampleSize = e.SampleSize ?? ""; _entrySampleFreq = e.SampleFrequency ?? "";
+        _entryControl = e.ControlMethod ?? ""; _entryReaction = e.ReactionPlan ?? "";
+        _entrySortOrder = e.SortOrder;
+        _formError = null; _showEntryForm = true;
+    }
+
+    async Task SaveEntry()
+    {
+        if (string.IsNullOrWhiteSpace(_entryCharName)) { _formError = "Characteristic name is required."; return; }
+        _saving = true; _formError = null;
+        try
+        {
+            if (!Enum.TryParse<CharacteristicType>(_entryCharType, out var charType))
+                charType = CharacteristicType.Product;
+
+            if (_editEntryId.HasValue)
+            {
+                _cp = await Api.UpdateControlPlanEntryAsync(Id, _editEntryId.Value,
+                    new(_entryCharName, charType, NullIfEmpty(_entrySpec), NullIfEmpty(_entryMeasure),
+                        NullIfEmpty(_entrySampleSize), NullIfEmpty(_entrySampleFreq),
+                        NullIfEmpty(_entryControl), NullIfEmpty(_entryReaction),
+                        null, null, _entrySortOrder));
+            }
+            else
+            {
+                if (!Guid.TryParse(_entryStepId, out var stepId)) { _formError = "Please select a step."; _saving = false; return; }
+                _cp = await Api.AddControlPlanEntryAsync(Id,
+                    new(stepId, _entryCharName, charType, NullIfEmpty(_entrySpec), NullIfEmpty(_entryMeasure),
+                        NullIfEmpty(_entrySampleSize), NullIfEmpty(_entrySampleFreq),
+                        NullIfEmpty(_entryControl), NullIfEmpty(_entryReaction),
+                        null, null, _entrySortOrder));
+            }
+            _showEntryForm = false;
+        }
+        catch (Exception ex) { _formError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    async Task DeleteEntry(Guid entryId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this entry?")) return;
+        _cp = await Api.DeleteControlPlanEntryAsync(Id, entryId);
+    }
+
+    static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    // Lightweight local DTO to avoid needing full ProcessStepResponseDto
+    private record ProcessStepSummaryDto(Guid Id, int Sequence, string DisplayName, string StepTemplateName);
+}

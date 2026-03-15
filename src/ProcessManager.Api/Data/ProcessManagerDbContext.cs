@@ -64,6 +64,8 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<CeInput> CeInputs => Set<CeInput>();
     public DbSet<CeOutput> CeOutputs => Set<CeOutput>();
     public DbSet<CeCorrelation> CeCorrelations => Set<CeCorrelation>();
+    public DbSet<ControlPlan> ControlPlans => Set<ControlPlan>();
+    public DbSet<ControlPlanEntry> ControlPlanEntries => Set<ControlPlanEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -752,6 +754,62 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Cascade);
 
             e.HasIndex(a => new { a.EntityType, a.EntityId });
+        });
+
+        // ── Phase 7c: Control Plan ───────────────────────────────────────────
+
+        // --- ControlPlan ---
+        modelBuilder.Entity<ControlPlan>(e =>
+        {
+            e.HasKey(cp => cp.Id);
+            e.HasIndex(cp => cp.Code).IsUnique();
+            e.Property(cp => cp.Code).HasMaxLength(100).IsRequired();
+            e.Property(cp => cp.Name).HasMaxLength(200).IsRequired();
+            e.Property(cp => cp.StalenessClearedBy).HasMaxLength(200);
+            e.Property(cp => cp.StalenessClearanceNotes).HasMaxLength(2000);
+
+            e.HasOne(cp => cp.Process)
+                .WithMany()
+                .HasForeignKey(cp => cp.ProcessId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- ControlPlanEntry ---
+        modelBuilder.Entity<ControlPlanEntry>(e =>
+        {
+            e.HasKey(ce => ce.Id);
+            e.Property(ce => ce.CharacteristicName).HasMaxLength(300).IsRequired();
+            e.Property(ce => ce.CharacteristicType).HasConversion<string>().HasMaxLength(20);
+            e.Property(ce => ce.SpecificationOrTolerance).HasMaxLength(500);
+            e.Property(ce => ce.MeasurementTechnique).HasMaxLength(300);
+            e.Property(ce => ce.SampleSize).HasMaxLength(200);
+            e.Property(ce => ce.SampleFrequency).HasMaxLength(200);
+            e.Property(ce => ce.ControlMethod).HasMaxLength(500);
+            e.Property(ce => ce.ReactionPlan).HasMaxLength(1000);
+
+            e.HasOne(ce => ce.ControlPlan)
+                .WithMany(cp => cp.Entries)
+                .HasForeignKey(ce => ce.ControlPlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(ce => ce.ProcessStep)
+                .WithMany()
+                .HasForeignKey(ce => ce.ProcessStepId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(ce => ce.LinkedPfmeaFailureMode)
+                .WithMany()
+                .HasForeignKey(ce => ce.LinkedPfmeaFailureModeId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(ce => ce.LinkedPort)
+                .WithMany()
+                .HasForeignKey(ce => ce.LinkedPortId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasIndex(ce => ce.ControlPlanId);
         });
     }
 

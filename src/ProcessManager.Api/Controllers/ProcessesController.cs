@@ -674,6 +674,16 @@ public class ProcessesController : ControllerBase
             pfmea.ProcessVersion = process.Version;
         }
 
+        // Flag linked Control Plans as stale
+        var linkedControlPlans = await _db.ControlPlans
+            .Where(cp => cp.ProcessId == process.Id && !cp.IsStale)
+            .ToListAsync();
+        foreach (var cp in linkedControlPlans)
+        {
+            cp.IsStale = true;
+            cp.ProcessVersion = process.Version;
+        }
+
         // Update approval record
         var record = await _db.ApprovalRecords
             .Where(a => a.ProcessId == process.Id && a.Decision == "Pending")

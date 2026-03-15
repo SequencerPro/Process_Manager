@@ -21,7 +21,10 @@
       "WebFetch(domain:www.nuget.org)",
       "WebFetch(domain:api.github.com)",
       "Bash(find /c/Users/James/source/repos/Process_Manager -name *.csproj -o -name package.json -o -name tsconfig.json -o -name angular.json)",
-      "Bash(find /c/Users/James/source/repos/Process_Manager/tests -type f -name *.cs)"
+      "Bash(find /c/Users/James/source/repos/Process_Manager/tests -type f -name *.cs)",
+      "Bash(find /c/Users/James/source/repos/Process_Manager/.claude/worktrees/determined-shirley -name *DiagramCanvas* -o -name *diagram* -type f)",
+      "Bash(find /c/Users/James/source/repos/Process_Manager/.claude/worktrees/determined-shirley/src/ProcessManager.Web/Components -name *.razor -type f)",
+      "Bash(xargs ls:*)"
     ]
   }
 }

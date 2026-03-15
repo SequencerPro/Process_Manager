@@ -913,11 +913,15 @@ else
         _selectedLink = null;
 
         const double nodeWidth = 220;
+        const double nodeHeight = 90;
         const double nodeGap   = 80;
         for (int i = 0; i < _steps.Count; i++)
         {
             var node = new ProcessStepNodeModel(_steps[i],
                 new Blazor.Diagrams.Core.Geometry.Point(i * (nodeWidth + nodeGap), 80));
+            // Set an initial size so ShapeIntersectionAnchor can compute link paths
+            // before the DOM renders. JS interop will update with real size later.
+            node.Size = new Blazor.Diagrams.Core.Geometry.Size(nodeWidth, nodeHeight);
             _diagram.Nodes.Add(node);
         }
 

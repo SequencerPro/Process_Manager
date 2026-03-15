@@ -13,7 +13,8 @@ public record ProcessValidationResultDto(
 public record ProcessCreateDto(
     [Required, StringLength(50, MinimumLength = 1)] string Code,
     [Required, StringLength(200, MinimumLength = 1)] string Name,
-    [StringLength(2000)] string? Description
+    [StringLength(2000)] string? Description,
+    string ProcessRole = "ManufacturingProcess"
 );
 
 public record ProcessUpdateDto(

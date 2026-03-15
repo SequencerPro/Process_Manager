@@ -727,7 +727,7 @@ else
         {
             try
             {
-                var result = await Api.GetProcessesAsync("", true, pageSize: 200);
+                var result = await Api.GetProcessesAsync("", true, excludeDocumentRoles: true, pageSize: 200);
                 _allProcesses = result?.Items?.ToList() ?? new();
             }
             catch { _allProcesses = new(); }

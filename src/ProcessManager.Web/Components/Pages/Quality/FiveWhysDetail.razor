@@ -133,20 +133,14 @@ else
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(_addParentNodeId is null ? "Add \"Why\"" : "Add Child \"Why\"")</h5>
+                    <h5 class="modal-title">@(_addParentNodeText is not null ? $"\"{_addParentNodeText}\"... why?" : "Add \"Why\"")</h5>
                     <button type="button" class="btn-close" @onclick="() => _showAddNode = false"></button>
                 </div>
                 <div class="modal-body">
-                    @if (!string.IsNullOrEmpty(_addParentNodeText))
-                    {
-                        <div class="alert alert-secondary py-2 mb-3 fst-italic small">
-                            <strong>"@_addParentNodeText"</strong> — why?
-                        </div>
-                    }
                     <div class="mb-3">
-                        <label class="form-label">Why statement <span class="text-danger">*</span></label>
+                        <label class="form-label">Because... <span class="text-danger">*</span></label>
                         <textarea class="form-control" rows="2" @bind="_nodeText"
-                                  placeholder="Because…" @oninput="OnNodeTextInput"></textarea>
+                                  placeholder="(answer)" @oninput="OnNodeTextInput"></textarea>
                         @if (_librarySuggestions.Any())
                         {
                             <div class="list-group mt-1">
@@ -300,7 +294,7 @@ else
     // ── Render tree (recursive fragment) ──
 
     private RenderFragment RenderNode(FiveWhysNodeDto node, int depth) =>
-        @<div class="mt-2" style="margin-left: @(depth * 1.5)rem">
+        @<div class="mt-2" style="margin-left: @(depth > 0 ? 1.5 : 0)rem">
             <div class="card @(node.IsRootCause ? "border-success bg-success bg-opacity-10" : "border-0 bg-light") shadow-sm">
                 <div class="card-body py-2 px-3">
                     <div class="d-flex align-items-start gap-2">

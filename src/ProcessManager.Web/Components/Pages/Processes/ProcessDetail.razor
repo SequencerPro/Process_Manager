@@ -1,10 +1,11 @@
 @page "/processes/{Id:guid}"
+@page "/documents/{Id:guid}"
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 
-<PageTitle>Process Detail</PageTitle>
+<PageTitle>@(_proc is null ? "Detail" : IsDocumentContext ? $"Document — {_proc.Name}" : $"Process — {_proc.Name}")</PageTitle>
 
 @if (_loading)
 {
@@ -18,7 +19,14 @@ else
 {
     <nav aria-label="breadcrumb" class="mb-3">
         <ol class="breadcrumb mb-0">
-            <li class="breadcrumb-item"><a href="processes">Processes</a></li>
+            @if (IsDocumentContext)
+            {
+                <li class="breadcrumb-item"><a href="documents">Document Library</a></li>
+            }
+            else
+            {
+                <li class="breadcrumb-item"><a href="processes">Processes</a></li>
+            }
             <li class="breadcrumb-item active">@_proc.Name</li>
         </ol>
     </nav>
@@ -45,7 +53,7 @@ else
                     }
                 </div>
                 <div>
-                    <a href="processes/@Id/builder" class="btn btn-outline-primary btn-sm me-1">
+                    <a href="@(IsDocumentContext ? $"documents/{Id}/builder" : $"processes/{Id}/builder")" class="btn btn-outline-primary btn-sm me-1">
                         <i class="bi bi-diagram-3 me-1"></i>Builder
                     </a>
                     <button class="btn btn-outline-secondary btn-sm me-1" @onclick="ShowEditForm">
@@ -107,7 +115,7 @@ else
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <span><i class="bi bi-list-ol me-1"></i> Steps (@_proc.Steps.Count)</span>
-            <a href="processes/@Id/builder" class="btn btn-outline-primary btn-sm">
+            <a href="@(IsDocumentContext ? $"documents/{Id}/builder" : $"processes/{Id}/builder")" class="btn btn-outline-primary btn-sm">
                 <i class="bi bi-diagram-3 me-1"></i>Edit in Builder
             </a>
         </div>
@@ -340,6 +348,9 @@ else
 @code {
     [Parameter] public Guid Id { get; set; }
 
+    private bool IsDocumentContext => _proc?.ProcessRole is "QmsDocument" or "WorkInstruction"
+        || Nav.Uri.Contains("/documents/");
+
     private ProcessResponseDto? _proc;
     private ProcessValidationResultDto? _validation;
     private bool _loading = true;
@@ -384,8 +395,12 @@ else
 
     private async Task Delete()
     {
-        if (!await JS.InvokeAsync<bool>("confirm", $"Delete process '{_proc!.Name}'? This cannot be undone.")) return;
-        try { await Api.DeleteProcessAsync(Id); Nav.NavigateTo("processes"); }
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete '{_proc!.Name}'? This cannot be undone.")) return;
+        try
+        {
+            await Api.DeleteProcessAsync(Id);
+            Nav.NavigateTo(IsDocumentContext ? "documents" : "processes");
+        }
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
@@ -449,7 +464,7 @@ else
         {
             var newProc = await Api.NewProcessRevisionAsync(Id, new NewRevisionDto(_lifecycleUser));
             _showNewRevisionModal = false;
-            if (newProc is not null) Nav.NavigateTo($"processes/{newProc.Id}");
+            if (newProc is not null) Nav.NavigateTo(IsDocumentContext ? $"documents/{newProc.Id}" : $"processes/{newProc.Id}");
         }
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }

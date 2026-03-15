@@ -15,7 +15,7 @@
     </div>
     <AuthorizeView Roles="Admin,Engineer">
         <Authorized>
-            <a href="processes/builder" class="btn btn-primary btn-sm">
+            <a href="documents/builder" class="btn btn-primary btn-sm">
                 <i class="bi bi-plus-lg me-1"></i> New Document
             </a>
         </Authorized>
@@ -32,7 +32,6 @@
             <option value="">All Types</option>
             <option value="QmsDocument">QMS Document</option>
             <option value="WorkInstruction">Work Instruction</option>
-            <option value="ApprovalProcess">Approval Process</option>
         </select>
     </div>
     <div class="col-auto">
@@ -79,14 +78,14 @@ else if (_data is not null)
                         {
                             <tr>
                                 <td><code>@doc.Code</code></td>
-                                <td><a href="processes/@doc.Id">@doc.Name</a></td>
+                                <td><a href="documents/@doc.Id">@doc.Name</a></td>
                                 <td><span class="badge @RoleBadgeClass(doc.ProcessRole)">@FormatRole(doc.ProcessRole)</span></td>
                                 <td><small class="text-muted">@(doc.RevisionCode ?? "—")</small></td>
                                 <td>v@doc.Version</td>
                                 <td><span class="badge @StatusBadgeClass(doc.Status)">@doc.Status</span></td>
                                 <td><small class="text-muted">@(doc.EffectiveDate?.ToString("yyyy-MM-dd") ?? "—")</small></td>
                                 <td>
-                                    <a href="processes/@doc.Id" class="btn btn-outline-secondary btn-sm me-1" title="View">
+                                    <a href="documents/@doc.Id" class="btn btn-outline-secondary btn-sm me-1" title="View">
                                         <i class="bi bi-eye"></i>
                                     </a>
                                     @if (doc.Status == "Draft" && doc.ProcessRole != "ApprovalProcess")
@@ -297,6 +296,7 @@ else if (_data is not null)
             search: _search,
             status: string.IsNullOrEmpty(_statusFilter) ? null : _statusFilter,
             processRole: string.IsNullOrEmpty(_roleFilter) ? null : _roleFilter,
+            documentRolesOnly: string.IsNullOrEmpty(_roleFilter),
             active: null,
             page: _page,
             pageSize: _pageSize);

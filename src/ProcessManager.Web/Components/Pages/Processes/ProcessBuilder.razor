@@ -1,19 +1,29 @@
 @page "/processes/builder"
 @page "/processes/{Id:guid}/builder"
+@page "/documents/builder"
+@page "/documents/{Id:guid}/builder"
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject ToastService Toast
 
-<PageTitle>@(_name.Length > 0 ? $"Builder – {_name}" : "New Process")</PageTitle>
+<PageTitle>@(_name.Length > 0 ? (IsDocumentContext ? $"Document — {_name}" : $"Builder – {_name}") : (IsDocumentContext ? "New Document" : "New Process"))</PageTitle>
 
 @* ── Top bar ── *@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb mb-0">
-            <li class="breadcrumb-item"><a href="processes">Processes</a></li>
-            <li class="breadcrumb-item active">@(Id.HasValue ? "Process Builder" : "New Process")</li>
+            @if (IsDocumentContext)
+            {
+                <li class="breadcrumb-item"><a href="documents">Document Library</a></li>
+                <li class="breadcrumb-item active">@(Id.HasValue ? "Document Builder" : "New Document")</li>
+            }
+            else
+            {
+                <li class="breadcrumb-item"><a href="processes">Processes</a></li>
+                <li class="breadcrumb-item active">@(Id.HasValue ? "Process Builder" : "New Process")</li>
+            }
         </ol>
     </nav>
     <div class="d-flex gap-2">
@@ -34,7 +44,7 @@
             }
             Save
         </button>
-        <a href="@(Id.HasValue ? $"processes/{Id}" : "processes")" class="btn btn-outline-secondary btn-sm">
+        <a href="@(Id.HasValue ? (IsDocumentContext ? $"documents/{Id}" : $"processes/{Id}") : (IsDocumentContext ? "documents" : "processes"))" class="btn btn-outline-secondary btn-sm">
             Cancel
         </a>
     </div>
@@ -78,14 +88,35 @@ else
                         <div class="form-text" style="font-size:.7rem">Code cannot be changed after creation.</div>
                     }
                 </div>
-                <div class="col-md-5">
-                    <label class="form-label fw-semibold small mb-1">Name <span class="text-danger">*</span></label>
-                    <input class="form-control form-control-sm" placeholder="e.g. Widget Finishing Process" @bind="_name" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label fw-semibold small mb-1">Description</label>
-                    <input class="form-control form-control-sm" placeholder="Optional description" @bind="_description" />
-                </div>
+                @if (IsDocumentContext && !Id.HasValue)
+                {
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold small mb-1">Document Type</label>
+                        <select class="form-select form-select-sm" @bind="_docType">
+                            <option value="QmsDocument">QMS Document</option>
+                            <option value="WorkInstruction">Work Instruction</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold small mb-1">Name <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" placeholder="e.g. Document Control Procedure" @bind="_name" />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-semibold small mb-1">Description</label>
+                        <input class="form-control form-control-sm" placeholder="Optional description" @bind="_description" />
+                    </div>
+                }
+                else
+                {
+                    <div class="col-md-5">
+                        <label class="form-label fw-semibold small mb-1">Name <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" placeholder="e.g. Widget Finishing Process" @bind="_name" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold small mb-1">Description</label>
+                        <input class="form-control form-control-sm" placeholder="Optional description" @bind="_description" />
+                    </div>
+                }
             </div>
         </div>
     </div>
@@ -777,10 +808,13 @@ else
 @code {
     [Parameter] public Guid? Id { get; set; }
 
+    private bool IsDocumentContext => Nav.Uri.Contains("/documents/");
+
     // ── Process metadata fields ──
     private string _code = "";
     private string _name = "";
     private string? _description;
+    private string _docType = "QmsDocument";  // only used in document context when creating
     private ProcessResponseDto? _origProc;
 
     // ── Diagram ──
@@ -1556,8 +1590,9 @@ else
 
             if (!Id.HasValue)
             {
+                var role = IsDocumentContext ? _docType : "ManufacturingProcess";
                 var created = await Api.CreateProcessAsync(
-                    new ProcessCreateDto(_code.Trim(), _name.Trim(), _description));
+                    new ProcessCreateDto(_code.Trim(), _name.Trim(), _description, role));
                 if (created is null) { Toast.ShowError("Failed to create process."); return; }
                 processId = created.Id;
             }
@@ -1614,7 +1649,7 @@ else
                 }
             }
 
-            Nav.NavigateTo($"processes/{processId}/builder", forceLoad: true);
+            Nav.NavigateTo(IsDocumentContext ? $"documents/{processId}/builder" : $"processes/{processId}/builder", forceLoad: true);
         }
         catch (HttpRequestException ex)
         {

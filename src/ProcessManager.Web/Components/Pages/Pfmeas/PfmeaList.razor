@@ -179,7 +179,7 @@ else if (_data is not null)
 
     protected override async Task OnInitializedAsync()
     {
-        _processes = await Api.GetProcessesAsync(active: true, pageSize: 200);
+        _processes = await Api.GetProcessesAsync(active: true, excludeDocumentRoles: true, pageSize: 200);
         await Load();
     }
 

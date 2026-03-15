@@ -25,6 +25,8 @@ public class ProcessesController : ControllerBase
         [FromQuery] bool? active = null,
         [FromQuery] string? status = null,
         [FromQuery] string? processRole = null,
+        [FromQuery] bool excludeDocumentRoles = false,
+        [FromQuery] bool documentRolesOnly = false,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
@@ -43,6 +45,12 @@ public class ProcessesController : ControllerBase
         if (!string.IsNullOrWhiteSpace(processRole) &&
             Enum.TryParse<ProcessRole>(processRole, ignoreCase: true, out var roleEnum))
             query = query.Where(p => p.ProcessRole == roleEnum);
+        else if (documentRolesOnly)
+            query = query.Where(p => p.ProcessRole == Domain.Enums.ProcessRole.QmsDocument
+                                  || p.ProcessRole == Domain.Enums.ProcessRole.WorkInstruction);
+        else if (excludeDocumentRoles)
+            query = query.Where(p => p.ProcessRole != Domain.Enums.ProcessRole.QmsDocument
+                                  && p.ProcessRole != Domain.Enums.ProcessRole.WorkInstruction);
 
         var totalCount = await query.CountAsync();
 
@@ -85,11 +93,16 @@ public class ProcessesController : ControllerBase
         if (await _db.Processes.AnyAsync(p => p.Code == dto.Code))
             return Conflict($"A Process with code '{dto.Code}' already exists.");
 
+        var processRole = Enum.TryParse<ProcessRole>(dto.ProcessRole, ignoreCase: true, out var parsedRole)
+            ? parsedRole
+            : ProcessRole.ManufacturingProcess;
+
         var process = new Process
         {
             Code = dto.Code,
             Name = dto.Name,
-            Description = dto.Description
+            Description = dto.Description,
+            ProcessRole = processRole
         };
 
         _db.Processes.Add(process);

@@ -24,7 +24,10 @@
       "Bash(find /c/Users/James/source/repos/Process_Manager/tests -type f -name *.cs)",
       "Bash(find /c/Users/James/source/repos/Process_Manager/.claude/worktrees/determined-shirley -name *DiagramCanvas* -o -name *diagram* -type f)",
       "Bash(find /c/Users/James/source/repos/Process_Manager/.claude/worktrees/determined-shirley/src/ProcessManager.Web/Components -name *.razor -type f)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "Bash(find /c/Users/James/source/repos/Process_Manager -path */obj/* -name *LinkRenderer* -o -path */obj/* -name *LinkWidget*)",
+      "Bash(find /c/Users/James/source/repos/Process_Manager -name *.md -type f)",
+      "Bash(find /c/Users/James/source/repos/Process_Manager -name *.csproj)"
     ]
   }
 }

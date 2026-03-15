@@ -76,6 +76,57 @@ public class ProcessBuilderModelTests
         Assert.False(link.Segmentable);
     }
 
+    [Fact]
+    public void SequenceLinkModel_ExposesSourceAndTargetNodes()
+    {
+        var source = new NodeModel(new Point(0, 80));
+        var target = new NodeModel(new Point(300, 80));
+
+        var link = new SequenceLinkModel(source, target);
+
+        Assert.Same(source, link.SourceNode);
+        Assert.Same(target, link.TargetNode);
+    }
+
+    // ──────────── ComputePath ────────────
+
+    [Fact]
+    public void ComputePath_WithSizes_ReturnsCorrectSvgPath()
+    {
+        var source = new NodeModel(new Point(0, 80));
+        source.Size = new Size(220, 90);
+        var target = new NodeModel(new Point(300, 80));
+        target.Size = new Size(220, 90);
+
+        var path = SequenceLinkModel.ComputePath(source, target);
+
+        // Right-center of source: (0+220, 80+45) = (220, 125)
+        // Left-center of target:  (300, 80+45) = (300, 125)
+        Assert.Equal("M 220,125 L 300,125", path);
+    }
+
+    [Fact]
+    public void ComputePath_NullSourceSize_ReturnsNull()
+    {
+        var source = new NodeModel(new Point(0, 80));
+        // source.Size intentionally left null
+        var target = new NodeModel(new Point(300, 80));
+        target.Size = new Size(220, 90);
+
+        Assert.Null(SequenceLinkModel.ComputePath(source, target));
+    }
+
+    [Fact]
+    public void ComputePath_NullTargetSize_ReturnsNull()
+    {
+        var source = new NodeModel(new Point(0, 80));
+        source.Size = new Size(220, 90);
+        var target = new NodeModel(new Point(300, 80));
+        // target.Size intentionally left null
+
+        Assert.Null(SequenceLinkModel.ComputePath(source, target));
+    }
+
     // ──────────── BuilderStep ────────────
 
     [Fact]

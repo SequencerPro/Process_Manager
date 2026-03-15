@@ -440,4 +440,293 @@ public class ProcessTests : IntegrationTestBase
         Assert.True(updated.IsActive);
         Assert.Equal("Renamed", updated.Name);
     }
+
+    // ──────────── PORT OVERRIDES ────────────
+
+    [Fact]
+    public async Task AddStep_WithPortNameOverride_PersistsOverride()
+    {
+        var (kind, grade) = await CreateKindWithGrade("PO-001", "NameOv Kind");
+        var step = await CreateTransformStep("PO-001", "NameOv Step", kind.Id, grade.Id, kind.Id, grade.Id);
+        var process = await CreateProcess("PO-001", "Port Name Override Process");
+
+        var inputPort = step.Ports.Single(p => p.Direction == PortDirection.Input);
+        var portOverrides = new List<ProcessStepPortOverrideDto>
+        {
+            new(inputPort.Id, NameOverride: "Custom Input Name")
+        };
+        var dto = new ProcessStepCreateDto(step.Id, 1, null, null, PortOverrides: portOverrides);
+        var response = await Client.PostAsJsonAsync($"/api/processes/{process.Id}/steps", dto, JsonOptions);
+        response.EnsureSuccessStatusCode();
+
+        var ps = await response.Content.ReadFromJsonAsync<ProcessStepResponseDto>(JsonOptions);
+        Assert.NotNull(ps);
+        Assert.NotNull(ps.PortOverrides);
+        Assert.Single(ps.PortOverrides);
+        Assert.Equal(inputPort.Id, ps.PortOverrides[0].PortId);
+        Assert.Equal("Custom Input Name", ps.PortOverrides[0].NameOverride);
+    }
+
+    [Fact]
+    public async Task AddStep_WithDirectionOverride_PersistsOverride()
+    {
+        var (kind, grade) = await CreateKindWithGrade("PO-002", "DirOv Kind");
+        var step = await CreateTransformStep("PO-002", "DirOv Step", kind.Id, grade.Id, kind.Id, grade.Id);
+        var process = await CreateProcess("PO-002", "Direction Override Process");
+
+        var inputPort = step.Ports.Single(p => p.Direction == PortDirection.Input);
+        var portOverrides = new List<ProcessStepPortOverrideDto>
+        {
+            new(inputPort.Id, DirectionOverride: PortDirection.Output)
+        };
+        var dto = new ProcessStepCreateDto(step.Id, 1, null, null, PortOverrides: portOverrides);
+        var response = await Client.PostAsJsonAsync($"/api/processes/{process.Id}/steps", dto, JsonOptions);
+        response.EnsureSuccessStatusCode();
+
+        var ps = await response.Content.ReadFromJsonAsync<ProcessStepResponseDto>(JsonOptions);
+        Assert.NotNull(ps);
+        Assert.NotNull(ps.PortOverrides);
+        Assert.Single(ps.PortOverrides);
+        Assert.Equal(PortDirection.Output, ps.PortOverrides[0].DirectionOverride);
+    }
+
+    [Fact]
+    public async Task AddStep_WithKindOverride_PersistsOverrideWithName()
+    {
+        var (kind, grade) = await CreateKindWithGrade("PO-003", "KindOv Kind");
+        var (kind2, grade2) = await CreateKindWithGrade("PO-003B", "Alternative Kind");
+        var step = await CreateTransformStep("PO-003", "KindOv Step", kind.Id, grade.Id, kind.Id, grade.Id);
+        var process = await CreateProcess("PO-003", "Kind Override Process");
+
+        var inputPort = step.Ports.Single(p => p.Direction == PortDirection.Input);
+        var portOverrides = new List<ProcessStepPortOverrideDto>
+        {
+            new(inputPort.Id, KindIdOverride: kind2.Id)
+        };
+        var dto = new ProcessStepCreateDto(step.Id, 1, null, null, PortOverrides: portOverrides);
+        var response = await Client.PostAsJsonAsync($"/api/processes/{process.Id}/steps", dto, JsonOptions);
+        response.EnsureSuccessStatusCode();
+
+        var ps = await response.Content.ReadFromJsonAsync<ProcessStepResponseDto>(JsonOptions);
+        Assert.NotNull(ps);
+        Assert.NotNull(ps.PortOverrides);
+        Assert.Single(ps.PortOverrides);
+        Assert.Equal(kind2.Id, ps.PortOverrides[0].KindIdOverride);
+        Assert.Equal("Alternative Kind", ps.PortOverrides[0].KindOverrideName);
+    }
+
+    [Fact]
+    public async Task AddStep_WithGradeOverride_PersistsOverrideWithName()
+    {
+        var (kind, grade) = await CreateKindWithGrade("PO-004", "GradeOv Kind");
+        var grade2 = await CreateGrade(kind.Id, "ALT", "Alternative Grade");
+        var step = await CreateTransformStep("PO-004", "GradeOv Step", kind.Id, grade.Id, kind.Id, grade.Id);
+        var process = await CreateProcess("PO-004", "Grade Override Process");
+
+        var inputPort = step.Ports.Single(p => p.Direction == PortDirection.Input);
+        var portOverrides = new List<ProcessStepPortOverrideDto>
+        {
+            new(inputPort.Id, GradeIdOverride: grade2.Id)
+        };
+        var dto = new ProcessStepCreateDto(step.Id, 1, null, null, PortOverrides: portOverrides);
+        var response = await Client.PostAsJsonAsync($"/api/processes/{process.Id}/steps", dto, JsonOptions);
+        response.EnsureSuccessStatusCode();
+
+        var ps = await response.Content.ReadFromJsonAsync<ProcessStepResponseDto>(JsonOptions);
+        Assert.NotNull(ps);
+        Assert.NotNull(ps.PortOverrides);
+        Assert.Single(ps.PortOverrides);
+        Assert.Equal(grade2.Id, ps.PortOverrides[0].GradeIdOverride);
+        Assert.Equal("Alternative Grade", ps.PortOverrides[0].GradeOverrideName);
+    }
+
+    [Fact]
+    public async Task AddStep_WithQtyModeOverride_PersistsOverride()
+    {
+        var (kind, grade) = await CreateKindWithGrade("PO-005", "QtyOv Kind");
+        var step = await CreateTransformStep("PO-005", "QtyOv Step", kind.Id, grade.Id, kind.Id, grade.Id);
+        var process = await CreateProcess("PO-005", "QtyMode Override Process");
+
+        var inputPort = step.Ports.Single(p => p.Direction == PortDirection.Input);
+        var portOverrides = new List<ProcessStepPortOverrideDto>
+        {
+            new(inputPort.Id, QtyRuleModeOverride: QuantityRuleMode.ZeroOrN)
+        };
+        var dto = new ProcessStepCreateDto(step.Id, 1, null, null, PortOverrides: portOverrides);
+        var response = await Client.PostAsJsonAsync($"/api/processes/{process.Id}/steps", dto, JsonOptions);
+        response.EnsureSuccessStatusCode();
+
+        var ps = await response.Content.ReadFromJsonAsync<ProcessStepResponseDto>(JsonOptions);
+        Assert.NotNull(ps);
+        Assert.NotNull(ps.PortOverrides);
+        Assert.Single(ps.PortOverrides);
+        Assert.Equal(QuantityRuleMode.ZeroOrN, ps.PortOverrides[0].QtyRuleModeOverride);
+    }
+
+    [Fact]
+    public async Task AddStep_WithQtyRuleNOverride_PersistsOverride()
+    {
+        var (kind, grade) = await CreateKindWithGrade("PO-006", "QtyN Kind");
+        var step = await CreateTransformStep("PO-006", "QtyN Step", kind.Id, grade.Id, kind.Id, grade.Id);
+        var process = await CreateProcess("PO-006", "QtyN Override Process");
+
+        var inputPort = step.Ports.Single(p => p.Direction == PortDirection.Input);
+        var portOverrides = new List<ProcessStepPortOverrideDto>
+        {
+            new(inputPort.Id, QtyRuleNOverride: 5)
+        };
+        var dto = new ProcessStepCreateDto(step.Id, 1, null, null, PortOverrides: portOverrides);
+        var response = await Client.PostAsJsonAsync($"/api/processes/{process.Id}/steps", dto, JsonOptions);
+        response.EnsureSuccessStatusCode();
+
+        var ps = await response.Content.ReadFromJsonAsync<ProcessStepResponseDto>(JsonOptions);
+        Assert.NotNull(ps);
+        Assert.NotNull(ps.PortOverrides);
+        Assert.Single(ps.PortOverrides);
+        Assert.Equal(5, ps.PortOverrides[0].QtyRuleNOverride);
+    }
+
+    [Fact]
+    public async Task AddStep_WithSortOrderOverride_PersistsOverride()
+    {
+        var (kind, grade) = await CreateKindWithGrade("PO-007", "SortOv Kind");
+        var step = await CreateTransformStep("PO-007", "SortOv Step", kind.Id, grade.Id, kind.Id, grade.Id);
+        var process = await CreateProcess("PO-007", "SortOrder Override Process");
+
+        var inputPort = step.Ports.Single(p => p.Direction == PortDirection.Input);
+        var portOverrides = new List<ProcessStepPortOverrideDto>
+        {
+            new(inputPort.Id, SortOrderOverride: 99)
+        };
+        var dto = new ProcessStepCreateDto(step.Id, 1, null, null, PortOverrides: portOverrides);
+        var response = await Client.PostAsJsonAsync($"/api/processes/{process.Id}/steps", dto, JsonOptions);
+        response.EnsureSuccessStatusCode();
+
+        var ps = await response.Content.ReadFromJsonAsync<ProcessStepResponseDto>(JsonOptions);
+        Assert.NotNull(ps);
+        Assert.NotNull(ps.PortOverrides);
+        Assert.Single(ps.PortOverrides);
+        Assert.Equal(99, ps.PortOverrides[0].SortOrderOverride);
+    }
+
+    [Fact]
+    public async Task AddStep_WithPatternOverride_PersistsOverride()
+    {
+        var (kind, grade) = await CreateKindWithGrade("PO-008", "PatOv Kind");
+        var step = await CreateTransformStep("PO-008", "PatOv Step", kind.Id, grade.Id, kind.Id, grade.Id);
+        var process = await CreateProcess("PO-008", "Pattern Override Process");
+
+        var dto = new ProcessStepCreateDto(step.Id, 1, null, null, PatternOverride: StepPattern.Assembly);
+        var response = await Client.PostAsJsonAsync($"/api/processes/{process.Id}/steps", dto, JsonOptions);
+        response.EnsureSuccessStatusCode();
+
+        var ps = await response.Content.ReadFromJsonAsync<ProcessStepResponseDto>(JsonOptions);
+        Assert.NotNull(ps);
+        Assert.Equal(StepPattern.Assembly, ps.PatternOverride);
+    }
+
+    [Fact]
+    public async Task UpdateStep_WithPortOverrides_ReplacesExistingOverrides()
+    {
+        var (kind, grade) = await CreateKindWithGrade("PO-009", "UpdOv Kind");
+        var step = await CreateTransformStep("PO-009", "UpdOv Step", kind.Id, grade.Id, kind.Id, grade.Id);
+        var process = await CreateProcess("PO-009", "Update Override Process");
+
+        var inputPort = step.Ports.Single(p => p.Direction == PortDirection.Input);
+        var outputPort = step.Ports.Single(p => p.Direction == PortDirection.Output);
+
+        // Create with name override on input port
+        var createOverrides = new List<ProcessStepPortOverrideDto>
+        {
+            new(inputPort.Id, NameOverride: "Original Name")
+        };
+        var createDto = new ProcessStepCreateDto(step.Id, 1, null, null, PortOverrides: createOverrides);
+        var createResponse = await Client.PostAsJsonAsync($"/api/processes/{process.Id}/steps", createDto, JsonOptions);
+        createResponse.EnsureSuccessStatusCode();
+        var ps = (await createResponse.Content.ReadFromJsonAsync<ProcessStepResponseDto>(JsonOptions))!;
+
+        // Update to override the output port instead (replaces all overrides)
+        var updateOverrides = new List<ProcessStepPortOverrideDto>
+        {
+            new(outputPort.Id, NameOverride: "Custom Output", SortOrderOverride: 10)
+        };
+        var updateDto = new ProcessStepUpdateDto(1, null, null, PortOverrides: updateOverrides);
+        var updateResponse = await Client.PutAsJsonAsync($"/api/processes/{process.Id}/steps/{ps.Id}", updateDto, JsonOptions);
+        updateResponse.EnsureSuccessStatusCode();
+
+        var updatedPs = await updateResponse.Content.ReadFromJsonAsync<ProcessStepResponseDto>(JsonOptions);
+        Assert.NotNull(updatedPs);
+        Assert.NotNull(updatedPs.PortOverrides);
+        // Old input port override should be gone, only the new output override remains
+        Assert.Single(updatedPs.PortOverrides);
+        Assert.Equal(outputPort.Id, updatedPs.PortOverrides[0].PortId);
+        Assert.Equal("Custom Output", updatedPs.PortOverrides[0].NameOverride);
+        Assert.Equal(10, updatedPs.PortOverrides[0].SortOrderOverride);
+    }
+
+    [Fact]
+    public async Task AddStep_WithMultiplePortOverrides_PersistsAll()
+    {
+        var (kind, grade) = await CreateKindWithGrade("PO-010", "MultiOv Kind");
+        var step = await CreateTransformStep("PO-010", "MultiOv Step", kind.Id, grade.Id, kind.Id, grade.Id);
+        var process = await CreateProcess("PO-010", "Multi Override Process");
+
+        var inputPort = step.Ports.Single(p => p.Direction == PortDirection.Input);
+        var outputPort = step.Ports.Single(p => p.Direction == PortDirection.Output);
+
+        var portOverrides = new List<ProcessStepPortOverrideDto>
+        {
+            new(inputPort.Id, NameOverride: "Custom In", QtyRuleModeOverride: QuantityRuleMode.ZeroOrN, SortOrderOverride: 5),
+            new(outputPort.Id, NameOverride: "Custom Out", QtyRuleNOverride: 3)
+        };
+        var dto = new ProcessStepCreateDto(step.Id, 1, null, null, PortOverrides: portOverrides);
+        var response = await Client.PostAsJsonAsync($"/api/processes/{process.Id}/steps", dto, JsonOptions);
+        response.EnsureSuccessStatusCode();
+
+        var ps = await response.Content.ReadFromJsonAsync<ProcessStepResponseDto>(JsonOptions);
+        Assert.NotNull(ps);
+        Assert.NotNull(ps.PortOverrides);
+        Assert.Equal(2, ps.PortOverrides.Count);
+
+        var inOverride = ps.PortOverrides.Single(o => o.PortId == inputPort.Id);
+        Assert.Equal("Custom In", inOverride.NameOverride);
+        Assert.Equal(QuantityRuleMode.ZeroOrN, inOverride.QtyRuleModeOverride);
+        Assert.Equal(5, inOverride.SortOrderOverride);
+
+        var outOverride = ps.PortOverrides.Single(o => o.PortId == outputPort.Id);
+        Assert.Equal("Custom Out", outOverride.NameOverride);
+        Assert.Equal(3, outOverride.QtyRuleNOverride);
+    }
+
+    [Fact]
+    public async Task GetProcess_IncludesPortOverridesInResponse()
+    {
+        var (kind, grade) = await CreateKindWithGrade("PO-011", "GetOv Kind");
+        var step = await CreateTransformStep("PO-011", "GetOv Step", kind.Id, grade.Id, kind.Id, grade.Id);
+        var process = await CreateProcess("PO-011", "Get Port Override Process");
+
+        var inputPort = step.Ports.Single(p => p.Direction == PortDirection.Input);
+        var portOverrides = new List<ProcessStepPortOverrideDto>
+        {
+            new(inputPort.Id, NameOverride: "Renamed Input", DirectionOverride: PortDirection.Output, SortOrderOverride: 42)
+        };
+        var dto = new ProcessStepCreateDto(step.Id, 1, null, null, PatternOverride: StepPattern.Division, PortOverrides: portOverrides);
+        var createResp = await Client.PostAsJsonAsync($"/api/processes/{process.Id}/steps", dto, JsonOptions);
+        createResp.EnsureSuccessStatusCode();
+
+        // Now load the full process via GET
+        var getResponse = await Client.GetAsync($"/api/processes/{process.Id}");
+        getResponse.EnsureSuccessStatusCode();
+        var result = await getResponse.Content.ReadFromJsonAsync<ProcessResponseDto>(JsonOptions);
+
+        Assert.NotNull(result);
+        Assert.Single(result.Steps);
+        var stepDto = result.Steps[0];
+        Assert.Equal(StepPattern.Division, stepDto.PatternOverride);
+        Assert.NotNull(stepDto.PortOverrides);
+        Assert.Single(stepDto.PortOverrides);
+        Assert.Equal("Renamed Input", stepDto.PortOverrides[0].NameOverride);
+        Assert.Equal(PortDirection.Output, stepDto.PortOverrides[0].DirectionOverride);
+        Assert.Equal(42, stepDto.PortOverrides[0].SortOrderOverride);
+    }
 }

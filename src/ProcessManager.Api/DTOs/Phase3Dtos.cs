@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using ProcessManager.Domain.Enums;
 
 namespace ProcessManager.Api.DTOs;
 
@@ -27,6 +28,7 @@ public record ProcessResponseDto(
     string Name,
     string? Description,
     int Version,
+    string Status,
     bool IsActive,
     DateTime CreatedAt,
     DateTime UpdatedAt,
@@ -43,6 +45,7 @@ public record ProcessSummaryResponseDto(
     string Name,
     string? Description,
     int Version,
+    string Status,
     bool IsActive,
     int StepCount,
     DateTime CreatedAt,
@@ -55,13 +58,17 @@ public record ProcessStepCreateDto(
     Guid StepTemplateId,
     [Range(1, int.MaxValue)] int Sequence,
     [StringLength(200)] string? NameOverride,
-    [StringLength(2000)] string? DescriptionOverride
+    [StringLength(2000)] string? DescriptionOverride,
+    StepPattern? PatternOverride = null,
+    List<ProcessStepPortOverrideDto>? PortOverrides = null
 );
 
 public record ProcessStepUpdateDto(
     [Range(1, int.MaxValue)] int Sequence,
     [StringLength(200)] string? NameOverride,
-    [StringLength(2000)] string? DescriptionOverride
+    [StringLength(2000)] string? DescriptionOverride,
+    StepPattern? PatternOverride = null,
+    List<ProcessStepPortOverrideDto>? PortOverrides = null
 );
 
 public record ProcessStepResponseDto(
@@ -74,7 +81,37 @@ public record ProcessStepResponseDto(
     string? NameOverride,
     string? DescriptionOverride,
     DateTime CreatedAt,
-    DateTime UpdatedAt
+    DateTime UpdatedAt,
+    MaturitySummaryDto? StepTemplateMaturity = null,
+    StepPattern? PatternOverride = null,
+    List<ProcessStepPortOverrideResponseDto>? PortOverrides = null
+);
+
+// ──────────────────── ProcessStepPortOverride ────────────────────
+
+public record ProcessStepPortOverrideDto(
+    Guid PortId,
+    [StringLength(200)] string? NameOverride = null,
+    PortDirection? DirectionOverride = null,
+    Guid? KindIdOverride = null,
+    Guid? GradeIdOverride = null,
+    QuantityRuleMode? QtyRuleModeOverride = null,
+    int? QtyRuleNOverride = null,
+    int? SortOrderOverride = null
+);
+
+public record ProcessStepPortOverrideResponseDto(
+    Guid Id,
+    Guid PortId,
+    string? NameOverride,
+    PortDirection? DirectionOverride,
+    Guid? KindIdOverride,
+    string? KindOverrideName,
+    Guid? GradeIdOverride,
+    string? GradeOverrideName,
+    QuantityRuleMode? QtyRuleModeOverride,
+    int? QtyRuleNOverride,
+    int? SortOrderOverride
 );
 
 // ──────────────────── ProcessStepContent ────────────────────
@@ -97,7 +134,12 @@ public record ProcessStepContentResponseDto(
     string? Units,
     decimal? MinValue,
     decimal? MaxValue,
-    string? Choices
+    string? Choices,
+    // Phase 8a fields
+    string? ContentCategory = null,
+    bool AcknowledgmentRequired = false,
+    decimal? NominalValue = null,
+    bool IsHardLimit = false
 );
 
 public record AddTextBlockDto(

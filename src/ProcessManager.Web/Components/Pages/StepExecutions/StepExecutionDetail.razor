@@ -100,6 +100,12 @@ else
                 Execution Data (@(_data?.Count ?? 0))
             </button>
         </li>
+        <li class="nav-item">
+            <button class="nav-link @(_activeTab == "charts" ? "active" : "")"
+                    @onclick='() => _activeTab = "charts"'>
+                <i class="bi bi-graph-up me-1"></i>Run Charts (@(_runChartWidgets?.Count ?? 0))
+            </button>
+        </li>
     </ul>
 
     @* ── Instructions & Prompts tab ────────────────────────────────────── *@
@@ -350,6 +356,49 @@ else
             <p class="text-muted small">No execution data recorded.</p>
         }
     }
+
+    @* ── Run Charts tab ──────────────────────────────────────────────── *@
+    @if (_activeTab == "charts")
+    {
+        @if (_chartsLoading)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                <span class="text-muted">Loading charts…</span>
+            </div>
+        }
+        else if (_runChartWidgets is null || _runChartWidgets.Count == 0)
+        {
+            <p class="text-muted fst-italic py-3">No run charts are configured for this step template.</p>
+        }
+        else
+        {
+            @foreach (var w in _runChartWidgets)
+            {
+                var history = _chartHistories.TryGetValue(w.Id, out var h) ? h : new();
+                var csvValues = history.Select(p => p.Value).ToArray();
+                var csvOor = history.Select(p => p.IsOutOfRange).ToArray();
+                var currentVal = TryGetCurrentChartValue(w.SourceContentId);
+                var specMin = w.SpecMin.HasValue ? (double?)((double)w.SpecMin.Value)
+                              : w.SourceSpecMin.HasValue ? (double?)((double)w.SourceSpecMin.Value) : null;
+                var specMax = w.SpecMax.HasValue ? (double?)((double)w.SpecMax.Value)
+                              : w.SourceSpecMax.HasValue ? (double?)((double)w.SourceSpecMax.Value) : null;
+
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <RunChart
+                            HistoricalValues="@csvValues"
+                            OutOfRange="@csvOor"
+                            CurrentValue="@currentVal"
+                            SpecMin="@specMin"
+                            SpecMax="@specMax"
+                            Label="@w.Label"
+                            Units="@w.SourceUnits" />
+                    </div>
+                </div>
+            }
+        }
+    }
 }
 
 @if (_showDataForm)
@@ -475,6 +524,12 @@ else
     private bool _promptsSaved;
     private string? _promptError;
 
+    // Run Charts
+    private bool _chartsLoading;
+    private Guid? _stepTemplateId;
+    private List<RunChartWidgetResponseDto>? _runChartWidgets;
+    private readonly Dictionary<Guid, List<PromptHistoryPointDto>> _chartHistories = new();
+
     private record ContentBlockViewModel(
         Guid Id, string ContentType, int SortOrder,
         string? Body, string? ImageUrl, string? OriginalFileName,
@@ -543,6 +598,7 @@ else
                 var step = process?.Steps.FirstOrDefault(s => s.Id == _exec.ProcessStepId);
                 if (step is not null)
                 {
+                    _stepTemplateId = step.StepTemplateId;
                     var tplContent = await Api.GetStepTemplateContentAsync(step.StepTemplateId);
                     _allContentBlocks = tplContent
                         .OrderBy(c => c.SortOrder)
@@ -562,12 +618,51 @@ else
                 if (blockId is not null)
                     _promptValues[blockId] = r.ResponseValue;
             }
+
+            // Load run chart widgets (non-blocking)
+            if (_stepTemplateId.HasValue)
+                _ = LoadRunCharts(_stepTemplateId.Value);
         }
         finally
         {
             _contentLoading = false;
             StateHasChanged();
         }
+    }
+
+    private async Task LoadRunCharts(Guid stepTemplateId)
+    {
+        _chartsLoading = true;
+        StateHasChanged();
+        try
+        {
+            _runChartWidgets = await Api.GetRunChartWidgetsAsync(stepTemplateId);
+            _chartHistories.Clear();
+            foreach (var w in _runChartWidgets)
+            {
+                try
+                {
+                    var history = await Api.GetPromptHistoryAsync(
+                        w.SourceStepTemplateId,
+                        w.SourceContentId,
+                        w.ChartWindowSize);
+                    _chartHistories[w.Id] = history;
+                }
+                catch { /* non-fatal – chart shows empty */ }
+            }
+        }
+        catch (Exception ex) { Toast.ShowError($"Could not load run charts: {ex.Message}"); }
+        finally { _chartsLoading = false; StateHasChanged(); }
+    }
+
+    /// <summary>Returns the operator's current (possibly unsaved) entry for the given source content block.</summary>
+    private double? TryGetCurrentChartValue(Guid sourceContentId)
+    {
+        if (_promptValues.TryGetValue(sourceContentId.ToString(), out var raw) &&
+            double.TryParse(raw, System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var d))
+            return d;
+        return null;
     }
 
     private string GetPromptValue(string key) =>

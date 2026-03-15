@@ -2,13 +2,15 @@
 @page "/processes/{Id:guid}/builder"
 @page "/documents/builder"
 @page "/documents/{Id:guid}/builder"
+@page "/training/builder"
+@page "/training/{Id:guid}/builder"
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject ToastService Toast
 
-<PageTitle>@(_name.Length > 0 ? (IsDocumentContext ? $"Document — {_name}" : $"Builder – {_name}") : (IsDocumentContext ? "New Document" : "New Process"))</PageTitle>
+<PageTitle>@(_name.Length > 0 ? (IsDocumentContext ? $"Document — {_name}" : IsTrainingContext ? $"Training — {_name}" : $"Builder – {_name}") : (IsDocumentContext ? "New Document" : IsTrainingContext ? "New Training" : "New Process"))</PageTitle>
 
 @* ── Top bar ── *@
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -18,6 +20,11 @@
             {
                 <li class="breadcrumb-item"><a href="documents">Document Library</a></li>
                 <li class="breadcrumb-item active">@(Id.HasValue ? "Document Builder" : "New Document")</li>
+            }
+            else if (IsTrainingContext)
+            {
+                <li class="breadcrumb-item"><a href="training">Training Catalogue</a></li>
+                <li class="breadcrumb-item active">@(Id.HasValue ? "Training Builder" : "New Training")</li>
             }
             else
             {
@@ -64,7 +71,7 @@
             }
             Save
         </button>
-        <a href="@(Id.HasValue ? (IsDocumentContext ? $"documents/{Id}" : $"processes/{Id}") : (IsDocumentContext ? "documents" : "processes"))" class="btn btn-outline-secondary btn-sm">
+        <a href="@(Id.HasValue ? (IsDocumentContext ? $"documents/{Id}" : IsTrainingContext ? $"training/{Id}" : $"processes/{Id}") : (IsDocumentContext ? "documents" : IsTrainingContext ? "training" : "processes"))" class="btn btn-outline-secondary btn-sm">
             Cancel
         </a>
     </div>
@@ -1301,6 +1308,7 @@ else
     [Parameter] public Guid? Id { get; set; }
 
     private bool IsDocumentContext => Nav.Uri.Contains("/documents/");
+    private bool IsTrainingContext  => Nav.Uri.Contains("/training/");
 
     // ── Process metadata fields ──
     private string _code = "";
@@ -2097,7 +2105,7 @@ else
 
             if (!Id.HasValue)
             {
-                var role = IsDocumentContext ? _docType : "ManufacturingProcess";
+                var role = IsDocumentContext ? _docType : IsTrainingContext ? "Training" : "ManufacturingProcess";
                 var created = await Api.CreateProcessAsync(
                     new ProcessCreateDto(_code.Trim(), _name.Trim(), _description, role));
                 if (created is null) { Toast.ShowError("Failed to create process."); return; }
@@ -2156,7 +2164,7 @@ else
                 }
             }
 
-            Nav.NavigateTo(IsDocumentContext ? $"documents/{processId}/builder" : $"processes/{processId}/builder", forceLoad: true);
+            Nav.NavigateTo(IsDocumentContext ? $"documents/{processId}/builder" : IsTrainingContext ? $"training/{processId}/builder" : $"processes/{processId}/builder", forceLoad: true);
         }
         catch (HttpRequestException ex)
         {

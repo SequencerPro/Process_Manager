@@ -1,0 +1,196 @@
+@page "/root-cause-library/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@attribute [Authorize]
+
+<PageTitle>Root Cause Library — Process Manager</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_entry is null)
+{
+    <div class="alert alert-warning">Entry not found.</div>
+}
+else
+{
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/root-cause-library">Root Cause Library</a></li>
+            <li class="breadcrumb-item active">@_entry.Title</li>
+        </ol>
+    </nav>
+
+    <!-- Entry detail card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+                <div>
+                    <h4 class="mb-1">@_entry.Title</h4>
+                    <span class="badge @CategoryBadgeClass(_entry.Category) me-2">@_entry.Category</span>
+                    @if (_entry.UsageCount > 0)
+                    {
+                        <span class="badge bg-info text-dark">
+                            <i class="bi bi-graph-up me-1"></i>Cited @_entry.UsageCount time@(_entry.UsageCount == 1 ? "" : "s")
+                        </span>
+                    }
+                </div>
+                <AuthorizeView Roles="Admin,Engineer">
+                    <Authorized>
+                        <a class="btn btn-outline-secondary btn-sm" href="/root-cause-library">
+                            <i class="bi bi-pencil me-1"></i>Edit in Library
+                        </a>
+                    </Authorized>
+                </AuthorizeView>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_entry.Description))
+            {
+                <p class="mt-3 mb-2">@_entry.Description</p>
+            }
+
+            @if (!string.IsNullOrEmpty(_entry.Tags))
+            {
+                <div class="mb-2">
+                    @foreach (var tag in _entry.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    {
+                        <span class="badge bg-light text-dark border me-1">@tag</span>
+                    }
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(_entry.CorrectiveActionTemplate))
+            {
+                <div class="mt-3 p-3 bg-light rounded border-start border-4 border-primary">
+                    <div class="small fw-semibold text-muted mb-1"><i class="bi bi-tools me-1"></i>Corrective Action Template</div>
+                    <div>@_entry.CorrectiveActionTemplate</div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Citing analyses -->
+    <div class="d-flex align-items-center justify-content-between mb-2">
+        <h5 class="mb-0"><i class="bi bi-diagram-3 me-2 text-secondary"></i>Analyses citing this entry</h5>
+        <span class="badge bg-secondary">@(_citingAnalyses?.Count ?? 0)</span>
+    </div>
+
+    @if (_citingAnalyses is null)
+    {
+        <div class="text-center py-4 text-muted">
+            <div class="spinner-border spinner-border-sm me-2"></div>Loading analyses…
+        </div>
+    }
+    else if (!_citingAnalyses.Any())
+    {
+        <div class="card">
+            <div class="card-body text-muted fst-italic small text-center py-4">
+                <i class="bi bi-search fs-2 d-block mb-2 text-secondary"></i>
+                No analyses have cited this entry yet. They will appear here automatically when a cause is confirmed in a 5 Whys or Ishikawa analysis.
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Type</th>
+                            <th>Title</th>
+                            <th>Problem / Defect</th>
+                            <th class="text-center">Nodes</th>
+                            <th class="text-center">Root Causes</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th style="width:60px"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _citingAnalyses)
+                        {
+                            <tr>
+                                <td>
+                                    @if (item.AnalysisType == "FiveWhys")
+                                    {
+                                        <span class="badge bg-primary">5 Whys</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success">Ishikawa</span>
+                                    }
+                                </td>
+                                <td class="fw-semibold">@item.Title</td>
+                                <td><small class="text-muted">@Truncate(item.ProblemStatement, 70)</small></td>
+                                <td class="text-center">@item.TotalNodes</td>
+                                <td class="text-center">
+                                    @if (item.ConfirmedRootCauses > 0)
+                                    {
+                                        <span class="badge bg-success">@item.ConfirmedRootCauses</span>
+                                    }
+                                    else { <span class="text-muted small">0</span> }
+                                </td>
+                                <td>
+                                    <span class="badge @(item.Status == "Open" ? "bg-warning text-dark" : "bg-secondary")">
+                                        @item.Status
+                                    </span>
+                                </td>
+                                <td><small class="text-muted">@item.CreatedAt.ToString("dd MMM yyyy")</small></td>
+                                <td>
+                                    <a href="@AnalysisUrl(item)" class="btn btn-outline-secondary btn-sm py-0 px-2" title="Open">
+                                        <i class="bi bi-box-arrow-up-right"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private RootCauseEntryResponseDto? _entry;
+    private List<RcaAnalysisIndexItemDto>? _citingAnalyses;
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+        try
+        {
+            _entry = await Api.GetRootCauseEntryAsync(Id);
+            if (_entry is not null)
+                _citingAnalyses = await Api.GetRootCauseEntryCitingAnalysesAsync(Id);
+        }
+        finally { _loading = false; }
+    }
+
+    private static string AnalysisUrl(RcaAnalysisIndexItemDto item) =>
+        item.AnalysisType == "FiveWhys"
+            ? $"/five-whys/{item.Id}"
+            : $"/ishikawa/{item.Id}";
+
+    private static string CategoryBadgeClass(string category) => category switch
+    {
+        "Machine"     => "bg-primary",
+        "Method"      => "bg-success",
+        "Material"    => "bg-warning text-dark",
+        "People"      => "bg-info text-dark",
+        "Measurement" => "bg-secondary",
+        "Environment" => "bg-dark",
+        "Management"  => "bg-danger",
+        _             => "bg-light text-dark border"
+    };
+
+    private static string Truncate(string? s, int max) =>
+        s is null ? "" : s.Length <= max ? s : s[..max] + "…";
+}

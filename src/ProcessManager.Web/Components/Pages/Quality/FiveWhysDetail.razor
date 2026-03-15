@@ -137,6 +137,12 @@ else
                     <button type="button" class="btn-close" @onclick="() => _showAddNode = false"></button>
                 </div>
                 <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(_addParentNodeText))
+                    {
+                        <div class="alert alert-secondary py-2 mb-3 fst-italic small">
+                            <strong>"@_addParentNodeText"</strong> — why?
+                        </div>
+                    }
                     <div class="mb-3">
                         <label class="form-label">Why statement <span class="text-danger">*</span></label>
                         <textarea class="form-control" rows="2" @bind="_nodeText"
@@ -202,14 +208,11 @@ else
                         <label class="form-check-label" for="isRC">Confirmed Root Cause</label>
                         <div class="form-text">Checking increments the library entry's usage count.</div>
                     </div>
-                    @if (_editIsRootCause)
-                    {
-                        <div class="mb-3">
-                            <label class="form-label">Corrective Action</label>
-                            <textarea class="form-control" rows="2" @bind="_editCorrectiveAction"
-                                      placeholder="What action will address this root cause?"></textarea>
-                        </div>
-                    }
+                    <div class="mb-3">
+                        <label class="form-label">Solution / Corrective Action <span class="text-muted small">(optional)</span></label>
+                        <textarea class="form-control" rows="2" @bind="_editCorrectiveAction"
+                                  placeholder="What action will address this cause?"></textarea>
+                    </div>
                     @if (!string.IsNullOrEmpty(_editNodeError))
                     {
                         <div class="alert alert-danger py-2">@_editNodeError</div>
@@ -267,6 +270,7 @@ else
     // Add node
     private bool _showAddNode;
     private Guid? _addParentNodeId;
+    private string _addParentNodeText = "";
     private string _nodeText = "";
     private string _nodeError = "";
     private List<RootCauseEntryResponseDto> _librarySuggestions = new();
@@ -296,7 +300,7 @@ else
     // ── Render tree (recursive fragment) ──
 
     private RenderFragment RenderNode(FiveWhysNodeDto node, int depth) =>
-        @<div class="ms-@(depth * 4) mt-2">
+        @<div class="mt-2" style="margin-left: @(depth * 1.5)rem">
             <div class="card @(node.IsRootCause ? "border-success bg-success bg-opacity-10" : "border-0 bg-light") shadow-sm">
                 <div class="card-body py-2 px-3">
                     <div class="d-flex align-items-start gap-2">
@@ -361,6 +365,9 @@ else
     private void OpenAddNode(Guid? parentId)
     {
         _addParentNodeId = parentId;
+        _addParentNodeText = parentId.HasValue
+            ? Flatten(_analysis!.Nodes).FirstOrDefault(n => n.Id == parentId.Value)?.WhyStatement ?? ""
+            : "";
         _nodeText = _nodeError = "";
         _librarySuggestions = new();
         _linkedLibraryEntry = null;

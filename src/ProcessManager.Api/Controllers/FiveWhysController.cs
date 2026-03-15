@@ -191,15 +191,36 @@ public class FiveWhysController : ControllerBase
         if (node is null) return NotFound("Node not found.");
 
         var wasAlreadyRoot = node.IsRootCause;
-        node.WhyStatement             = dto.WhyStatement.Trim();
-        node.IsRootCause              = dto.IsRootCause;
-        node.RootCauseLibraryEntryId  = dto.RootCauseLibraryEntryId;
-        node.CorrectiveAction         = dto.CorrectiveAction?.Trim();
-        await _db.SaveChangesAsync();
+        node.WhyStatement    = dto.WhyStatement.Trim();
+        node.IsRootCause     = dto.IsRootCause;
+        node.CorrectiveAction = dto.CorrectiveAction?.Trim();
 
-        // Increment usage count when first marked as root cause with a library link
-        if (dto.IsRootCause && !wasAlreadyRoot && dto.RootCauseLibraryEntryId.HasValue)
-            await IncrementUsageCount(dto.RootCauseLibraryEntryId.Value);
+        if (dto.RootCauseLibraryEntryId.HasValue)
+        {
+            // User explicitly linked an entry
+            node.RootCauseLibraryEntryId = dto.RootCauseLibraryEntryId;
+            if (dto.IsRootCause && !wasAlreadyRoot)
+                await IncrementUsageCount(dto.RootCauseLibraryEntryId.Value);
+        }
+        else if (dto.IsRootCause)
+        {
+            // Try to auto-link to an existing entry by title (no category on 5 Whys nodes, so no auto-create)
+            var titleLower = dto.WhyStatement.Trim().ToLower();
+            var existing = await _db.RootCauseEntries
+                .FirstOrDefaultAsync(r => r.Title.ToLower() == titleLower);
+            if (existing is not null)
+            {
+                node.RootCauseLibraryEntryId = existing.Id;
+                if (!wasAlreadyRoot)
+                    await IncrementUsageCount(existing.Id);
+            }
+        }
+        else
+        {
+            node.RootCauseLibraryEntryId = null;
+        }
+
+        await _db.SaveChangesAsync();
 
         var updated = await LoadAnalysis(id);
         return Ok(MapToDto(updated!));

@@ -197,14 +197,29 @@ public class IshikawaController : ControllerBase
         var cause = diagram.Causes.FirstOrDefault(c => c.Id == causeId);
         if (cause is null) return NotFound("Cause not found.");
 
-        cause.CauseText               = dto.CauseText.Trim();
-        cause.RootCauseLibraryEntryId = dto.RootCauseLibraryEntryId;
-        cause.IsSelectedRootCause     = dto.IsSelectedRootCause;
-        await _db.SaveChangesAsync();
+        cause.CauseText           = dto.CauseText.Trim();
+        cause.IsSelectedRootCause = dto.IsSelectedRootCause;
 
-        // Increment library entry UsageCount when a cause is linked and selected
-        if (dto.IsSelectedRootCause && dto.RootCauseLibraryEntryId.HasValue)
-            await IncrementUsageCount(dto.RootCauseLibraryEntryId.Value);
+        if (dto.RootCauseLibraryEntryId.HasValue)
+        {
+            // User explicitly linked an existing entry
+            cause.RootCauseLibraryEntryId = dto.RootCauseLibraryEntryId;
+            if (dto.IsSelectedRootCause)
+                await IncrementUsageCount(dto.RootCauseLibraryEntryId.Value);
+        }
+        else if (dto.IsSelectedRootCause)
+        {
+            // Auto find-or-create a library entry from the confirmed cause text + category
+            var entryId = await FindOrCreateLibraryEntryAsync(dto.CauseText.Trim(), cause.Category);
+            cause.RootCauseLibraryEntryId = entryId;
+            await IncrementUsageCount(entryId);
+        }
+        else
+        {
+            cause.RootCauseLibraryEntryId = null;
+        }
+
+        await _db.SaveChangesAsync();
 
         var updated = await LoadDiagram(id);
         return Ok(MapToDto(updated!));
@@ -243,6 +258,19 @@ public class IshikawaController : ControllerBase
     {
         var entry = await _db.RootCauseEntries.FindAsync(entryId);
         if (entry is not null) { entry.UsageCount++; await _db.SaveChangesAsync(); }
+    }
+
+    private async Task<Guid> FindOrCreateLibraryEntryAsync(string title, RootCauseCategory category)
+    {
+        var titleLower = title.ToLower();
+        var entry = await _db.RootCauseEntries
+            .FirstOrDefaultAsync(r => r.Title.ToLower() == titleLower && r.Category == category);
+        if (entry is not null) return entry.Id;
+
+        entry = new RootCauseEntry { Title = title, Category = category };
+        _db.RootCauseEntries.Add(entry);
+        await _db.SaveChangesAsync();
+        return entry.Id;
     }
 
     private static IshikawaDiagramSummaryDto MapToSummary(IshikawaDiagram d) => new(

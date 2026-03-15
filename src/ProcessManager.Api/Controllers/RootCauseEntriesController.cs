@@ -145,6 +145,107 @@ public class RootCauseEntriesController : ControllerBase
         return NoContent();
     }
 
+    // ───── Unified Analysis Index ─────
+
+    /// <summary>Search/browse the full index of 5 Whys and Ishikawa analyses.</summary>
+    [HttpGet("analyses")]
+    public async Task<ActionResult<PaginatedResponse<RcaAnalysisIndexItemDto>>> GetAnalysisIndex(
+        [FromQuery] string? q = null,
+        [FromQuery] string? type = null,
+        [FromQuery] string? status = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25)
+    {
+        var items = new List<RcaAnalysisIndexItemDto>();
+
+        if (string.IsNullOrEmpty(type) || type.Equals("FiveWhys", StringComparison.OrdinalIgnoreCase))
+        {
+            var fwQuery = _db.FiveWhysAnalyses.Include(a => a.Nodes).AsQueryable();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var s = q.Trim().ToLower();
+                fwQuery = fwQuery.Where(a => a.Title.ToLower().Contains(s) || a.ProblemStatement.ToLower().Contains(s));
+            }
+            if (!string.IsNullOrEmpty(status) && Enum.TryParse<RcaStatus>(status, true, out var fwStatus))
+                fwQuery = fwQuery.Where(a => a.Status == fwStatus);
+
+            var fwResults = await fwQuery.ToListAsync();
+            items.AddRange(fwResults.Select(a => new RcaAnalysisIndexItemDto(
+                a.Id, "FiveWhys", a.Title, a.ProblemStatement,
+                a.LinkedEntityType.ToString(), a.LinkedEntityId,
+                a.Status.ToString(),
+                a.Nodes.Count,
+                a.Nodes.Count(n => n.IsRootCause),
+                a.CreatedAt)));
+        }
+
+        if (string.IsNullOrEmpty(type) || type.Equals("Ishikawa", StringComparison.OrdinalIgnoreCase))
+        {
+            var iqQuery = _db.IshikawaDiagrams.Include(d => d.Causes).AsQueryable();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var s = q.Trim().ToLower();
+                iqQuery = iqQuery.Where(d => d.Title.ToLower().Contains(s) || d.ProblemStatement.ToLower().Contains(s));
+            }
+            if (!string.IsNullOrEmpty(status) && Enum.TryParse<RcaStatus>(status, true, out var iqStatus))
+                iqQuery = iqQuery.Where(d => d.Status == iqStatus);
+
+            var iqResults = await iqQuery.ToListAsync();
+            items.AddRange(iqResults.Select(d => new RcaAnalysisIndexItemDto(
+                d.Id, "Ishikawa", d.Title, d.ProblemStatement,
+                d.LinkedEntityType.ToString(), d.LinkedEntityId,
+                d.Status.ToString(),
+                d.Causes.Count,
+                d.Causes.Count(c => c.IsSelectedRootCause),
+                d.CreatedAt)));
+        }
+
+        var totalCount = items.Count;
+        var paged = items
+            .OrderByDescending(i => i.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        return new PaginatedResponse<RcaAnalysisIndexItemDto>(paged, totalCount, page, pageSize);
+    }
+
+    /// <summary>Returns all analyses (5 Whys + Ishikawa) that have referenced this library entry.</summary>
+    [HttpGet("{id:guid}/analyses")]
+    public async Task<ActionResult<List<RcaAnalysisIndexItemDto>>> GetCitingAnalyses(Guid id)
+    {
+        var entry = await _db.RootCauseEntries.FindAsync(id);
+        if (entry is null) return NotFound();
+
+        var items = new List<RcaAnalysisIndexItemDto>();
+
+        var fwAnalyses = await _db.FiveWhysAnalyses
+            .Include(a => a.Nodes)
+            .Where(a => a.Nodes.Any(n => n.RootCauseLibraryEntryId == id))
+            .ToListAsync();
+        items.AddRange(fwAnalyses.Select(a => new RcaAnalysisIndexItemDto(
+            a.Id, "FiveWhys", a.Title, a.ProblemStatement,
+            a.LinkedEntityType.ToString(), a.LinkedEntityId,
+            a.Status.ToString(),
+            a.Nodes.Count,
+            a.Nodes.Count(n => n.IsRootCause),
+            a.CreatedAt)));
+
+        var iqDiagrams = await _db.IshikawaDiagrams
+            .Include(d => d.Causes)
+            .Where(d => d.Causes.Any(c => c.RootCauseLibraryEntryId == id))
+            .ToListAsync();
+        items.AddRange(iqDiagrams.Select(d => new RcaAnalysisIndexItemDto(
+            d.Id, "Ishikawa", d.Title, d.ProblemStatement,
+            d.LinkedEntityType.ToString(), d.LinkedEntityId,
+            d.Status.ToString(),
+            d.Causes.Count,
+            d.Causes.Count(c => c.IsSelectedRootCause),
+            d.CreatedAt)));
+
+        return items.OrderByDescending(i => i.CreatedAt).ToList();
+    }
+
     // ───── Helper ─────
 
     private static RootCauseEntryResponseDto MapToDto(RootCauseEntry r) => new(

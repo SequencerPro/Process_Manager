@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 @attribute [Authorize]
 
 <PageTitle>Root Cause Library — Process Manager</PageTitle>
@@ -11,15 +12,35 @@
         <h3 class="mb-0"><i class="bi bi-diagram-3 me-2 text-secondary"></i>Root Cause Library</h3>
         <p class="text-muted small mb-0">Institutional catalogue of named causes — shared across all RCA tools</p>
     </div>
-    <AuthorizeView Roles="Admin,Engineer">
-        <Authorized>
-            <button class="btn btn-primary btn-sm" @onclick="OpenCreate">
-                <i class="bi bi-plus-lg me-1"></i> New Entry
-            </button>
-        </Authorized>
-    </AuthorizeView>
+    @if (_activeTab == "entries")
+    {
+        <AuthorizeView Roles="Admin,Engineer">
+            <Authorized>
+                <button class="btn btn-primary btn-sm" @onclick="OpenCreate">
+                    <i class="bi bi-plus-lg me-1"></i> New Entry
+                </button>
+            </Authorized>
+        </AuthorizeView>
+    }
 </div>
 
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <button class="nav-link @(_activeTab == "entries" ? "active" : "")" @onclick='() => SetTab("entries")'>
+            <i class="bi bi-journal-text me-1"></i>Library Entries
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(_activeTab == "index" ? "active" : "")" @onclick='() => SetTab("index")'>
+            <i class="bi bi-search me-1"></i>Analysis Index
+        </button>
+    </li>
+</ul>
+
+<!-- Library Entries tab -->
+@if (_activeTab == "entries")
+{
 <!-- Filters -->
 <div class="card mb-3">
     <div class="card-body py-2">
@@ -83,10 +104,10 @@ else
                     {
                         <tr>
                             <td>
-                                <div class="fw-semibold">@entry.Title</div>
+                                <a class="fw-semibold text-decoration-none" href="/root-cause-library/@entry.Id">@entry.Title</a>
                                 @if (!string.IsNullOrEmpty(entry.Description))
                                 {
-                                    <small class="text-muted">@Truncate(entry.Description, 80)</small>
+                                    <small class="text-muted d-block">@Truncate(entry.Description, 80)</small>
                                 }
                             </td>
                             <td><span class="badge @CategoryBadgeClass(entry.Category)">@entry.Category</span></td>
@@ -161,7 +182,141 @@ else
         </div>
     }
 }
+}
 
+<!-- Analysis Index tab -->
+@if (_activeTab == "index")
+{
+    <!-- Index filters -->
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small mb-1">Search</label>
+                    <input class="form-control form-control-sm" placeholder="Search title, problem statement…"
+                           @bind="_idxSearch" @bind:event="oninput" @onkeyup="OnIdxSearchKeyUp" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">Type</label>
+                    <select class="form-select form-select-sm" @onchange="OnIdxTypeFilter">
+                        <option value="">All types</option>
+                        <option value="FiveWhys">5 Whys</option>
+                        <option value="Ishikawa">Ishikawa</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small mb-1">Status</label>
+                    <select class="form-select form-select-sm" @onchange="OnIdxStatusFilter">
+                        <option value="">All statuses</option>
+                        <option value="Open">Open</option>
+                        <option value="Closed">Closed</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="LoadIndex">
+                        <i class="bi bi-arrow-clockwise me-1 @(_idxLoading ? "spin" : "")"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (_idxLoading)
+    {
+        <div class="text-center py-5 text-muted">
+            <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+        </div>
+    }
+    else if (_idxData is null || !_idxData.Items.Any())
+    {
+        <div class="card">
+            <div class="card-body text-muted fst-italic small text-center py-4">
+                <i class="bi bi-search fs-2 d-block mb-2 text-secondary"></i>
+                No analyses found. Create a 5 Whys or Ishikawa analysis to populate this index.
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Type</th>
+                            <th>Title</th>
+                            <th>Problem / Defect</th>
+                            <th class="text-center">Nodes</th>
+                            <th class="text-center">Root Causes</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th style="width:60px"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in _idxData.Items)
+                        {
+                            <tr>
+                                <td>
+                                    @if (item.AnalysisType == "FiveWhys")
+                                    {
+                                        <span class="badge bg-primary">5 Whys</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success">Ishikawa</span>
+                                    }
+                                </td>
+                                <td class="fw-semibold">@item.Title</td>
+                                <td><small class="text-muted">@Truncate(item.ProblemStatement, 70)</small></td>
+                                <td class="text-center">@item.TotalNodes</td>
+                                <td class="text-center">
+                                    @if (item.ConfirmedRootCauses > 0)
+                                    {
+                                        <span class="badge bg-success">@item.ConfirmedRootCauses</span>
+                                    }
+                                    else { <span class="text-muted small">0</span> }
+                                </td>
+                                <td>
+                                    <span class="badge @(item.Status == "Open" ? "bg-warning text-dark" : "bg-secondary")">
+                                        @item.Status
+                                    </span>
+                                </td>
+                                <td><small class="text-muted">@item.CreatedAt.ToString("dd MMM yyyy")</small></td>
+                                <td>
+                                    <a href="@IdxAnalysisUrl(item)" class="btn btn-outline-secondary btn-sm py-0 px-2" title="Open">
+                                        <i class="bi bi-box-arrow-up-right"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        @if (_idxData.TotalPages > 1)
+        {
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <small class="text-muted">
+                    @( (_idxData.Page - 1) * _idxData.PageSize + 1 )–@(Math.Min(_idxData.Page * _idxData.PageSize, _idxData.TotalCount)) of @_idxData.TotalCount analyses
+                </small>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" disabled="@(_idxData.Page <= 1)"
+                            @onclick="() => ChangeIdxPage(_idxData.Page - 1)">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <span class="btn btn-outline-secondary disabled">@_idxData.Page / @_idxData.TotalPages</span>
+                    <button class="btn btn-outline-secondary" disabled="@(_idxData.Page >= _idxData.TotalPages)"
+                            @onclick="() => ChangeIdxPage(_idxData.Page + 1)">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        }
+    }
+}
 <!-- Create / Edit Modal -->
 @if (_showModal)
 {
@@ -226,12 +381,23 @@ else
     private static readonly string[] _categories =
         ["Machine", "Method", "Material", "People", "Measurement", "Environment", "Management"];
 
+    // ── Library Entries tab ──
+    private string _activeTab = "entries";
     private PaginatedResponse<RootCauseEntryResponseDto>? _data;
     private bool _loading;
     private string _search = "";
     private string _category = "";
     private int _page = 1;
     private const int PageSize = 25;
+
+    // ── Analysis Index tab ──
+    private PaginatedResponse<RcaAnalysisIndexItemDto>? _idxData;
+    private bool _idxLoading;
+    private string _idxSearch = "";
+    private string _idxType = "";
+    private string _idxStatus = "";
+    private int _idxPage = 1;
+    private const int IdxPageSize = 25;
 
     // Modal
     private bool _showModal;
@@ -250,6 +416,13 @@ else
     }
 
     protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task SetTab(string tab)
+    {
+        _activeTab = tab;
+        if (tab == "index" && _idxData is null)
+            await LoadIndex();
+    }
 
     private async Task LoadData()
     {
@@ -274,6 +447,42 @@ else
     }
 
     private async Task ChangePage(int page) { _page = page; await LoadData(); }
+
+    // ── Analysis Index ──
+
+    private async Task LoadIndex()
+    {
+        _idxLoading = true;
+        try
+        {
+            _idxData = await Api.GetRcaAnalysisIndexAsync(_idxSearch, _idxType, _idxStatus, _idxPage, IdxPageSize);
+        }
+        finally { _idxLoading = false; }
+    }
+
+    private async Task OnIdxSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") { _idxPage = 1; await LoadIndex(); }
+    }
+
+    private async Task OnIdxTypeFilter(ChangeEventArgs e)
+    {
+        _idxType = e.Value?.ToString() ?? "";
+        _idxPage = 1;
+        await LoadIndex();
+    }
+
+    private async Task OnIdxStatusFilter(ChangeEventArgs e)
+    {
+        _idxStatus = e.Value?.ToString() ?? "";
+        _idxPage = 1;
+        await LoadIndex();
+    }
+
+    private async Task ChangeIdxPage(int page) { _idxPage = page; await LoadIndex(); }
+
+    private static string IdxAnalysisUrl(RcaAnalysisIndexItemDto item) =>
+        item.AnalysisType == "FiveWhys" ? $"/five-whys/{item.Id}" : $"/ishikawa/{item.Id}";
 
     // ── Modal ──
 

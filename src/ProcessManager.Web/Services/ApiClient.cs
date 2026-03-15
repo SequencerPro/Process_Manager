@@ -1172,6 +1172,19 @@ public class ApiClient
         r.EnsureSuccessStatusCode();
     }
 
+    public Task<PaginatedResponse<RcaAnalysisIndexItemDto>?> GetRcaAnalysisIndexAsync(
+        string? q = null, string? type = null, string? status = null, int page = 1, int pageSize = 25)
+    {
+        var qs = $"api/root-cause-entries/analyses?page={page}&pageSize={pageSize}";
+        if (!string.IsNullOrEmpty(q))      qs += $"&q={Uri.EscapeDataString(q)}";
+        if (!string.IsNullOrEmpty(type))   qs += $"&type={Uri.EscapeDataString(type)}";
+        if (!string.IsNullOrEmpty(status)) qs += $"&status={Uri.EscapeDataString(status)}";
+        return _http.GetFromJsonAsync<PaginatedResponse<RcaAnalysisIndexItemDto>>(qs, _json);
+    }
+
+    public Task<List<RcaAnalysisIndexItemDto>?> GetRootCauseEntryCitingAnalysesAsync(Guid id)
+        => _http.GetFromJsonAsync<List<RcaAnalysisIndexItemDto>>($"api/root-cause-entries/{id}/analyses", _json);
+
     // ══════════════════ Ishikawa Diagrams (Phase 10b) ═════════════════════════
 
     public Task<PaginatedResponse<IshikawaDiagramSummaryDto>?> GetIshikawaDiagramsAsync(

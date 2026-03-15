@@ -514,8 +514,10 @@ else
                                 <option value="PassFail">Pass / Fail</option>
                                 <option value="MultipleChoice">Multiple Choice</option>
                                 <option value="TextEntry">Text Entry (free form)</option>
+                                <option value="LongText">Long Text (multi-line comments)</option>
                                 <option value="Checkbox">Checkbox (tick)</option>
                                 <option value="Scan">Scan (barcode / serial)</option>
+                                <option value="UserPicker">User Picker (select a named person)</option>
                             </select>
                         </div>
                         @if (_newPromptType == "NumericEntry")
@@ -551,6 +553,14 @@ else
                                 <label class="form-label form-label-sm">Choices <span class="text-muted">(one per line)</span></label>
                                 <textarea class="form-control form-control-sm" rows="3" @bind="_newPromptChoicesRaw"
                                           placeholder="Option A&#10;Option B&#10;Option C"></textarea>
+                            </div>
+                        }
+                        @if (_newPromptType == "UserPicker")
+                        {
+                            <div class="alert alert-info py-2 px-3 small mb-2">
+                                <i class="bi bi-person-fill me-1"></i>
+                                Renders as a searchable dropdown of all system users. Stores the selected person's display name.
+                                Use for: instructor / trainer, witness, signatory, customer or supplier representative.
                             </div>
                         }
                         <div class="mb-2">

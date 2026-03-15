@@ -314,7 +314,8 @@ public class JobsController : ControllerBase
             includeStepExecutions
                 ? job.StepExecutions.OrderBy(se => se.Sequence)
                     .Select(se => MapStepExecutionToDto(se)).ToList()
-                : null);
+                : null,
+            job.DocumentApprovalRequestId);
     }
 
     internal static StepExecutionResponseDto MapStepExecutionToDto(StepExecution se, bool includePortTransactions = false)
@@ -340,7 +341,9 @@ public class JobsController : ControllerBase
                 : null,
             se.Job?.Code,
             se.Job?.Name,
-            se.ProcessStep?.ProcessId);
+            se.ProcessStep?.ProcessId,
+            se.ParallelGroup,
+            se.AssignedToUserId);
     }
 
     internal static PortTransactionResponseDto MapPortTransactionToDto(PortTransaction pt)

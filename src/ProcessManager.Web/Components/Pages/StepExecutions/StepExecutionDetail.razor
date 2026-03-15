@@ -179,6 +179,11 @@ else
                                 <textarea class="form-control" rows="3"
                                           @oninput="e => SetPromptValue(key, e.Value?.ToString())">@pval</textarea>
                             }
+                            else if (block.PromptType == "LongText")
+                            {
+                                <textarea class="form-control" rows="5"
+                                          @oninput="e => SetPromptValue(key, e.Value?.ToString())">@pval</textarea>
+                            }
                             else if (block.PromptType == "Checkbox")
                             {
                                 <div class="form-check">
@@ -228,6 +233,14 @@ else
                                     @if (!string.IsNullOrEmpty(existing?.OverrideNote))
                                     { <text> Note: @existing.OverrideNote</text> }
                                 </div>
+                            }
+                            @if (block.PromptType == "UserPicker")
+                            {
+                                <input type="text" class="form-control"
+                                       placeholder="Type a name…"
+                                       value="@pval"
+                                       @oninput="e => SetPromptValue(key, e.Value?.ToString())" />
+                                <div class="form-text">Enter the display name of the person involved in this step.</div>
                             }
                         </div>
                     </div>

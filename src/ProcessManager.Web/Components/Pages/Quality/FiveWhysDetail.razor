@@ -1,0 +1,491 @@
+@page "/five-whys/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@attribute [Authorize]
+
+<PageTitle>5 Whys Analysis — Process Manager</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_analysis is null)
+{
+    <div class="alert alert-warning">Analysis not found.</div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="/five-whys">5 Whys</a></li>
+                    <li class="breadcrumb-item active">@_analysis.Title</li>
+                </ol>
+            </nav>
+            <h3 class="mb-0"><i class="bi bi-question-circle me-2 text-secondary"></i>@_analysis.Title</h3>
+        </div>
+        <div class="d-flex gap-2">
+            @if (_analysis.Status == "Open")
+            {
+                <AuthorizeView Roles="Admin,Engineer">
+                    <Authorized>
+                        <button class="btn btn-outline-success btn-sm" @onclick="OpenCloseModal">
+                            <i class="bi bi-check-lg me-1"></i>Close Analysis
+                        </button>
+                    </Authorized>
+                </AuthorizeView>
+            }
+            else
+            {
+                <span class="badge bg-success py-2 px-3 align-self-center">
+                    <i class="bi bi-check-circle me-1"></i>Closed @_analysis.ClosedAt?.ToString("d MMM yyyy")
+                </span>
+                <AuthorizeView Roles="Admin,Engineer">
+                    <Authorized>
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="Reopen">Reopen</button>
+                    </Authorized>
+                </AuthorizeView>
+            }
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_analysis.ClosureNotes))
+    {
+        <div class="alert alert-success py-2 small mb-3">
+            <i class="bi bi-info-circle me-1"></i><strong>Closure notes:</strong> @_analysis.ClosureNotes
+        </div>
+    }
+
+    @if (HasIncompleteLeaves(_analysis.Nodes) && _analysis.Status == "Open")
+    {
+        <div class="alert alert-warning py-2 small mb-3">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            Some branches end without a confirmed root cause. Continue adding "Why" steps until you reach the true cause.
+        </div>
+    }
+
+    <!-- Problem statement as root node -->
+    <div class="card border-primary shadow-sm mb-3">
+        <div class="card-body py-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary">Problem</span>
+                <span class="fw-semibold">@_analysis.ProblemStatement</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Root-level nodes (no parent) -->
+    @if (!_analysis.Nodes.Any() && _analysis.Status == "Open")
+    {
+        <AuthorizeView Roles="Admin,Engineer">
+            <Authorized>
+                <button class="btn btn-outline-primary btn-sm" @onclick="() => OpenAddNode(null)">
+                    <i class="bi bi-plus-lg me-1"></i>Add first "Why"
+                </button>
+            </Authorized>
+        </AuthorizeView>
+    }
+    else
+    {
+        <div class="five-whys-tree">
+            @foreach (var node in _analysis.Nodes)
+            {
+                @RenderNode(node, 0)
+            }
+        </div>
+
+        @if (_analysis.Status == "Open")
+        {
+            <AuthorizeView Roles="Admin,Engineer">
+                <Authorized>
+                    <button class="btn btn-outline-secondary btn-sm mt-2" @onclick="() => OpenAddNode(null)">
+                        <i class="bi bi-plus-lg me-1"></i>Add parallel "Why"
+                    </button>
+                </Authorized>
+            </AuthorizeView>
+        }
+    }
+
+    <!-- Summary stats -->
+    <div class="row g-2 mt-4">
+        <div class="col-auto">
+            <div class="card border-0 bg-light px-3 py-2 text-center" style="min-width:90px">
+                <div class="fw-bold fs-5">@CountNodes(_analysis.Nodes)</div>
+                <div class="small text-muted">Total Nodes</div>
+            </div>
+        </div>
+        <div class="col-auto">
+            <div class="card border-0 bg-success bg-opacity-10 px-3 py-2 text-center" style="min-width:90px">
+                <div class="fw-bold fs-5 text-success">@CountRootCauses(_analysis.Nodes)</div>
+                <div class="small text-muted">Root Causes</div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Add-node modal -->
+@if (_showAddNode)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_addParentNodeId is null ? "Add \"Why\"" : "Add Child \"Why\"")</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showAddNode = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Why statement <span class="text-danger">*</span></label>
+                        <textarea class="form-control" rows="2" @bind="_nodeText"
+                                  placeholder="Because…" @oninput="OnNodeTextInput"></textarea>
+                        @if (_librarySuggestions.Any())
+                        {
+                            <div class="list-group mt-1">
+                                @foreach (var s in _librarySuggestions)
+                                {
+                                    <button class="list-group-item list-group-item-action py-1 px-2 small"
+                                            @onclick="() => SelectLibraryEntry(s)">
+                                        <span class="badge @CategoryBadgeClass(s.Category) me-1">@s.Category</span>
+                                        @s.Title
+                                        @if (s.UsageCount > 0) { <span class="badge bg-info text-dark ms-1">@s.UsageCount uses</span> }
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                    @if (_linkedLibraryEntry is not null)
+                    {
+                        <div class="alert alert-info py-2 small mb-3">
+                            <i class="bi bi-book me-1"></i>Linked: <strong>@_linkedLibraryEntry.Title</strong>
+                            <button class="btn btn-link btn-sm p-0 ms-2 text-danger"
+                                    @onclick="() => _linkedLibraryEntry = null">✕</button>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(_nodeError))
+                    {
+                        <div class="alert alert-danger py-2">@_nodeError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showAddNode = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveNode" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Add
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Edit-node modal -->
+@if (_showEditNode && _editingNode is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Node</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showEditNode = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Why statement <span class="text-danger">*</span></label>
+                        <textarea class="form-control" rows="2" @bind="_editNodeText"></textarea>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input class="form-check-input" type="checkbox" id="isRC" @bind="_editIsRootCause"
+                               @bind:after="OnIsRootCauseToggled" />
+                        <label class="form-check-label" for="isRC">Confirmed Root Cause</label>
+                        <div class="form-text">Checking increments the library entry's usage count.</div>
+                    </div>
+                    @if (_editIsRootCause)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Corrective Action</label>
+                            <textarea class="form-control" rows="2" @bind="_editCorrectiveAction"
+                                      placeholder="What action will address this root cause?"></textarea>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(_editNodeError))
+                    {
+                        <div class="alert alert-danger py-2">@_editNodeError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showEditNode = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveEditNode" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Close modal -->
+@if (_showCloseModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Close Analysis</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showCloseModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted">The analysis will be locked. You can reopen it later if needed.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Closure Notes (optional)</label>
+                        <textarea class="form-control" rows="3" @bind="_closeNotes"
+                                  placeholder="Summary of findings, corrective actions assigned…"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showCloseModal = false">Cancel</button>
+                    <button class="btn btn-success btn-sm" @onclick="CloseAnalysis" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Close Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private FiveWhysAnalysisResponseDto? _analysis;
+    private bool _loading = true;
+    private bool _saving;
+
+    // Add node
+    private bool _showAddNode;
+    private Guid? _addParentNodeId;
+    private string _nodeText = "";
+    private string _nodeError = "";
+    private List<RootCauseEntryResponseDto> _librarySuggestions = new();
+    private RootCauseEntryResponseDto? _linkedLibraryEntry;
+
+    // Edit node
+    private bool _showEditNode;
+    private FiveWhysNodeDto? _editingNode;
+    private string _editNodeText = "";
+    private bool _editIsRootCause;
+    private string _editCorrectiveAction = "";
+    private string _editNodeError = "";
+
+    // Close
+    private bool _showCloseModal;
+    private string _closeNotes = "";
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try { _analysis = await Api.GetFiveWhysAnalysisAsync(Id); }
+        finally { _loading = false; }
+    }
+
+    // ── Render tree (recursive fragment) ──
+
+    private RenderFragment RenderNode(FiveWhysNodeDto node, int depth) =>
+        @<div class="ms-@(depth * 4) mt-2">
+            <div class="card @(node.IsRootCause ? "border-success bg-success bg-opacity-10" : "border-0 bg-light") shadow-sm">
+                <div class="card-body py-2 px-3">
+                    <div class="d-flex align-items-start gap-2">
+                        @if (node.IsRootCause)
+                        {
+                            <i class="bi bi-check-circle-fill text-success mt-1 flex-shrink-0"></i>
+                        }
+                        else
+                        {
+                            <i class="bi bi-arrow-right text-muted mt-1 flex-shrink-0"></i>
+                        }
+                        <div class="flex-grow-1">
+                            <div class="@(node.IsRootCause ? "fw-semibold text-success" : "")">
+                                @node.WhyStatement
+                            </div>
+                            @if (!string.IsNullOrEmpty(node.LibraryEntryTitle))
+                            {
+                                <small class="badge bg-light text-dark border">📚 @node.LibraryEntryTitle</small>
+                            }
+                            @if (!string.IsNullOrEmpty(node.CorrectiveAction))
+                            {
+                                <div class="small text-muted mt-1">
+                                    <i class="bi bi-tools me-1"></i>@node.CorrectiveAction
+                                </div>
+                            }
+                        </div>
+                        @if (_analysis!.Status == "Open")
+                        {
+                            <AuthorizeView Roles="Admin,Engineer">
+                                <Authorized>
+                                    <div class="btn-group btn-group-sm flex-shrink-0">
+                                        @if (!node.IsRootCause)
+                                        {
+                                            <button class="btn btn-outline-primary py-0 px-2"
+                                                    @onclick="() => OpenAddNode(node.Id)" title="Add child why">
+                                                <i class="bi bi-arrow-down me-1"></i>Why?
+                                            </button>
+                                        }
+                                        <button class="btn btn-outline-secondary py-0 px-2"
+                                                @onclick="() => OpenEditNode(node)" title="Edit">
+                                            <i class="bi bi-pencil"></i>
+                                        </button>
+                                        <button class="btn btn-outline-danger py-0 px-2"
+                                                @onclick="() => DeleteNode(node.Id)" title="Delete subtree">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+                                </Authorized>
+                            </AuthorizeView>
+                        }
+                    </div>
+                </div>
+            </div>
+            @foreach (var child in node.ChildNodes)
+            {
+                @RenderNode(child, depth + 1)
+            }
+        </div>;
+
+    // ── Add node ──
+
+    private void OpenAddNode(Guid? parentId)
+    {
+        _addParentNodeId = parentId;
+        _nodeText = _nodeError = "";
+        _librarySuggestions = new();
+        _linkedLibraryEntry = null;
+        _showAddNode = true;
+    }
+
+    private async Task OnNodeTextInput(ChangeEventArgs e)
+    {
+        _nodeText = e.Value?.ToString() ?? "";
+        _linkedLibraryEntry = null;
+        if (_nodeText.Length >= 2)
+        {
+            var results = await Api.SearchRootCauseEntriesAsync(_nodeText);
+            _librarySuggestions = results ?? new();
+        }
+        else
+        {
+            _librarySuggestions = new();
+        }
+    }
+
+    private void SelectLibraryEntry(RootCauseEntryResponseDto entry)
+    {
+        _nodeText = entry.Title;
+        _linkedLibraryEntry = entry;
+        _librarySuggestions = new();
+    }
+
+    private async Task SaveNode()
+    {
+        if (string.IsNullOrWhiteSpace(_nodeText)) { _nodeError = "Why statement is required."; return; }
+        _saving = true; _nodeError = "";
+        try
+        {
+            _analysis = await Api.AddFiveWhysNodeAsync(Id, new FiveWhysNodeCreateDto(
+                _addParentNodeId, _nodeText, _linkedLibraryEntry?.Id));
+            _showAddNode = false;
+        }
+        catch (Exception ex) { _nodeError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    // ── Edit node ──
+
+    private void OpenEditNode(FiveWhysNodeDto node)
+    {
+        _editingNode = node;
+        _editNodeText = node.WhyStatement;
+        _editIsRootCause = node.IsRootCause;
+        _editCorrectiveAction = node.CorrectiveAction ?? "";
+        _editNodeError = "";
+        _showEditNode = true;
+    }
+
+    private void OnIsRootCauseToggled() { /* reactive — corrective action textarea shows automatically */ }
+
+    private async Task SaveEditNode()
+    {
+        if (string.IsNullOrWhiteSpace(_editNodeText)) { _editNodeError = "Why statement is required."; return; }
+        _saving = true; _editNodeError = "";
+        try
+        {
+            _analysis = await Api.UpdateFiveWhysNodeAsync(Id, _editingNode!.Id, new FiveWhysNodeUpdateDto(
+                _editNodeText, _editIsRootCause, _editingNode.RootCauseLibraryEntryId, _editCorrectiveAction));
+            _showEditNode = false;
+        }
+        catch (Exception ex) { _editNodeError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    // ── Delete node ──
+
+    private async Task DeleteNode(Guid nodeId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this node and all its child nodes?")) return;
+        try { _analysis = await Api.DeleteFiveWhysNodeAsync(Id, nodeId); }
+        catch (Exception ex) { await JS.InvokeVoidAsync("alert", $"Delete failed: {ex.Message}"); }
+    }
+
+    // ── Close/Reopen ──
+
+    private void OpenCloseModal() { _closeNotes = ""; _showCloseModal = true; }
+
+    private async Task CloseAnalysis()
+    {
+        _saving = true;
+        try
+        {
+            _analysis = await Api.CloseFiveWhysAnalysisAsync(Id, new FiveWhysAnalysisCloseDto(_closeNotes));
+            _showCloseModal = false;
+        }
+        catch (Exception ex) { await JS.InvokeVoidAsync("alert", $"Failed: {ex.Message}"); }
+        finally { _saving = false; }
+    }
+
+    private async Task Reopen()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Reopen this analysis for editing?")) return;
+        try { _analysis = await Api.ReopenFiveWhysAnalysisAsync(Id); }
+        catch (Exception ex) { await JS.InvokeVoidAsync("alert", $"Failed: {ex.Message}"); }
+    }
+
+    private static IEnumerable<FiveWhysNodeDto> Flatten(IEnumerable<FiveWhysNodeDto> nodes)
+    {
+        foreach (var n in nodes)
+        {
+            yield return n;
+            foreach (var c in Flatten(n.ChildNodes)) yield return c;
+        }
+    }
+
+    private static int CountNodes(List<FiveWhysNodeDto> roots) => Flatten(roots).Count();
+    private static int CountRootCauses(List<FiveWhysNodeDto> roots) => Flatten(roots).Count(n => n.IsRootCause);
+    private static bool HasIncompleteLeaves(List<FiveWhysNodeDto> roots) =>
+        Flatten(roots).Any(n => !n.ChildNodes.Any() && !n.IsRootCause);
+
+    private static string CategoryBadgeClass(string cat) => cat switch
+    {
+        "Machine"     => "bg-primary",
+        "Method"      => "bg-success",
+        "Material"    => "bg-warning text-dark",
+        "People"      => "bg-info text-dark",
+        "Measurement" => "bg-secondary",
+        "Environment" => "bg-dark",
+        "Management"  => "bg-danger",
+        _             => "bg-light text-dark border"
+    };
+}

@@ -36,6 +36,12 @@
 | 2.0     | 2026-03-15 | Scope narrowed to manufacturing only; Phase 7c Control Plan builder added to quality engineering tools |
 | 2.1     | 2026-03-15 | Phase 7c implemented: ControlPlan + ControlPlanEntry entities, CharacteristicType enum, ControlPlansController (CRUD + entries + CSV export + staleness), EF migration Phase7c_ControlPlan, ControlPlanList/Detail Blazor pages, ApiClient methods, staleness integration with ProcessesController.Approve, MCP tools get_control_plan/list_critical_characteristics, integration tests |
 | 2.2     | 2026-03-15 | Phase 14 design: Document Control & QMS — ProcessRole enum, DocumentApprovalRequest entity, ParallelGroup on StepExecution, revision metadata on Process (RevisionCode, ChangeDescription, EffectiveDate, ParentProcessId, ApprovalProcessId), approval-as-process architecture, seeded Standard Document Approval routing |
+| 2.3     | 2026-03-15 | Phase 10 expanded to include Material Review Board (Phase 10d): MrbReview entity, MrbParticipant entity, escalation from NonConformance Quarantine, SCAR flag, RCA linkage requirement; Phase 15 added: Tiered Accountability & Action Tracking — unified ActionItem entity, tiered views (Operator/Engineer/Manager/Executive), Management Review support (ISO 9001 clause 9.3); Phase 15+ Integrations renumbered to Phase 16+ |
+| 2.4     | 2026-03-15 | UserPicker prompt type added to Phase 2 design (DataType enum extension — FK-backed user selection for instructor/witness/signatory capture); Phase 16 added: Training & Competency Management — ProcessRole Training value, CompetencyRecord entity, ProcessTrainingRequirement entity, expiry and re-training scheduling, competency matrix view, integration with Phase 15 tiered views; Phase 16+ Integrations renumbered to Phase 17+ |
+| 2.5     | 2026-03-15 | Phase 2 enhancement implemented: `LongText` and `UserPicker` added to `PromptType` enum; `GET api/auth/users/picker` endpoint (all authenticated roles); `UserPickerDto`; `GetUserPickerListAsync` in ApiClient; StepTemplateDetail prompt type selector updated; ExecutionWizard renders LongText (textarea) and UserPicker (user dropdown, stores display name); StepExecutionDetail updated for both new types |
+| 2.6     | 2026-03-15 | Phase 14 implemented: `ProcessRole` enum (5 values), `DocumentApprovalStatus` enum, `DocumentApprovalRequest` entity, `Phase14_DocumentControl` EF migration; `Phase14Dtos` (DocumentApprovalRequestDto, DocumentSubmitForApprovalDto, AdminReleaseDocumentDto); `ProcessResponseDto`/`ProcessSummaryResponseDto`/`JobResponseDto`/`StepExecutionResponseDto` extended with Phase 14 fields; `DocumentApprovalsController` (submit/withdraw/CRUD); `ProcessesController` processRole filter + admin-release endpoint; `StepExecutionsController` approval-completion hook (approve → Released, reject → Draft); `JobsController` MapToDto updated; ApiClient document-approval methods; `DocumentList.razor` (submit-for-approval + admin-release modals); NavMenu Document Library link; MCP `list_qms_documents` tool; MCP server version 1.5 |
+| 2.7     | 2026-03-15 | Phase 10a implemented: `RootCauseCategory` enum (7M: Machine/Method/Material/People/Measurement/Environment/Management), `RootCauseEntry` entity (Title, Description, Category, Tags, CorrectiveActionTemplate, UsageCount), `Phase10a_RootCauseLibrary` EF migration; `Phase10aDtos` (RootCauseEntryResponseDto/CreateDto/UpdateDto); `RootCauseEntriesController` (CRUD + `/search` typeahead endpoint); ApiClient root-cause methods; `RootCauseLibraryList.razor` with category filter/search/create/edit/delete modals; NavMenu Root Cause Library link; MCP `list_recurring_root_causes` tool (top N by UsageCount, category filter); MCP server version 1.6 |
+| 2.8     | 2026-03-15 | Phase 10b+10c implemented: `RcaStatus` enum (Open/Closed), `RcaLinkedEntityType` enum (Manual/NonConformance/PfmeaFailureMode), `IshikawaDiagram`/`IshikawaCause`/`FiveWhysAnalysis`/`FiveWhysNode` entities, `Phase10bc_RcaAnalysis` EF migration; `Phase10bcDtos` (full Ishikawa + FiveWhys DTO set, recursive `IshikawaCauseSummaryDto.SubCauses` and `FiveWhysNodeDto.ChildNodes`); `IshikawaController` (CRUD, causes CRUD, Open/Close/Reopen, one-level-nesting enforcement, UsageCount increment on IsSelectedRootCause); `FiveWhysController` (CRUD, nodes CRUD with recursive delete, Open/Close/Reopen, `HasIncompleteLeaves` computed on summary); ApiClient Ishikawa + FiveWhys method sections; `IshikawaList.razor` + `IshikawaDetail.razor` (fishbone card grid, per-category cause management, library typeahead, IsSelectedRootCause toggle); `FiveWhysList.razor` + `FiveWhysDetail.razor` (paginated list, recursive tree renderer, RenderFragment recursion pattern, incomplete-leaf warning); NavMenu Ishikawa Diagrams + 5 Whys links; MCP `get_rca_summary` tool (filter by linkedEntityId/status, returns both Ishikawa and FiveWhys tables); MCP server version 1.7 |
 
 ---
 
@@ -110,7 +116,8 @@ Key `PromptDefinition` fields:
 - `key` — machine-readable name, unique per StepTemplate, copied to ExecutionData on capture
 - `collection_scope` — `PerStep` / `PerItem` / `PerBatch` (controls form repetition)
 - `is_required` — if true, step cannot be completed without an answer
-- `data_type` — extended enum: String, Integer, Decimal, Boolean, DateTime, Select, MultiSelect, Barcode, Photo, Signature
+- `data_type` — extended enum: `String`, `Integer`, `Decimal`, `Boolean`, `DateTime`, `Select`, `MultiSelect`, `Barcode`, `Photo`, `Signature`, `UserPicker`
+  - `UserPicker` renders as a user search/select backed by the Identity user table; stores the selected user's Id string in `ExecutionData.Value`; displays the user's Display Name in the wizard and in reports. Use cases: recording who delivered training (instructor capture), two-person integrity witness, handoff signatory, customer/supplier buyoff witness. The executing operator's own identity is captured automatically from the session — `UserPicker` is for *other named parties* involved in the step.
 - `lower_limit` / `upper_limit` / `validation_pattern` — field-level validation rules
 
 `ExecutionData` updated to add `prompt_definition_id` (nullable FK), widen `value` from `string(1000)` → `text`, and share the extended `DataType` enum.
@@ -735,7 +742,7 @@ This requires:
 
 ---
 
-### Phase 10 — Root Cause Analysis
+### Phase 10 — Root Cause Analysis & Material Review
 
 **Goal:** Give engineers structured tools to analyse the causes of non-conformances, failures, and process problems, and build an institutional library of causes and corrective actions so that learning accumulates over time rather than being lost when personnel change.
 
@@ -808,6 +815,78 @@ An iterative depth-first cause analysis. Better than Ishikawa when the causal ch
 All analyses contribute to the Root Cause Library. The library's `UsageCount` and cross-referencing to analyses makes recurring causes visible — a cause that appears in 15 analyses is a systemic problem, not an isolated incident.
 
 **MCP tools:** `list_recurring_root_causes` (top causes by usage count across all analyses), `get_rca_summary` (open analyses linked to a given non-conformance or PFMEA).
+
+---
+
+#### 10d — Material Review Board
+
+A Material Review Board (MRB) is the formal, cross-functional process for reviewing nonconforming material whose disposition cannot be determined unilaterally at the floor level — where the consequence, complexity, or origin of the non-conformance requires a structured group decision and a written record.
+
+**Relationship to Phase 8c (NonConformance):** These are not two different things. A `NonConformance` is the *detection record* — generated at the moment an out-of-spec measurement or failure is encountered during execution. The MRB is the *formal disposition process* for that NC when it cannot be closed quickly. The `Quarantine` disposition introduced in Phase 8c is the bridge: an NC dispositioned as Quarantine is waiting for MRB review. The MRB review updates the NC's final disposition when decided.
+
+**Escalation criteria — any of the following triggers MRB:**
+- NC disposition is `Quarantine` (the only structured exit from Quarantine is an MRB decision)
+- `UseAsIs` deviation on a safety-critical or customer-facing characteristic
+- Repeat NC on the same step or process within a rolling window
+- Supplier-caused NC (incoming material affected)
+- Customer notification may be required
+
+**Key entity: `MrbReview`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `NonConformanceId` | Guid | FK → NonConformance |
+| `Status` | enum | `Draft` / `UnderReview` / `Decided` / `Closed` |
+| `ItemDescription` | string | Full description of the nonconforming item |
+| `QuantityAffected` | string? | Quantity or lot size affected |
+| `ProblemStatement` | string | Technical description of the nonconformance |
+| `DispositionDecision` | enum | `UseAsIs` / `Rework` / `Scrap` / `ReturnToSupplier` / `ReworkAndReturn` |
+| `DispositionJustification` | string? | Technical justification recorded at time of decision |
+| `CustomerNotificationRequired` | bool | |
+| `ScarRequired` | bool | Supplier Corrective Action Request needed |
+| `SupplierCaused` | bool | NC originates from incoming material |
+| `RequiresRca` | bool | An RCA analysis must be linked before status can advance to Closed |
+| `LinkedRcaAnalysisType` | enum? | `Ishikawa` / `FiveWhys` |
+| `LinkedRcaId` | Guid? | FK to `IshikawaDiagram` or `FiveWhysAnalysis` |
+| `CreatedBy` | string | |
+| `CreatedAt` | DateTime | |
+| `DecidedBy` | string? | |
+| `DecidedAt` | DateTime? | |
+
+**Key entity: `MrbParticipant`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `MrbReviewId` | Guid | FK |
+| `UserId` | string | FK → Identity user |
+| `Role` | enum | `QualityEngineer` / `ManufacturingEngineer` / `DesignEngineer` / `CustomerRepresentative` / `SupplierRepresentative` / `ManagementApproval` |
+| `IsRequired` | bool | Must be present for quorum |
+| `Assessment` | string? | Notes from this participant's technical review |
+| `AssessedAt` | DateTime? | |
+
+**Fields added to `NonConformance`:**
+- `MrbRequired` bool — set automatically when escalation criteria are met, or manually by a Quality Engineer
+- `MrbReviewId` Guid? — FK to the linked `MrbReview` once opened
+
+**Integration with Phase 10 RCA:**
+- `MrbReview.Status` cannot advance to `Closed` while `RequiresRca = true` and `LinkedRcaId` is null
+- The MRB detail page shows the linked RCA summary: status, root causes identified, corrective actions assigned
+- Corrective actions from the RCA flow into Phase 15's unified `ActionItem` system with `SourceEntityType = MrbReview`
+
+**Integration with Phase 15 (Action Tracking):**
+- On MRB decision, required corrective actions are entered directly on the MRB detail page and become `ActionItem` records
+- SCAR generation creates an `ActionItem` assigned to the procurement or supplier quality team with a due date
+- The MRB cannot close until all linked action items are in `Complete` or `Verified` status
+
+**Surfaces:**
+- `NonConformanceDetail` — "Escalate to MRB" button shown when `MrbRequired = true` or disposition is `Quarantine`
+- `MrbList` — all open and recent reviews, filterable by status / disposition decision / supplier-caused flag
+- `MrbDetail` — full review record: NC summary card, participant list, disposition decision form, RCA link, corrective actions
+- MCP tool `get_mrb_summary` — count and details of open MRBs, any with SCAR required
+
+**Status:** Designed — Phase 8c (NonConformance) is already built; Phase 10a–c (RCA tools) and Phase 15 (ActionItem) are prerequisites for the full linked workflow.
 
 ---
 
@@ -1291,6 +1370,12 @@ Content is delivered as a versioned EF Core data seeder (or SQL seed script) tha
 - Management Review — annual or quarterly: collect inputs, conduct review meeting, record outputs, assign actions, verify actions closed
 - Document Control — draft → review → approve → release → distribute → archive
 
+**Training** *(depends on Phase 16 — seeded after CompetencyRecord is built)*
+- Safety Induction — facility rules, emergency exits, PPE requirements, acknowledgment prompts
+- Quality System Orientation — quality policy, how to raise NCs, how to use the execution wizard
+- Equipment Operation (template) — copy-and-customise per machine: setup, safety checks, operational rules, competency assessment prompts
+- Process-Specific Training (template) — copy-and-customise per process: content blocks from the process itself, assessment questions, UserPicker for instructor name
+
 #### `is_system_content` Flag
 
 Added to `StepTemplate`, `Process`, and `Workflow`:
@@ -1428,7 +1513,203 @@ Admin users retain a direct **Release** action on any Process in `Draft` or `Pen
 
 ---
 
-### Phase 15+ — Integrations (future)
+### Phase 15 — Tiered Accountability & Action Tracking
+
+**Goal:** Give every level of the organisation a view of quality and operational data scoped to their responsibility, and provide a unified action item system that captures required work generated by every quality event — non-conformances, MRB decisions, RCA corrective actions, PFMEA actions, audit findings, and management review outputs — with clear ownership, due dates, and completion tracking.
+
+**Design premise:** Quality systems fail not from lack of data but from lack of accountability closure. An NC is found, an investigation is opened, root causes are identified — and then the corrective actions are written in a report that nobody checks. This phase makes action item completion a first-class tracked metric, visible to the level of the organisation that has the authority to drive it to completion. The tiered view design reflects a real organisational truth: operators need to know what they must do today; managers need to know what is overdue across their team; executives need to know whether the quality system is closing at an adequate rate.
+
+---
+
+#### 15a — Unified Action Item System
+
+A single `ActionItem` entity replaces the ad-hoc corrective action tracking scattered across existing phases (PFMEA action fields, NC justification text, RCA node corrective actions). All of those become *source events* that generate `ActionItem` records, which are then tracked to completion centrally.
+
+**Key entity: `ActionItem`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `Title` | string | Concise statement of what must be done |
+| `Description` | string? | Full detail and context |
+| `AssignedToUserId` | string | FK → Identity user |
+| `AssignedByUserId` | string | FK → Identity user |
+| `DueDate` | DateTime | Required; drives overdue logic |
+| `Priority` | enum | `Critical` / `High` / `Medium` / `Low` |
+| `Status` | enum | `Open` / `InProgress` / `Complete` / `Verified` / `Cancelled` |
+| `SourceEntityType` | enum | `NonConformance` / `MrbReview` / `RcaAnalysis` / `PfmeaAction` / `AuditFinding` / `ManagementReview` / `Manual` |
+| `SourceEntityId` | Guid? | FK into the source entity |
+| `CompletedBy` | string? | |
+| `CompletedAt` | DateTime? | |
+| `CompletionNotes` | string? | How the action was resolved |
+| `VerifiedBy` | string? | A different person confirms adequate closure |
+| `VerifiedAt` | DateTime? | |
+
+**Overdue logic:** An action with `Status = Open` or `InProgress` where `DueDate < today` is treated as overdue. Overdue items are prominently flagged in dashboards at each tier and in the assignee's `MyActions` view. Items are never automatically cancelled — overdue status persists until the assignee records completion.
+
+**Two-step closure:** Completion requires the assignee to record completion (`CompletedAt`, `CompletionNotes`), then a separate verifier confirms adequate closure (`VerifiedAt`). The verifier cannot be the same user as the assignee. This prevents self-certification of corrective action closure — a common ISO 9001 audit finding.
+
+---
+
+#### 15b — Tiered Accountability Views
+
+Four tiers, each scoped to their organisational responsibility:
+
+| Tier | Users | Primary focus | Escalation signal |
+|---|---|---|---|
+| **Tier 1 — Operator** | Participant | My Work queue, my open action items | My overdue items |
+| **Tier 2 — Quality Engineer** | Engineer | Team NCs, open RCAs, open MRBs, PFMEA review status | Actions overdue within their scope |
+| **Tier 3 — Quality Manager** | Engineer / Admin | NC frequency by process and part, corrective action closure rates, recurring root causes | Actions overdue across all engineers; MRBs open > 30 days |
+| **Tier 4 — Executive** | Admin | Quality scorecard: scrap/rework trends, NC frequency vs. targets, action close rate %, quality system health | Any Tier 3 unresolved escalations; system-wide overdue rate |
+
+No new roles are introduced in v1 — tiers are delivered as purpose-built pages and widgets on top of the existing `Admin`, `Engineer`, `Participant` role hierarchy. Navigation items and page sections show or hide based on the current user's role.
+
+**Key surfaces:**
+- `MyActions` page — action items assigned to the current user; grouped by Overdue / Due Soon / Open / Complete awaiting verification; accessible from `MyWork`
+- `TeamActions` page (Engineer role) — action items across the engineer's scope with overdue emphasis; filterable by assignee and source type
+- `QualityScorecard` page (Admin role) — aggregate quality metrics: NC count by process/part/period, action item close rate %, average days to close, top overdue items by age
+- Tier-1 summary widget on `MyWork` — badge count of the current user's open and overdue action items
+
+---
+
+#### 15c — Management Review Support
+
+Formal periodic review at the executive level, providing structured inputs and decision recording to satisfy ISO 9001 clause 9.3.
+
+**Key entity: `ManagementReview`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `Title` | string | e.g. "Q1 2026 Management Review" |
+| `ReviewType` | enum | `Quarterly` / `Annual` / `Special` |
+| `ScheduledDate` | DateTime | |
+| `Status` | enum | `Scheduled` / `InProgress` / `Complete` |
+| `ConductedBy` | string? | |
+
+**Inputs collected at review time:**
+- NC count by period — auto-populated from data
+- Action item close rate % — auto-populated
+- Open MRB count and average age — auto-populated
+- Customer complaints — manual entry
+- Supplier quality performance — manual entry
+- Internal audit status — manual entry linking to audit finding records
+- Prior review action item close-out status — linked `ActionItem` records for the previous review's outputs
+
+**Outputs:**
+- `ManagementReview.Decisions` — free-text decisions and strategic direction
+- Action items created directly from the review — become `ActionItem` records with `SourceEntityType = ManagementReview`
+- New performance targets for the next review cycle
+
+**Surfaces:**
+- `ManagementReviewList` / `ManagementReviewDetail` — create and conduct reviews; auto-populated input panels with manual-supplement fields; historical record of all reviews with trend comparisons between periods
+- MCP tool `get_management_review_status` — current open action items from the most recent management review, with completion status
+
+**Status:** Designed — depends on Phase 8c (NonConformance), Phase 10d (MRB), and Phase 10a–c (RCA) to have meaningful data to populate the auto-populated inputs.
+
+---
+
+### Phase 16 — Training & Competency Management
+
+**Goal:** Make the system the single source of truth for operator and staff competency. Training is delivered as Process execution — the same content, wizard, and data-capture machinery used for manufacturing — and completion automatically generates a durable competency record. The competency record in turn enforces training prerequisites at job assignment time and drives re-training scheduling.
+
+**Design premise:** Training processes are not a special type — they are Processes with a `ProcessRole` of `Training`. Content blocks deliver the material, prompts provide the assessment, a `UserPicker` prompt captures the instructor's identity, and the ExecutionWizard is the delivery interface. The only genuinely new capability is the competency record and the enforcement logic that consults it.
+
+---
+
+#### `ProcessRole` extension
+
+The `ProcessRole` enum introduced in Phase 14 gains a new value:
+- `Training` — process is a training course; creates a `CompetencyRecord` on successful completion; does not appear in the manufacturing job queue
+
+---
+
+#### New entity: `CompetencyRecord`
+
+The durable claim that a named user has demonstrated competency in a training topic.
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `UserId` | string | FK → Identity user — the trainee |
+| `TrainingProcessId` | Guid | FK → Process (ProcessRole = Training) |
+| `TrainingProcessVersion` | int | The exact version completed — pinned at completion |
+| `JobId` | Guid | FK → Job — the execution that produced this record |
+| `InstructorUserId` | string? | FK → Identity user — captured via UserPicker prompt on the training step; nullable for self-directed training |
+| `CompletedAt` | DateTime | UTC timestamp of job sign-off |
+| `ExpiresAt` | DateTime? | Null = does not expire; set from `TrainingProcess.CompetencyExpiryDays` at completion time |
+| `Status` | enum | `Current` / `Expired` / `Superseded` |
+| `Notes` | string? | Any completion notes recorded during sign-off |
+
+`Status` is maintained by a background check (or on-read computation):
+- `Current` — `ExpiresAt` is null or in the future
+- `Expired` — `ExpiresAt` is in the past and no newer record exists
+- `Superseded` — a newer `CompetencyRecord` for the same user + training process exists
+
+**Fields added to `Process`** (Training-role only):
+- `CompetencyExpiryDays` int? — if set, `CompetencyRecord.ExpiresAt = CompletedAt + CompetencyExpiryDays`
+- `CompetencyTitle` string? — a human-readable competency label distinct from the process title (e.g. "Fork Lift Operator", "CMM Operation")
+
+---
+
+#### New entity: `ProcessTrainingRequirement`
+
+Declares that a `Process` or `StepTemplate` requires the assigned operator to hold a current `CompetencyRecord` in one or more training processes before a job can be started.
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `SubjectEntityType` | enum | `Process` / `StepTemplate` — the entity being gated |
+| `SubjectEntityId` | Guid | FK into the respective table |
+| `RequiredTrainingProcessId` | Guid | FK → Process (ProcessRole = Training) |
+| `IsEnforced` | bool | If true, job creation is blocked when the operator lacks a current record; if false, a warning is shown but execution proceeds |
+
+**Enforcement hook:** On job creation (or step execution assignment), the system checks all `ProcessTrainingRequirement` records for the linked Process and each StepTemplate. For each enforced requirement, it verifies the assigned operator has at least one `CompetencyRecord` with `Status = Current` for that training process. Failure blocks job creation with a clear message listing the missing competencies.
+
+---
+
+#### Competency matrix view
+
+A read-only cross-tab showing, for a selected set of users (or OrgUnit), which training processes each user holds a current record for — and when any current records will expire.
+
+| | Safety Induction | CMM Operation | Fork Lift | CNC Setup |
+|---|---|---|---|---|
+| Alice | ✅ Current | ✅ Current | — | ⚠️ Expires in 14 days |
+| Bob | ✅ Current | — | ✅ Current | ✅ Current |
+| Carlos | ⚠️ Expired | ✅ Current | — | — |
+
+This view is the primary tool for a Training Coordinator or Quality Manager to spot gaps before they become audit findings or job-creation blockers.
+
+---
+
+#### Integration with Phase 15 (Tiered Accountability)
+
+- Expired competencies generate `ActionItem` records (`SourceEntityType = CompetencyExpiry`) assigned to the user's line manager or the training coordinator
+- `QualityScorecard` (Tier 3) includes a training compliance panel: % operators current on required competencies, number expiring within 30 days, number currently expired
+- `ManagementReview` auto-populated inputs include training compliance summary
+
+---
+
+#### Integration with Phase 13 (Content Library)
+
+Seeded training process templates (Safety Induction, Quality System Orientation, equipment and process-specific templates) are delivered via the Phase 13 seeder, but they are only *functional* once `CompetencyRecord` is built. The seeder marks them `is_system_content = true` and `ProcessRole = Training`.
+
+---
+
+#### Surfaces
+
+- `TrainingList` — all Training-role processes; launch training job, view completion history
+- `CompetencyRecord` list on user profile — all current and historical competency records for the logged-in user
+- `CompetencyMatrix` page (Engineer/Admin) — cross-tab by user and training process; filterable by OrgUnit
+- `StepTemplateDetail` / `ProcessDetail` — "Training Requirements" section: list of required competencies with enforce/warn toggle
+- ExecutionWizard unchanged — training delivery uses the existing 5-phase wizard with no modifications
+- MCP tool `get_competency_status` — for a given user, lists current competencies and any expiring within N days
+
+**Status:** Designed — `ProcessRole` enum (Phase 14 prerequisite) already planned; Phase 12f Participant Portal (OrgUnit membership) clarifies operator identity for enforcement; Phase 13 content library delivers the seeded training templates.
+
+---
+
+### Phase 17+ — Integrations (future)
 
 **Goal:** Connect the process system to peripheral business functions.
 
@@ -1505,12 +1786,15 @@ Additional capability added post-Phase 6:
 - **Phase 8 — Process Maturity & Guided Execution** ✅ built: ContentCategory enum, NominalValue/IsHardLimit/AcknowledgmentRequired fields, MaturityScoringService (8 rules), maturity badges across list/detail views, NonConformance entity + disposition workflow, 5-phase ExecutionWizard at `/execute/{id}`
 - **Phase 9 — Process Change Control & Approval** ✅ built: ProcessStatus lifecycle (Draft→PendingApproval→Released→Superseded→Retired), ApprovalRecord entity, PFMEA staleness tracking, job-level process version pinning, Submit/Approve/Reject/NewRevision/Retire endpoints, ApprovalQueue page, status badges across all list/detail views, NavMenu pending badge
 - **Phase 7c — Control Plan Builder** designed, not yet built: per-process Control Plan with one or more characteristic entries per ProcessStep; optional PFMEA failure mode and Port linkage; staleness tracking alongside PFMEA on process version release; CSV export; MCP tools `get_control_plan`, `list_critical_characteristics`
-- **Phase 10 — Root Cause Analysis** designed, not yet built: Root Cause Library, Ishikawa fishbone diagrams, branching 5 Whys, linkage to non-conformances and PFMEA failure modes
+- **Phase 10 — Root Cause Analysis & Material Review** designed, not yet built: Phase 10a–c (Root Cause Library, Ishikawa, branching 5 Whys) + Phase 10d (Material Review Board — `MrbReview` and `MrbParticipant` entities, escalation from NC Quarantine, SCAR flag, RCA linkage requirement, integration with unified action items)
 - **Phase 11 — Production Management** designed, not yet built: expected durations + job due dates, equipment catalog, downtime tracking, PM scheduling, production visibility dashboard (WIP board, late jobs, bottleneck flags, equipment status)
 - **Phase 12 — Workflow Execution & Department Assignment** designed, not yet built: OrgUnit entity (department/work area/role/person), assignee on WorkflowProcess nodes, WorkflowJob execution record, sequencing service that advances the workflow graph on job completion, WorkflowSchedule entity for periodic recurrence with background scheduler service
 - **Phase 12f — Participant Portal** designed, not yet built: `Participant` role with execution-only access (My Work + ExecutionWizard); all design/admin/quality routes hidden and route-guarded; stripped `ParticipantLayout`; optional `/portal` URL entry point; OrgUnit membership on users driving queue assignment
 - **Phase 13 — Pre-populated Process Content Library** planned, not yet built: versioned EF Core seeder delivering ready-to-run StepTemplates, Processes, and Workflows for quality, HR, operations, and management functions; `is_system_content` flag; "Copy to My Library" UX; depends on Phase 12 being complete
 - **Phase 14 — Document Control & QMS** designed, not yet built: `ProcessRole` enum on `Process`, `DocumentApprovalRequest` entity, `ParallelGroup` + `AssignedToUserId` on `StepExecution`, revision metadata fields on `Process` (`RevisionCode`, `ChangeDescription`, `EffectiveDate`, `ParentProcessId`, `ApprovalProcessId`), completion hook in `StepExecutionsController` driving Reject/Approve transitions, submission flow UI, admin bootstrap bypass, seeded "Standard Document Approval" routing process with three parallel approval steps; Phase 9 ProcessStatus lifecycle is a prerequisite (already built)
+- **Phase 15 — Tiered Accountability & Action Tracking** designed, not yet built: unified `ActionItem` entity (cross-system corrective action tracking with two-step close/verify); `MyActions` page (operator tier); `TeamActions` page (engineer tier); `QualityScorecard` page (manager/executive tier); `ManagementReview` entity for ISO 9001 clause 9.3 periodic reviews; overdue escalation logic; depends on Phase 8c, Phase 10d, and Phase 10a–c for meaningful aggregated data
+- **Phase 16 — Training & Competency Management** designed, not yet built: `ProcessRole = Training` value, `CompetencyRecord` entity, `ProcessTrainingRequirement` entity, `CompetencyExpiryDays` and `CompetencyTitle` on Process, job-creation enforcement hook, competency matrix view, `UserPicker` prompt type for instructor capture, training compliance integration into Phase 15 tiered views; seeded training content delivered via Phase 13 seeder
+- **Phase 2 enhancement — `UserPicker` prompt type** designed, not yet built: new `DataType` enum value; renders as Identity-backed user search/select in ExecutionWizard; stores user Id in `ExecutionData.Value`; used for instructor capture (Phase 16), two-person integrity witness, handoff signatory
 - Multi-tenancy deferred until second SaaS tenant is onboarded (database-per-tenant approach selected — see Architecture Decision above)
 - Email/webhook notifications for out-of-range alerts not yet implemented
 - MCP server uses short-lived JWT tokens; a long-lived API-key auth path would improve service-account ergonomics for AI integrations

@@ -25,12 +25,29 @@ public class Process : BaseEntity
     /// <summary>Formal lifecycle state — controls availability for new Jobs and edit permissions.</summary>
     public ProcessStatus Status { get; set; } = ProcessStatus.Draft;
 
+    /// <summary>Document classification — controls which UI surfaces this process appears in and how it is governed.</summary>
+    public ProcessRole ProcessRole { get; set; } = ProcessRole.ManufacturingProcess;
+
+    /// <summary>FK to the ApprovalProcess-role Process that defines approval routing for this document type.</summary>
+    public Guid? ApprovalProcessId { get; set; }
+
+    /// <summary>Human-readable revision label alongside the integer Version (e.g. "A", "B", "1.0", "Rev 2").</summary>
+    public string? RevisionCode { get; set; }
+
+    /// <summary>Summary of what changed in this revision. Required before submitting for approval.</summary>
+    public string? ChangeDescription { get; set; }
+
+    /// <summary>When the released revision becomes effective. Defaults to approval timestamp if not set.</summary>
+    public DateTime? EffectiveDate { get; set; }
+
     /// <summary>The Process this revision was branched from (null for originals).</summary>
     public Guid? ParentProcessId { get; set; }
 
     // Navigation properties
     public Process? ParentProcess { get; set; }
+    public Process? ApprovalProcess { get; set; }
     public ICollection<ProcessStep> ProcessSteps { get; set; } = new List<ProcessStep>();
     public ICollection<Flow> Flows { get; set; } = new List<Flow>();
     public ICollection<ApprovalRecord> ApprovalRecords { get; set; } = new List<ApprovalRecord>();
+    public ICollection<DocumentApprovalRequest> DocumentApprovalRequests { get; set; } = new List<DocumentApprovalRequest>();
 }

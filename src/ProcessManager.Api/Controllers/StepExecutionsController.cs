@@ -127,7 +127,102 @@ public class StepExecutionsController : ControllerBase
         se.CompletedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
+
+        // ── Phase 14: Approval completion hook ──────────────────────────────
+        // If this step is part of an approval job, evaluate the decision prompt.
+        var job = await _db.Jobs.FindAsync(se.JobId);
+        if (job?.DocumentApprovalRequestId.HasValue == true)
+            await ProcessApprovalStepCompletion(se, job.DocumentApprovalRequestId.Value);
+
         return JobsController.MapStepExecutionToDto(se);
+    }
+
+    /// <summary>
+    /// Inspects the Decision prompt response on this approval step and drives
+    /// DocumentApprovalRequest / Process lifecycle transitions.
+    /// </summary>
+    private async Task ProcessApprovalStepCompletion(StepExecution completedStep, Guid darId)
+    {
+        var dar = await _db.DocumentApprovalRequests.FindAsync(darId);
+        if (dar is null || dar.Status != DocumentApprovalStatus.Pending) return;
+
+        // Read the Decision prompt response for this step execution
+        var decisionResponse = await _db.PromptResponses
+            .Where(r => r.StepExecutionId == completedStep.Id)
+            .OrderByDescending(r => r.CreatedAt)
+            .FirstOrDefaultAsync(r => r.ResponseValue == "Reject" || r.ResponseValue == "Approve");
+
+        if (decisionResponse is null) return; // No decision prompt found — nothing to drive
+
+        var process = await _db.Processes.FindAsync(dar.ProcessId);
+        if (process is null) return;
+
+        if (decisionResponse.ResponseValue == "Reject")
+        {
+            // Cancel all remaining open step executions in the job
+            var openSteps = await _db.StepExecutions
+                .Where(s => s.JobId == completedStep.JobId
+                    && s.Id != completedStep.Id
+                    && (s.Status == StepExecutionStatus.Pending || s.Status == StepExecutionStatus.InProgress))
+                .ToListAsync();
+
+            foreach (var step in openSteps)
+            {
+                step.Status = StepExecutionStatus.Skipped;
+            }
+
+            // Close the job
+            var job = await _db.Jobs.FindAsync(completedStep.JobId);
+            if (job is not null)
+            {
+                job.Status = JobStatus.Completed;
+                job.CompletedAt = DateTime.UtcNow;
+            }
+
+            dar.Status = DocumentApprovalStatus.Rejected;
+            process.Status = ProcessStatus.Draft;
+        }
+        else if (decisionResponse.ResponseValue == "Approve")
+        {
+            // Check if all parallel steps in the job are now complete
+            var allSteps = await _db.StepExecutions
+                .Where(s => s.JobId == completedStep.JobId)
+                .ToListAsync();
+
+            var allApproved = allSteps.All(s =>
+                s.Status == StepExecutionStatus.Completed ||
+                s.Status == StepExecutionStatus.Skipped);
+
+            if (allApproved)
+            {
+                var approvedAt = DateTime.UtcNow;
+                dar.Status = DocumentApprovalStatus.Approved;
+                process.Status = ProcessStatus.Released;
+                process.EffectiveDate ??= approvedAt;
+
+                // Close the job
+                var job = await _db.Jobs.FindAsync(completedStep.JobId);
+                if (job is not null)
+                {
+                    job.Status = JobStatus.Completed;
+                    job.CompletedAt = approvedAt;
+                }
+
+                // Supersede the previous Released revision in the same lineage
+                if (process.ParentProcessId.HasValue)
+                {
+                    var previousReleased = await _db.Processes
+                        .Where(p => p.Id == process.ParentProcessId.Value
+                            && p.Status == ProcessStatus.Released)
+                        .FirstOrDefaultAsync();
+
+                    if (previousReleased is not null)
+                        previousReleased.Status = ProcessStatus.Superseded;
+                }
+            }
+        }
+
+        await _db.SaveChangesAsync();
     }
 
     [HttpPost("{id:guid}/skip")]

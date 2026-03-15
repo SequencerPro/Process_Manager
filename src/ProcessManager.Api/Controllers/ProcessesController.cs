@@ -24,6 +24,7 @@ public class ProcessesController : ControllerBase
         [FromQuery] string? search = null,
         [FromQuery] bool? active = null,
         [FromQuery] string? status = null,
+        [FromQuery] string? processRole = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
@@ -39,6 +40,10 @@ public class ProcessesController : ControllerBase
             Enum.TryParse<ProcessStatus>(status, ignoreCase: true, out var statusEnum))
             query = query.Where(p => p.Status == statusEnum);
 
+        if (!string.IsNullOrWhiteSpace(processRole) &&
+            Enum.TryParse<ProcessRole>(processRole, ignoreCase: true, out var roleEnum))
+            query = query.Where(p => p.ProcessRole == roleEnum);
+
         var totalCount = await query.CountAsync();
 
         var rawProcesses = await query
@@ -49,14 +54,18 @@ public class ProcessesController : ControllerBase
                 p.Id, p.Code, p.Name, p.Description,
                 p.Version, p.Status, p.IsActive,
                 StepCount = p.ProcessSteps.Count,
-                p.CreatedAt, p.UpdatedAt
+                p.CreatedAt, p.UpdatedAt,
+                p.ProcessRole, p.ApprovalProcessId,
+                p.RevisionCode, p.ChangeDescription, p.EffectiveDate
             })
             .ToListAsync();
 
         var processes = rawProcesses.Select(p => new ProcessSummaryResponseDto(
                 p.Id, p.Code, p.Name, p.Description,
                 p.Version, p.Status.ToString(), p.IsActive,
-                p.StepCount, p.CreatedAt, p.UpdatedAt)).ToList();
+                p.StepCount, p.CreatedAt, p.UpdatedAt,
+                p.ProcessRole.ToString(), p.ApprovalProcessId,
+                p.RevisionCode, p.ChangeDescription, p.EffectiveDate)).ToList();
 
         return new PaginatedResponse<ProcessSummaryResponseDto>(
             processes, totalCount, page, pageSize);
@@ -778,6 +787,67 @@ public class ProcessesController : ControllerBase
         return MapToDto(process);
     }
 
+    /// <summary>
+    /// Admin bypass — directly release a QMS document from Draft or PendingApproval.
+    /// Required for bootstrapping the QMS so the first ApprovalProcess templates can be
+    /// released before the self-referential approval machinery is operational.
+    /// Audited. Use sparingly after initial setup.
+    /// </summary>
+    [Authorize(Roles = "Admin")]
+    [HttpPost("{id:guid}/admin-release")]
+    public async Task<ActionResult<ProcessResponseDto>> AdminRelease(Guid id, [FromBody] AdminReleaseDocumentDto dto)
+    {
+        var process = await LoadProcess(id);
+        if (process is null) return NotFound();
+
+        if (process.Status != ProcessStatus.Draft && process.Status != ProcessStatus.PendingApproval)
+            return BadRequest($"Process must be in Draft or PendingApproval to admin-release. Current status: {process.Status}.");
+
+        if (!string.IsNullOrWhiteSpace(dto.ChangeDescription))
+            process.ChangeDescription = dto.ChangeDescription;
+        if (!string.IsNullOrWhiteSpace(dto.RevisionCode))
+            process.RevisionCode = dto.RevisionCode;
+
+        var releasedAt = DateTime.UtcNow;
+        process.EffectiveDate = dto.EffectiveDate ?? releasedAt;
+
+        // If there was a pending approval request, mark it superseded by admin action
+        var pendingDar = await _db.DocumentApprovalRequests
+            .Where(d => d.ProcessId == id && d.Status == DocumentApprovalStatus.Pending)
+            .FirstOrDefaultAsync();
+
+        if (pendingDar is not null)
+        {
+            pendingDar.Status = DocumentApprovalStatus.Withdrawn;
+            var approvalJob = await _db.Jobs.FindAsync(pendingDar.ApprovalJobId);
+            if (approvalJob is not null)
+            {
+                approvalJob.Status = JobStatus.Completed;
+                approvalJob.CompletedAt = releasedAt;
+            }
+            var openSteps = await _db.StepExecutions
+                .Where(s => s.JobId == pendingDar.ApprovalJobId
+                    && (s.Status == StepExecutionStatus.Pending || s.Status == StepExecutionStatus.InProgress))
+                .ToListAsync();
+            foreach (var step in openSteps)
+                step.Status = StepExecutionStatus.Skipped;
+        }
+
+        // Supersede previous Released revision in the same lineage
+        if (process.ParentProcessId.HasValue)
+        {
+            var previousReleased = await _db.Processes
+                .Where(p => p.Id == process.ParentProcessId.Value && p.Status == ProcessStatus.Released)
+                .FirstOrDefaultAsync();
+            if (previousReleased is not null)
+                previousReleased.Status = ProcessStatus.Superseded;
+        }
+
+        process.Status = ProcessStatus.Released;
+        await _db.SaveChangesAsync();
+        return MapToDto(process);
+    }
+
     // ──────────── Helpers ────────────
 
     private async Task<Process?> LoadProcess(Guid id)
@@ -798,7 +868,12 @@ public class ProcessesController : ControllerBase
         process.Version, process.Status.ToString(), process.IsActive,
         process.CreatedAt, process.UpdatedAt,
         process.ProcessSteps.OrderBy(ps => ps.Sequence).Select(MapProcessStepToDto).ToList(),
-        process.Flows.Select(MapFlowToDto).ToList()
+        process.Flows.Select(MapFlowToDto).ToList(),
+        process.ProcessRole.ToString(),
+        process.ApprovalProcessId,
+        process.RevisionCode,
+        process.ChangeDescription,
+        process.EffectiveDate
     );
 
     private static ProcessStepResponseDto MapProcessStepToDto(ProcessStep ps) => new(

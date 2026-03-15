@@ -67,6 +67,20 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ControlPlan> ControlPlans => Set<ControlPlan>();
     public DbSet<ControlPlanEntry> ControlPlanEntries => Set<ControlPlanEntry>();
 
+    // Phase 14: Document Control & QMS
+    public DbSet<DocumentApprovalRequest> DocumentApprovalRequests => Set<DocumentApprovalRequest>();
+
+    // Phase 10a: Root Cause Library
+    public DbSet<RootCauseEntry> RootCauseEntries => Set<RootCauseEntry>();
+
+    // Phase 10b: Ishikawa Diagrams
+    public DbSet<IshikawaDiagram> IshikawaDiagrams => Set<IshikawaDiagram>();
+    public DbSet<IshikawaCause> IshikawaCauses => Set<IshikawaCause>();
+
+    // Phase 10c: Branching 5 Whys
+    public DbSet<FiveWhysAnalysis> FiveWhysAnalyses => Set<FiveWhysAnalysis>();
+    public DbSet<FiveWhysNode> FiveWhysNodes => Set<FiveWhysNode>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -178,10 +192,19 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(p => p.Code).HasMaxLength(50).IsRequired();
             e.Property(p => p.Name).HasMaxLength(200).IsRequired();
             e.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(p => p.ProcessRole).HasConversion<string>().HasMaxLength(30);
+            e.Property(p => p.RevisionCode).HasMaxLength(20);
+            e.Property(p => p.ChangeDescription).HasMaxLength(2000);
 
             e.HasOne(p => p.ParentProcess)
                 .WithMany()
                 .HasForeignKey(p => p.ParentProcessId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(p => p.ApprovalProcess)
+                .WithMany()
+                .HasForeignKey(p => p.ApprovalProcessId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
         });
@@ -447,6 +470,9 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(j => j.ProcessId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // DocumentApprovalRequestId is stored for quick lookup but FK is enforced via the DAR entity.
+            e.Property(j => j.DocumentApprovalRequestId).IsRequired(false);
         });
 
         // --- Item ---
@@ -510,6 +536,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasKey(se => se.Id);
             e.HasIndex(se => new { se.JobId, se.ProcessStepId }).IsUnique();
             e.Property(se => se.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(se => se.AssignedToUserId).HasMaxLength(450);
 
             e.HasOne(se => se.Job)
                 .WithMany(j => j.StepExecutions)
@@ -756,6 +783,30 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(a => new { a.EntityType, a.EntityId });
         });
 
+        // ── Phase 14: Document Control & QMS ────────────────────────────────
+
+        // --- DocumentApprovalRequest ---
+        modelBuilder.Entity<DocumentApprovalRequest>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.Property(d => d.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(d => d.SubmittedBy).HasMaxLength(200).IsRequired();
+
+            e.HasOne(d => d.Process)
+                .WithMany(p => p.DocumentApprovalRequests)
+                .HasForeignKey(d => d.ProcessId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ApprovalJobId is a FK to Job — configured as unidirectional to avoid circular FK.
+            e.HasOne(d => d.ApprovalJob)
+                .WithMany()
+                .HasForeignKey(d => d.ApprovalJobId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasIndex(d => d.ProcessId);
+            e.HasIndex(d => d.ApprovalJobId);
+        });
+
         // ── Phase 7c: Control Plan ───────────────────────────────────────────
 
         // --- ControlPlan ---
@@ -810,6 +861,104 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.SetNull);
 
             e.HasIndex(ce => ce.ControlPlanId);
+        });
+
+        // ── Phase 10a: Root Cause Library ────────────────────────────────────
+
+        // --- RootCauseEntry ---
+        modelBuilder.Entity<RootCauseEntry>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Title).HasMaxLength(200).IsRequired();
+            e.Property(r => r.Description).HasMaxLength(2000);
+            e.Property(r => r.Category).HasConversion<string>().HasMaxLength(20);
+            e.Property(r => r.Tags).HasMaxLength(500);
+            e.Property(r => r.CorrectiveActionTemplate).HasMaxLength(2000);
+            e.HasIndex(r => r.Category);
+        });
+
+        // ── Phase 10b: Ishikawa Diagrams ─────────────────────────────────────
+
+        // --- IshikawaDiagram ---
+        modelBuilder.Entity<IshikawaDiagram>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.Property(d => d.Title).HasMaxLength(300).IsRequired();
+            e.Property(d => d.ProblemStatement).HasMaxLength(2000).IsRequired();
+            e.Property(d => d.LinkedEntityType).HasConversion<string>().HasMaxLength(20);
+            e.Property(d => d.Status).HasConversion<string>().HasMaxLength(10);
+            e.Property(d => d.ClosureNotes).HasMaxLength(2000);
+            e.Property(d => d.CreatedBy).HasMaxLength(200);
+            e.HasIndex(d => d.LinkedEntityId);
+        });
+
+        // --- IshikawaCause ---
+        modelBuilder.Entity<IshikawaCause>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.CauseText).HasMaxLength(500).IsRequired();
+            e.Property(c => c.Category).HasConversion<string>().HasMaxLength(20);
+
+            e.HasOne(c => c.Diagram)
+                .WithMany(d => d.Causes)
+                .HasForeignKey(c => c.DiagramId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(c => c.ParentCause)
+                .WithMany(c => c.SubCauses)
+                .HasForeignKey(c => c.ParentCauseId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(c => c.RootCauseLibraryEntry)
+                .WithMany()
+                .HasForeignKey(c => c.RootCauseLibraryEntryId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasIndex(c => c.DiagramId);
+        });
+
+        // ── Phase 10c: Branching 5 Whys ──────────────────────────────────────
+
+        // --- FiveWhysAnalysis ---
+        modelBuilder.Entity<FiveWhysAnalysis>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.Title).HasMaxLength(300).IsRequired();
+            e.Property(a => a.ProblemStatement).HasMaxLength(2000).IsRequired();
+            e.Property(a => a.LinkedEntityType).HasConversion<string>().HasMaxLength(20);
+            e.Property(a => a.Status).HasConversion<string>().HasMaxLength(10);
+            e.Property(a => a.ClosureNotes).HasMaxLength(2000);
+            e.Property(a => a.CreatedBy).HasMaxLength(200);
+            e.HasIndex(a => a.LinkedEntityId);
+        });
+
+        // --- FiveWhysNode ---
+        modelBuilder.Entity<FiveWhysNode>(e =>
+        {
+            e.HasKey(n => n.Id);
+            e.Property(n => n.WhyStatement).HasMaxLength(1000).IsRequired();
+            e.Property(n => n.CorrectiveAction).HasMaxLength(2000);
+
+            e.HasOne(n => n.Analysis)
+                .WithMany(a => a.Nodes)
+                .HasForeignKey(n => n.AnalysisId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(n => n.ParentNode)
+                .WithMany(n => n.ChildNodes)
+                .HasForeignKey(n => n.ParentNodeId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(n => n.RootCauseLibraryEntry)
+                .WithMany()
+                .HasForeignKey(n => n.RootCauseLibraryEntryId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasIndex(n => n.AnalysisId);
         });
     }
 

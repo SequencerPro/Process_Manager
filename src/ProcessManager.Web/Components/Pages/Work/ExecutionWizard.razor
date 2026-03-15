@@ -357,6 +357,26 @@ else
                                                placeholder="@block.Label" />
                                     </div>
                                 }
+                                else if (block.PromptType == "LongText")
+                                {
+                                    <textarea class="form-control" rows="4"
+                                              placeholder="@block.Label"
+                                              @oninput="e => SetPromptValue(block.Id, e.Value?.ToString() ?? string.Empty)">@GetPromptValue(block.Id)</textarea>
+                                }
+                                else if (block.PromptType == "UserPicker")
+                                {
+                                    <select class="form-select form-select-lg"
+                                            @onchange="e => SetPromptValue(block.Id, e.Value?.ToString() ?? string.Empty)">
+                                        <option value="">Select a person…</option>
+                                        @foreach (var user in _userPickerList)
+                                        {
+                                            <option value="@user.DisplayName"
+                                                    selected="@(GetPromptValue(block.Id) == user.DisplayName)">
+                                                @user.DisplayName
+                                            </option>
+                                        }
+                                    </select>
+                                }
                             </div>
                         </div>
                     }
@@ -534,6 +554,9 @@ else
     private bool _ncSaving;
     private string? _ncError;
 
+    // UserPicker prompt support
+    private List<UserPickerDto> _userPickerList = new();
+
     protected override async Task OnInitializedAsync()
     {
         _loading = true;
@@ -552,6 +575,7 @@ else
             await LoadContent();
             await LoadPromptResponses();
             await LoadNonConformances();
+            _userPickerList = await Api.GetUserPickerListAsync() ?? new();
         }
         catch (Exception ex) { _error = ex.Message; }
         finally { _loading = false; }

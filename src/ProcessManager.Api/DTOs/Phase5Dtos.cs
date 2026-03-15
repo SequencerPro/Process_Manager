@@ -32,7 +32,8 @@ public record JobResponseDto(
     DateTime? CompletedAt,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    List<StepExecutionResponseDto>? StepExecutions = null);
+    List<StepExecutionResponseDto>? StepExecutions = null,
+    Guid? DocumentApprovalRequestId = null);
 
 // ───── Item ─────
 
@@ -106,7 +107,9 @@ public record StepExecutionResponseDto(
     List<PortTransactionResponseDto>? PortTransactions = null,
     string? JobCode = null,
     string? JobName = null,
-    Guid? ProcessId = null);
+    Guid? ProcessId = null,
+    int ParallelGroup = 0,
+    string? AssignedToUserId = null);
 
 public record UpdateStepExecutionNotesDto(
     string? Notes);

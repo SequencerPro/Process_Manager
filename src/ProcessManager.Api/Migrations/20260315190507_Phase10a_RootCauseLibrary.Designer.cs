@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ProcessManager.Api.Data;
@@ -11,9 +12,11 @@ using ProcessManager.Api.Data;
 namespace ProcessManager.Api.Migrations
 {
     [DbContext(typeof(ProcessManagerDbContext))]
-    partial class ProcessManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260315190507_Phase10a_RootCauseLibrary")]
+    partial class Phase10a_RootCauseLibrary
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -857,112 +860,6 @@ namespace ProcessManager.Api.Migrations
                     b.ToTable("ExecutionData");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.FiveWhysAnalysis", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("ClosedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ClosureNotes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid?>("LinkedEntityId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("LinkedEntityType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("ProblemStatement")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LinkedEntityId");
-
-                    b.ToTable("FiveWhysAnalyses");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.FiveWhysNode", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AnalysisId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CorrectiveAction")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsRootCause")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid?>("ParentNodeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("RootCauseLibraryEntryId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("WhyStatement")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AnalysisId");
-
-                    b.HasIndex("ParentNodeId");
-
-                    b.HasIndex("RootCauseLibraryEntryId");
-
-                    b.ToTable("FiveWhysNodes");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.Flow", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1057,113 +954,6 @@ namespace ProcessManager.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Grades");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.IshikawaCause", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("CauseText")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("DiagramId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsSelectedRootCause")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid?>("ParentCauseId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("RootCauseLibraryEntryId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DiagramId");
-
-                    b.HasIndex("ParentCauseId");
-
-                    b.HasIndex("RootCauseLibraryEntryId");
-
-                    b.ToTable("IshikawaCauses");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.IshikawaDiagram", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("ClosedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("ClosureNotes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid?>("LinkedEntityId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("LinkedEntityType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("ProblemStatement")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LinkedEntityId");
-
-                    b.ToTable("IshikawaDiagrams");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Item", b =>
@@ -2878,31 +2668,6 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("StepExecution");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.FiveWhysNode", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.FiveWhysAnalysis", "Analysis")
-                        .WithMany("Nodes")
-                        .HasForeignKey("AnalysisId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ProcessManager.Domain.Entities.FiveWhysNode", "ParentNode")
-                        .WithMany("ChildNodes")
-                        .HasForeignKey("ParentNodeId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("ProcessManager.Domain.Entities.RootCauseEntry", "RootCauseLibraryEntry")
-                        .WithMany()
-                        .HasForeignKey("RootCauseLibraryEntryId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Analysis");
-
-                    b.Navigation("ParentNode");
-
-                    b.Navigation("RootCauseLibraryEntry");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.Flow", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.Process", "Process")
@@ -2955,31 +2720,6 @@ namespace ProcessManager.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Kind");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.IshikawaCause", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.IshikawaDiagram", "Diagram")
-                        .WithMany("Causes")
-                        .HasForeignKey("DiagramId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ProcessManager.Domain.Entities.IshikawaCause", "ParentCause")
-                        .WithMany("SubCauses")
-                        .HasForeignKey("ParentCauseId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("ProcessManager.Domain.Entities.RootCauseEntry", "RootCauseLibraryEntry")
-                        .WithMany()
-                        .HasForeignKey("RootCauseLibraryEntryId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Diagram");
-
-                    b.Navigation("ParentCause");
-
-                    b.Navigation("RootCauseLibraryEntry");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Item", b =>
@@ -3405,26 +3145,6 @@ namespace ProcessManager.Api.Migrations
             modelBuilder.Entity("ProcessManager.Domain.Entities.ControlPlan", b =>
                 {
                     b.Navigation("Entries");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.FiveWhysAnalysis", b =>
-                {
-                    b.Navigation("Nodes");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.FiveWhysNode", b =>
-                {
-                    b.Navigation("ChildNodes");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.IshikawaCause", b =>
-                {
-                    b.Navigation("SubCauses");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.IshikawaDiagram", b =>
-                {
-                    b.Navigation("Causes");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Item", b =>

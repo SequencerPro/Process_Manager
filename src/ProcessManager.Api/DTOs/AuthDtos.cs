@@ -49,3 +49,9 @@ public record UserResponseDto(
     string Role,
     string? DisplayName
 );
+
+/// <summary>Lightweight user record for UserPicker prompt dropdowns. Available to all authenticated users.</summary>
+public record UserPickerDto(
+    string Id,
+    string DisplayName
+);

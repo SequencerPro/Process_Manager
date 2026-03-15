@@ -1,0 +1,475 @@
+@page "/documents"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@using System.Security.Claims
+@attribute [Authorize]
+
+<PageTitle>Document Library — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>Document Library</h3>
+        <p class="text-muted small mb-0">QMS documents, procedures, and work instructions</p>
+    </div>
+    <AuthorizeView Roles="Admin,Engineer">
+        <Authorized>
+            <a href="processes/builder" class="btn btn-primary btn-sm">
+                <i class="bi bi-plus-lg me-1"></i> New Document
+            </a>
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+<!-- Filters -->
+<div class="row g-2 mb-3">
+    <div class="col-md-4">
+        <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search documents..." />
+    </div>
+    <div class="col-auto">
+        <select class="form-select form-select-sm" @onchange="OnRoleFilter">
+            <option value="">All Types</option>
+            <option value="QmsDocument">QMS Document</option>
+            <option value="WorkInstruction">Work Instruction</option>
+            <option value="ApprovalProcess">Approval Process</option>
+        </select>
+    </div>
+    <div class="col-auto">
+        <select class="form-select form-select-sm" @onchange="OnStatusFilter">
+            <option value="">Any Status</option>
+            <option value="Draft">Draft</option>
+            <option value="PendingApproval">Pending Approval</option>
+            <option value="Released">Released</option>
+            <option value="Superseded">Superseded</option>
+            <option value="Retired">Retired</option>
+        </select>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_data is not null)
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Code</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Rev</th>
+                        <th>Version</th>
+                        <th>Status</th>
+                        <th>Effective</th>
+                        <th style="width:160px">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!_data.Items.Any())
+                    {
+                        <tr><td colspan="8" class="text-center text-muted py-3">No documents found.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var doc in _data.Items)
+                        {
+                            <tr>
+                                <td><code>@doc.Code</code></td>
+                                <td><a href="processes/@doc.Id">@doc.Name</a></td>
+                                <td><span class="badge @RoleBadgeClass(doc.ProcessRole)">@FormatRole(doc.ProcessRole)</span></td>
+                                <td><small class="text-muted">@(doc.RevisionCode ?? "—")</small></td>
+                                <td>v@doc.Version</td>
+                                <td><span class="badge @StatusBadgeClass(doc.Status)">@doc.Status</span></td>
+                                <td><small class="text-muted">@(doc.EffectiveDate?.ToString("yyyy-MM-dd") ?? "—")</small></td>
+                                <td>
+                                    <a href="processes/@doc.Id" class="btn btn-outline-secondary btn-sm me-1" title="View">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    @if (doc.Status == "Draft" && doc.ProcessRole != "ApprovalProcess")
+                                    {
+                                        <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => ShowSubmit(doc)" title="Submit for Approval">
+                                            <i class="bi bi-send"></i>
+                                        </button>
+                                    }
+                                    @if (doc.Status == "Draft" || doc.Status == "PendingApproval")
+                                    {
+                                        <AuthorizeView Roles="Admin">
+                                            <Authorized>
+                                                <button class="btn btn-outline-success btn-sm" @onclick="() => ShowAdminRelease(doc)" title="Admin Release">
+                                                    <i class="bi bi-unlock"></i>
+                                                </button>
+                                            </Authorized>
+                                        </AuthorizeView>
+                                    }
+                                    @if (doc.Status == "PendingApproval")
+                                    {
+                                        <button class="btn btn-outline-warning btn-sm ms-1" @onclick="() => WithdrawApproval(doc.Id)" title="Withdraw">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <Pager Page="_page" PageSize="_pageSize" TotalCount="_data.TotalCount"
+           OnPageChanged="OnPageChanged" />
+}
+
+@* ── Submit for Approval Modal ──────────────────────────────── *@
+@if (_showSubmit && _submitDoc is not null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Submit for Approval — @_submitDoc.Code</h5>
+                    <button class="btn-close" @onclick="CloseModals"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_submitError is not null)
+                    {
+                        <div class="alert alert-danger small">@_submitError</div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label">Change Description <span class="text-danger">*</span></label>
+                        <textarea class="form-control" rows="3" @bind="_submitChangeDescription" placeholder="Summarise what changed in this revision..."></textarea>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Revision Code</label>
+                            <input class="form-control" type="text" @bind="_submitRevisionCode" placeholder="e.g. Rev B, 1.0" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Effective Date</label>
+                            <input class="form-control" type="date" @bind="_submitEffectiveDate" />
+                        </div>
+                    </div>
+
+                    @if (_approvalProcessSteps.Any())
+                    {
+                        <h6 class="fw-semibold mt-3 mb-2">Approval Reviewers</h6>
+                        <p class="text-muted small mb-2">Assign a reviewer for each approval step. These will be notified immediately.</p>
+                        @foreach (var step in _approvalProcessSteps)
+                        {
+                            <div class="row g-2 mb-2 align-items-center">
+                                <div class="col-md-5">
+                                    <label class="form-label mb-0 small fw-semibold">@step.StepTemplateName</label>
+                                </div>
+                                <div class="col-md-7">
+                                    <select class="form-select form-select-sm" @onchange="e => SetStepAssignment(step.Id, e.Value?.ToString())">
+                                        <option value="">— Select reviewer —</option>
+                                        @foreach (var user in _users)
+                                        {
+                                            <option value="@user.Id">@user.DisplayName</option>
+                                        }
+                                    </select>
+                                </div>
+                            </div>
+                        }
+                    }
+                    else if (_loadingApprovalSteps)
+                    {
+                        <div class="text-muted small"><div class="spinner-border spinner-border-sm me-1"></div>Loading approval template…</div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning small">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            No released ApprovalProcess template found. An Admin must release one via <strong>Admin Release</strong> first.
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseModals">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="ConfirmSubmit" disabled="@_submitting">
+                        @if (_submitting)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Submit for Approval
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Admin Release Modal ──────────────────────────────────── *@
+@if (_showAdminRelease && _adminReleaseDoc is not null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-unlock me-2 text-success"></i>Admin Release — @_adminReleaseDoc.Code</h5>
+                    <button class="btn-close" @onclick="CloseModals"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_adminReleaseError is not null)
+                    {
+                        <div class="alert alert-danger small">@_adminReleaseError</div>
+                    }
+                    <div class="alert alert-warning small mb-3">
+                        <i class="bi bi-shield-exclamation me-1"></i>
+                        This bypass skips the formal approval routing. Use only for bootstrapping the QMS or in exceptional circumstances.
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Change Description</label>
+                        <textarea class="form-control" rows="2" @bind="_arChangeDescription" placeholder="Optional — summarise this release"></textarea>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-5">
+                            <label class="form-label">Revision Code</label>
+                            <input class="form-control" type="text" @bind="_arRevisionCode" placeholder="e.g. Initial, Rev A" />
+                        </div>
+                        <div class="col-md-7">
+                            <label class="form-label">Effective Date</label>
+                            <input class="form-control" type="date" @bind="_arEffectiveDate" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseModals">Cancel</button>
+                    <button class="btn btn-success btn-sm" @onclick="ConfirmAdminRelease" disabled="@_adminReleasing">
+                        @if (_adminReleasing)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Release Document
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // ── State ──
+    private PaginatedResponse<ProcessSummaryResponseDto>? _data;
+    private bool _loading = true;
+    private string _search = string.Empty;
+    private string _roleFilter = string.Empty;
+    private string _statusFilter = string.Empty;
+    private int _page = 1;
+    private const int _pageSize = 25;
+
+    // Submit modal
+    private bool _showSubmit;
+    private ProcessSummaryResponseDto? _submitDoc;
+    private string _submitChangeDescription = string.Empty;
+    private string? _submitRevisionCode;
+    private DateTime? _submitEffectiveDate;
+    private Dictionary<Guid, string> _stepAssignments = new();
+    private List<ProcessStepResponseDto> _approvalProcessSteps = new();
+    private bool _loadingApprovalSteps;
+    private List<UserPickerDto> _users = new();
+    private bool _submitting;
+    private string? _submitError;
+
+    // Admin release modal
+    private bool _showAdminRelease;
+    private ProcessSummaryResponseDto? _adminReleaseDoc;
+    private string? _arChangeDescription;
+    private string? _arRevisionCode;
+    private DateTime? _arEffectiveDate;
+    private bool _adminReleasing;
+    private string? _adminReleaseError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _users = await Api.GetUserPickerListAsync() ?? new();
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        _data = await Api.GetProcessesAsync(
+            search: _search,
+            status: string.IsNullOrEmpty(_statusFilter) ? null : _statusFilter,
+            processRole: string.IsNullOrEmpty(_roleFilter) ? null : _roleFilter,
+            active: null,
+            page: _page,
+            pageSize: _pageSize);
+        _loading = false;
+    }
+
+    private async Task OnSearch(string v) { _search = v; _page = 1; await LoadData(); }
+    private async Task OnRoleFilter(ChangeEventArgs e) { _roleFilter = e.Value?.ToString() ?? ""; _page = 1; await LoadData(); }
+    private async Task OnStatusFilter(ChangeEventArgs e) { _statusFilter = e.Value?.ToString() ?? ""; _page = 1; await LoadData(); }
+    private async Task OnPageChanged(int p) { _page = p; await LoadData(); }
+
+    // ── Submit for Approval ──────────────────────────────────────────────────
+
+    private async Task ShowSubmit(ProcessSummaryResponseDto doc)
+    {
+        _submitDoc = doc;
+        _submitChangeDescription = doc.ChangeDescription ?? string.Empty;
+        _submitRevisionCode = doc.RevisionCode;
+        _submitEffectiveDate = null;
+        _stepAssignments = new();
+        _submitError = null;
+        _showSubmit = true;
+
+        // Load approval process steps
+        _loadingApprovalSteps = true;
+        _approvalProcessSteps = new();
+        if (doc.ApprovalProcessId.HasValue)
+        {
+            var ap = await Api.GetProcessAsync(doc.ApprovalProcessId.Value);
+            _approvalProcessSteps = ap?.Steps ?? new();
+        }
+        else
+        {
+            // Try to load the default (first available released ApprovalProcess)
+            var aps = await Api.GetProcessesAsync(processRole: "ApprovalProcess", status: "Released", pageSize: 1);
+            if (aps?.Items.FirstOrDefault() is { } first)
+            {
+                var ap = await Api.GetProcessAsync(first.Id);
+                _approvalProcessSteps = ap?.Steps ?? new();
+            }
+        }
+        _loadingApprovalSteps = false;
+    }
+
+    private void SetStepAssignment(Guid stepId, string? userId)
+    {
+        if (string.IsNullOrEmpty(userId))
+            _stepAssignments.Remove(stepId);
+        else
+            _stepAssignments[stepId] = userId;
+    }
+
+    private async Task ConfirmSubmit()
+    {
+        if (_submitDoc is null) return;
+        if (string.IsNullOrWhiteSpace(_submitChangeDescription))
+        {
+            _submitError = "Change Description is required.";
+            return;
+        }
+
+        _submitting = true;
+        _submitError = null;
+
+        try
+        {
+            var dto = new DocumentSubmitForApprovalDto(
+                _submitDoc.Id,
+                _submitChangeDescription,
+                _submitRevisionCode,
+                _submitEffectiveDate,
+                _stepAssignments
+            );
+            await Api.SubmitForApprovalAsync(dto);
+            CloseModals();
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            _submitError = ex.Message;
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    // ── Admin Release ────────────────────────────────────────────────────────
+
+    private void ShowAdminRelease(ProcessSummaryResponseDto doc)
+    {
+        _adminReleaseDoc = doc;
+        _arChangeDescription = doc.ChangeDescription;
+        _arRevisionCode = doc.RevisionCode;
+        _arEffectiveDate = null;
+        _adminReleaseError = null;
+        _showAdminRelease = true;
+    }
+
+    private async Task ConfirmAdminRelease()
+    {
+        if (_adminReleaseDoc is null) return;
+        _adminReleasing = true;
+        _adminReleaseError = null;
+        try
+        {
+            await Api.AdminReleaseProcessAsync(_adminReleaseDoc.Id, new AdminReleaseDocumentDto(
+                _arChangeDescription, _arRevisionCode, _arEffectiveDate));
+            CloseModals();
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            _adminReleaseError = ex.Message;
+        }
+        finally
+        {
+            _adminReleasing = false;
+        }
+    }
+
+    // ── Withdraw ─────────────────────────────────────────────────────────────
+
+    private async Task WithdrawApproval(Guid docId)
+    {
+        // Find pending DAR for this document
+        var dars = await Api.GetDocumentApprovalsAsync(processId: docId, status: "Pending");
+        var dar = dars?.Items.FirstOrDefault();
+        if (dar is null) return;
+
+        if (await JS.InvokeAsync<bool>("confirm", $"Withdraw the pending approval request for this document?"))
+        {
+            await Api.WithdrawApprovalAsync(dar.Id);
+            await LoadData();
+        }
+    }
+
+    private void CloseModals()
+    {
+        _showSubmit = false;
+        _showAdminRelease = false;
+        _submitDoc = null;
+        _adminReleaseDoc = null;
+    }
+
+    // ── Formatting ───────────────────────────────────────────────────────────
+
+    private static string StatusBadgeClass(string status) => status switch
+    {
+        "Draft"            => "bg-secondary",
+        "PendingApproval"  => "bg-warning text-dark",
+        "Released"         => "bg-success",
+        "Superseded"       => "bg-info text-dark",
+        "Retired"          => "bg-light text-dark border",
+        _                  => "bg-secondary"
+    };
+
+    private static string RoleBadgeClass(string role) => role switch
+    {
+        "QmsDocument"     => "bg-primary",
+        "WorkInstruction" => "bg-info text-dark",
+        "ApprovalProcess" => "bg-warning text-dark",
+        "Training"        => "bg-success",
+        _                 => "bg-secondary"
+    };
+
+    private static string FormatRole(string role) => role switch
+    {
+        "QmsDocument"          => "QMS Document",
+        "WorkInstruction"      => "Work Instruction",
+        "ApprovalProcess"      => "Approval Process",
+        "ManufacturingProcess" => "Manufacturing",
+        "Training"             => "Training",
+        _                      => role
+    };
+}

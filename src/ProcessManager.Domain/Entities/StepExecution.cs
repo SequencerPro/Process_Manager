@@ -29,6 +29,15 @@ public class StepExecution : BaseEntity
     /// <summary>Operator notes / observations.</summary>
     public string? Notes { get; set; }
 
+    /// <summary>
+    /// Parallel execution group. Executions sharing the same non-zero group value start simultaneously.
+    /// 0 = sequential (default). Approval steps all share group 1.
+    /// </summary>
+    public int ParallelGroup { get; set; } = 0;
+
+    /// <summary>Identity user Id of the person assigned to execute this step. Set at job creation; overridable by the submitting author.</summary>
+    public string? AssignedToUserId { get; set; }
+
     // Navigation properties
     public Job Job { get; set; } = null!;
     public ProcessStep ProcessStep { get; set; } = null!;

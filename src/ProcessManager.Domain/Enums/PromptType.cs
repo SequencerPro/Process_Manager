@@ -21,5 +21,17 @@ public enum PromptType
     Checkbox,
 
     /// <summary>Barcode / serial number scan or manual typed entry.</summary>
-    Scan
+    Scan,
+
+    /// <summary>Multi-line text area for extended comments or notes.</summary>
+    LongText,
+
+    /// <summary>
+    /// Identity-backed user selection. Renders as a searchable dropdown of system users.
+    /// Stores the selected user's display name in the response value.
+    /// Use for capturing a named third party involved in the step — instructor, witness,
+    /// signatory, or customer/supplier representative.
+    /// The executing operator's identity is captured automatically from the session.
+    /// </summary>
+    UserPicker
 }

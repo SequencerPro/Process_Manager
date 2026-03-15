@@ -33,7 +33,12 @@ public record ProcessResponseDto(
     DateTime CreatedAt,
     DateTime UpdatedAt,
     List<ProcessStepResponseDto> Steps,
-    List<FlowResponseDto> Flows
+    List<FlowResponseDto> Flows,
+    string ProcessRole = "ManufacturingProcess",
+    Guid? ApprovalProcessId = null,
+    string? RevisionCode = null,
+    string? ChangeDescription = null,
+    DateTime? EffectiveDate = null
 );
 
 /// <summary>
@@ -49,7 +54,12 @@ public record ProcessSummaryResponseDto(
     bool IsActive,
     int StepCount,
     DateTime CreatedAt,
-    DateTime UpdatedAt
+    DateTime UpdatedAt,
+    string ProcessRole = "ManufacturingProcess",
+    Guid? ApprovalProcessId = null,
+    string? RevisionCode = null,
+    string? ChangeDescription = null,
+    DateTime? EffectiveDate = null
 );
 
 // ──────────────────── ProcessStep ────────────────────

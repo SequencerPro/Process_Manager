@@ -35,6 +35,9 @@ public class Job : BaseEntity
     /// <summary>When job finished (completed or cancelled).</summary>
     public DateTime? CompletedAt { get; set; }
 
+    /// <summary>Populated only for approval routing jobs created by the Submit for Approval flow.</summary>
+    public Guid? DocumentApprovalRequestId { get; set; }
+
     // Navigation properties
     public Process Process { get; set; } = null!;
     public ICollection<StepExecution> StepExecutions { get; set; } = new List<StepExecution>();

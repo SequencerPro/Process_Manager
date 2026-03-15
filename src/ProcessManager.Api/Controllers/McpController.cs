@@ -40,7 +40,7 @@ public class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "1.4";
+    private const string ServerVersion   = "1.7";
 
     public McpController(ProcessManagerDbContext db) => _db = db;
 
@@ -139,6 +139,24 @@ public class McpController : ControllerBase
             Tool("list_critical_characteristics",
                  "List all Product-type characteristics across active Control Plans, optionally filtered by process. Useful for identifying critical-to-quality parameters across the process. Requires authentication.",
                  Schema(("process_query", "string", "Optional process name or code to filter by (leave empty for all)"))),
+
+            Tool("list_qms_documents",
+                 "List QMS documents (procedures, work instructions, approval processes) with their revision and lifecycle status. Useful for determining document currency, pending approvals, and revision history. Requires authentication.",
+                 Schema(
+                     ("role", "string", "Optional filter: QmsDocument, WorkInstruction, ApprovalProcess, Training, or leave empty for all"),
+                     ("status", "string", "Optional filter: Draft, PendingApproval, Released, Superseded, Retired, or leave empty for all"))),
+
+            Tool("list_recurring_root_causes",
+                 "List the most frequently encountered root causes from the organisation's Root Cause Library, ordered by usage count. Useful for identifying systemic problems that recur across analyses. Requires authentication.",
+                 Schema(
+                     ("category", "string", "Optional filter: Machine, Method, Material, People, Measurement, Environment, Management, or leave empty for all"),
+                     ("top", "string", "Number of entries to return (default 20, max 50)"))),
+
+            Tool("get_rca_summary",
+                 "Retrieve a summary of Ishikawa Diagrams and 5 Whys Analyses for an entity, showing open/closed status, cause/node counts and confirmed root causes. Useful for understanding the current RCA state for a non-conformance or PFMEA failure mode. Requires authentication.",
+                 Schema(
+                     ("linked_entity_id", "string", "The UUID of the linked entity (non-conformance, PFMEA failure mode, etc.) to filter by — or leave empty to list all open RCAs"),
+                     ("status", "string", "Optional: Open or Closed — leave empty for all"))),
         }
     };
 
@@ -215,7 +233,10 @@ public class McpController : ControllerBase
             "get_ce_matrix"              => OkResponse(id, TextContent(await ToolGetCeMatrix(args))),
             "get_control_plan"           => OkResponse(id, TextContent(await ToolGetControlPlan(args))),
             "list_critical_characteristics" => OkResponse(id, TextContent(await ToolListCriticalCharacteristics(args))),
-            _                            => ErrorResponse(id, -32602, $"Unknown tool: {toolName}")
+            "list_qms_documents"            => OkResponse(id, TextContent(await ToolListQmsDocuments(args))),
+            "list_recurring_root_causes"    => OkResponse(id, TextContent(await ToolListRecurringRootCauses(args))),
+            "get_rca_summary"               => OkResponse(id, TextContent(await ToolGetRcaSummary(args))),
+            _                               => ErrorResponse(id, -32602, $"Unknown tool: {toolName}")
         };
     }
 
@@ -601,6 +622,164 @@ public class McpController : ControllerBase
         {
             var stepName = x.e.ProcessStep?.NameOverride ?? x.e.ProcessStep?.StepTemplate?.Name ?? "—";
             sb.AppendLine($"| {x.cp.Process.Name} | {x.cp.Name} | {stepName} | **{x.e.CharacteristicName}** | {x.e.SpecificationOrTolerance ?? "—"} | {x.e.MeasurementTechnique ?? "—"} |");
+        }
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolListRecurringRootCauses(JsonElement args)
+    {
+        var categoryFilter = args.TryGetProperty("category", out var c) ? c.GetString()?.Trim() : null;
+        var topStr         = args.TryGetProperty("top",      out var t) ? t.GetString()?.Trim() : null;
+        var top            = int.TryParse(topStr, out var n) ? Math.Clamp(n, 1, 50) : 20;
+
+        var query = _db.RootCauseEntries.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrEmpty(categoryFilter) &&
+            Enum.TryParse<Domain.Enums.RootCauseCategory>(categoryFilter, true, out var catEnum))
+            query = query.Where(r => r.Category == catEnum);
+
+        var entries = await query
+            .OrderByDescending(r => r.UsageCount)
+            .ThenBy(r => r.Title)
+            .Take(top)
+            .ToListAsync();
+
+        if (!entries.Any())
+            return "No root cause entries found matching the criteria.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Root Cause Library — Top {entries.Count} Recurring Causes\n");
+        sb.AppendLine("| # | Category | Title | Usage | Tags |");
+        sb.AppendLine("|---|---|---|---|---|");
+
+        var rank = 1;
+        foreach (var e in entries)
+        {
+            var tags = string.IsNullOrEmpty(e.Tags) ? "—" : e.Tags;
+            sb.AppendLine($"| {rank++} | {e.Category} | {e.Title} | {e.UsageCount} | {tags} |");
+        }
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolGetRcaSummary(JsonElement args)
+    {
+        var linkedIdStr  = args.TryGetProperty("linked_entity_id", out var li) ? li.GetString()?.Trim() : null;
+        var statusFilter = args.TryGetProperty("status",           out var sf) ? sf.GetString()?.Trim() : null;
+
+        Guid? linkedId = Guid.TryParse(linkedIdStr, out var g) ? g : null;
+        Domain.Enums.RcaStatus? rcaStatus =
+            Enum.TryParse<Domain.Enums.RcaStatus>(statusFilter, true, out var se) ? se : null;
+
+        // ── Ishikawa Diagrams ──
+        var iQuery = _db.IshikawaDiagrams
+            .AsNoTracking()
+            .Include(d => d.Causes)
+            .AsQueryable();
+
+        if (linkedId.HasValue)
+            iQuery = iQuery.Where(d => d.LinkedEntityId == linkedId);
+        if (rcaStatus.HasValue)
+            iQuery = iQuery.Where(d => d.Status == rcaStatus.Value);
+
+        var diagrams = await iQuery.OrderByDescending(d => d.CreatedAt).ToListAsync();
+
+        // ── 5 Whys Analyses ──
+        var wQuery = _db.FiveWhysAnalyses
+            .AsNoTracking()
+            .Include(a => a.Nodes)
+            .AsQueryable();
+
+        if (linkedId.HasValue)
+            wQuery = wQuery.Where(a => a.LinkedEntityId == linkedId);
+        if (rcaStatus.HasValue)
+            wQuery = wQuery.Where(a => a.Status == rcaStatus.Value);
+
+        var analyses = await wQuery.OrderByDescending(a => a.CreatedAt).ToListAsync();
+
+        if (!diagrams.Any() && !analyses.Any())
+            return "No RCA analyses found matching the criteria.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## RCA Summary\n");
+
+        if (diagrams.Any())
+        {
+            sb.AppendLine($"### Ishikawa Diagrams ({diagrams.Count})\n");
+            sb.AppendLine("| Title | Status | Causes | Root Causes | Trigger |");
+            sb.AppendLine("|---|---|---|---|---|");
+            foreach (var d in diagrams)
+            {
+                var rootCount = d.Causes.Count(c => c.IsSelectedRootCause);
+                sb.AppendLine($"| {d.Title} | {d.Status} | {d.Causes.Count} | {rootCount} | {d.LinkedEntityType} |");
+            }
+            sb.AppendLine();
+        }
+
+        if (analyses.Any())
+        {
+            sb.AppendLine($"### 5 Whys Analyses ({analyses.Count})\n");
+            sb.AppendLine("| Title | Status | Nodes | Root Causes | Trigger |");
+            sb.AppendLine("|---|---|---|---|---|");
+            foreach (var a in analyses)
+            {
+                var rootCount = a.Nodes.Count(n => n.IsRootCause);
+                sb.AppendLine($"| {a.Title} | {a.Status} | {a.Nodes.Count} | {rootCount} | {a.LinkedEntityType} |");
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolListQmsDocuments(JsonElement args)
+    {
+        var roleFilter   = args.TryGetProperty("role",   out var r) ? r.GetString()?.Trim() : null;
+        var statusFilter = args.TryGetProperty("status", out var s) ? s.GetString()?.Trim() : null;
+
+        var query = _db.Processes.AsNoTracking().AsQueryable();
+
+        // Exclude ManufacturingProcess unless explicitly requested
+        if (string.IsNullOrEmpty(roleFilter))
+        {
+            query = query.Where(p =>
+                p.ProcessRole != Domain.Enums.ProcessRole.ManufacturingProcess);
+        }
+        else if (Enum.TryParse<Domain.Enums.ProcessRole>(roleFilter, true, out var roleEnum))
+        {
+            query = query.Where(p => p.ProcessRole == roleEnum);
+        }
+
+        if (!string.IsNullOrEmpty(statusFilter) &&
+            Enum.TryParse<Domain.Enums.ProcessStatus>(statusFilter, true, out var statusEnum))
+            query = query.Where(p => p.Status == statusEnum);
+
+        var docs = await query
+            .OrderBy(p => p.ProcessRole.ToString())
+            .ThenBy(p => p.Name)
+            .Take(100)
+            .ToListAsync();
+
+        if (!docs.Any())
+            return "No QMS documents found matching the criteria.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## QMS Documents ({docs.Count})\n");
+        sb.AppendLine("| Type | Code | Name | Rev | Version | Status | Effective |");
+        sb.AppendLine("|---|---|---|---|---|---|---|");
+
+        foreach (var d in docs)
+        {
+            var roleLabel = d.ProcessRole switch
+            {
+                Domain.Enums.ProcessRole.QmsDocument     => "QMS Doc",
+                Domain.Enums.ProcessRole.WorkInstruction => "Work Instr.",
+                Domain.Enums.ProcessRole.ApprovalProcess => "Approval Template",
+                Domain.Enums.ProcessRole.Training        => "Training",
+                _                                         => d.ProcessRole.ToString()
+            };
+            var effective = d.EffectiveDate?.ToString("yyyy-MM-dd") ?? "—";
+            sb.AppendLine($"| {roleLabel} | `{d.Code}` | {d.Name} | {d.RevisionCode ?? "—"} | v{d.Version} | **{d.Status}** | {effective} |");
         }
 
         return sb.ToString();

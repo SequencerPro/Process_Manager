@@ -173,6 +173,26 @@
                     <i class="bi bi-exclamation-triangle me-2"></i> Non-Conformances
                 </NavLink>
             </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="documents">
+                    <i class="bi bi-file-earmark-text me-2"></i> Document Library
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="root-cause-library">
+                    <i class="bi bi-diagram-3 me-2"></i> Root Cause Library
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="ishikawa">
+                    <i class="bi bi-fish me-2"></i> Ishikawa Diagrams
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="five-whys">
+                    <i class="bi bi-question-circle me-2"></i> 5 Whys
+                </NavLink>
+            </li>
         }
 
         @* ── Admin (role-gated) ── *@
@@ -253,7 +273,7 @@
         ["design"]    = ["kinds", "step-templates", "processes", "approval-queue", "workflows"],
         ["execution"] = ["jobs", "items", "batches", "step-executions"],
         ["config"]    = ["vocabulary"],
-        ["quality"]   = ["pfmeas", "ce-matrices", "control-plans", "non-conformances"],
+        ["quality"]   = ["pfmeas", "ce-matrices", "control-plans", "non-conformances", "documents", "root-cause-library", "ishikawa", "five-whys"],
         ["admin"]     = ["admin"],
         ["reports"]   = ["reports", "powerbi-dashboards"],
     };

@@ -297,9 +297,10 @@ public class ApiClient
     // ═══════════════════ Processes ═══════════════════
 
     public Task<PaginatedResponse<ProcessSummaryResponseDto>?> GetProcessesAsync(
-        string? search = null, bool? active = null, string? status = null, int page = 1, int pageSize = 25)
+        string? search = null, bool? active = null, string? status = null,
+        string? processRole = null, int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<ProcessSummaryResponseDto>>(
-            $"api/processes?search={search}&active={active}&status={status}&page={page}&pageSize={pageSize}", _json);
+            $"api/processes?search={search}&active={active}&status={status}&processRole={processRole}&page={page}&pageSize={pageSize}", _json);
 
     public Task<ProcessResponseDto?> GetProcessAsync(Guid id)
         => _http.GetFromJsonAsync<ProcessResponseDto>($"api/processes/{id}", _json);
@@ -774,7 +775,44 @@ public class ApiClient
         resp.EnsureSuccessStatusCode();
     }
 
-    // ══════════════════ Users (Admin) ═══════════════════════════════════════
+    // ══════════════════ Document Approvals ════════════════════════════════════
+
+    public Task<PaginatedResponse<DocumentApprovalRequestDto>?> GetDocumentApprovalsAsync(
+        Guid? processId = null, string? status = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<DocumentApprovalRequestDto>>(
+            $"api/document-approvals?processId={processId}&status={status}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<DocumentApprovalRequestDto?> GetDocumentApprovalAsync(Guid id)
+        => _http.GetFromJsonAsync<DocumentApprovalRequestDto>($"api/document-approvals/{id}", _json);
+
+    public async Task<DocumentApprovalRequestDto?> SubmitForApprovalAsync(DocumentSubmitForApprovalDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/document-approvals/submit", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<DocumentApprovalRequestDto>(_json);
+    }
+
+    public async Task<DocumentApprovalRequestDto?> WithdrawApprovalAsync(Guid id)
+    {
+        var resp = await _http.PostAsync($"api/document-approvals/{id}/withdraw", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<DocumentApprovalRequestDto>(_json);
+    }
+
+    public async Task<ProcessResponseDto?> AdminReleaseProcessAsync(Guid id, AdminReleaseDocumentDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/processes/{id}/admin-release", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ProcessResponseDto>(_json);
+    }
+
+    // ══════════════════ Users ════════════════════════════════════════════════
+
+    /// <summary>Returns Id + DisplayName for all users. Used by UserPicker prompts. Available to all roles.</summary>
+    public Task<List<UserPickerDto>?> GetUserPickerListAsync()
+        => _http.GetFromJsonAsync<List<UserPickerDto>>("api/auth/users/picker", _json);
+
+    // ── Admin-only ────────────────────────────────────────────────────────────
 
     public Task<List<UserResponseDto>?> GetUsersAsync()
         => _http.GetFromJsonAsync<List<UserResponseDto>>("api/auth/users", _json);
@@ -1098,6 +1136,172 @@ public class ApiClient
         var r = await _http.PostAsJsonAsync($"api/non-conformances/{id}/dispose", dto, _json);
         r.EnsureSuccessStatusCode();
         return await r.Content.ReadFromJsonAsync<NonConformanceResponseDto>(_json);
+    }
+
+    // ══════════════════ Root Cause Library (Phase 10a) ═══════════════════════
+
+    public Task<PaginatedResponse<RootCauseEntryResponseDto>?> GetRootCauseEntriesAsync(
+        string? q = null, string? category = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<RootCauseEntryResponseDto>>(
+            $"api/root-cause-entries?q={Uri.EscapeDataString(q ?? string.Empty)}&category={category}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<List<RootCauseEntryResponseDto>?> SearchRootCauseEntriesAsync(string q)
+        => _http.GetFromJsonAsync<List<RootCauseEntryResponseDto>>(
+            $"api/root-cause-entries/search?q={Uri.EscapeDataString(q)}", _json);
+
+    public Task<RootCauseEntryResponseDto?> GetRootCauseEntryAsync(Guid id)
+        => _http.GetFromJsonAsync<RootCauseEntryResponseDto>($"api/root-cause-entries/{id}", _json);
+
+    public async Task<RootCauseEntryResponseDto?> CreateRootCauseEntryAsync(RootCauseEntryCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/root-cause-entries", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<RootCauseEntryResponseDto>(_json);
+    }
+
+    public async Task<RootCauseEntryResponseDto?> UpdateRootCauseEntryAsync(Guid id, RootCauseEntryUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/root-cause-entries/{id}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<RootCauseEntryResponseDto>(_json);
+    }
+
+    public async Task DeleteRootCauseEntryAsync(Guid id)
+    {
+        var r = await _http.DeleteAsync($"api/root-cause-entries/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    // ══════════════════ Ishikawa Diagrams (Phase 10b) ═════════════════════════
+
+    public Task<PaginatedResponse<IshikawaDiagramSummaryDto>?> GetIshikawaDiagramsAsync(
+        string? linkedEntityType = null, Guid? linkedEntityId = null, string? status = null,
+        int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<IshikawaDiagramSummaryDto>>(
+            $"api/ishikawa?linkedEntityType={linkedEntityType}&linkedEntityId={linkedEntityId}&status={status}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<IshikawaDiagramResponseDto?> GetIshikawaDiagramAsync(Guid id)
+        => _http.GetFromJsonAsync<IshikawaDiagramResponseDto>($"api/ishikawa/{id}", _json);
+
+    public async Task<IshikawaDiagramResponseDto?> CreateIshikawaDiagramAsync(IshikawaDiagramCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/ishikawa", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<IshikawaDiagramResponseDto>(_json);
+    }
+
+    public async Task<IshikawaDiagramResponseDto?> UpdateIshikawaDiagramAsync(Guid id, IshikawaDiagramUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/ishikawa/{id}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<IshikawaDiagramResponseDto>(_json);
+    }
+
+    public async Task<IshikawaDiagramResponseDto?> CloseIshikawaDiagramAsync(Guid id, IshikawaDiagramCloseDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/ishikawa/{id}/close", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<IshikawaDiagramResponseDto>(_json);
+    }
+
+    public async Task<IshikawaDiagramResponseDto?> ReopenIshikawaDiagramAsync(Guid id)
+    {
+        var r = await _http.PostAsync($"api/ishikawa/{id}/reopen", null);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<IshikawaDiagramResponseDto>(_json);
+    }
+
+    public async Task DeleteIshikawaDiagramAsync(Guid id)
+    {
+        var r = await _http.DeleteAsync($"api/ishikawa/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    public async Task<IshikawaDiagramResponseDto?> AddIshikawaCauseAsync(Guid diagramId, IshikawaCauseCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/ishikawa/{diagramId}/causes", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<IshikawaDiagramResponseDto>(_json);
+    }
+
+    public async Task<IshikawaDiagramResponseDto?> UpdateIshikawaCauseAsync(Guid diagramId, Guid causeId, IshikawaCauseUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/ishikawa/{diagramId}/causes/{causeId}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<IshikawaDiagramResponseDto>(_json);
+    }
+
+    public async Task<IshikawaDiagramResponseDto?> DeleteIshikawaCauseAsync(Guid diagramId, Guid causeId)
+    {
+        var r = await _http.DeleteAsync($"api/ishikawa/{diagramId}/causes/{causeId}");
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<IshikawaDiagramResponseDto>(_json);
+    }
+
+    // ══════════════════ Five Whys Analyses (Phase 10c) ════════════════════════
+
+    public Task<PaginatedResponse<FiveWhysAnalysisSummaryDto>?> GetFiveWhysAnalysesAsync(
+        string? linkedEntityType = null, Guid? linkedEntityId = null, string? status = null,
+        int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<FiveWhysAnalysisSummaryDto>>(
+            $"api/five-whys?linkedEntityType={linkedEntityType}&linkedEntityId={linkedEntityId}&status={status}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<FiveWhysAnalysisResponseDto?> GetFiveWhysAnalysisAsync(Guid id)
+        => _http.GetFromJsonAsync<FiveWhysAnalysisResponseDto>($"api/five-whys/{id}", _json);
+
+    public async Task<FiveWhysAnalysisResponseDto?> CreateFiveWhysAnalysisAsync(FiveWhysAnalysisCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/five-whys", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FiveWhysAnalysisResponseDto>(_json);
+    }
+
+    public async Task<FiveWhysAnalysisResponseDto?> UpdateFiveWhysAnalysisAsync(Guid id, FiveWhysAnalysisUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/five-whys/{id}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FiveWhysAnalysisResponseDto>(_json);
+    }
+
+    public async Task<FiveWhysAnalysisResponseDto?> CloseFiveWhysAnalysisAsync(Guid id, FiveWhysAnalysisCloseDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/five-whys/{id}/close", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FiveWhysAnalysisResponseDto>(_json);
+    }
+
+    public async Task<FiveWhysAnalysisResponseDto?> ReopenFiveWhysAnalysisAsync(Guid id)
+    {
+        var r = await _http.PostAsync($"api/five-whys/{id}/reopen", null);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FiveWhysAnalysisResponseDto>(_json);
+    }
+
+    public async Task DeleteFiveWhysAnalysisAsync(Guid id)
+    {
+        var r = await _http.DeleteAsync($"api/five-whys/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    public async Task<FiveWhysAnalysisResponseDto?> AddFiveWhysNodeAsync(Guid analysisId, FiveWhysNodeCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/five-whys/{analysisId}/nodes", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FiveWhysAnalysisResponseDto>(_json);
+    }
+
+    public async Task<FiveWhysAnalysisResponseDto?> UpdateFiveWhysNodeAsync(Guid analysisId, Guid nodeId, FiveWhysNodeUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/five-whys/{analysisId}/nodes/{nodeId}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FiveWhysAnalysisResponseDto>(_json);
+    }
+
+    public async Task<FiveWhysAnalysisResponseDto?> DeleteFiveWhysNodeAsync(Guid analysisId, Guid nodeId)
+    {
+        var r = await _http.DeleteAsync($"api/five-whys/{analysisId}/nodes/{nodeId}");
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FiveWhysAnalysisResponseDto>(_json);
     }
 
     // ── Phase 9: Change Control ─────────────────────────────────────────────

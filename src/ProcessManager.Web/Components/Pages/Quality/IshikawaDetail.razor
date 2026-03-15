@@ -1,0 +1,516 @@
+@page "/ishikawa/{Id:guid}"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@attribute [Authorize]
+
+<PageTitle>Ishikawa Diagram — Process Manager</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_diagram is null)
+{
+    <div class="alert alert-warning">Diagram not found.</div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="/ishikawa">Ishikawa Diagrams</a></li>
+                    <li class="breadcrumb-item active">@_diagram.Title</li>
+                </ol>
+            </nav>
+            <h3 class="mb-0"><i class="bi bi-fish me-2 text-secondary"></i>@_diagram.Title</h3>
+            <p class="text-muted small mb-0">@_diagram.ProblemStatement</p>
+        </div>
+        <div class="d-flex gap-2">
+            @if (_diagram.Status == "Open")
+            {
+                <AuthorizeView Roles="Admin,Engineer">
+                    <Authorized>
+                        <button class="btn btn-outline-success btn-sm" @onclick="OpenCloseModal">
+                            <i class="bi bi-check-lg me-1"></i>Close Analysis
+                        </button>
+                    </Authorized>
+                </AuthorizeView>
+            }
+            else
+            {
+                <span class="badge bg-success py-2 px-3 align-self-center">
+                    <i class="bi bi-check-circle me-1"></i>Closed @_diagram.ClosedAt?.ToString("d MMM yyyy")
+                </span>
+                <AuthorizeView Roles="Admin,Engineer">
+                    <Authorized>
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="Reopen">Reopen</button>
+                    </Authorized>
+                </AuthorizeView>
+            }
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_diagram.ClosureNotes))
+    {
+        <div class="alert alert-success py-2 small mb-3">
+            <i class="bi bi-info-circle me-1"></i><strong>Closure notes:</strong> @_diagram.ClosureNotes
+        </div>
+    }
+
+    <!-- Summary stats -->
+    <div class="row g-2 mb-4">
+        <div class="col-auto">
+            <div class="card border-0 bg-light px-3 py-2 text-center" style="min-width:90px">
+                <div class="fw-bold fs-5">@_allCauses.Count</div>
+                <div class="small text-muted">Total Causes</div>
+            </div>
+        </div>
+        <div class="col-auto">
+            <div class="card border-0 bg-success bg-opacity-10 px-3 py-2 text-center" style="min-width:90px">
+                <div class="fw-bold fs-5 text-success">@_allCauses.Count(c => c.IsSelectedRootCause)</div>
+                <div class="small text-muted">Root Causes</div>
+            </div>
+        </div>
+        <div class="col-auto">
+            <div class="card border-0 bg-light px-3 py-2 text-center" style="min-width:90px">
+                <div class="fw-bold fs-5">@_categories.Length</div>
+                <div class="small text-muted">Categories</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fishbone: one card per category -->
+    <div class="row g-3">
+        @foreach (var cat in _categories)
+        {
+            var topCauses = _diagram.Causes.Where(c => c.Category == cat).ToList();
+            var isHighlighted = topCauses.Any(c => c.IsSelectedRootCause || c.SubCauses.Any(s => s.IsSelectedRootCause));
+
+            <div class="col-md-6">
+                <div class="card @(isHighlighted ? "border-success" : "") shadow-sm h-100">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                        <span>
+                            <span class="badge @CategoryBadgeClass(cat) me-2">@cat</span>
+                            <small class="text-muted">@topCauses.Count cause@(topCauses.Count == 1 ? "" : "s")</small>
+                        </span>
+                        @if (_diagram.Status == "Open")
+                        {
+                            <AuthorizeView Roles="Admin,Engineer">
+                                <Authorized>
+                                    <button class="btn btn-outline-primary btn-sm py-0 px-2"
+                                            @onclick="() => OpenAddCause(cat, null)">
+                                        <i class="bi bi-plus-lg"></i>
+                                    </button>
+                                </Authorized>
+                            </AuthorizeView>
+                        }
+                    </div>
+                    <div class="card-body py-2">
+                        @if (!topCauses.Any())
+                        {
+                            <p class="text-muted small fst-italic mb-0">No causes yet.</p>
+                        }
+                        else
+                        {
+                            <ul class="list-unstyled mb-0">
+                                @foreach (var cause in topCauses)
+                                {
+                                    <li class="mb-2">
+                                        <div class="d-flex align-items-start gap-2">
+                                            @if (cause.IsSelectedRootCause)
+                                            {
+                                                <i class="bi bi-check-circle-fill text-success mt-1 flex-shrink-0"></i>
+                                            }
+                                            else
+                                            {
+                                                <i class="bi bi-circle text-muted mt-1 flex-shrink-0"></i>
+                                            }
+                                            <div class="flex-grow-1">
+                                                <span class="@(cause.IsSelectedRootCause ? "fw-semibold text-success" : "")">
+                                                    @cause.CauseText
+                                                </span>
+                                                @if (!string.IsNullOrEmpty(cause.LibraryEntryTitle))
+                                                {
+                                                    <small class="badge bg-light text-dark border ms-1">📚 @cause.LibraryEntryTitle</small>
+                                                }
+                                                @if (_diagram.Status == "Open")
+                                                {
+                                                    <AuthorizeView Roles="Admin,Engineer">
+                                                        <Authorized>
+                                                            <button class="btn btn-link btn-sm p-0 ms-2 text-primary"
+                                                                    @onclick="() => OpenAddCause(cat, cause.Id)" title="Add sub-cause">
+                                                                <i class="bi bi-diagram-2"></i>
+                                                            </button>
+                                                            <button class="btn btn-link btn-sm p-0 ms-1 text-secondary"
+                                                                    @onclick="() => OpenEditCause(cause)" title="Edit">
+                                                                <i class="bi bi-pencil"></i>
+                                                            </button>
+                                                            <button class="btn btn-link btn-sm p-0 ms-1 text-danger"
+                                                                    @onclick="() => DeleteCause(cause.Id)" title="Delete">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        </Authorized>
+                                                    </AuthorizeView>
+                                                }
+                                            </div>
+                                        </div>
+                                        @if (cause.SubCauses.Any())
+                                        {
+                                            <ul class="list-unstyled ms-4 mt-1 mb-0">
+                                                @foreach (var sub in cause.SubCauses)
+                                                {
+                                                    <li class="d-flex align-items-start gap-2 mb-1">
+                                                        @if (sub.IsSelectedRootCause)
+                                                        {
+                                                            <i class="bi bi-check-circle-fill text-success mt-1 flex-shrink-0" style="font-size:.75rem"></i>
+                                                        }
+                                                        else
+                                                        {
+                                                            <i class="bi bi-arrow-return-right text-muted mt-1 flex-shrink-0" style="font-size:.75rem"></i>
+                                                        }
+                                                        <div>
+                                                            <small class="@(sub.IsSelectedRootCause ? "fw-semibold text-success" : "")">
+                                                                @sub.CauseText
+                                                            </small>
+                                                            @if (!string.IsNullOrEmpty(sub.LibraryEntryTitle))
+                                                            {
+                                                                <small class="badge bg-light text-dark border ms-1">📚 @sub.LibraryEntryTitle</small>
+                                                            }
+                                                            @if (_diagram.Status == "Open")
+                                                            {
+                                                                <AuthorizeView Roles="Admin,Engineer">
+                                                                    <Authorized>
+                                                                        <button class="btn btn-link btn-sm p-0 ms-1 text-secondary"
+                                                                                @onclick="() => OpenEditCause(sub)" title="Edit">
+                                                                            <i class="bi bi-pencil" style="font-size:.75rem"></i>
+                                                                        </button>
+                                                                        <button class="btn btn-link btn-sm p-0 ms-1 text-danger"
+                                                                                @onclick="() => DeleteCause(sub.Id)" title="Delete">
+                                                                            <i class="bi bi-trash" style="font-size:.75rem"></i>
+                                                                        </button>
+                                                                    </Authorized>
+                                                                </AuthorizeView>
+                                                            }
+                                                        </div>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- Add Cause Modal -->
+@if (_showAddCause)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        @(_addParentCauseId is null ? $"Add Cause — {_addCategory}" : $"Add Sub-Cause")
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="() => _showAddCause = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Cause Text <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_causeText"
+                               placeholder="Describe the cause" @oninput="OnCauseTextInput" />
+                        @if (_librarySuggestions.Any())
+                        {
+                            <div class="list-group mt-1">
+                                @foreach (var s in _librarySuggestions)
+                                {
+                                    <button class="list-group-item list-group-item-action py-1 px-2 small"
+                                            @onclick="() => SelectLibraryEntry(s)">
+                                        <span class="badge @CategoryBadgeClass(s.Category) me-1">@s.Category</span>
+                                        @s.Title
+                                        @if (s.UsageCount > 0) { <span class="badge bg-info text-dark ms-1">@s.UsageCount uses</span> }
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                    @if (_linkedLibraryEntry is not null)
+                    {
+                        <div class="alert alert-info py-2 small mb-3">
+                            <i class="bi bi-book me-1"></i>Linked to library entry: <strong>@_linkedLibraryEntry.Title</strong>
+                            <button class="btn btn-link btn-sm p-0 ms-2 text-danger" @onclick="ClearLibraryLink">✕</button>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(_causeError))
+                    {
+                        <div class="alert alert-danger py-2">@_causeError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showAddCause = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveCause" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Add Cause
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Edit Cause Modal -->
+@if (_showEditCause && _editingCause is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Cause</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showEditCause = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Cause Text <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_editCauseText" />
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input class="form-check-input" type="checkbox" id="isRoot" @bind="_editIsRoot" />
+                        <label class="form-check-label" for="isRoot">
+                            Mark as Confirmed Root Cause
+                        </label>
+                        <div class="form-text">Checking this will increment the library entry's usage count.</div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_editCauseError))
+                    {
+                        <div class="alert alert-danger py-2">@_editCauseError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showEditCause = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="SaveEditCause" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Close Modal -->
+@if (_showCloseModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Close Analysis</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showCloseModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted">The diagram will be locked. You can reopen it later if needed.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Closure Notes (optional)</label>
+                        <textarea class="form-control" rows="3" @bind="_closeNotes"
+                                  placeholder="Summary of findings, corrective actions assigned…"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showCloseModal = false">Cancel</button>
+                    <button class="btn btn-success btn-sm" @onclick="CloseDiagram" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Close Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private static readonly string[] _categories =
+        ["Machine", "Method", "Material", "People", "Measurement", "Environment", "Management"];
+
+    private IshikawaDiagramResponseDto? _diagram;
+    private bool _loading = true;
+    private bool _saving;
+
+    // Flat list of all causes (top+sub) for easy access
+    private List<IshikawaCauseSummaryDto> _allCauses = new();
+
+    // Add cause modal
+    private bool _showAddCause;
+    private string _addCategory = "";
+    private Guid? _addParentCauseId;
+    private string _causeText = "";
+    private string _causeError = "";
+    private List<RootCauseEntryResponseDto> _librarySuggestions = new();
+    private RootCauseEntryResponseDto? _linkedLibraryEntry;
+
+    // Edit cause modal
+    private bool _showEditCause;
+    private IshikawaCauseSummaryDto? _editingCause;
+    private string _editCauseText = "";
+    private bool _editIsRoot;
+    private string _editCauseError = "";
+
+    // Close modal
+    private bool _showCloseModal;
+    private string _closeNotes = "";
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            _diagram = await Api.GetIshikawaDiagramAsync(Id);
+            if (_diagram is not null)
+            {
+                _allCauses = _diagram.Causes
+                    .SelectMany(c => new[] { c }.Concat(c.SubCauses))
+                    .ToList();
+            }
+        }
+        finally { _loading = false; }
+    }
+
+    // ── Add cause ──
+
+    private void OpenAddCause(string category, Guid? parentId)
+    {
+        _addCategory = category;
+        _addParentCauseId = parentId;
+        _causeText = "";
+        _causeError = "";
+        _librarySuggestions = new();
+        _linkedLibraryEntry = null;
+        _showAddCause = true;
+    }
+
+    private async Task OnCauseTextInput(ChangeEventArgs e)
+    {
+        _causeText = e.Value?.ToString() ?? "";
+        _linkedLibraryEntry = null;
+        if (_causeText.Length >= 2)
+        {
+            var results = await Api.SearchRootCauseEntriesAsync(_causeText);
+            _librarySuggestions = results ?? new();
+        }
+        else
+        {
+            _librarySuggestions = new();
+        }
+    }
+
+    private void SelectLibraryEntry(RootCauseEntryResponseDto entry)
+    {
+        _causeText = entry.Title;
+        _linkedLibraryEntry = entry;
+        _librarySuggestions = new();
+    }
+
+    private void ClearLibraryLink() => _linkedLibraryEntry = null;
+
+    private async Task SaveCause()
+    {
+        if (string.IsNullOrWhiteSpace(_causeText)) { _causeError = "Cause text is required."; return; }
+        _saving = true; _causeError = "";
+        try
+        {
+            _diagram = await Api.AddIshikawaCauseAsync(Id, new IshikawaCauseCreateDto(
+                _addCategory, _causeText, _addParentCauseId, _linkedLibraryEntry?.Id));
+            _allCauses = _diagram!.Causes.SelectMany(c => new[] { c }.Concat(c.SubCauses)).ToList();
+            _showAddCause = false;
+        }
+        catch (Exception ex) { _causeError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    // ── Edit cause ──
+
+    private void OpenEditCause(IshikawaCauseSummaryDto cause)
+    {
+        _editingCause = cause;
+        _editCauseText = cause.CauseText;
+        _editIsRoot = cause.IsSelectedRootCause;
+        _editCauseError = "";
+        _showEditCause = true;
+    }
+
+    private async Task SaveEditCause()
+    {
+        if (string.IsNullOrWhiteSpace(_editCauseText)) { _editCauseError = "Cause text is required."; return; }
+        _saving = true; _editCauseError = "";
+        try
+        {
+            _diagram = await Api.UpdateIshikawaCauseAsync(Id, _editingCause!.Id, new IshikawaCauseUpdateDto(
+                _editCauseText, _editingCause.RootCauseLibraryEntryId, _editIsRoot));
+            _allCauses = _diagram!.Causes.SelectMany(c => new[] { c }.Concat(c.SubCauses)).ToList();
+            _showEditCause = false;
+        }
+        catch (Exception ex) { _editCauseError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    // ── Delete cause ──
+
+    private async Task DeleteCause(Guid causeId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this cause and its sub-causes?")) return;
+        try
+        {
+            _diagram = await Api.DeleteIshikawaCauseAsync(Id, causeId);
+            _allCauses = _diagram!.Causes.SelectMany(c => new[] { c }.Concat(c.SubCauses)).ToList();
+        }
+        catch (Exception ex) { await JS.InvokeVoidAsync("alert", $"Delete failed: {ex.Message}"); }
+    }
+
+    // ── Close/Reopen ──
+
+    private void OpenCloseModal() { _closeNotes = ""; _showCloseModal = true; }
+
+    private async Task CloseDiagram()
+    {
+        _saving = true;
+        try
+        {
+            _diagram = await Api.CloseIshikawaDiagramAsync(Id, new IshikawaDiagramCloseDto(_closeNotes));
+            _showCloseModal = false;
+        }
+        catch (Exception ex) { await JS.InvokeVoidAsync("alert", $"Failed: {ex.Message}"); }
+        finally { _saving = false; }
+    }
+
+    private async Task Reopen()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Reopen this diagram for editing?")) return;
+        try { _diagram = await Api.ReopenIshikawaDiagramAsync(Id); }
+        catch (Exception ex) { await JS.InvokeVoidAsync("alert", $"Failed: {ex.Message}"); }
+    }
+
+    // ── Helpers ──
+
+    private static string CategoryBadgeClass(string cat) => cat switch
+    {
+        "Machine"     => "bg-primary",
+        "Method"      => "bg-success",
+        "Material"    => "bg-warning text-dark",
+        "People"      => "bg-info text-dark",
+        "Measurement" => "bg-secondary",
+        "Environment" => "bg-dark",
+        "Management"  => "bg-danger",
+        _             => "bg-light text-dark border"
+    };
+}

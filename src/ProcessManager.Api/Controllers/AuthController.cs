@@ -87,6 +87,22 @@ public class AuthController : ControllerBase
             new UserResponseDto(user.Id, user.UserName!, user.Email!, dto.Role, user.DisplayName));
     }
 
+    // ── GET api/auth/users/picker (all authenticated users) ─────────────────
+    // Returns minimal Id + DisplayName list used by the UserPicker prompt type in the wizard.
+
+    [Authorize]
+    [HttpGet("users/picker")]
+    public ActionResult<IEnumerable<UserPickerDto>> GetUserPicker()
+    {
+        var users = _userManager.Users
+            .OrderBy(u => u.DisplayName ?? u.UserName)
+            .Select(u => new UserPickerDto(
+                u.Id,
+                u.DisplayName ?? u.UserName ?? u.Email ?? u.Id))
+            .ToList();
+        return Ok(users);
+    }
+
     // ── GET api/auth/users (Admin only) ──────────────────────────────────────
 
     [Authorize(Roles = "Admin")]

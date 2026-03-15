@@ -1,0 +1,262 @@
+@page "/five-whys"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@attribute [Authorize]
+
+<PageTitle>5 Whys — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-question-circle me-2 text-secondary"></i>5 Whys</h3>
+        <p class="text-muted small mb-0">Iterative root cause tree analysis</p>
+    </div>
+    <AuthorizeView Roles="Admin,Engineer">
+        <Authorized>
+            <button class="btn btn-primary btn-sm" @onclick="OpenCreate">
+                <i class="bi bi-plus-lg me-1"></i>New Analysis
+            </button>
+        </Authorized>
+    </AuthorizeView>
+</div>
+
+<!-- Filters -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Status</label>
+                <select class="form-select form-select-sm" @onchange="OnStatusFilter">
+                    <option value="">All</option>
+                    <option value="Open">Open</option>
+                    <option value="Closed">Closed</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Trigger Type</label>
+                <select class="form-select form-select-sm" @onchange="OnTypeFilter">
+                    <option value="">All</option>
+                    <option value="Manual">Manual</option>
+                    <option value="NonConformance">Non-Conformance</option>
+                    <option value="PfmeaFailureMode">PFMEA Failure Mode</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-outline-secondary btn-sm" @onclick="LoadData">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border spinner-border-sm me-2"></div>Loading…</div>
+}
+else if (_data is null || !_data.Items.Any())
+{
+    <div class="card">
+        <div class="card-body text-muted fst-italic small text-center py-4">
+            <i class="bi bi-question-circle fs-2 d-block mb-2 text-secondary"></i>
+            No 5 Whys analyses yet.
+        </div>
+    </div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Title</th>
+                        <th>Problem</th>
+                        <th>Trigger</th>
+                        <th class="text-center">Nodes</th>
+                        <th class="text-center">Root Causes</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th style="width:80px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in _data.Items)
+                    {
+                        <tr style="cursor:pointer" @onclick='() => Nav.NavigateTo($"/five-whys/{a.Id}")'>
+                            <td class="fw-semibold">@a.Title</td>
+                            <td><small class="text-muted">@Truncate(a.ProblemStatement, 70)</small></td>
+                            <td>@TriggerBadge(a.LinkedEntityType)</td>
+                            <td class="text-center">
+                                <span class="badge bg-secondary">@a.TotalNodes</span>
+                                @if (a.HasIncompleteLeaves)
+                                {
+                                    <i class="bi bi-exclamation-triangle-fill text-warning ms-1"
+                                       title="Some branches have no confirmed root cause"></i>
+                                }
+                            </td>
+                            <td class="text-center">
+                                @if (a.RootCauseNodes > 0)
+                                {
+                                    <span class="badge bg-success">@a.RootCauseNodes</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">0</span>
+                                }
+                            </td>
+                            <td>
+                                @if (a.Status == "Open")
+                                {
+                                    <span class="badge bg-primary">Open</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success">Closed</span>
+                                }
+                            </td>
+                            <td class="small text-muted">@a.CreatedAt.ToString("d MMM yyyy")</td>
+                            <td @onclick:stopPropagation>
+                                <AuthorizeView Roles="Admin,Engineer">
+                                    <Authorized>
+                                        <button class="btn btn-outline-danger btn-sm py-0 px-2"
+                                                @onclick="() => DeleteAnalysis(a)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </Authorized>
+                                </AuthorizeView>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (_data.TotalPages > 1)
+    {
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <small class="text-muted">@((_data.Page - 1) * _data.PageSize + 1)–@(Math.Min(_data.Page * _data.PageSize, _data.TotalCount)) of @_data.TotalCount</small>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" disabled="@(_data.Page <= 1)" @onclick="() => ChangePage(_data.Page - 1)"><i class="bi bi-chevron-left"></i></button>
+                <span class="btn btn-outline-secondary disabled">@_data.Page / @_data.TotalPages</span>
+                <button class="btn btn-outline-secondary" disabled="@(_data.Page >= _data.TotalPages)" @onclick="() => ChangePage(_data.Page + 1)"><i class="bi bi-chevron-right"></i></button>
+            </div>
+        </div>
+    }
+}
+
+<!-- Create Modal -->
+@if (_showCreate)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">New 5 Whys Analysis</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showCreate = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Title <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_newTitle" placeholder="Brief descriptive title" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Problem Statement <span class="text-danger">*</span></label>
+                        <textarea class="form-control" rows="3" @bind="_newProblem"
+                                  placeholder="Describe the problem to be analysed…"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Trigger Type</label>
+                        <select class="form-select" @bind="_newLinkedType">
+                            <option value="Manual">Manual</option>
+                            <option value="NonConformance">Non-Conformance</option>
+                            <option value="PfmeaFailureMode">PFMEA Failure Mode</option>
+                        </select>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_createError))
+                    {
+                        <div class="alert alert-danger py-2">@_createError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showCreate = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="CreateAnalysis" disabled="@_creating">
+                        @if (_creating) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Create
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResponse<FiveWhysAnalysisSummaryDto>? _data;
+    private bool _loading;
+    private string _statusFilter = "";
+    private string _typeFilter = "";
+    private int _page = 1;
+
+    private bool _showCreate;
+    private bool _creating;
+    private string _newTitle = "";
+    private string _newProblem = "";
+    private string _newLinkedType = "Manual";
+    private string _createError = "";
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try { _data = await Api.GetFiveWhysAnalysesAsync(_typeFilter, null, _statusFilter, _page); }
+        finally { _loading = false; }
+    }
+
+    private async Task OnStatusFilter(ChangeEventArgs e) { _statusFilter = e.Value?.ToString() ?? ""; _page = 1; await LoadData(); }
+    private async Task OnTypeFilter(ChangeEventArgs e)   { _typeFilter   = e.Value?.ToString() ?? ""; _page = 1; await LoadData(); }
+    private async Task ChangePage(int p) { _page = p; await LoadData(); }
+
+    private void OpenCreate()
+    {
+        _newTitle = ""; _newProblem = ""; _newLinkedType = "Manual"; _createError = "";
+        _showCreate = true;
+    }
+
+    private async Task CreateAnalysis()
+    {
+        if (string.IsNullOrWhiteSpace(_newTitle))   { _createError = "Title is required."; return; }
+        if (string.IsNullOrWhiteSpace(_newProblem)) { _createError = "Problem statement is required."; return; }
+
+        _creating = true; _createError = "";
+        try
+        {
+            var result = await Api.CreateFiveWhysAnalysisAsync(new FiveWhysAnalysisCreateDto(
+                _newTitle, _newProblem, _newLinkedType, null));
+            _showCreate = false;
+            Nav.NavigateTo($"/five-whys/{result!.Id}");
+        }
+        catch (Exception ex) { _createError = ex.Message; }
+        finally { _creating = false; }
+    }
+
+    private async Task DeleteAnalysis(FiveWhysAnalysisSummaryDto a)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete analysis '{a.Title}'? All nodes will be removed."))
+            return;
+        try { await Api.DeleteFiveWhysAnalysisAsync(a.Id); await LoadData(); }
+        catch (Exception ex) { await JS.InvokeVoidAsync("alert", $"Delete failed: {ex.Message}"); }
+    }
+
+    private static string Truncate(string? s, int max) =>
+        s is null ? "" : s.Length <= max ? s : s[..max] + "…";
+
+    private static MarkupString TriggerBadge(string type) => type switch
+    {
+        "NonConformance"   => (MarkupString)"<span class='badge bg-danger'>NC</span>",
+        "PfmeaFailureMode" => (MarkupString)"<span class='badge bg-warning text-dark'>PFMEA</span>",
+        _                  => (MarkupString)"<span class='badge bg-secondary'>Manual</span>"
+    };
+}

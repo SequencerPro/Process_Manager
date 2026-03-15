@@ -1,0 +1,228 @@
+@page "/management-reviews"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Management Reviews — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-journal-check me-2 text-primary"></i>Management Reviews</h3>
+        <p class="text-muted small mb-0">Scheduled quality management review meetings</p>
+    </div>
+    <button class="btn btn-sm btn-primary" @onclick="OpenCreate">
+        <i class="bi bi-plus-lg me-1"></i>New Review
+    </button>
+</div>
+
+<!-- Filters -->
+<div class="card mb-3 shadow-sm">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Status</label>
+                <select class="form-select form-select-sm" @bind="_filterStatus" @bind:after="Load">
+                    <option value="">All</option>
+                    <option>Scheduled</option>
+                    <option>InProgress</option>
+                    <option>Complete</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Type</label>
+                <select class="form-select form-select-sm" @bind="_filterType" @bind:after="Load">
+                    <option value="">All</option>
+                    <option>Quarterly</option>
+                    <option>Annual</option>
+                    <option>Special</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_data is null || !_data.Items.Any())
+{
+    <div class="card shadow-sm">
+        <div class="card-body text-muted small text-center py-4">No management reviews found.</div>
+    </div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Title</th>
+                        <th>Type</th>
+                        <th>Scheduled</th>
+                        <th>Status</th>
+                        <th>Conducted By</th>
+                        <th class="text-center">Action Items</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in _data.Items)
+                    {
+                        <tr>
+                            <td class="fw-medium">@r.Title</td>
+                            <td><span class="badge @TypeBadge(r.ReviewType)">@r.ReviewType</span></td>
+                            <td class="text-muted small">@r.ScheduledDate.ToString("MMM d, yyyy")</td>
+                            <td><span class="badge @StatusBadge(r.Status)">@r.Status</span></td>
+                            <td class="small text-muted">@(r.ConductedBy ?? "—")</td>
+                            <td class="text-center">
+                                @if (r.ActionItemCount > 0)
+                                {
+                                    <span class="badge bg-secondary rounded-pill">@r.ActionItemCount</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <a href="management-reviews/@r.Id" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-arrow-right"></i> Open
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (_data.TotalPages > 1)
+        {
+            <div class="card-footer d-flex justify-content-between align-items-center py-2">
+                <span class="small text-muted">Page @_page of @_data.TotalPages (@_data.TotalCount total)</span>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" disabled="@(_page <= 1)" @onclick="PrevPage">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" disabled="@(_page >= _data.TotalPages)" @onclick="NextPage">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@* ─── Create Modal ─────────────────────────────────────────────────────── *@
+@if (_showCreate)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">New Management Review</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCreate"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Title <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_newTitle" placeholder="e.g. Q1 2026 Quality Management Review" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Review Type</label>
+                        <select class="form-select" @bind="_newType">
+                            <option>Quarterly</option>
+                            <option>Annual</option>
+                            <option>Special</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Scheduled Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" @bind="_newDate" />
+                    </div>
+                    @if (_saveError is not null)
+                    {
+                        <div class="alert alert-danger py-1 small">@_saveError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseCreate">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SubmitCreate" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Create
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResponse<ManagementReviewSummaryDto>? _data;
+    private bool    _loading;
+    private bool    _saving;
+    private string? _saveError;
+    private int     _page = 1;
+
+    private string _filterStatus = "";
+    private string _filterType   = "";
+
+    private bool   _showCreate;
+    private string _newTitle = "";
+    private string _newType  = "Quarterly";
+    private DateTime _newDate = DateTime.Today.AddDays(30);
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            _data = await Api.GetManagementReviewsAsync(
+                status:     string.IsNullOrEmpty(_filterStatus) ? null : _filterStatus,
+                reviewType: string.IsNullOrEmpty(_filterType)   ? null : _filterType,
+                page:       _page);
+        }
+        catch (Exception ex) { Toast.ShowError($"Failed to load: {ex.Message}"); }
+        finally { _loading = false; }
+    }
+
+    private async Task PrevPage() { _page--; await Load(); }
+    private async Task NextPage() { _page++; await Load(); }
+
+    private void OpenCreate() { _showCreate = true; _saveError = null; _newTitle = ""; _newDate = DateTime.Today.AddDays(30); }
+    private void CloseCreate() { _showCreate = false; _saveError = null; }
+
+    private async Task SubmitCreate()
+    {
+        if (string.IsNullOrWhiteSpace(_newTitle)) { _saveError = "Title is required."; return; }
+        _saving = true; _saveError = null;
+        try
+        {
+            var created = await Api.CreateManagementReviewAsync(new CreateManagementReviewDto(_newTitle, _newType, _newDate));
+            _showCreate = false;
+            await Load();
+            Nav.NavigateTo($"management-reviews/{created!.Id}");
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private static string TypeBadge(string t) => t switch
+    {
+        "Annual"  => "bg-primary",
+        "Special" => "bg-warning text-dark",
+        _         => "bg-info text-dark",
+    };
+
+    private static string StatusBadge(string s) => s switch
+    {
+        "InProgress" => "bg-primary",
+        "Complete"   => "bg-success",
+        _            => "bg-secondary",
+    };
+}

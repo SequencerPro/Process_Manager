@@ -200,6 +200,51 @@
             </li>
         }
 
+        @* ── Accountability ── *@
+        <li class="mt-2">
+            <button type="button"
+                    class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
+                    @onclick='() => ToggleSection("accountability")'>
+                <span>Accountability</span>
+                @if (_overdueActionCount > 0 && _openSection != "accountability")
+                {
+                    <span class="badge bg-danger rounded-pill" style="font-size:.68rem">@(_overdueActionCount > 99 ? "99+" : _overdueActionCount.ToString())</span>
+                }
+                <i class='bi @(_openSection == "accountability" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
+            </button>
+        </li>
+        @if (_openSection == "accountability")
+        {
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="my-actions">
+                    <i class="bi bi-person-check me-2"></i> My Actions
+                    @if (_overdueActionCount > 0)
+                    {
+                        <span class="badge bg-danger rounded-pill ms-1" style="font-size:.65rem">@_overdueActionCount</span>
+                    }
+                </NavLink>
+            </li>
+            <AuthorizeView Roles="Admin,Engineer">
+                <Authorized>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="team-actions">
+                            <i class="bi bi-people me-2"></i> Team Actions
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="quality-scorecard">
+                            <i class="bi bi-clipboard2-data me-2"></i> Quality Scorecard
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="management-reviews">
+                            <i class="bi bi-journal-check me-2"></i> Management Reviews
+                        </NavLink>
+                    </li>
+                </Authorized>
+            </AuthorizeView>
+        }
+
         @* ── Admin (role-gated) ── *@
         <AuthorizeView Roles="Admin">
             <Authorized>
@@ -271,6 +316,7 @@
     private string? _role;
     private int _alertCount;
     private int _pendingCount;
+    private int _overdueActionCount;
     private string? _openSection;
 
     private static readonly Dictionary<string, string[]> _sectionPaths = new()
@@ -279,6 +325,7 @@
         ["execution"] = ["jobs", "items", "batches", "step-executions"],
         ["config"]    = ["vocabulary"],
         ["quality"]   = ["pfmeas", "ce-matrices", "control-plans", "non-conformances", "documents", "root-cause-library", "ishikawa", "five-whys", "mrb"],
+        ["accountability"] = ["my-actions", "team-actions", "quality-scorecard", "management-reviews"],
         ["admin"]     = ["admin"],
         ["reports"]   = ["reports", "powerbi-dashboards"],
     };
@@ -308,6 +355,13 @@
         {
             var pending = await Api.GetApprovalRecordsAsync(decision: "Pending", pageSize: 1);
             _pendingCount = pending?.TotalCount ?? 0;
+        }
+        catch { /* badge is best-effort */ }
+
+        try
+        {
+            var overdue = await Api.GetActionItemsAsync(assignedToMe: true, overdue: true, pageSize: 1);
+            _overdueActionCount = overdue?.TotalCount ?? 0;
         }
         catch { /* badge is best-effort */ }
     }

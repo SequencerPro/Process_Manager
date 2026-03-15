@@ -85,6 +85,10 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<MrbReview> MrbReviews => Set<MrbReview>();
     public DbSet<MrbParticipant> MrbParticipants => Set<MrbParticipant>();
 
+    // Phase 15: Tiered Accountability & Action Tracking
+    public DbSet<ActionItem> ActionItems => Set<ActionItem>();
+    public DbSet<ManagementReview> ManagementReviews => Set<ManagementReview>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -1013,6 +1017,53 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
         // NonConformance.MrbReviewId is a stored convenience lookup — not a FK constraint.
         modelBuilder.Entity<NonConformance>()
             .Property(nc => nc.MrbReviewId).IsRequired(false);
+
+        // ── Phase 15: Tiered Accountability & Action Tracking ─────────────────
+
+        // --- ActionItem ---
+        modelBuilder.Entity<ActionItem>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.Title).HasMaxLength(500).IsRequired();
+            e.Property(a => a.Description).HasMaxLength(2000);
+            e.Property(a => a.AssignedToUserId).HasMaxLength(450).IsRequired();
+            e.Property(a => a.AssignedToDisplayName).HasMaxLength(200).IsRequired();
+            e.Property(a => a.AssignedByUserId).HasMaxLength(450).IsRequired();
+            e.Property(a => a.AssignedByDisplayName).HasMaxLength(200).IsRequired();
+            e.Property(a => a.Priority).HasConversion<string>().HasMaxLength(20);
+            e.Property(a => a.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(a => a.SourceType).HasConversion<string>().HasMaxLength(30);
+            e.Property(a => a.CompletedBy).HasMaxLength(200);
+            e.Property(a => a.CompletionNotes).HasMaxLength(2000);
+            e.Property(a => a.VerifiedBy).HasMaxLength(200);
+            e.Property(a => a.CreatedBy).HasMaxLength(200);
+            e.HasIndex(a => a.AssignedToUserId);
+            e.HasIndex(a => a.Status);
+            e.HasIndex(a => a.DueDate);
+            e.HasIndex(a => new { a.SourceType, a.SourceEntityId });
+        });
+
+        // --- ManagementReview ---
+        modelBuilder.Entity<ManagementReview>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.Title).HasMaxLength(500).IsRequired();
+            e.Property(r => r.ReviewType).HasConversion<string>().HasMaxLength(20);
+            e.Property(r => r.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(r => r.ConductedBy).HasMaxLength(200);
+            e.Property(r => r.NcSummary).HasMaxLength(2000);
+            e.Property(r => r.ActionCloseRateSummary).HasMaxLength(500);
+            e.Property(r => r.MrbSummary).HasMaxLength(500);
+            e.Property(r => r.CustomerComplaintsNotes).HasMaxLength(2000);
+            e.Property(r => r.SupplierQualityNotes).HasMaxLength(2000);
+            e.Property(r => r.InternalAuditStatus).HasMaxLength(2000);
+            e.Property(r => r.PriorActionsSummary).HasMaxLength(2000);
+            e.Property(r => r.Decisions).HasMaxLength(4000);
+            e.Property(r => r.NextCycleTargets).HasMaxLength(2000);
+            e.Property(r => r.CreatedBy).HasMaxLength(200);
+            e.HasIndex(r => r.Status);
+            e.HasIndex(r => r.ScheduledDate);
+        });
     }
 
     public override int SaveChanges()

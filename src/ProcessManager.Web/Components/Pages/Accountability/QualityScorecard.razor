@@ -1,0 +1,213 @@
+@page "/quality-scorecard"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@inject ApiClient Api
+
+<PageTitle>Quality Scorecard — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-clipboard2-data me-2 text-primary"></i>Quality Scorecard</h3>
+        <p class="text-muted small mb-0">Live quality metrics and action item performance</p>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="Load" disabled="@_loading">
+        <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+    </button>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading scorecard…
+    </div>
+}
+else if (_data is null)
+{
+    <div class="alert alert-warning">Could not load scorecard data.</div>
+}
+else
+{
+    @* ── KPI Cards ── *@
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 @(_data.OverdueActionItems > 0 ? "border-danger" : "")">
+                <div class="card-body text-center">
+                    <div class="fs-2 fw-bold @(_data.OverdueActionItems > 0 ? "text-danger" : "text-success")">
+                        @_data.TotalOpenActionItems
+                    </div>
+                    <div class="small text-muted">Open Action Items</div>
+                    @if (_data.OverdueActionItems > 0)
+                    {
+                        <div class="badge bg-danger mt-1">@_data.OverdueActionItems overdue</div>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="fs-2 fw-bold @(_data.ActionCloseRatePercent >= 80 ? "text-success" : _data.ActionCloseRatePercent >= 50 ? "text-warning" : "text-danger")">
+                        @(_data.ActionCloseRatePercent.ToString("F1"))%
+                    </div>
+                    <div class="small text-muted">30-Day Close Rate</div>
+                    <div class="small text-muted mt-1">Avg @(_data.AverageDaysToClose.ToString("F1")) days to close</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 @(_data.ActionItemsCompleteAwaitingVerification > 0 ? "border-info" : "")">
+                <div class="card-body text-center">
+                    <div class="fs-2 fw-bold text-info">@_data.ActionItemsCompleteAwaitingVerification</div>
+                    <div class="small text-muted">Awaiting Verification</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 @(_data.OpenNonConformances > 0 ? "border-warning" : "")">
+                <div class="card-body text-center">
+                    <div class="fs-2 fw-bold @(_data.OpenNonConformances > 0 ? "text-warning" : "text-success")">
+                        @_data.OpenNonConformances
+                    </div>
+                    <div class="small text-muted">Open Non-Conformances</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card shadow-sm h-100 @(_data.MrbReviewsOpenOver30Days > 0 ? "border-danger" : "")">
+                <div class="card-body text-center">
+                    <div class="fs-2 fw-bold @(_data.OpenMrbReviews > 0 ? "text-danger" : "text-success")">
+                        @_data.OpenMrbReviews
+                    </div>
+                    <div class="small text-muted">Open MRB Reviews</div>
+                    @if (_data.MrbReviewsOpenOver30Days > 0)
+                    {
+                        <div class="badge bg-danger mt-1">@_data.MrbReviewsOpenOver30Days open &gt;30 days</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        @* ── Priority Breakdown ── *@
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header fw-semibold">Action Items by Priority</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Priority</th>
+                                <th class="text-end">Open</th>
+                                <th class="text-end text-danger">Overdue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _data.ActionItemsByPriority)
+                            {
+                                <tr>
+                                    <td>
+                                        <span class="badge @PriorityBadge(row.Priority)">@row.Priority</span>
+                                    </td>
+                                    <td class="text-end fw-medium">@row.Open</td>
+                                    <td class="text-end @(row.Overdue > 0 ? "text-danger fw-bold" : "text-muted")">@row.Overdue</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        @* ── Source Breakdown ── *@
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header fw-semibold">Action Items by Source</div>
+                <div class="card-body p-0">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Source</th>
+                                <th class="text-end">Open</th>
+                                <th class="text-end">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _data.ActionItemsBySource)
+                            {
+                                <tr>
+                                    <td><span class="small">@row.SourceType</span></td>
+                                    <td class="text-end fw-medium">@row.Open</td>
+                                    <td class="text-end text-muted">@row.Total</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        @* ── Top Overdue ── *@
+        <div class="col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header fw-semibold text-danger">
+                    <i class="bi bi-exclamation-triangle me-1"></i>Top Overdue Items
+                </div>
+                @if (!_data.TopOverdueItems.Any())
+                {
+                    <div class="card-body text-muted small text-center py-3">
+                        <i class="bi bi-check-circle text-success fs-3 d-block mb-1"></i>
+                        No overdue items!
+                    </div>
+                }
+                else
+                {
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Assignee</th>
+                                    <th>Due</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in _data.TopOverdueItems)
+                                {
+                                    <tr>
+                                        <td class="small fw-medium text-truncate" style="max-width:180px" title="@item.Title">@item.Title</td>
+                                        <td class="small text-muted text-truncate" style="max-width:120px">@item.AssignedToDisplayName</td>
+                                        <td class="small text-danger fw-bold">@item.DueDate.ToString("MMM d")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private QualityScorecardDto? _data;
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try { _data = await Api.GetQualityScorecardAsync(); }
+        catch (Exception ex) { Toast.ShowError($"Failed to load scorecard: {ex.Message}"); }
+        finally { _loading = false; }
+    }
+
+    private static string PriorityBadge(string p) => p switch
+    {
+        "Critical" => "bg-danger",
+        "High"     => "bg-warning text-dark",
+        "Medium"   => "bg-primary",
+        _          => "bg-secondary",
+    };
+}

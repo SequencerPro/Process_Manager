@@ -1,0 +1,461 @@
+@page "/team-actions"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@inject ApiClient Api
+
+<PageTitle>Team Actions — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-people me-2 text-primary"></i>Team Actions</h3>
+        <p class="text-muted small mb-0">All action items across the team</p>
+    </div>
+    <button class="btn btn-sm btn-primary" @onclick="OpenCreateModal">
+        <i class="bi bi-plus-lg me-1"></i>New Action Item
+    </button>
+</div>
+
+<!-- Filters -->
+<div class="card mb-3 shadow-sm">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Status</label>
+                <select class="form-select form-select-sm" @bind="_filterStatus" @bind:after="Load">
+                    <option value="">All</option>
+                    <option>Open</option>
+                    <option>InProgress</option>
+                    <option>Complete</option>
+                    <option>Verified</option>
+                    <option>Cancelled</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Priority</label>
+                <select class="form-select form-select-sm" @bind="_filterPriority" @bind:after="Load">
+                    <option value="">All</option>
+                    <option>Critical</option>
+                    <option>High</option>
+                    <option>Medium</option>
+                    <option>Low</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Source</label>
+                <select class="form-select form-select-sm" @bind="_filterSource" @bind:after="Load">
+                    <option value="">All</option>
+                    <option value="Manual">Manual</option>
+                    <option value="NonConformance">NC</option>
+                    <option value="MrbReview">MRB</option>
+                    <option value="RcaAnalysis">RCA</option>
+                    <option value="ManagementReview">Management Review</option>
+                    <option value="AuditFinding">Audit Finding</option>
+                    <option value="PfmeaAction">PFMEA</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-1">Overdue only</label>
+                <div class="form-check form-switch mt-1">
+                    <input class="form-check-input" type="checkbox" @bind="_filterOverdue" @bind:after="Load" />
+                </div>
+            </div>
+            <div class="col-md-1 ms-auto">
+                <button class="btn btn-sm btn-outline-secondary w-100" @onclick="ClearFilters">
+                    <i class="bi bi-x-circle me-1"></i>Clear
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_data is null || !_data.Items.Any())
+{
+    <div class="card shadow-sm">
+        <div class="card-body text-muted small text-center py-4">No action items found.</div>
+    </div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Title</th>
+                        <th>Assigned To</th>
+                        <th>Assigned By</th>
+                        <th>Source</th>
+                        <th>Priority</th>
+                        <th>Due</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in _data.Items)
+                    {
+                        <tr>
+                            <td class="fw-medium">@item.Title</td>
+                            <td class="small">@item.AssignedToDisplayName</td>
+                            <td class="small text-muted">@item.AssignedByDisplayName</td>
+                            <td><span class="badge @SourceBadge(item.SourceType) text-truncate" style="max-width:90px">@item.SourceType</span></td>
+                            <td><span class="badge @PriorityBadge(item.Priority)">@item.Priority</span></td>
+                            <td class="@(item.IsOverdue ? "text-danger fw-bold" : "text-muted") small">
+                                @item.DueDate.ToString("MMM d, yyyy")
+                            </td>
+                            <td><span class="badge bg-light text-dark border">@item.Status</span></td>
+                            <td class="text-end text-nowrap">
+                                @if (item.Status == "Open")
+                                {
+                                    <button class="btn btn-sm btn-outline-primary me-1"
+                                            @onclick="() => QuickStart(item)">Start</button>
+                                }
+                                @if (item.Status is "Open" or "InProgress")
+                                {
+                                    <button class="btn btn-sm btn-outline-success me-1"
+                                            @onclick="() => OpenCompleteModal(item)">Complete</button>
+                                }
+                                @if (item.Status == "Complete")
+                                {
+                                    <button class="btn btn-sm btn-outline-primary me-1"
+                                            @onclick="() => OpenVerifyModal(item)">Verify</button>
+                                }
+                                @if (item.Status is not "Cancelled" and not "Verified")
+                                {
+                                    <button class="btn btn-sm btn-outline-danger me-1"
+                                            @onclick="() => QuickCancel(item)">Cancel</button>
+                                }
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        @onclick="() => OpenEditModal(item)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (_data.TotalPages > 1)
+        {
+            <div class="card-footer d-flex justify-content-between align-items-center py-2">
+                <span class="small text-muted">
+                    @_data.TotalCount total — Page @_page of @_data.TotalPages
+                </span>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" disabled="@(_page <= 1)"
+                            @onclick="PrevPage"><i class="bi bi-chevron-left"></i></button>
+                    <button class="btn btn-outline-secondary" disabled="@(_page >= _data.TotalPages)"
+                            @onclick="NextPage"><i class="bi bi-chevron-right"></i></button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@* ─── Create Modal ─────────────────────────────────────────────────────── *@
+@if (_showCreate)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">New Action Item</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCreate"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Title <span class="text-danger">*</span></label>
+                            <input class="form-control" @bind="_createTitle" placeholder="Describe the required action…" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" rows="2" @bind="_createDesc"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Assign To (User ID) <span class="text-danger">*</span></label>
+                            <input class="form-control" @bind="_createAssignedToId" placeholder="User ID" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Assignee Display Name <span class="text-danger">*</span></label>
+                            <input class="form-control" @bind="_createAssignedToName" placeholder="Full name" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Due Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" @bind="_createDue" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Priority</label>
+                            <select class="form-select" @bind="_createPriority">
+                                <option>Critical</option>
+                                <option>High</option>
+                                <option selected>Medium</option>
+                                <option>Low</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Source Type</label>
+                            <select class="form-select" @bind="_createSource">
+                                <option selected>Manual</option>
+                                <option value="NonConformance">Non-Conformance</option>
+                                <option value="MrbReview">MRB Review</option>
+                                <option value="RcaAnalysis">RCA Analysis</option>
+                                <option value="ManagementReview">Management Review</option>
+                                <option value="AuditFinding">Audit Finding</option>
+                                <option value="PfmeaAction">PFMEA</option>
+                            </select>
+                        </div>
+                    </div>
+                    @if (_saveError is not null)
+                    {
+                        <div class="alert alert-danger mt-3 py-1 small">@_saveError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseCreate">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SubmitCreate" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Create
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ─── Complete Modal ─────────────────────────────────────────────────────── *@
+@if (_completeTarget is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Complete Action Item</h5>
+                    <button type="button" class="btn-close" @onclick="() => { _completeTarget = null; _saveError = null; }"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fw-medium">@_completeTarget.Title</p>
+                    <label class="form-label">Completion notes <span class="text-danger">*</span></label>
+                    <textarea class="form-control" rows="3" @bind="_completionNotes"></textarea>
+                    @if (_saveError is not null)
+                    {
+                        <div class="alert alert-danger mt-2 py-1 small">@_saveError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => { _completeTarget = null; _saveError = null; }">Cancel</button>
+                    <button class="btn btn-success" @onclick="SubmitComplete" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Mark Complete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ─── Verify Modal ─────────────────────────────────────────────────────── *@
+@if (_verifyTarget is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Verify Action Item</h5>
+                    <button type="button" class="btn-close" @onclick="() => { _verifyTarget = null; _saveError = null; }"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fw-medium">@_verifyTarget.Title</p>
+                    <p class="text-muted small">Completion notes: <em>@(_verifyTarget.CompletionNotes ?? "—")</em></p>
+                    <label class="form-label">Verification notes (optional)</label>
+                    <textarea class="form-control" rows="2" @bind="_verificationNotes"></textarea>
+                    @if (_saveError is not null)
+                    {
+                        <div class="alert alert-danger mt-2 py-1 small">@_saveError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => { _verifyTarget = null; _saveError = null; }">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SubmitVerify" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Verify &amp; Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResponse<ActionItemSummaryDto>? _data;
+    private bool   _loading;
+    private bool   _saving;
+    private string? _saveError;
+    private int    _page = 1;
+
+    // Filters
+    private string _filterStatus   = "";
+    private string _filterPriority = "";
+    private string _filterSource   = "";
+    private bool   _filterOverdue;
+
+    // Create
+    private bool   _showCreate;
+    private string _createTitle          = "";
+    private string _createDesc           = "";
+    private string _createAssignedToId   = "";
+    private string _createAssignedToName = "";
+    private DateTime _createDue          = DateTime.Today.AddDays(14);
+    private string _createPriority       = "Medium";
+    private string _createSource         = "Manual";
+
+    // Complete
+    private ActionItemSummaryDto? _completeTarget;
+    private string _completionNotes = "";
+
+    // Verify
+    private ActionItemDto? _verifyTarget;
+    private string _verificationNotes = "";
+
+    // Edit
+    private ActionItemDto? _editItem;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            _data = await Api.GetActionItemsAsync(
+                status:       string.IsNullOrEmpty(_filterStatus)   ? null : _filterStatus,
+                priority:     string.IsNullOrEmpty(_filterPriority) ? null : _filterPriority,
+                sourceType:   string.IsNullOrEmpty(_filterSource)   ? null : _filterSource,
+                overdue:      _filterOverdue,
+                page:         _page,
+                pageSize:     50);
+        }
+        catch (Exception ex) { Toast.ShowError($"Failed to load: {ex.Message}"); }
+        finally { _loading = false; }
+    }
+
+    private void ClearFilters()
+    {
+        _filterStatus = _filterPriority = _filterSource = "";
+        _filterOverdue = false;
+        _page = 1;
+        _ = Load();
+    }
+
+    private async Task PrevPage() { _page--; await Load(); }
+    private async Task NextPage() { _page++; await Load(); }
+
+    private void OpenCreateModal()
+    {
+        _showCreate = true; _saveError = null;
+        _createTitle = _createDesc = _createAssignedToId = _createAssignedToName = "";
+        _createDue = DateTime.Today.AddDays(14);
+        _createPriority = "Medium"; _createSource = "Manual";
+    }
+    private void CloseCreate() { _showCreate = false; _saveError = null; }
+
+    private async Task SubmitCreate()
+    {
+        if (string.IsNullOrWhiteSpace(_createTitle) ||
+            string.IsNullOrWhiteSpace(_createAssignedToId) ||
+            string.IsNullOrWhiteSpace(_createAssignedToName))
+        {
+            _saveError = "Title and assignee are required."; return;
+        }
+        _saving = true; _saveError = null;
+        try
+        {
+            await Api.CreateActionItemAsync(new CreateActionItemDto(
+                _createTitle, _createDesc, _createAssignedToId, _createAssignedToName,
+                _createDue, _createPriority, _createSource, null));
+            _showCreate = false;
+            await Load();
+            Toast.ShowSuccess("Action item created.");
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task QuickStart(ActionItemSummaryDto item)
+    {
+        try { await Api.StartActionItemAsync(item.Id); await Load(); }
+        catch (Exception ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task QuickCancel(ActionItemSummaryDto item)
+    {
+        try { await Api.CancelActionItemAsync(item.Id); await Load(); Toast.ShowSuccess("Cancelled."); }
+        catch (Exception ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private void OpenCompleteModal(ActionItemSummaryDto item)
+    {
+        _completeTarget = item; _completionNotes = ""; _saveError = null;
+    }
+
+    private async Task SubmitComplete()
+    {
+        if (string.IsNullOrWhiteSpace(_completionNotes)) { _saveError = "Notes required."; return; }
+        _saving = true; _saveError = null;
+        try
+        {
+            await Api.CompleteActionItemAsync(_completeTarget!.Id, new CompleteActionItemDto(_completionNotes));
+            _completeTarget = null; await Load(); Toast.ShowSuccess("Marked complete.");
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task OpenVerifyModal(ActionItemSummaryDto item)
+    {
+        try { _verifyTarget = await Api.GetActionItemAsync(item.Id); _verificationNotes = ""; _saveError = null; }
+        catch (Exception ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task SubmitVerify()
+    {
+        _saving = true; _saveError = null;
+        try
+        {
+            await Api.VerifyActionItemAsync(_verifyTarget!.Id, new VerifyActionItemDto(_verificationNotes));
+            _verifyTarget = null; await Load(); Toast.ShowSuccess("Verified and closed.");
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task OpenEditModal(ActionItemSummaryDto item)
+    {
+        try { _editItem = await Api.GetActionItemAsync(item.Id); _saveError = null; }
+        catch (Exception ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private static string PriorityBadge(string p) => p switch
+    {
+        "Critical" => "bg-danger",
+        "High"     => "bg-warning text-dark",
+        "Medium"   => "bg-primary",
+        _          => "bg-secondary",
+    };
+
+    private static string SourceBadge(string s) => s switch
+    {
+        "NonConformance"   => "bg-danger",
+        "MrbReview"        => "bg-warning text-dark",
+        "RcaAnalysis"      => "bg-info text-dark",
+        "ManagementReview" => "bg-dark",
+        "PfmeaAction"      => "bg-secondary",
+        _                  => "bg-light text-dark border",
+    };
+}

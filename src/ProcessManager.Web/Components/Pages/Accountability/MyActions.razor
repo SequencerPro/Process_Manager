@@ -1,0 +1,324 @@
+@page "/my-actions"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>My Actions — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-person-check me-2 text-primary"></i>My Actions</h3>
+        <p class="text-muted small mb-0">Action items assigned to you</p>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="Load" disabled="@_loading">
+        <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+    </button>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else
+{
+    @* ── Overdue ── *@
+    @if (_overdue.Any())
+    {
+        <div class="d-flex align-items-center mb-2 gap-2">
+            <h5 class="mb-0 text-danger">Overdue</h5>
+            <span class="badge bg-danger rounded-pill">@_overdue.Count</span>
+        </div>
+        <div class="card shadow-sm mb-4 border-danger">
+            @RenderItemTable(_overdue)
+        </div>
+    }
+
+    @* ── Due Soon (within 7 days) ── *@
+    @if (_dueSoon.Any())
+    {
+        <div class="d-flex align-items-center mb-2 gap-2">
+            <h5 class="mb-0 text-warning">Due Soon</h5>
+            <span class="badge bg-warning text-dark rounded-pill">@_dueSoon.Count</span>
+        </div>
+        <div class="card shadow-sm mb-4 border-warning">
+            @RenderItemTable(_dueSoon)
+        </div>
+    }
+
+    @* ── Open / In Progress ── *@
+    <div class="d-flex align-items-center mb-2 gap-2">
+        <h5 class="mb-0">Open / In Progress</h5>
+        <span class="badge bg-primary rounded-pill">@_open.Count</span>
+    </div>
+    @if (!_open.Any())
+    {
+        <div class="card shadow-sm mb-4">
+            <div class="card-body text-muted fst-italic small text-center py-3">No open items.</div>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm mb-4">
+            @RenderItemTable(_open)
+        </div>
+    }
+
+    @* ── Complete, awaiting verification ── *@
+    @if (_awaitingVerification.Any())
+    {
+        <div class="d-flex align-items-center mb-2 gap-2">
+            <h5 class="mb-0 text-info">Awaiting Verification</h5>
+            <span class="badge bg-info text-dark rounded-pill">@_awaitingVerification.Count</span>
+        </div>
+        <div class="card shadow-sm mb-4">
+            @RenderItemTable(_awaitingVerification)
+        </div>
+    }
+}
+
+@* ─── Complete Modal ──────────────────────────────────────────────────────── *@
+@if (_completeTarget is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Complete Action Item</h5>
+                    <button type="button" class="btn-close" @onclick="CancelComplete"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fw-medium">@_completeTarget.Title</p>
+                    <label class="form-label">Completion notes <span class="text-danger">*</span></label>
+                    <textarea class="form-control" rows="3" @bind="_completionNotes"
+                              placeholder="Describe what was done to resolve this action item…"></textarea>
+                    @if (_saveError is not null)
+                    {
+                        <div class="alert alert-danger mt-2 py-1 small">@_saveError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelComplete">Cancel</button>
+                    <button class="btn btn-success" @onclick="SubmitComplete" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Mark Complete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ─── Verify Modal ──────────────────────────────────────────────────────── *@
+@if (_verifyTarget is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Verify Action Item</h5>
+                    <button type="button" class="btn-close" @onclick="() => _verifyTarget = null"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fw-medium">@_verifyTarget.Title</p>
+                    <p class="text-muted small">Completion notes: <em>@(_verifyTarget.CompletionNotes ?? "—")</em></p>
+                    <label class="form-label">Verification notes (optional)</label>
+                    <textarea class="form-control" rows="2" @bind="_verificationNotes"
+                              placeholder="Optional notes on verification…"></textarea>
+                    @if (_saveError is not null)
+                    {
+                        <div class="alert alert-danger mt-2 py-1 small">@_saveError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _verifyTarget = null">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SubmitVerify" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Verify &amp; Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ActionItemSummaryDto> _overdue              = new();
+    private List<ActionItemSummaryDto> _dueSoon              = new();
+    private List<ActionItemSummaryDto> _open                 = new();
+    private List<ActionItemSummaryDto> _awaitingVerification = new();
+    private bool   _loading;
+    private bool   _saving;
+    private string? _saveError;
+
+    // Complete modal
+    private ActionItemSummaryDto? _completeTarget;
+    private string _completionNotes = "";
+
+    // Verify modal
+    private ActionItemDto? _verifyTarget;
+    private string _verificationNotes = "";
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            var all = await Api.GetActionItemsAsync(assignedToMe: true, pageSize: 500);
+            var items = all?.Items ?? new();
+            var now   = DateTime.Now;
+            var soon  = now.AddDays(7);
+
+            _overdue              = items.Where(a => a.IsOverdue).ToList();
+            _dueSoon              = items.Where(a => !a.IsOverdue
+                                                  && a.DueDate <= soon
+                                                  && (a.Status == "Open" || a.Status == "InProgress")).ToList();
+            _open                 = items.Where(a => !a.IsOverdue
+                                                  && (a.DueDate > soon || a.DueDate == default)
+                                                  && (a.Status == "Open" || a.Status == "InProgress")).ToList();
+            _awaitingVerification = items.Where(a => a.Status == "Complete").ToList();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load actions: {ex.Message}");
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task StartItem(ActionItemSummaryDto item)
+    {
+        try
+        {
+            await Api.StartActionItemAsync(item.Id);
+            await Load();
+        }
+        catch (Exception ex) { Toast.ShowError($"Could not start: {ex.Message}"); }
+    }
+
+    private void OpenCompleteModal(ActionItemSummaryDto item)
+    {
+        _completeTarget   = item;
+        _completionNotes  = "";
+        _saveError        = null;
+    }
+
+    private void CancelComplete() { _completeTarget = null; _saveError = null; }
+
+    private async Task SubmitComplete()
+    {
+        if (string.IsNullOrWhiteSpace(_completionNotes))
+        {
+            _saveError = "Completion notes are required.";
+            return;
+        }
+        _saving = true; _saveError = null;
+        try
+        {
+            await Api.CompleteActionItemAsync(_completeTarget!.Id,
+                new CompleteActionItemDto(_completionNotes));
+            _completeTarget = null;
+            await Load();
+            Toast.ShowSuccess("Action item marked complete.");
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task OpenVerifyModal(ActionItemSummaryDto item)
+    {
+        try
+        {
+            _verifyTarget        = await Api.GetActionItemAsync(item.Id);
+            _verificationNotes   = "";
+            _saveError           = null;
+        }
+        catch (Exception ex) { Toast.ShowError($"Could not load item: {ex.Message}"); }
+    }
+
+    private async Task SubmitVerify()
+    {
+        _saving = true; _saveError = null;
+        try
+        {
+            await Api.VerifyActionItemAsync(_verifyTarget!.Id,
+                new VerifyActionItemDto(_verificationNotes));
+            _verifyTarget = null;
+            await Load();
+            Toast.ShowSuccess("Action item verified and closed.");
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private static string PriorityBadge(string p) => p switch
+    {
+        "Critical" => "bg-danger",
+        "High"     => "bg-warning text-dark",
+        "Medium"   => "bg-primary",
+        _          => "bg-secondary",
+    };
+
+    private static string SourceBadge(string s) => s switch
+    {
+        "NonConformance"  => "bg-danger",
+        "MrbReview"       => "bg-warning text-dark",
+        "RcaAnalysis"     => "bg-info text-dark",
+        "ManagementReview"=> "bg-dark",
+        "PfmeaAction"     => "bg-purple",
+        "AuditFinding"    => "bg-secondary",
+        _                 => "bg-light text-dark",
+    };
+
+    private RenderFragment RenderItemTable(List<ActionItemSummaryDto> items) => __builder =>
+    {
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Title</th>
+                        <th>Source</th>
+                        <th>Priority</th>
+                        <th>Due</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in items)
+                    {
+                        <tr>
+                            <td class="fw-medium">@item.Title</td>
+                            <td><span class="badge @SourceBadge(item.SourceType)">@item.SourceType</span></td>
+                            <td><span class="badge @PriorityBadge(item.Priority)">@item.Priority</span></td>
+                            <td class="@(item.IsOverdue ? "text-danger fw-bold" : "text-muted") small">
+                                @item.DueDate.ToString("MMM d, yyyy")
+                            </td>
+                            <td><span class="badge bg-light text-dark border">@item.Status</span></td>
+                            <td class="text-end">
+                                @if (item.Status == "Open")
+                                {
+                                    <button class="btn btn-sm btn-outline-primary me-1"
+                                            @onclick="() => StartItem(item)">Start</button>
+                                }
+                                @if (item.Status == "Open" || item.Status == "InProgress")
+                                {
+                                    <button class="btn btn-sm btn-success"
+                                            @onclick="() => OpenCompleteModal(item)">Complete</button>
+                                }
+                                @if (item.Status == "Complete")
+                                {
+                                    <button class="btn btn-sm btn-primary"
+                                            @onclick="() => OpenVerifyModal(item)">Verify</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    };
+}

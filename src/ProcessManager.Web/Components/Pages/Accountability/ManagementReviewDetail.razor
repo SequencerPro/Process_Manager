@@ -1,0 +1,556 @@
+@page "/management-reviews/{Id:guid}"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Management Review — Process Manager</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_review is null)
+{
+    <div class="alert alert-danger">Review not found.</div>
+}
+else
+{
+    @* ── Header ── *@
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <nav aria-label="breadcrumb" class="mb-1">
+                <ol class="breadcrumb small mb-0">
+                    <li class="breadcrumb-item"><a href="management-reviews">Management Reviews</a></li>
+                    <li class="breadcrumb-item active">@_review.Title</li>
+                </ol>
+            </nav>
+            <h3 class="mb-1">@_review.Title</h3>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge @TypeBadge(_review.ReviewType)">@_review.ReviewType</span>
+                <span class="badge @StatusBadge(_review.Status)">@_review.Status</span>
+                <span class="text-muted small">Scheduled: @_review.ScheduledDate.ToString("MMM d, yyyy")</span>
+                @if (_review.ConductedBy is not null)
+                {
+                    <span class="text-muted small">· Conducted by: @_review.ConductedBy</span>
+                }
+            </div>
+        </div>
+        <div class="d-flex gap-2">
+            @if (_review.Status == "Scheduled")
+            {
+                <button class="btn btn-primary" @onclick="StartReview" disabled="@_acting">
+                    @if (_acting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    <i class="bi bi-play-fill me-1"></i>Start Review
+                </button>
+            }
+            @if (_review.Status == "InProgress")
+            {
+                <button class="btn btn-success" @onclick="CompleteReview" disabled="@_acting">
+                    @if (_acting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    <i class="bi bi-check-lg me-1"></i>Complete Review
+                </button>
+            }
+            <button class="btn btn-outline-secondary" @onclick="Load">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        @* ── Auto-populated Inputs (visible after Start) ── *@
+        @if (_review.NcSummary is not null || _review.ActionCloseRateSummary is not null || _review.MrbSummary is not null)
+        {
+            <div class="col-12">
+                <div class="card shadow-sm border-info">
+                    <div class="card-header bg-info bg-opacity-10 fw-semibold">
+                        <i class="bi bi-graph-up me-2 text-info"></i>Live Quality Snapshot (auto-populated at start)
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            @if (_review.NcSummary is not null)
+                            {
+                                <div class="col-md-4">
+                                    <div class="fw-semibold small mb-1">Non-Conformances</div>
+                                    <p class="mb-0 text-muted small">@_review.NcSummary</p>
+                                </div>
+                            }
+                            @if (_review.ActionCloseRateSummary is not null)
+                            {
+                                <div class="col-md-4">
+                                    <div class="fw-semibold small mb-1">Action Item Close Rate</div>
+                                    <p class="mb-0 text-muted small">@_review.ActionCloseRateSummary</p>
+                                </div>
+                            }
+                            @if (_review.MrbSummary is not null)
+                            {
+                                <div class="col-md-4">
+                                    <div class="fw-semibold small mb-1">Material Review Board</div>
+                                    <p class="mb-0 text-muted small">@_review.MrbSummary</p>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* ── Manual Inputs ── *@
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+                    <span>Review Inputs</span>
+                    @if (_review.Status != "Complete")
+                    {
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="OpenEditInputs">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    }
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="fw-semibold small text-muted mb-1">Customer Complaints</div>
+                        @if (_review.CustomerComplaintsNotes is not null)
+                        {
+                            <p class="mb-0 small" style="white-space:pre-wrap">@_review.CustomerComplaintsNotes</p>
+                        }
+                        else { <em class="text-muted small">Not recorded</em> }
+                    </div>
+                    <div class="mb-3">
+                        <div class="fw-semibold small text-muted mb-1">Supplier Quality</div>
+                        @if (_review.SupplierQualityNotes is not null)
+                        {
+                            <p class="mb-0 small" style="white-space:pre-wrap">@_review.SupplierQualityNotes</p>
+                        }
+                        else { <em class="text-muted small">Not recorded</em> }
+                    </div>
+                    <div class="mb-3">
+                        <div class="fw-semibold small text-muted mb-1">Internal Audit Status</div>
+                        @if (_review.InternalAuditStatus is not null)
+                        {
+                            <p class="mb-0 small" style="white-space:pre-wrap">@_review.InternalAuditStatus</p>
+                        }
+                        else { <em class="text-muted small">Not recorded</em> }
+                    </div>
+                    <div>
+                        <div class="fw-semibold small text-muted mb-1">Prior Actions Review</div>
+                        @if (_review.PriorActionsSummary is not null)
+                        {
+                            <p class="mb-0 small" style="white-space:pre-wrap">@_review.PriorActionsSummary</p>
+                        }
+                        else { <em class="text-muted small">Not recorded</em> }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ── Outputs ── *@
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+                    <span>Decisions &amp; Next Steps</span>
+                    @if (_review.Status != "Complete")
+                    {
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="OpenEditOutputs">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    }
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="fw-semibold small text-muted mb-1">Decisions</div>
+                        @if (_review.Decisions is not null)
+                        {
+                            <p class="mb-0 small" style="white-space:pre-wrap">@_review.Decisions</p>
+                        }
+                        else { <em class="text-muted small">Not recorded</em> }
+                    </div>
+                    <div>
+                        <div class="fw-semibold small text-muted mb-1">Next Cycle Targets</div>
+                        @if (_review.NextCycleTargets is not null)
+                        {
+                            <p class="mb-0 small" style="white-space:pre-wrap">@_review.NextCycleTargets</p>
+                        }
+                        else { <em class="text-muted small">Not recorded</em> }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ── Action Items ── *@
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+                    <span>
+                        <i class="bi bi-check2-square me-2"></i>Action Items
+                        @if (_actionItems.Any())
+                        {
+                            <span class="badge bg-secondary ms-1">@_actionItems.Count</span>
+                        }
+                    </span>
+                    @if (_review.Status != "Complete")
+                    {
+                        <button class="btn btn-sm btn-outline-primary" @onclick="OpenAddAction">
+                            <i class="bi bi-plus"></i> Add Action
+                        </button>
+                    }
+                </div>
+                @if (!_actionItems.Any())
+                {
+                    <div class="card-body text-muted small fst-italic text-center py-3">
+                        No action items yet. Add actions identified during the review.
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0 align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Assigned To</th>
+                                    <th>Priority</th>
+                                    <th>Due</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var a in _actionItems)
+                                {
+                                    <tr>
+                                        <td class="fw-medium">@a.Title</td>
+                                        <td class="small text-muted">@a.AssignedToDisplayName</td>
+                                        <td><span class="badge @PriorityBadge(a.Priority)">@a.Priority</span></td>
+                                        <td class="@(a.IsOverdue ? "text-danger fw-bold" : "text-muted") small">
+                                            @a.DueDate.ToString("MMM d, yyyy")
+                                        </td>
+                                        <td><span class="badge bg-light text-dark border">@a.Status</span></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@* ─── Edit Inputs Modal ──────────────────────────────────────────────────── *@
+@if (_editInputs && _review is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Review Inputs</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEdit"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Conducted By</label>
+                        <input class="form-control" @bind="_editConductedBy" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Customer Complaints Notes</label>
+                        <textarea class="form-control" rows="3" @bind="_editCustomerComplaints"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Supplier Quality Notes</label>
+                        <textarea class="form-control" rows="3" @bind="_editSupplierQuality"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Internal Audit Status</label>
+                        <textarea class="form-control" rows="3" @bind="_editInternalAudit"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Prior Actions Summary</label>
+                        <textarea class="form-control" rows="3" @bind="_editPriorActions"></textarea>
+                    </div>
+                    @if (_saveError is not null)
+                    {
+                        <div class="alert alert-danger py-1 small">@_saveError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseEdit">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveInputs" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ─── Edit Outputs Modal ─────────────────────────────────────────────────── *@
+@if (_editOutputs && _review is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Decisions &amp; Targets</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEdit"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Decisions</label>
+                        <textarea class="form-control" rows="5" @bind="_editDecisions"
+                                  placeholder="Record key decisions made during the review…"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Next Cycle Targets</label>
+                        <textarea class="form-control" rows="4" @bind="_editNextTargets"
+                                  placeholder="Goals and targets for the next review cycle…"></textarea>
+                    </div>
+                    @if (_saveError is not null)
+                    {
+                        <div class="alert alert-danger py-1 small">@_saveError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseEdit">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveOutputs" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ─── Add Action Item Modal ──────────────────────────────────────────────── *@
+@if (_showAddAction && _review is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Action Item</h5>
+                    <button type="button" class="btn-close" @onclick="CloseAddAction"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Title <span class="text-danger">*</span></label>
+                            <input class="form-control" @bind="_actionTitle" placeholder="Describe the required action…" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" rows="2" @bind="_actionDesc"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Assign To (User ID) <span class="text-danger">*</span></label>
+                            <input class="form-control" @bind="_actionAssigneeId" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Assignee Display Name <span class="text-danger">*</span></label>
+                            <input class="form-control" @bind="_actionAssigneeName" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Due Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" @bind="_actionDue" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Priority</label>
+                            <select class="form-select" @bind="_actionPriority">
+                                <option>Critical</option>
+                                <option>High</option>
+                                <option selected>Medium</option>
+                                <option>Low</option>
+                            </select>
+                        </div>
+                    </div>
+                    @if (_saveError is not null)
+                    {
+                        <div class="alert alert-danger mt-3 py-1 small">@_saveError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseAddAction">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SubmitAddAction" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Add Action
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private ManagementReviewDto? _review;
+    private List<ActionItemSummaryDto> _actionItems = new();
+    private bool    _loading;
+    private bool    _acting;
+    private bool    _saving;
+    private string? _saveError;
+
+    // Edit inputs
+    private bool   _editInputs;
+    private string _editConductedBy      = "";
+    private string _editCustomerComplaints= "";
+    private string _editSupplierQuality  = "";
+    private string _editInternalAudit    = "";
+    private string _editPriorActions     = "";
+
+    // Edit outputs
+    private bool   _editOutputs;
+    private string _editDecisions   = "";
+    private string _editNextTargets = "";
+
+    // Add action
+    private bool     _showAddAction;
+    private string   _actionTitle       = "";
+    private string   _actionDesc        = "";
+    private string   _actionAssigneeId  = "";
+    private string   _actionAssigneeName= "";
+    private DateTime _actionDue         = DateTime.Today.AddDays(30);
+    private string   _actionPriority    = "Medium";
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            _review      = await Api.GetManagementReviewAsync(Id);
+            _actionItems = await Api.GetManagementReviewActionItemsAsync(Id) ?? new();
+        }
+        catch (Exception ex) { Toast.ShowError($"Failed to load: {ex.Message}"); }
+        finally { _loading = false; }
+    }
+
+    private async Task StartReview()
+    {
+        _acting = true;
+        try { _review = await Api.StartManagementReviewAsync(Id); _actionItems = await Api.GetManagementReviewActionItemsAsync(Id) ?? new(); }
+        catch (Exception ex) { Toast.ShowError($"Could not start: {ex.Message}"); }
+        finally { _acting = false; }
+    }
+
+    private async Task CompleteReview()
+    {
+        _acting = true;
+        try { _review = await Api.CompleteManagementReviewAsync(Id); Toast.ShowSuccess("Review completed."); }
+        catch (Exception ex) { Toast.ShowError($"Could not complete: {ex.Message}"); }
+        finally { _acting = false; }
+    }
+
+    private void OpenEditInputs()
+    {
+        _editInputs           = true; _saveError = null;
+        _editConductedBy      = _review!.ConductedBy       ?? "";
+        _editCustomerComplaints= _review.CustomerComplaintsNotes ?? "";
+        _editSupplierQuality  = _review.SupplierQualityNotes    ?? "";
+        _editInternalAudit    = _review.InternalAuditStatus     ?? "";
+        _editPriorActions     = _review.PriorActionsSummary     ?? "";
+    }
+
+    private void OpenEditOutputs()
+    {
+        _editOutputs    = true; _saveError = null;
+        _editDecisions  = _review!.Decisions         ?? "";
+        _editNextTargets= _review.NextCycleTargets   ?? "";
+    }
+
+    private void CloseEdit() { _editInputs = _editOutputs = false; _saveError = null; }
+
+    private async Task SaveInputs()
+    {
+        _saving = true; _saveError = null;
+        try
+        {
+            _review = await Api.UpdateManagementReviewAsync(Id, new UpdateManagementReviewDto(
+                _review!.Title, _review.ReviewType, _review.ScheduledDate,
+                _editConductedBy,
+                _editCustomerComplaints, _editSupplierQuality, _editInternalAudit, _editPriorActions,
+                _review.Decisions, _review.NextCycleTargets));
+            CloseEdit();
+            Toast.ShowSuccess("Saved.");
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task SaveOutputs()
+    {
+        _saving = true; _saveError = null;
+        try
+        {
+            _review = await Api.UpdateManagementReviewAsync(Id, new UpdateManagementReviewDto(
+                _review!.Title, _review.ReviewType, _review.ScheduledDate,
+                _review.ConductedBy,
+                _review.CustomerComplaintsNotes, _review.SupplierQualityNotes,
+                _review.InternalAuditStatus, _review.PriorActionsSummary,
+                _editDecisions, _editNextTargets));
+            CloseEdit();
+            Toast.ShowSuccess("Saved.");
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private void OpenAddAction()
+    {
+        _showAddAction = true; _saveError = null;
+        _actionTitle = _actionDesc = _actionAssigneeId = _actionAssigneeName = "";
+        _actionDue = DateTime.Today.AddDays(30); _actionPriority = "Medium";
+    }
+
+    private void CloseAddAction() { _showAddAction = false; _saveError = null; }
+
+    private async Task SubmitAddAction()
+    {
+        if (string.IsNullOrWhiteSpace(_actionTitle) ||
+            string.IsNullOrWhiteSpace(_actionAssigneeId) ||
+            string.IsNullOrWhiteSpace(_actionAssigneeName))
+        {
+            _saveError = "Title and assignee are required."; return;
+        }
+        _saving = true; _saveError = null;
+        try
+        {
+            await Api.CreateManagementReviewActionItemAsync(Id, new CreateActionItemDto(
+                _actionTitle, _actionDesc, _actionAssigneeId, _actionAssigneeName,
+                _actionDue, _actionPriority, "ManagementReview", Id));
+            CloseAddAction();
+            _actionItems = await Api.GetManagementReviewActionItemsAsync(Id) ?? new();
+            Toast.ShowSuccess("Action item added.");
+        }
+        catch (Exception ex) { _saveError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private static string TypeBadge(string t) => t switch
+    {
+        "Annual"  => "bg-primary",
+        "Special" => "bg-warning text-dark",
+        _         => "bg-info text-dark",
+    };
+
+    private static string StatusBadge(string s) => s switch
+    {
+        "InProgress" => "bg-primary",
+        "Complete"   => "bg-success",
+        _            => "bg-secondary",
+    };
+
+    private static string PriorityBadge(string p) => p switch
+    {
+        "Critical" => "bg-danger",
+        "High"     => "bg-warning text-dark",
+        "Medium"   => "bg-primary",
+        _          => "bg-secondary",
+    };
+}
+
+@* ─── End of ManagementReviewDetail ─────────────────────────────────────── *@

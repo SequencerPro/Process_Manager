@@ -23,6 +23,32 @@
 }
 else
 {
+    @* ── Action Items Alert Widget ─────────────────────────────────────────── *@
+    @if (_overdueActions > 0)
+    {
+        <a href="my-actions" class="text-decoration-none">
+            <div class="alert alert-danger d-flex align-items-center gap-2 mb-4" role="alert">
+                <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+                <div>
+                    <strong>@_overdueActions overdue action @(_overdueActions == 1 ? "item" : "items")</strong> assigned to you.
+                    <span class="text-danger-emphasis">Click to view →</span>
+                </div>
+            </div>
+        </a>
+    }
+    else if (_openActions > 0)
+    {
+        <a href="my-actions" class="text-decoration-none">
+            <div class="alert alert-info d-flex align-items-center gap-2 mb-4" role="alert">
+                <i class="bi bi-check2-square fs-5"></i>
+                <div>
+                    You have <strong>@_openActions open action @(_openActions == 1 ? "item" : "items")</strong>.
+                    <span class="text-info-emphasis">View →</span>
+                </div>
+            </div>
+        </a>
+    }
+
     @* ── In Progress ──────────────────────────────────────────────────────── *@
     <div class="d-flex align-items-center mb-3 gap-2">
         <h5 class="mb-0">In Progress</h5>
@@ -139,6 +165,8 @@ else
     private List<StepExecutionResponseDto> _pending    = new();
     private bool _loading;
     private Guid? _starting;
+    private int _overdueActions;
+    private int _openActions;
 
     protected override async Task OnInitializedAsync() => await Load();
 
@@ -160,6 +188,19 @@ else
         {
             _loading = false;
         }
+
+        try
+        {
+            var overdueResult = await Api.GetActionItemsAsync(assignedToMe: true, overdue: true, pageSize: 1);
+            _overdueActions   = overdueResult?.TotalCount ?? 0;
+            if (_overdueActions == 0)
+            {
+                var openResult = await Api.GetActionItemsAsync(assignedToMe: true, status: "Open", pageSize: 1);
+                var inProg     = await Api.GetActionItemsAsync(assignedToMe: true, status: "InProgress", pageSize: 1);
+                _openActions   = (openResult?.TotalCount ?? 0) + (inProg?.TotalCount ?? 0);
+            }
+        }
+        catch { /* widget is best-effort */ }
     }
 
     private async Task StartStep(StepExecutionResponseDto se)

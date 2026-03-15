@@ -40,7 +40,7 @@ public class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "1.8";
+    private const string ServerVersion   = "1.9";
 
     public McpController(ProcessManagerDbContext db) => _db = db;
 
@@ -164,6 +164,12 @@ public class McpController : ControllerBase
                      ("status", "string", "Optional: Draft, UnderReview, Decided, or Closed — leave empty for all"),
                      ("scar_required", "string", "Optional: true or false — filter by SCAR Required flag"),
                      ("supplier_caused", "string", "Optional: true or false — filter by Supplier Caused flag"))),
+
+            Tool("get_management_review_status",
+                 "Retrieve a summary of scheduled Quality Management Reviews with their status, type, scheduled date, and linked action item counts. Useful for understanding management review cadence and outcomes. Requires authentication.",
+                 Schema(
+                     ("status", "string", "Optional: Scheduled, InProgress, or Complete — leave empty for all"),
+                     ("include_action_items", "string", "true to include a breakdown of action items per review"))),
         }
     };
 
@@ -244,6 +250,7 @@ public class McpController : ControllerBase
             "list_recurring_root_causes"    => OkResponse(id, TextContent(await ToolListRecurringRootCauses(args))),
             "get_rca_summary"               => OkResponse(id, TextContent(await ToolGetRcaSummary(args))),
             "get_mrb_summary"               => OkResponse(id, TextContent(await ToolGetMrbSummary(args))),
+            "get_management_review_status"  => OkResponse(id, TextContent(await ToolGetManagementReviewStatus(args))),
             _                               => ErrorResponse(id, -32602, $"Unknown tool: {toolName}")
         };
     }
@@ -942,5 +949,62 @@ public class McpController : ControllerBase
         body.TryGetProperty("id", out id);
         body.TryGetProperty("params", out @params);
         return true;
+    }
+
+    private async Task<string> ToolGetManagementReviewStatus(JsonElement args)
+    {
+        var statusFilter        = args.TryGetProperty("status",               out var sf) ? sf.GetString()?.Trim() : null;
+        var includeActionItems  = args.TryGetProperty("include_action_items", out var ia) ? ia.GetString()?.Trim() : null;
+        var showActions         = string.Equals(includeActionItems, "true", StringComparison.OrdinalIgnoreCase);
+
+        var query = _db.ManagementReviews.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrEmpty(statusFilter) &&
+            Enum.TryParse<Domain.Enums.ManagementReviewStatus>(statusFilter, true, out var parsed))
+            query = query.Where(r => r.Status == parsed);
+
+        var reviews = await query
+            .OrderByDescending(r => r.ScheduledDate)
+            .Take(50)
+            .ToListAsync();
+
+        if (!reviews.Any())
+            return "No management reviews found matching the criteria.";
+
+        Dictionary<Guid, int> actionCounts = new();
+        if (showActions)
+        {
+            var reviewIds = reviews.Select(r => r.Id).ToList();
+            actionCounts = await _db.ActionItems
+                .AsNoTracking()
+                .Where(a => a.SourceType == Domain.Enums.ActionItemSourceType.ManagementReview
+                         && a.SourceEntityId.HasValue
+                         && reviewIds.Contains(a.SourceEntityId.Value))
+                .GroupBy(a => a.SourceEntityId!.Value)
+                .Select(g => new { ReviewId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.ReviewId, x => x.Count);
+        }
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Management Reviews ({reviews.Count})\n");
+        if (showActions)
+        {
+            sb.AppendLine("| Title | Type | Scheduled | Status | Conducted By | Action Items |");
+            sb.AppendLine("|---|---|---|---|---|---|");
+            foreach (var r in reviews)
+            {
+                var count = actionCounts.GetValueOrDefault(r.Id, 0);
+                sb.AppendLine($"| {r.Title} | {r.ReviewType} | {r.ScheduledDate:yyyy-MM-dd} | {r.Status} | {r.ConductedBy ?? "—"} | {count} |");
+            }
+        }
+        else
+        {
+            sb.AppendLine("| Title | Type | Scheduled | Status | Conducted By |");
+            sb.AppendLine("|---|---|---|---|---|");
+            foreach (var r in reviews)
+                sb.AppendLine($"| {r.Title} | {r.ReviewType} | {r.ScheduledDate:yyyy-MM-dd} | {r.Status} | {r.ConductedBy ?? "—"} |");
+        }
+
+        return sb.ToString();
     }
 }

@@ -1197,6 +1197,131 @@ public class ApiClient
         return await r.Content.ReadFromJsonAsync<IshikawaDiagramResponseDto>(_json);
     }
 
+    // ══════════════════ Action Items (Phase 15) ══════════════════
+
+    public Task<PaginatedResponse<ActionItemSummaryDto>?> GetActionItemsAsync(
+        string? status = null, string? priority = null, string? sourceType = null,
+        bool assignedToMe = false, bool overdue = false, Guid? sourceEntityId = null,
+        int page = 1, int pageSize = 50)
+    {
+        var url = $"api/action-items?page={page}&pageSize={pageSize}";
+        if (!string.IsNullOrEmpty(status))      url += $"&status={status}";
+        if (!string.IsNullOrEmpty(priority))    url += $"&priority={priority}";
+        if (!string.IsNullOrEmpty(sourceType))  url += $"&sourceType={sourceType}";
+        if (assignedToMe)                       url += "&assignedToMe=true";
+        if (overdue)                            url += "&overdue=true";
+        if (sourceEntityId.HasValue)            url += $"&sourceEntityId={sourceEntityId}";
+        return _http.GetFromJsonAsync<PaginatedResponse<ActionItemSummaryDto>>(url, _json);
+    }
+
+    public Task<ActionItemDto?> GetActionItemAsync(Guid id)
+        => _http.GetFromJsonAsync<ActionItemDto>($"api/action-items/{id}", _json);
+
+    public async Task<ActionItemDto?> CreateActionItemAsync(CreateActionItemDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/action-items", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ActionItemDto>(_json);
+    }
+
+    public async Task<ActionItemDto?> UpdateActionItemAsync(Guid id, UpdateActionItemDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/action-items/{id}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ActionItemDto>(_json);
+    }
+
+    public async Task<ActionItemDto?> StartActionItemAsync(Guid id)
+    {
+        var r = await _http.PostAsJsonAsync($"api/action-items/{id}/start", new { }, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ActionItemDto>(_json);
+    }
+
+    public async Task<ActionItemDto?> CompleteActionItemAsync(Guid id, CompleteActionItemDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/action-items/{id}/complete", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ActionItemDto>(_json);
+    }
+
+    public async Task<ActionItemDto?> VerifyActionItemAsync(Guid id, VerifyActionItemDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/action-items/{id}/verify", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ActionItemDto>(_json);
+    }
+
+    public async Task<ActionItemDto?> CancelActionItemAsync(Guid id)
+    {
+        var r = await _http.PostAsJsonAsync($"api/action-items/{id}/cancel", new { }, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ActionItemDto>(_json);
+    }
+
+    public async Task DeleteActionItemAsync(Guid id)
+    {
+        var r = await _http.DeleteAsync($"api/action-items/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    public Task<QualityScorecardDto?> GetQualityScorecardAsync()
+        => _http.GetFromJsonAsync<QualityScorecardDto>("api/action-items/scorecard", _json);
+
+    // ══════════════════ Management Reviews (Phase 15) ══════════════════
+
+    public Task<PaginatedResponse<ManagementReviewSummaryDto>?> GetManagementReviewsAsync(
+        string? status = null, string? reviewType = null, int page = 1, int pageSize = 25)
+    {
+        var url = $"api/management-reviews?page={page}&pageSize={pageSize}";
+        if (!string.IsNullOrEmpty(status))     url += $"&status={status}";
+        if (!string.IsNullOrEmpty(reviewType)) url += $"&reviewType={reviewType}";
+        return _http.GetFromJsonAsync<PaginatedResponse<ManagementReviewSummaryDto>>(url, _json);
+    }
+
+    public Task<ManagementReviewDto?> GetManagementReviewAsync(Guid id)
+        => _http.GetFromJsonAsync<ManagementReviewDto>($"api/management-reviews/{id}", _json);
+
+    public async Task<ManagementReviewDto?> CreateManagementReviewAsync(CreateManagementReviewDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/management-reviews", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ManagementReviewDto>(_json);
+    }
+
+    public async Task<ManagementReviewDto?> UpdateManagementReviewAsync(Guid id, UpdateManagementReviewDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/management-reviews/{id}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ManagementReviewDto>(_json);
+    }
+
+    public async Task<ManagementReviewDto?> StartManagementReviewAsync(Guid id)
+    {
+        var r = await _http.PostAsJsonAsync($"api/management-reviews/{id}/start", new { }, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ManagementReviewDto>(_json);
+    }
+
+    public async Task<ManagementReviewDto?> CompleteManagementReviewAsync(Guid id)
+    {
+        var r = await _http.PostAsJsonAsync($"api/management-reviews/{id}/complete", new { }, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ManagementReviewDto>(_json);
+    }
+
+    public Task<List<ActionItemSummaryDto>?> GetManagementReviewActionItemsAsync(Guid reviewId)
+        => _http.GetFromJsonAsync<List<ActionItemSummaryDto>>($"api/management-reviews/{reviewId}/action-items", _json);
+
+    public async Task<ActionItemDto?> CreateManagementReviewActionItemAsync(Guid reviewId, CreateActionItemDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/management-reviews/{reviewId}/action-items", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ActionItemDto>(_json);
+    }
+
+    // ══════════════════ Ishikawa Diagrams — additional (Phase 10b) ══════════════════
+
     public async Task<IshikawaDiagramResponseDto?> CloseIshikawaDiagramAsync(Guid id, IshikawaDiagramCloseDto dto)
     {
         var r = await _http.PostAsJsonAsync($"api/ishikawa/{id}/close", dto, _json);

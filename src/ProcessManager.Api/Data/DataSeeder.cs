@@ -292,6 +292,174 @@ public static class DataSeeder
         await db.SaveChangesAsync();
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ISO 9001:2015 QMS Document seed
+    // Own idempotency guard → safe to run against databases that already have
+    // the manufacturing demo data.
+    // ─────────────────────────────────────────────────────────────────────────
+    public static async Task SeedQmsDocumentsAsync(ProcessManagerDbContext db)
+    {
+        if (db.Processes.Any(p => p.Code == "QMS-001")) return;
+
+        // Helper — DRY up Process construction
+        static Process Doc(string code, string name, string description,
+                           ProcessStatus status, string revision, int version,
+                           int createdDaysAgo, int? effectiveDaysAgo = null) =>
+            new()
+            {
+                Id          = Guid.NewGuid(),
+                CreatedAt   = Utc(-createdDaysAgo),
+                UpdatedAt   = Utc(-createdDaysAgo),
+                Code        = code,
+                Name        = name,
+                Description = description,
+                ProcessRole = ProcessRole.QmsDocument,
+                Status      = status,
+                IsActive    = true,
+                Version     = version,
+                RevisionCode = revision,
+                EffectiveDate = effectiveDaysAgo.HasValue ? Utc(-effectiveDaysAgo.Value) : null
+            };
+
+        // ── 1. QMS Framework ─────────────────────────────────────────────────
+        var qms001 = Doc("QMS-001", "Quality Management System Scope",
+            "Defines the boundaries and applicability of the QMS including the products and services " +
+            "covered, relevant interested parties, and any exclusions with justification per clause 4.3.",
+            ProcessStatus.Released, "B", 2, 365, 300);
+
+        var qms002 = Doc("QMS-002", "Quality Policy",
+            "Top-management statement of the organisation's commitment to quality, the framework for " +
+            "setting quality objectives, and its intent to satisfy applicable requirements and continually " +
+            "improve the QMS per clause 5.2.",
+            ProcessStatus.Released, "B", 2, 365, 300);
+
+        var qms003 = Doc("QMS-003", "Quality Objectives and Planning",
+            "Register of measurable quality objectives aligned to the quality policy, together with " +
+            "plans specifying who is responsible, what resources are needed, when results will be " +
+            "reviewed, and how achievement will be evaluated per clause 6.2.",
+            ProcessStatus.Released, "A", 1, 300, 280);
+
+        var qms004 = Doc("QMS-004", "Quality Manual",
+            "High-level overview of the QMS structure, the interaction between its processes, and " +
+            "references to applicable procedures. Provides context on the organisation per clause 4.",
+            ProcessStatus.Released, "C", 3, 400, 330);
+
+        var qms005 = Doc("QMS-005", "Risk and Opportunity Management Procedure",
+            "Describes how risks and opportunities are identified, assessed, and addressed to give " +
+            "assurance that the QMS can achieve its intended outcomes and prevent unwanted effects " +
+            "per clause 6.1.",
+            ProcessStatus.Released, "A", 1, 280, 260);
+
+        // ── 2. Support Procedures (Clause 7) ─────────────────────────────────
+        var qms006 = Doc("QMS-006", "Control of Documented Information Procedure",
+            "Governs the creation, updating, distribution, access, retrieval, storage, preservation, " +
+            "version control, and disposition of all documented information required by the QMS " +
+            "per clause 7.5.",
+            ProcessStatus.Released, "B", 2, 360, 340);
+
+        var qms007 = Doc("QMS-007", "Competence, Training and Awareness Procedure",
+            "Defines how competence requirements are determined, how training needs are identified and " +
+            "fulfilled, how effectiveness is evaluated, and how awareness of quality policy and relevant " +
+            "objectives is maintained per clause 7.2 and 7.3.",
+            ProcessStatus.Released, "A", 1, 250, 230);
+
+        var qms008 = Doc("QMS-008", "Calibration and Monitoring Equipment Control",
+            "Covers the identification, calibration, verification, and handling of all monitoring and " +
+            "measuring resources; maintains a calibration register and defines out-of-tolerance response " +
+            "actions per clause 7.1.5.",
+            ProcessStatus.Released, "A", 1, 240, 220);
+
+        var qms009 = Doc("QMS-009", "Customer Communication Procedure",
+            "Describes channels and responsibilities for communicating with customers regarding product " +
+            "and service information, enquiries, contracts, orders, feedback, complaints, and contingency " +
+            "requirements per clause 8.2.1.",
+            ProcessStatus.Released, "A", 1, 200, 185);
+
+        // ── 3. Operations Procedures (Clause 8) ──────────────────────────────
+        var qms010 = Doc("QMS-010", "Customer Requirements Review Procedure",
+            "Defines the process for determining, reviewing, and confirming customer and statutory " +
+            "requirements before commitment to supply, and managing changes to requirements after " +
+            "acceptance per clause 8.2.2–8.2.4.",
+            ProcessStatus.Released, "A", 1, 220, 200);
+
+        var qms011 = Doc("QMS-011", "Design and Development Procedure",
+            "Establishes planning, input, output, review, verification, validation, and transfer " +
+            "controls for design and development activities, including management of changes to " +
+            "design outputs per clause 8.3.",
+            ProcessStatus.Released, "A", 1, 210, 195);
+
+        var qms012 = Doc("QMS-012", "Supplier and External Provider Control Procedure",
+            "Sets criteria for evaluating, selecting, monitoring, and re-evaluating external providers; " +
+            "defines how the type and extent of control is determined based on risk and impact on " +
+            "conforming outputs per clause 8.4.",
+            ProcessStatus.Released, "B", 2, 310, 290);
+
+        var qms013 = Doc("QMS-013", "Identification and Traceability Procedure",
+            "Defines how products and services are identified throughout production and service " +
+            "provision, and how traceability is maintained and recorded where it is a requirement " +
+            "per clause 8.5.2.",
+            ProcessStatus.Released, "A", 1, 190, 175);
+
+        var qms014 = Doc("QMS-014", "Customer and External Provider Property Procedure",
+            "Describes how property belonging to customers or external providers (including intellectual " +
+            "property and personal data) is identified, protected, safeguarded, and reported upon " +
+            "if lost, damaged, or found unsuitable per clause 8.5.3.",
+            ProcessStatus.Released, "A", 1, 180, 165);
+
+        var qms015 = Doc("QMS-015", "Preservation and Handling Procedure",
+            "Specifies requirements for handling, packaging, storage, protection, and delivery of " +
+            "products and service outputs to prevent damage and deterioration during internal " +
+            "processing and final delivery per clause 8.5.4.",
+            ProcessStatus.Released, "A", 1, 170, 155);
+
+        var qms016 = Doc("QMS-016", "Control of Nonconforming Outputs Procedure",
+            "Defines how products and services that do not conform to requirements are identified, " +
+            "segregated, evaluated, and dispositioned (rework, concession, scrap, containment), " +
+            "and how documented information is retained per clause 8.7.",
+            ProcessStatus.Released, "B", 2, 320, 300);
+
+        // ── 4. Performance Evaluation and Improvement (Clauses 9–10) ─────────
+        var qms017 = Doc("QMS-017", "Customer Satisfaction Monitoring Procedure",
+            "Describes methods for monitoring and measuring the degree to which customer needs and " +
+            "expectations have been fulfilled, including surveys, complaint analysis, and warranty " +
+            "returns per clause 9.1.2.",
+            ProcessStatus.Released, "A", 1, 160, 145);
+
+        var qms018 = Doc("QMS-018", "Internal Audit Procedure",
+            "Establishes the internal audit programme, audit criteria, scope, frequency, methods, " +
+            "auditor competence and objectivity requirements, and responsibilities for reporting " +
+            "results and taking corrective action per clause 9.2.",
+            ProcessStatus.Released, "B", 2, 350, 330);
+
+        var qms019 = Doc("QMS-019", "Management Review Procedure",
+            "Defines the inputs, outputs, frequency, and responsibilities for management review of " +
+            "the QMS to ensure its continuing suitability, adequacy, effectiveness, and alignment " +
+            "with strategic direction per clause 9.3.",
+            ProcessStatus.Released, "A", 1, 340, 320);
+
+        var qms020 = Doc("QMS-020", "Corrective Action and Continual Improvement Procedure",
+            "Describes how nonconformities are reacted to, root causes identified, corrective actions " +
+            "implemented and verified for effectiveness, and how the QMS is continually improved " +
+            "per clause 10.2 and 10.3.",
+            ProcessStatus.Released, "B", 2, 355, 335);
+
+        // QMS-021 intentionally in Draft — new document under review
+        var qms021 = Doc("QMS-021", "Knowledge Management Procedure",
+            "Addresses how the organisation determines, maintains, and makes available the knowledge " +
+            "necessary for operation and for achieving conformity of products and services, and how " +
+            "it acquires additional knowledge per clause 7.1.6.",
+            ProcessStatus.Draft, "A", 1, 30);
+
+        db.Processes.AddRange(
+            qms001, qms002, qms003, qms004, qms005,
+            qms006, qms007, qms008, qms009, qms010,
+            qms011, qms012, qms013, qms014, qms015,
+            qms016, qms017, qms018, qms019, qms020,
+            qms021);
+
+        await db.SaveChangesAsync();
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static DateTime Utc(int daysOffset) =>

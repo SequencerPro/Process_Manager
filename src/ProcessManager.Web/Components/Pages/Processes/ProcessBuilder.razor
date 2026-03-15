@@ -217,55 +217,34 @@ else
                 }
             </div>
 
-            @* ── Connection row between this step and the next ── *@
+            @* ── Arrow connector between this step and the next ── *@
             @if (stepIdx < _steps.Count - 1)
             {
                 var conn = GetConnection(stepIdx);
-                <div class="d-flex flex-column align-items-center py-2 gap-1" @key="@($"conn-{stepIdx}")">
-                    <i class="bi bi-arrow-down text-muted"></i>
-                    @if (conn.Status == ConnectionStatus.AutoMatched || conn.Status == ConnectionStatus.UserSelected)
-                    {
-                        <span class="badge rounded-pill bg-success-subtle text-success border border-success px-3 py-1">
-                            <i class="bi bi-check-circle me-1"></i>
-                            @conn.SourcePort!.Name
-                            <i class="bi bi-arrow-right mx-1"></i>
-                            @conn.TargetPort!.Name
-                            <span class="ms-1 opacity-75 small">(@PortInfo(conn.SourcePort))</span>
-                        </span>
-                    }
-                    else if (conn.Status == ConnectionStatus.Ambiguous)
-                    {
-                        <div class="d-flex align-items-center gap-2">
-                            <i class="bi bi-exclamation-triangle-fill text-warning"></i>
-                            <span class="text-warning small">Multiple possible connections — select one:</span>
-                            <select class="form-select form-select-sm" style="width:auto;min-width:280px"
-                                    @onchange="e => SetConnection(stepIdx, e.Value?.ToString())">
-                                <option value="">Select connection…</option>
-                                @foreach (var opt in conn.Options)
-                                {
-                                    <option value="@($"{opt.Out.Id}|{opt.In.Id}")">
-                                        @opt.Out.Name → @opt.In.Name (@PortInfo(opt.Out))
-                                    </option>
-                                }
-                            </select>
-                        </div>
-                    }
-                    else
-                    {
-                        <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger px-3 py-1">
-                            <i class="bi bi-x-circle me-1"></i>No compatible connection — output types don't match input types
-                        </span>
-                    }
-                    <i class="bi bi-arrow-down text-muted"></i>
-                </div>
-
-                @* Add step between these two steps *@
-                <div class="text-center mb-0">
-                    <button class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:.75rem"
-                            @onclick="() => OpenStepPicker(stepIdx + 1)">
-                        <i class="bi bi-plus-lg me-1"></i>Insert Step Here
-                    </button>
-                </div>
+                var connStatus = conn.Status switch
+                {
+                    ConnectionStatus.AutoMatched or ConnectionStatus.UserSelected => StepConnectionStatus.Connected,
+                    ConnectionStatus.Ambiguous => StepConnectionStatus.Ambiguous,
+                    _ => StepConnectionStatus.Incompatible
+                };
+                var capturedIdx = stepIdx;
+                <StepConnector @key="@($"conn-{stepIdx}")"
+                               Status="connStatus"
+                               SourcePortName="@conn.SourcePort?.Name"
+                               TargetPortName="@conn.TargetPort?.Name"
+                               PortInfoText="@(conn.SourcePort is not null ? PortInfo(conn.SourcePort) : null)"
+                               OnInsertClick="() => OpenStepPicker(capturedIdx + 1)">
+                    <select class="form-select form-select-sm" style="width:auto;min-width:280px"
+                            @onchange="e => SetConnection(capturedIdx, e.Value?.ToString())">
+                        <option value="">Select connection…</option>
+                        @foreach (var opt in conn.Options)
+                        {
+                            <option value="@($"{opt.Out.Id}|{opt.In.Id}")">
+                                @opt.Out.Name → @opt.In.Name (@PortInfo(opt.Out))
+                            </option>
+                        }
+                    </select>
+                </StepConnector>
             }
         }
 

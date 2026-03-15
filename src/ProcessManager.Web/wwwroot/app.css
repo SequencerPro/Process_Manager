@@ -27,3 +27,49 @@ h1:focus {
 .darker-border-checkbox.form-check-input {
     border-color: #929292;
 }
+
+/* ── Step connector arrow between process builder tiles ── */
+.step-connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    padding: 12px 0 4px;
+    margin-bottom: 2px;
+}
+
+.step-connector::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    background-color: #0d6efd;
+    transform: translateX(-50%);
+    z-index: 0;
+}
+
+.step-connector::after {
+    content: '';
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 8px solid #0d6efd;
+    z-index: 1;
+}
+
+.step-connector > * {
+    position: relative;
+    z-index: 2;
+    background-color: #fff;
+}
+
+.step-connector .btn {
+    background-color: #fff;
+}

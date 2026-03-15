@@ -312,11 +312,13 @@ else if (_data is not null)
     private async Task LoadData()
     {
         _loading = true;
+        var isWorkInstructions = _roleFilter == "WorkInstruction";
         _data = await Api.GetProcessesAsync(
             search: _search,
             status: string.IsNullOrEmpty(_statusFilter) ? null : _statusFilter,
-            processRole: string.IsNullOrEmpty(_roleFilter) ? null : _roleFilter,
+            processRole: isWorkInstructions ? null : (string.IsNullOrEmpty(_roleFilter) ? null : _roleFilter),
             documentRolesOnly: string.IsNullOrEmpty(_roleFilter),
+            workInstructionsOnly: isWorkInstructions,
             active: null,
             page: _page,
             pageSize: _pageSize);

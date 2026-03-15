@@ -299,9 +299,10 @@ public class ApiClient
     public Task<PaginatedResponse<ProcessSummaryResponseDto>?> GetProcessesAsync(
         string? search = null, bool? active = null, string? status = null,
         string? processRole = null, bool excludeDocumentRoles = false,
-        bool documentRolesOnly = false, int page = 1, int pageSize = 25)
+        bool documentRolesOnly = false, bool workInstructionsOnly = false,
+        int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<ProcessSummaryResponseDto>>(
-            $"api/processes?search={search}&active={active}&status={status}&processRole={processRole}&excludeDocumentRoles={excludeDocumentRoles}&documentRolesOnly={documentRolesOnly}&page={page}&pageSize={pageSize}", _json);
+            $"api/processes?search={search}&active={active}&status={status}&processRole={processRole}&excludeDocumentRoles={excludeDocumentRoles}&documentRolesOnly={documentRolesOnly}&workInstructionsOnly={workInstructionsOnly}&page={page}&pageSize={pageSize}", _json);
 
     public Task<ProcessResponseDto?> GetProcessAsync(Guid id)
         => _http.GetFromJsonAsync<ProcessResponseDto>($"api/processes/{id}", _json);

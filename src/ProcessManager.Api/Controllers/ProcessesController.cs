@@ -27,6 +27,7 @@ public class ProcessesController : ControllerBase
         [FromQuery] string? processRole = null,
         [FromQuery] bool excludeDocumentRoles = false,
         [FromQuery] bool documentRolesOnly = false,
+        [FromQuery] bool workInstructionsOnly = false,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
@@ -45,6 +46,9 @@ public class ProcessesController : ControllerBase
         if (!string.IsNullOrWhiteSpace(processRole) &&
             Enum.TryParse<ProcessRole>(processRole, ignoreCase: true, out var roleEnum))
             query = query.Where(p => p.ProcessRole == roleEnum);
+        else if (workInstructionsOnly)
+            query = query.Where(p => p.ProcessRole == Domain.Enums.ProcessRole.ManufacturingProcess
+                                  || p.ProcessRole == Domain.Enums.ProcessRole.WorkInstruction);
         else if (documentRolesOnly)
             query = query.Where(p => p.ProcessRole == Domain.Enums.ProcessRole.QmsDocument
                                   || p.ProcessRole == Domain.Enums.ProcessRole.WorkInstruction

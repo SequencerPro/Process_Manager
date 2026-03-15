@@ -21,7 +21,14 @@
       "WebFetch(domain:www.nuget.org)",
       "WebFetch(domain:api.github.com)",
       "Bash(find /c/Users/James/source/repos/Process_Manager/.claude/worktrees/peaceful-pare/src/ProcessManager.Web -name *.razor.cs)",
-      "Bash(wc -l /c/Users/James/source/repos/Process_Manager/tests/ProcessManager.Tests/*.cs)"
+      "Bash(wc -l /c/Users/James/source/repos/Process_Manager/tests/ProcessManager.Tests/*.cs)",
+      "Bash(git -C \"C:/Users/James/source/repos/Process_Manager\" status --short)",
+      "Bash(iconv -f UTF-16LE -t UTF-8 /c/Users/James/source/repos/Process_Manager/.claude/worktrees/peaceful-pare/build_output.txt)",
+      "Bash(MAIN=\"C:/Users/James/source/repos/Process_Manager\")",
+      "Bash(WT=\"C:/Users/James/source/repos/Process_Manager/.claude/worktrees/peaceful-pare\")",
+      "Bash(for f:*)",
+      "Bash(do cp:*)",
+      "Bash(done)"
     ]
   }
 }

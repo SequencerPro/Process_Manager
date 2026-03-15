@@ -313,6 +313,11 @@
                 </NavLink>
             </li>
             <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="reports/process-timing">
+                    <i class="bi bi-stopwatch me-2"></i> Process Timing
+                </NavLink>
+            </li>
+            <li class="nav-item">
                 <NavLink class="nav-link text-white ps-4" href="powerbi-dashboards">
                     <i class="bi bi-bar-chart-steps me-2"></i> Power BI
                 </NavLink>
@@ -356,7 +361,7 @@
         ["quality"]   = ["pfmeas", "ce-matrices", "control-plans", "non-conformances", "documents", "root-cause-library", "ishikawa", "five-whys", "mrb"],
         ["accountability"] = ["my-actions", "team-actions", "quality-scorecard", "management-reviews"],
         ["admin"]     = ["admin"],
-        ["reports"]   = ["reports", "powerbi-dashboards"],
+        ["reports"]   = ["reports", "reports/process-timing", "powerbi-dashboards"],
     };
 
     protected override void OnInitialized()

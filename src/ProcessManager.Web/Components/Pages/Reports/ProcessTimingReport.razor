@@ -1,0 +1,277 @@
+@page "/reports/process-timing"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject ApiClient Api
+@inject ToastService Toast
+
+<PageTitle>Process Timing — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-stopwatch me-2 text-primary"></i>Process Timing</h3>
+        <p class="text-muted small mb-0">Duration statistics per process and step, across all completed runs</p>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <select class="form-select form-select-sm" style="width:auto" @onchange="OnRoleFilter">
+            <option value="">All Roles</option>
+            <option value="ManufacturingProcess">Manufacturing Process</option>
+            <option value="QmsDocument">QMS Document</option>
+            <option value="WorkInstruction">Work Instruction</option>
+            <option value="Training">Training</option>
+        </select>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="Load" disabled="@_loading">
+            <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+        </button>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Calculating timing statistics…
+    </div>
+}
+else if (_data is null || _data.Count == 0)
+{
+    <div class="card shadow-sm">
+        <div class="card-body text-center text-muted py-5">
+            <i class="bi bi-stopwatch fs-2 d-block mb-2 opacity-50"></i>
+            No timing data yet — start and complete some jobs to see statistics here.
+        </div>
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-end mb-2">
+        <button class="btn btn-link btn-sm text-muted p-0 text-decoration-none" @onclick="ToggleAll">
+            <i class="bi @(_allExpanded ? "bi-arrows-collapse" : "bi-arrows-expand") me-1"></i>@(_allExpanded ? "Collapse all" : "Expand all")
+        </button>
+    </div>
+
+    @foreach (var proc in _data)
+    {
+        var isExpanded   = _expanded.Contains(proc.ProcessId);
+        var totalAvgMins = proc.Steps.Sum(s => s.AvgMinutes ?? 0);
+
+        <div class="card shadow-sm mb-3">
+
+            @* ── Card header — click to expand/collapse step table ── *@
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center py-2"
+                 style="cursor:pointer" @onclick="() => ToggleExpand(proc.ProcessId)">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <code class="badge bg-secondary fw-normal">@proc.Code</code>
+                    <span class="fw-semibold">@proc.Name</span>
+                    <span class="badge @RoleBadge(proc.ProcessRole)" style="font-size:.68rem">@FormatRole(proc.ProcessRole)</span>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="text-muted small">
+                        <i class="bi bi-check2-circle me-1"></i>@proc.CompletedJobs completed run@(proc.CompletedJobs != 1 ? "s" : "")
+                    </span>
+                    <i class="bi @(isExpanded ? "bi-chevron-up" : "bi-chevron-down") text-muted"></i>
+                </div>
+            </div>
+
+            <div class="card-body py-3 px-3">
+
+                @* ── Overall job duration stats ── *@
+                @if (proc.CompletedJobs > 0 && proc.AvgHours.HasValue)
+                {
+                    <div class="d-flex flex-wrap gap-4 mb-3">
+                        @foreach (var (label, val, cls) in new (string, double?, string)[]
+                        {
+                            ("Min",    proc.MinHours,    "text-secondary"),
+                            ("Avg",    proc.AvgHours,    "text-primary fw-semibold"),
+                            ("Median", proc.MedianHours, ""),
+                            ("P95",    proc.P95Hours,    "text-warning fw-medium"),
+                            ("Max",    proc.MaxHours,    "text-danger"),
+                        })
+                        {
+                            <div class="text-center">
+                                <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:#6c757d">@label</div>
+                                <div class="@cls" style="font-size:1.05rem;line-height:1.3">@FmtHours(val)</div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-muted small fst-italic mb-3">No completed jobs with full timestamps yet.</p>
+                }
+
+                @* ── Stacked step timing bar ── *@
+                @if (proc.Steps.Count > 0 && totalAvgMins > 0)
+                {
+                    <div class="mb-1" style="font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:#6c757d">
+                        Time breakdown by step (avg)
+                    </div>
+                    <div class="d-flex rounded overflow-hidden mb-2" style="height:22px">
+                        @for (int si = 0; si < proc.Steps.Count; si++)
+                        {
+                            var step = proc.Steps[si];
+                            var pct  = (step.AvgMinutes ?? 0) * 100.0 / totalAvgMins;
+                            if (pct > 0)
+                            {
+                                var tip = $"#{step.Sequence} {step.StepName}: avg {FmtMins(step.AvgMinutes)} ({pct:0}%)";
+                                <div title="@tip"
+                                     style="width:@pct.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)%; background:@StepColor(si); transition:width .3s;"></div>
+                            }
+                        }
+                    </div>
+                    <div class="d-flex flex-wrap gap-x-3 gap-2 mb-1" style="font-size:.72rem; column-gap:1rem">
+                        @for (int si = 0; si < proc.Steps.Count; si++)
+                        {
+                            var step = proc.Steps[si];
+                            if (step.AvgMinutes.HasValue)
+                            {
+                                var pct = step.AvgMinutes.Value * 100.0 / totalAvgMins;
+                                <span class="d-flex align-items-center gap-1">
+                                    <span class="rounded-circle d-inline-block flex-shrink-0" style="width:9px;height:9px;background:@StepColor(si)"></span>
+                                    <span class="text-muted">@step.StepName</span>
+                                    <span class="text-muted">— @FmtMins(step.AvgMinutes) (@pct.ToString("0")%)</span>
+                                </span>
+                            }
+                        }
+                    </div>
+                }
+
+                @* ── Per-step detail table (expanded) ── *@
+                @if (isExpanded && proc.Steps.Count > 0)
+                {
+                    <div class="table-responsive mt-3">
+                        <table class="table table-sm table-hover align-middle mb-0 small">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:2.2rem">#</th>
+                                    <th>Step</th>
+                                    <th class="text-end">Runs</th>
+                                    <th class="text-end">Min</th>
+                                    <th class="text-end">Avg</th>
+                                    <th class="text-end">Median</th>
+                                    <th class="text-end">P95</th>
+                                    <th class="text-end">Max</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (int si = 0; si < proc.Steps.Count; si++)
+                                {
+                                    var step = proc.Steps[si];
+                                    <tr>
+                                        <td class="text-muted">@step.Sequence</td>
+                                        <td>
+                                            <span class="rounded-circle d-inline-block me-1"
+                                                  style="width:8px;height:8px;background:@StepColor(si)"></span>
+                                            <span class="fw-medium">@step.StepName</span>
+                                            <span class="text-muted ms-1" style="font-size:.7rem">@step.StepCode</span>
+                                        </td>
+                                        <td class="text-end text-muted">@step.CompletedExecutions</td>
+                                        <td class="text-end text-secondary">@FmtMins(step.MinMinutes)</td>
+                                        <td class="text-end fw-semibold text-primary">@FmtMins(step.AvgMinutes)</td>
+                                        <td class="text-end">@FmtMins(step.MedianMinutes)</td>
+                                        <td class="text-end text-warning">@FmtMins(step.P95Minutes)</td>
+                                        <td class="text-end text-danger">@FmtMins(step.MaxMinutes)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else if (isExpanded && proc.Steps.Count == 0)
+                {
+                    <p class="text-muted small fst-italic mt-2 mb-0">No step execution timing data recorded yet.</p>
+                }
+
+            </div>
+        </div>
+    }
+}
+
+<style>
+    @@keyframes spin { to { transform: rotate(360deg); } }
+    .spin { display: inline-block; animation: spin .8s linear infinite; }
+</style>
+
+@code {
+    private bool _loading = true;
+    private List<ProcessTimingDto>? _data;
+    private string? _roleFilter;
+    private HashSet<Guid> _expanded = new();
+    private bool _allExpanded;
+
+    private static readonly string[] _stepColors =
+    [
+        "#0d6efd", "#198754", "#fd7e14", "#6f42c1",
+        "#0dcaf0", "#d63384", "#20c997", "#ffc107",
+        "#e83e8c", "#6610f2"
+    ];
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try { _data = await Api.GetProcessTimingAsync(_roleFilter); }
+        catch (Exception ex) { Toast.ShowError($"Failed to load timing data: {ex.Message}"); }
+        finally { _loading = false; }
+    }
+
+    private async Task OnRoleFilter(ChangeEventArgs e)
+    {
+        _roleFilter = e.Value?.ToString() is { Length: > 0 } s ? s : null;
+        await Load();
+    }
+
+    private void ToggleExpand(Guid id)
+    {
+        if (!_expanded.Remove(id)) _expanded.Add(id);
+        _allExpanded = _data != null && _data.All(p => _expanded.Contains(p.ProcessId));
+    }
+
+    private void ToggleAll()
+    {
+        _allExpanded = !_allExpanded;
+        _expanded = _allExpanded
+            ? _data!.Select(p => p.ProcessId).ToHashSet()
+            : new HashSet<Guid>();
+    }
+
+    private static string StepColor(int idx) => _stepColors[idx % _stepColors.Length];
+
+    private static string FmtHours(double? h)
+    {
+        if (h is null)  return "—";
+        if (h < 1.0/60) return "<1m";
+        if (h < 1)      return $"{(int)(h * 60)}m";
+        if (h < 24)     return $"{h:0.#}h";
+        var days  = (int)(h / 24);
+        var hours = (int)(h % 24);
+        return hours > 0 ? $"{days}d {hours}h" : $"{days}d";
+    }
+
+    private static string FmtMins(double? m)
+    {
+        if (m is null) return "—";
+        if (m < 1)     return $"{(int)(m * 60)}s";
+        if (m < 60)    return $"{m:0.#}m";
+        var h   = (int)(m / 60);
+        var rem = (int)(m % 60);
+        return rem > 0 ? $"{h}h {rem}m" : $"{h}h";
+    }
+
+    private static string RoleBadge(string role) => role switch
+    {
+        "ManufacturingProcess" => "bg-primary",
+        "QmsDocument"          => "bg-info text-dark",
+        "WorkInstruction"      => "bg-success",
+        "Training"             => "bg-warning text-dark",
+        _                      => "bg-secondary"
+    };
+
+    private static string FormatRole(string role) => role switch
+    {
+        "ManufacturingProcess" => "Manufacturing",
+        "QmsDocument"          => "QMS Document",
+        "WorkInstruction"      => "Work Instruction",
+        "Training"             => "Training",
+        _                      => role
+    };
+}

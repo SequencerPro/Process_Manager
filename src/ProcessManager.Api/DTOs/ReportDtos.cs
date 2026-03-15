@@ -33,3 +33,32 @@ public record RecentCompletionDto(
 
 /// <summary>Jobs created per calendar day over a rolling window.</summary>
 public record ThroughputPointDto(DateOnly Date, int Created, int Completed);
+
+/// <summary>Timing statistics for one step template within a specific process.</summary>
+public record StepTimingDto(
+    int Sequence,
+    string StepCode,
+    string StepName,
+    int CompletedExecutions,
+    double? MinMinutes,
+    double? AvgMinutes,
+    double? MedianMinutes,
+    double? P95Minutes,
+    double? MaxMinutes);
+
+/// <summary>
+/// Full timing profile for one process: overall job durations (min/avg/median/p95/max)
+/// plus a per-step breakdown in sequence order.
+/// </summary>
+public record ProcessTimingDto(
+    Guid ProcessId,
+    string Code,
+    string Name,
+    string ProcessRole,
+    int CompletedJobs,
+    double? MinHours,
+    double? AvgHours,
+    double? MedianHours,
+    double? P95Hours,
+    double? MaxHours,
+    List<StepTimingDto> Steps);

@@ -144,4 +144,140 @@ public class ReportsController : ControllerBase
                 completedMap.GetValueOrDefault(d, 0)))
             .ToList();
     }
+
+    // GET /api/reports/process-timing?processRole=ManufacturingProcess
+    [HttpGet("process-timing")]
+    public async Task<List<ProcessTimingDto>> GetProcessTiming([FromQuery] string? processRole = null)
+    {
+        Domain.Enums.ProcessRole? roleFilter = null;
+        if (processRole != null && Enum.TryParse<Domain.Enums.ProcessRole>(processRole, out var parsed))
+            roleFilter = parsed;
+
+        // ── Step executions: all completed with both timestamps ───────────────
+        var stepQuery = _db.StepExecutions
+            .Where(se => se.Status == StepExecutionStatus.Completed
+                      && se.StartedAt  != null
+                      && se.CompletedAt != null);
+
+        if (roleFilter.HasValue)
+            stepQuery = stepQuery.Where(se => se.ProcessStep.Process.ProcessRole == roleFilter.Value);
+
+        var stepRaw = await stepQuery
+            .Select(se => new
+            {
+                ProcessId   = se.ProcessStep.ProcessId,
+                ProcessCode = se.ProcessStep.Process.Code,
+                ProcessName = se.ProcessStep.Process.Name,
+                RoleValue   = se.ProcessStep.Process.ProcessRole,
+                Sequence    = se.ProcessStep.Sequence,
+                StepCode    = se.ProcessStep.StepTemplate.Code,
+                StepName    = se.ProcessStep.NameOverride ?? se.ProcessStep.StepTemplate.Name,
+                StartedAt   = se.StartedAt!.Value,
+                CompletedAt = se.CompletedAt!.Value
+            })
+            .ToListAsync();
+
+        // ── Jobs: all completed with both timestamps ──────────────────────────
+        var jobQuery = _db.Jobs
+            .Where(j => j.Status == JobStatus.Completed
+                     && j.StartedAt  != null
+                     && j.CompletedAt != null);
+
+        if (roleFilter.HasValue)
+            jobQuery = jobQuery.Where(j => j.Process.ProcessRole == roleFilter.Value);
+
+        var jobRaw = await jobQuery
+            .Select(j => new
+            {
+                j.ProcessId,
+                StartedAt   = j.StartedAt!.Value,
+                CompletedAt = j.CompletedAt!.Value
+            })
+            .ToListAsync();
+
+        // ── Aggregate job durations per process ───────────────────────────────
+        var jobsByProcess = jobRaw
+            .GroupBy(j => j.ProcessId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(j => (j.CompletedAt - j.StartedAt).TotalHours)
+                       .OrderBy(h => h).ToList());
+
+        // ── Aggregate step durations per (process, sequence) ──────────────────
+        var stepsByProcess = stepRaw
+            .GroupBy(s => s.ProcessId)
+            .ToDictionary(g => g.Key, g => g
+                .GroupBy(s => s.Sequence)
+                .OrderBy(sg => sg.Key)
+                .Select(sg =>
+                {
+                    var first  = sg.First();
+                    var sorted = sg.Select(s => (s.CompletedAt - s.StartedAt).TotalMinutes)
+                                   .OrderBy(m => m).ToList();
+                    return new StepTimingDto(
+                        Sequence:           first.Sequence,
+                        StepCode:           first.StepCode,
+                        StepName:           first.StepName,
+                        CompletedExecutions: sorted.Count,
+                        MinMinutes:         sorted.Count > 0 ? sorted.First()    : null,
+                        AvgMinutes:         sorted.Count > 0 ? sorted.Average()  : null,
+                        MedianMinutes:      Percentile(sorted, 0.50),
+                        P95Minutes:         Percentile(sorted, 0.95),
+                        MaxMinutes:         sorted.Count > 0 ? sorted.Last()     : null);
+                })
+                .ToList());
+
+        // ── Build process metadata lookup (from step data, supplement from DB) ─
+        var processMetaById = stepRaw
+            .GroupBy(s => s.ProcessId)
+            .ToDictionary(
+                g => g.Key,
+                g => new { g.First().ProcessCode, g.First().ProcessName, g.First().RoleValue });
+
+        var missingIds = jobsByProcess.Keys.Except(processMetaById.Keys).ToList();
+        if (missingIds.Count > 0)
+        {
+            var extra = await _db.Processes
+                .Where(p => missingIds.Contains(p.Id))
+                .Select(p => new { p.Id, p.Code, p.Name, p.ProcessRole })
+                .ToListAsync();
+            foreach (var e in extra)
+                processMetaById[e.Id] = new { ProcessCode = e.Code, ProcessName = e.Name, RoleValue = e.ProcessRole };
+        }
+
+        // ── Combine into result list ───────────────────────────────────────────
+        return jobsByProcess.Keys.Union(stepsByProcess.Keys)
+            .Where(id => processMetaById.ContainsKey(id))
+            .Select(id =>
+            {
+                var meta  = processMetaById[id];
+                var jobs  = jobsByProcess.GetValueOrDefault(id) ?? new List<double>();
+                var steps = stepsByProcess.GetValueOrDefault(id) ?? new List<StepTimingDto>();
+                return new ProcessTimingDto(
+                    ProcessId:    id,
+                    Code:         meta.ProcessCode,
+                    Name:         meta.ProcessName,
+                    ProcessRole:  meta.RoleValue.ToString(),
+                    CompletedJobs: jobs.Count,
+                    MinHours:    jobs.Count > 0 ? jobs.First()   : null,
+                    AvgHours:    jobs.Count > 0 ? jobs.Average() : null,
+                    MedianHours: Percentile(jobs, 0.50),
+                    P95Hours:    Percentile(jobs, 0.95),
+                    MaxHours:    jobs.Count > 0 ? jobs.Last()    : null,
+                    Steps:       steps);
+            })
+            .OrderByDescending(p => p.CompletedJobs)
+            .ThenBy(p => p.Name)
+            .ToList();
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /// <summary>Returns the value at percentile p (0–1) of a pre-sorted ascending list.</summary>
+    private static double? Percentile(List<double> sortedAsc, double p)
+    {
+        if (sortedAsc.Count == 0) return null;
+        var idx = (int)Math.Ceiling(sortedAsc.Count * p) - 1;
+        return sortedAsc[Math.Clamp(idx, 0, sortedAsc.Count - 1)];
+    }
 }

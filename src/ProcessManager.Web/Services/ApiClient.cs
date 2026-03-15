@@ -861,6 +861,13 @@ public class ApiClient
     public Task<List<ThroughputPointDto>?> GetThroughputAsync(int days = 30)
         => _http.GetFromJsonAsync<List<ThroughputPointDto>>($"api/reports/throughput?days={days}", _json);
 
+    public Task<List<ProcessTimingDto>?> GetProcessTimingAsync(string? processRole = null)
+        => _http.GetFromJsonAsync<List<ProcessTimingDto>>(
+            processRole is not null
+                ? $"api/reports/process-timing?processRole={Uri.EscapeDataString(processRole)}"
+                : "api/reports/process-timing",
+            _json);
+
     // ══════════════════ Power BI Dashboards ══════════════════════════════════
 
     public Task<List<PowerBiDashboardResponseDto>?> GetPowerBiDashboardsAsync()

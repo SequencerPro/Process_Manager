@@ -19,7 +19,9 @@
       "Bash(unzip:*)",
       "WebFetch(domain:blazor-diagrams.zhaytam.com)",
       "WebFetch(domain:www.nuget.org)",
-      "WebFetch(domain:api.github.com)"
+      "WebFetch(domain:api.github.com)",
+      "Bash(find /c/Users/James/source/repos/Process_Manager -name *.csproj -o -name package.json -o -name tsconfig.json -o -name angular.json)",
+      "Bash(find /c/Users/James/source/repos/Process_Manager/tests -type f -name *.cs)"
     ]
   }
 }

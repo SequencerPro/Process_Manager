@@ -25,6 +25,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ProcessManager.Domain\ProcessManager.Domain.csproj" />
     <ProjectReference Include="..\..\src\ProcessManager.Api\ProcessManager.Api.csproj" />
+    <ProjectReference Include="..\..\src\ProcessManager.Web\ProcessManager.Web.csproj" />
   </ItemGroup>
 
 </Project>

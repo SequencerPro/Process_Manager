@@ -893,6 +893,8 @@ else
         options.Zoom.Enabled = true;
         options.Zoom.Minimum = 0.25;
         options.Zoom.Maximum = 2.0;
+        options.Links.DefaultRouter = new NormalRouter();
+        options.Links.DefaultPathGenerator = new StraightPathGenerator();
         _diagram = new BlazorDiagram(options);
         _diagram.RegisterComponent<ProcessStepNodeModel, ProcessStepNode>();
         _diagram.RegisterComponent<SequenceLinkModel, SequenceLinkWidget>();

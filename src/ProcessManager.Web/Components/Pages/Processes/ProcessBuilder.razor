@@ -893,6 +893,8 @@ else
         options.Zoom.Enabled = true;
         options.Zoom.Minimum = 0.25;
         options.Zoom.Maximum = 2.0;
+        options.Links.DefaultRouter = new NormalRouter();
+        options.Links.DefaultPathGenerator = new StraightPathGenerator();
         _diagram = new BlazorDiagram(options);
         _diagram.RegisterComponent<ProcessStepNodeModel, ProcessStepNode>();
         _diagram.RegisterComponent<SequenceLinkModel, SequenceLinkWidget>();
@@ -911,11 +913,15 @@ else
         _selectedLink = null;
 
         const double nodeWidth = 220;
+        const double nodeHeight = 90;
         const double nodeGap   = 80;
         for (int i = 0; i < _steps.Count; i++)
         {
             var node = new ProcessStepNodeModel(_steps[i],
                 new Blazor.Diagrams.Core.Geometry.Point(i * (nodeWidth + nodeGap), 80));
+            // Set an initial size so ShapeIntersectionAnchor can compute link paths
+            // before the DOM renders. JS interop will update with real size later.
+            node.Size = new Blazor.Diagrams.Core.Geometry.Size(nodeWidth, nodeHeight);
             _diagram.Nodes.Add(node);
         }
 

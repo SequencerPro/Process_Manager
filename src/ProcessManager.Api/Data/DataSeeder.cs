@@ -460,6 +460,211 @@ public static class DataSeeder
         await db.SaveChangesAsync();
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // System onboarding training documents
+    // Each course teaches users a real feature of Process Manager, so browsing
+    // the Training Catalogue acts as an interactive orientation guide.
+    // ─────────────────────────────────────────────────────────────────────────
+    public static async Task SeedTrainingDocumentsAsync(ProcessManagerDbContext db)
+    {
+        if (db.Processes.Any(p => p.Code == "TRN-SYS-001")) return;
+
+        static Process Course(
+            string code, string name, string competencyTitle, string description,
+            int? expiryDays, string revision, int version, int createdDaysAgo) =>
+            new()
+            {
+                Id                   = Guid.NewGuid(),
+                CreatedAt            = Utc(-createdDaysAgo),
+                UpdatedAt            = Utc(-createdDaysAgo),
+                Code                 = code,
+                Name                 = name,
+                CompetencyTitle      = competencyTitle,
+                Description          = description,
+                CompetencyExpiryDays = expiryDays,
+                ProcessRole          = ProcessRole.Training,
+                Status               = ProcessStatus.Released,
+                IsActive             = true,
+                Version              = version,
+                RevisionCode         = revision,
+                EffectiveDate        = Utc(-createdDaysAgo)
+            };
+
+        // ── Module 1 — Orientation ────────────────────────────────────────────
+        var trn001 = Course(
+            "TRN-SYS-001",
+            "Introduction to Process Manager",
+            "Process Manager Fundamentals",
+            "An overview of the Process Manager platform and how its modules fit together. " +
+            "Covers the core concepts of Kinds, Processes, Jobs, and Items; explains the difference " +
+            "between the Design (processes & documents), Execution (jobs & workflows), Quality " +
+            "(non-conformances & approvals), Training, and Accountability modules; and introduces " +
+            "the vocabulary system that lets each organisation rename terms to match their own " +
+            "industry language (e.g. 'Work Order' vs 'Production Order', 'Board' vs 'Unit'). " +
+            "Completion of this course is the recommended first step for all new users.",
+            expiryDays: null, "A", 1, 90);
+
+        var trn002 = Course(
+            "TRN-SYS-002",
+            "Navigating the Interface",
+            "UI Navigation",
+            "A practical walkthrough of the Process Manager user interface. Covers the collapsible " +
+            "navigation sidebar and its sections (Design, Execution, Config, Quality, Document Library, " +
+            "Accountability, Training, Admin, Reports); explains the breadcrumb trail, page-level " +
+            "action buttons, search boxes, and pagination controls; demonstrates switching between " +
+            "list and detail views; and explains how the active/inactive toggle and status badges " +
+            "appear throughout the application. No prior system knowledge required.",
+            expiryDays: null, "A", 1, 90);
+
+        // ── Module 2 — Design ─────────────────────────────────────────────────
+        var trn003 = Course(
+            "TRN-SYS-003",
+            "Building and Managing Processes",
+            "Process Builder Proficiency",
+            "Covers the full authoring lifecycle for a manufacturing or service process. Explains " +
+            "how to create a new process (code, name, description, and process role); add steps " +
+            "from the step template library; reorder and remove steps; and save the process. " +
+            "Introduces the three Process Builder views — Diagram (flowchart canvas with drag-and-drop " +
+            "nodes), Slide (PowerPoint-style panel-per-step editor for detailed content blocks), and " +
+            "Document (read-only typeset view for review and printing). Explains how to add rich " +
+            "content to steps (instructions, cautions, images, tables, and reference links) and how " +
+            "version control and the approval workflow interact with the builder.",
+            expiryDays: 365, "A", 1, 85);
+
+        var trn004 = Course(
+            "TRN-SYS-004",
+            "Managing Step Templates",
+            "Step Template Administration",
+            "Step templates are the reusable building blocks that engineers assemble into processes. " +
+            "This course explains the difference between step templates and process steps; covers how " +
+            "to create a new template (code, name, description, pattern, and port configuration); " +
+            "demonstrates editing and versioning an existing template; and explains how changes to a " +
+            "template propagate (or do not propagate) to processes that already reference it. " +
+            "Also covers the five step patterns — Transform, Assembly, Disassembly, Inspection, and " +
+            "General — and when to use each one.",
+            expiryDays: 365, "A", 1, 85);
+
+        // ── Module 3 — Document Library ───────────────────────────────────────
+        var trn005 = Course(
+            "TRN-SYS-005",
+            "Using the Document Library",
+            "Document Library User",
+            "The Document Library surfaces all processes whose role is QMS Document, Work Instruction, " +
+            "or Manufacturing Process — giving them a document-centric view with code, title, revision, " +
+            "status, and effective date. This course explains how to browse, filter (by type, status, " +
+            "and search text), and view a document's full detail page; how to navigate between " +
+            "the Document view and the Process Builder for the same record; and how to understand " +
+            "the lifecycle states (Draft → Pending Approval → Released → Superseded). Covers the " +
+            "difference between a QMS Document, a Work Instruction, and a Manufacturing Process.",
+            expiryDays: null, "A", 1, 80);
+
+        var trn006 = Course(
+            "TRN-SYS-006",
+            "Document Approval Workflow",
+            "Document Approver",
+            "Explains the controlled-document approval cycle built into Process Manager. Covers how " +
+            "an engineer submits a Draft document for approval (selecting the appropriate approval " +
+            "process template and writing a change description); how approvers receive and act on " +
+            "approval requests (approve, reject, or request changes); how an approved document " +
+            "transitions to Released with an effective date; and how to create a new revision of a " +
+            "Released document, automatically superseding the previous version. Explains audit-trail " +
+            "records and who can perform each action based on user role (Admin vs Engineer vs standard user).",
+            expiryDays: 730, "A", 1, 80);
+
+        // ── Module 4 — Execution ──────────────────────────────────────────────
+        var trn007 = Course(
+            "TRN-SYS-007",
+            "Creating and Managing Jobs",
+            "Job Execution — Operator",
+            "Jobs are the primary execution record in Process Manager — they tie a process to a " +
+            "specific production run, training event, or service delivery. This course covers how to " +
+            "create a new job (selecting the process, entering the job code and name, setting priority); " +
+            "how to understand the job status lifecycle (Created → In Progress → Completed / On Hold / " +
+            "Cancelled); how step executions are created automatically from process steps; how to start, " +
+            "complete, and annotate individual step executions; and how to view the full job timeline " +
+            "and step-by-step history. Also explains how Items (serialised units, batches, or bulk stock) " +
+            "are attached to a job and how their grades are recorded.",
+            expiryDays: 365, "A", 1, 75);
+
+        var trn008 = Course(
+            "TRN-SYS-008",
+            "Working with Items, Batches and Grades",
+            "Item Management",
+            "Explains the Item model — the individual unit of work that flows through a process. " +
+            "Covers serialised items (trackable by serial number, e.g. a PCB board), batch items " +
+            "(grouped by lot number, e.g. a chemical batch), and grade assignment at each processing " +
+            "stage. Demonstrates creating items within a job, updating their status and grade as they " +
+            "move through steps, and running batch operations. Explains the relationship between the " +
+            "Kind (product type), the Grade options defined on that Kind, and the Item record. " +
+            "Covers the scrap / rework / pass disposition workflow.",
+            expiryDays: 365, "A", 1, 75);
+
+        // ── Module 5 — Quality ────────────────────────────────────────────────
+        var trn009 = Course(
+            "TRN-SYS-009",
+            "Raising and Managing Non-Conformances",
+            "Non-Conformance Reporter",
+            "Non-conformances (NCs) capture deviations from requirements and drive corrective action. " +
+            "This course explains when and how to raise an NC (selecting severity, category, and the " +
+            "related job or item); how to describe the detected problem and the immediate containment " +
+            "action; how NCs transition through their status states (Open → Under Review → Closed / " +
+            "Voided); how to attach root-cause analysis and corrective action notes; and how to view " +
+            "NC history for a specific item or process. Explains the difference between an NC and " +
+            "a PFMEA risk entry.",
+            expiryDays: 365, "A", 1, 70);
+
+        // ── Module 6 — Analytics and Reports ─────────────────────────────────
+        var trn010 = Course(
+            "TRN-SYS-010",
+            "Analytics, Reports and Dashboards",
+            "Analytics User",
+            "Process Manager captures operational data that can be surfaced through its built-in " +
+            "analytics module and Power BI dashboard integration. This course explains how to use the " +
+            "Analytics page to view job throughput, step cycle-time trends, and NC rates; how to run " +
+            "and export the standard Reports (job summary, process performance, competency status); " +
+            "and how to connect a Power BI workspace to the Process Manager API for custom reporting. " +
+            "Covers the run-chart view for monitoring process metrics over time and how to interpret " +
+            "common quality indicators.",
+            expiryDays: null, "A", 1, 65);
+
+        // ── Module 7 — Training and Competency ───────────────────────────────
+        var trn011 = Course(
+            "TRN-SYS-011",
+            "Training Catalogue and Competency Records",
+            "Training System User",
+            "This course explains the Training module you are using right now. Training processes " +
+            "(like this one) appear in the Training Catalogue alongside the learner's own competency " +
+            "history for each course. Launching a training course creates a Job of type Training, and " +
+            "completing that job generates a Competency Record. Competency records have a status " +
+            "(Current, Expiring Soon, Expired) based on the CompetencyExpiryDays setting on the " +
+            "course. The Competency Matrix (Admin/Engineer view) shows every user's competency status " +
+            "across all active training courses as a colour-coded grid. This course also explains how " +
+            "Admins and Engineers create new training courses in the Process Builder and publish them " +
+            "by setting status to Released.",
+            expiryDays: null, "B", 2, 60);
+
+        // ── Module 8 — Administration ─────────────────────────────────────────
+        var trn012 = Course(
+            "TRN-SYS-012",
+            "User Administration and Role Management",
+            "User Administrator",
+            "Covers the Admin section of Process Manager, accessible only to users with the Admin " +
+            "role. Explains the two built-in roles — Admin (full access including user management, " +
+            "admin-release of documents, and all configuration) and Engineer (design and authoring " +
+            "access: can create and edit processes, documents, step templates, and training courses, " +
+            "but cannot manage users or perform admin-release). Demonstrates how to create a new " +
+            "user account, assign or remove roles, reset passwords, and deactivate accounts. " +
+            "Covers the Domain Vocabulary configuration page where terminology can be customised " +
+            "per-process to match the organisation's own language.",
+            expiryDays: 730, "A", 1, 55);
+
+        db.Processes.AddRange(
+            trn001, trn002, trn003, trn004, trn005, trn006,
+            trn007, trn008, trn009, trn010, trn011, trn012);
+
+        await db.SaveChangesAsync();
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static DateTime Utc(int daysOffset) =>

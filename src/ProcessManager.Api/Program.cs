@@ -151,6 +151,8 @@ using (var scope = app.Services.CreateScope())
     await DataSeeder.SeedAsync(db);
     // Seed ISO 9001 QMS documents (own idempotency guard — safe on existing DBs)
     await DataSeeder.SeedQmsDocumentsAsync(db);
+    // Seed system onboarding training courses (own idempotency guard)
+    await DataSeeder.SeedTrainingDocumentsAsync(db);
 }
 
 // ── HTTP pipeline ─────────────────────────────────────────────────────────────

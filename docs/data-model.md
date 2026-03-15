@@ -11,6 +11,7 @@
 | 0.5     | 2026-02-27 | Extended Port model with PortType enum (Material, Parameter, Characteristic, Condition); Kind/Grade/QtyRule fields now Material-only; added DataType/Units/NominalValue/Tolerance fields for Parameter and Characteristic ports |
 | 0.6     | 2026-03-08 | Phase 4 extensions for workflow execution: OrgUnit entity, assignee_id on WorkflowProcess, new WorkflowJob entity (with schedule_id), WorkflowSchedule entity; Phase 5 extension: workflow_job_id and workflow_process_id on Job |
 | 0.7     | 2026-03-08 | Phase 2 additions: PromptDefinition and PromptOption entities; ExecutionData: prompt_definition_id FK, value widened to text, extended DataType enum (Select, MultiSelect, Barcode, Photo, Signature) |
+| 0.8     | 2026-03-16 | Post-Phase-6 additions: `ProcessTimingDto` and `StepTimingDto` (report DTOs — not entities); three DataSeeder methods for manufacturing demo, ISO 9001 QMS documents (QMS-001–QMS-021), and system onboarding training courses (TRN-SYS-001–TRN-SYS-012); no schema changes — all additions populate existing Process/StepTemplate entities with `ProcessRole = Training / QmsDocument` values |
 
 ---
 

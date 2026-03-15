@@ -70,7 +70,7 @@ public class ControlPlansController : ControllerBase
         var process = await _db.Processes
             .Include(p => p.ProcessSteps).ThenInclude(s => s.StepTemplate)
             .FirstOrDefaultAsync(p => p.Id == dto.ProcessId);
-        if (process is null) return BadRequest("Process not found.");
+        if (process is null) return NotFound($"Process '{dto.ProcessId}' not found.");
 
         var cp = new ControlPlan
         {
@@ -274,7 +274,10 @@ public class ControlPlansController : ControllerBase
     private static string BuildCsv(ControlPlan cp)
     {
         var sb = new System.Text.StringBuilder();
-        sb.AppendLine("Step,Sequence,Characteristic,Type,Specification / Tolerance,Measurement Technique,Sample Size,Sample Frequency,Control Method,Reaction Plan,PFMEA Failure Mode,Port");
+        sb.AppendLine($"Control Plan: {cp.Code} - {cp.Name}");
+        sb.AppendLine($"Process: {cp.Process?.Name}");
+        sb.AppendLine();
+        sb.AppendLine("Process Step,Sequence,Characteristic,Type,Specification / Tolerance,Measurement Technique,Sample Size,Sample Frequency,Control Method,Reaction Plan,PFMEA Failure Mode,Port");
 
         foreach (var e in cp.Entries.OrderBy(e => e.ProcessStep?.Sequence ?? 0).ThenBy(e => e.SortOrder))
         {

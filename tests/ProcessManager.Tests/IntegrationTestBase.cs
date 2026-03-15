@@ -128,6 +128,17 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
         return (await response.Content.ReadFromJsonAsync<ProcessResponseDto>(JsonOptions))!;
     }
 
+    /// <summary>
+    /// Releases a process via the admin-release endpoint so it can be used for job creation.
+    /// The test client operates as Admin, so this endpoint is available.
+    /// </summary>
+    protected async Task ReleaseProcess(Guid id)
+    {
+        var dto = new AdminReleaseDocumentDto(null, null, null);
+        var response = await Client.PostAsJsonAsync($"/api/processes/{id}/admin-release", dto, JsonOptions);
+        response.EnsureSuccessStatusCode();
+    }
+
     protected async Task<ProcessStepResponseDto> AddProcessStep(
         Guid processId, Guid stepTemplateId, int sequence)
     {
@@ -223,6 +234,9 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
         var deburOutPort = deburr.Ports!.First(p => p.Direction == Domain.Enums.PortDirection.Output);
         var inspInPort = inspection.Ports!.First(p => p.Direction == Domain.Enums.PortDirection.Input);
         var flow = await AddFlow(process.Id, step1.Id, deburOutPort.Id, step2.Id, inspInPort.Id);
+
+        // Release the process so jobs can be created against it (Phase 9 requirement)
+        await ReleaseProcess(process.Id);
 
         return new WidgetFinishingScenario
         {

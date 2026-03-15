@@ -175,6 +175,7 @@ public class BatchTests : IntegrationTestBase
             batchKind.Id, batchGrade.Id, batchKind.Id, batchGrade.Id);
         var proc = await CreateProcess("PAINT-PROC", "Paint Process");
         var procStep = await AddProcessStep(proc.Id, step.Id, 1);
+        await ReleaseProcess(proc.Id);
 
         var paintJob = await CreateJob(proc.Id, "JOB-PAINT");
         var paintBatch = await CreateBatch(paintJob.Id, batchKind.Id, batchGrade.Id, "LOT-PAINT", 50);

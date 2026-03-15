@@ -150,7 +150,7 @@ public class CrossCuttingTests : IntegrationTestBase
         var scenario = await BuildWidgetFinishingScenario();
 
         var result = await Client.GetFromJsonAsync<PaginatedResponse<ProcessSummaryResponseDto>>(
-            "/api/processes", JsonOptions);
+            $"/api/processes?search={scenario.Process.Code}", JsonOptions);
 
         Assert.NotNull(result);
         Assert.True(result!.TotalCount >= 1);

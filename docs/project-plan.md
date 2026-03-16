@@ -1,4 +1,4 @@
-# Process Manager — Project Plan
+﻿# Process Manager — Project Plan
 
 ## Version History
 
@@ -51,6 +51,10 @@
 | 3.5     | 2026-03-16 | `SeedTrainingDocumentsAsync` added to `DataSeeder.cs` — 12 system onboarding training courses seeded (TRN-SYS-001–TRN-SYS-012); descriptions serve as live user-facing module documentation; expiry: Never (awareness courses), 1 year (operational), 2 years (admin/approver); all Released; idempotency guard on TRN-SYS-001; called from `Program.cs` |
 | 3.6     | 2026-03-16 | Process Timing report: `ProcessTimingReport.razor` at `/reports/process-timing` — per-process cards with min/avg/median/P95/max job duration stats, proportional stacked colour bar (one segment per step), collapsible per-step detail table, role filter dropdown, expand/collapse all; `GET /api/reports/process-timing?processRole=` endpoint in `ReportsController`; `ProcessTimingDto`/`StepTimingDto` records in `ReportDtos.cs`; `GetProcessTimingAsync` in `ApiClient`; "Process Timing" nav link added to Reports section |
 | 3.7     | 2026-03-16 | Document Library filter and navigation: `Training` added to `documentRolesOnly` filter in `ProcessesController`; "Training" option added to type-filter dropdown in `DocumentList.razor`; Document Library replaced with a collapsible nav section in `NavMenu.razor` with 4 sub-links (All Documents / QMS Documents / Work Instructions / Training); `DocumentList.razor` gains `[SupplyParameterFromQuery(Name = "type")] TypeParam` with `OnParametersSetAsync` for query-parameter deep-linking; `_sectionPaths` updated to include `["documents"] = ["documents"]` |
+| 4.0     | 2026-03-15 | Process engine scope expanded: `ContextEntityType` enum extended with `Supplier`/`Product`/`ManagementReview`/`AuditFinding` values; Phase 11f-6 added — Context Data Blocks (`ContentBlockType.ContextData`, `ContextDataKey` enum, automatic context panel per entity type, authored inline data slots); Phase 15c Management Review redesigned as Work Order (seeded workflow replaces bespoke entity for future runs; existing entity preserved); Phase 17 Internal Audit added (Work Order-based, findings as ExecutionData, CAPA as ActionItems); Phase 18 Supplier Management added (`Supplier` entity, supplier qualification/SCAR workflow, `ProcessRole.SupplierAudit`); Phase 19 Product & FAI added (`Product` entity, FAI workflow `ProcessRole.Inspection`, ECO workflow `ProcessRole.ChangeControl`); Phase 20 NPI added (Work Order gate framework, `Product.IsReleased`, dependency on Phases 12/19/11f) |
+| 4.2     | 2026-03-15 | Design Principle #6 added: Process Engine First — any activity that can be modelled as a Process or Workflow must be; bespoke entity hierarchies, status machines, or sequencing logic for specific features are a design error; "Process engine first" callout section added to Core Construct Hierarchy |
+| 4.1     | 2026-03-15 | Core Construct Hierarchy documented and formalised: Step (atomic unit, no sub-units) → Process (linear sequence of Steps, no branching) → Workflow (network of Processes, branching via Routing Decisions); Job (one execution of a Process) → Work Order (one execution of a Workflow, auto-sequences Jobs through the graph); `WorkflowJob` entity and all associated terminology renamed to `WorkOrder` / Work Order throughout the plan; §3.4 Job in terminology.md corrected (previously described Job as "overarching work order driving items through Workflows" — now correctly states a Job executes one Process); terminology.md v0.5 |
+| 3.9     | 2026-03-15 | Phase 11 architecture revised: `MaintenanceTask` entity superseded by Jobs-based PM design; Phase 11d spec updated to fire `Job` records (not `MaintenanceTasks`) from `MaintenanceTrigger.ProcessId`; Phase 11f added — Process Engine Enhancements: `Job.ContextEntityType`/`ContextEntityId` polymorphic context pattern, `ProcessRole.Maintenance`, `Process.ExecutionMode` (Auto/Wizard/Checklist), free-form job (`Job.ProcessId` nullable), Quick-create Job modal; `Equipment.DefaultMaintenanceProcessId`; `DowntimeRecord.LinkedJobId` replaces `LinkedMaintenanceTaskId` |
 | 3.8     | 2026-03-16 | Phase 11 implemented (Production Management): `DowntimeType`/`MaintenanceTriggerType`/`MaintenanceTaskType`/`MaintenanceTaskStatus` enums; `EquipmentCategory`/`Equipment`/`DowntimeRecord`/`MaintenanceTrigger`/`MaintenanceTask` entities; `StepTemplate` extended with `ExpectedDurationMinutes`/`RequiredEquipmentCategoryId`; `Job` extended with `DueDate`/`PlannedStartDate`; `StepExecution` extended with `EquipmentId`; `Phase11_ProductionManagement` EF migration; `Phase11Dtos` (full Equipment, Category, Downtime, Trigger, Task, WipJobDto, BottleneckStepDto, ProductionDashboardDto); `EquipmentController` (full CRUD for categories, equipment, downtime start/close, triggers CRUD, tasks lifecycle: create/start/complete/cancel, paginated all-tasks); `ProductionController` (`/api/production/wip` WIP board + dashboard, `/api/production/bottlenecks`); `JobsController` updated (DueDate/PlannedStartDate on Create/Update/MapToDto, EquipmentId/EquipmentCode on MapStepExecutionToDto); `Phase11` ApiClient section (30 methods: categories, equipment, downtime, triggers, tasks, dashboard, bottlenecks); `ProductionDashboard.razor` (/production — KPI cards, late jobs table, WIP board, bottlenecks, maintenance due); `EquipmentList.razor` (/equipment — paginated table, search/category/active filters, create modal); `EquipmentDetail.razor` (/equipment/{id} — downtime log/resolve/history, triggers CRUD, tasks lifecycle); `MaintenanceTaskList.razor` (/maintenance — paginated all tasks, status/type filter, create modal, task actions); Production NavMenu section (Production Dashboard / Equipment / Maintenance Tasks, overdue+due badge); MCP tools `get_production_status`, `list_equipment_downtime`, `list_overdue_maintenance`; MCP server version 2.1 |
 
 ---
@@ -70,6 +74,47 @@ A system that treats manufacturing process designs as the central organizing str
 3. **Each phase delivers standalone value.** A manufacturing engineer can benefit from the system before it is "complete."
 4. **Domain-neutral internals, domain-specific labels.** The system uses generic terms (Kind, Grade, Item) internally and maps them to user-facing vocabulary (Part, Disposition, Serial Number) via configuration.
 5. **Type safety prevents errors.** Ports enforce Item Types (Kind + Grade) so that wrong items cannot flow to wrong places.
+6. **Process engine first — no bespoke architecture for what the engine already handles.** If an activity can be modelled as a Process or Workflow, it must be. Custom entities, custom status lifecycles, and custom sequencing logic for specific features are a design failure. The management review, internal audit, maintenance, FAI, supplier qualification, ECO, and NPI gate frameworks are all deliberately expressed as Processes and Work Orders rather than as dedicated entity hierarchies. When a new feature requires tracking status, assigning responsibility, sequencing steps, or recording execution history, **the first question is always: can this be a Process?**
+
+---
+
+## Core Construct Hierarchy
+
+The system is built around five constructs arranged in two layers. Understanding this hierarchy is essential to all architectural decisions.
+
+### Design layer — what work looks like
+
+| Construct | Definition |
+|---|---|
+| **Step** | The atomic unit of work. One operation, clearly scoped, with explicitly defined Input Ports and Output Ports. A Step is the smallest unit the system can track and execute. |
+| **Process** | A strictly linear sequence of Steps. One entry point, one exit point. **There is no branching within a Process.** Branching occurs only at the Workflow level. |
+| **Workflow** | A network of Processes connected by Routing Decisions. Expresses the full end-to-end path that work can take, including branches, merge points, and rework loops. |
+
+### Execution layer — how work runs
+
+| Construct | Definition |
+|---|---|
+| **Job** | One running execution of a Process. Created whenever a Process needs to be performed — manually requested, triggered by a schedule, or automatically created by the Workflow sequencing service as a Work Order advances. |
+| **Work Order** | One running execution of a Workflow. Creates and sequences Jobs for each Process node in the graph, advancing them automatically as each Job completes and Routing Decisions resolve. |
+
+### The mapping is precise
+
+- A Job executes exactly one Process.
+- A Work Order executes exactly one Workflow.
+- Every Job spawned by a Work Order carries a `WorkOrderId` FK linking it back to the parent Work Order.
+
+### Why this matters
+
+- Routing complexity is isolated to the Workflow level — Process authors never reason about branching.
+- A single Job is always interpretable in isolation: who does it, what the Process requires, and whether it succeeded.
+- Completed Work Orders provide a complete, queryable execution record of an entire multi-process activity.
+- The design/execution split means Processes and Workflows are reusable templates; Jobs and Work Orders are the immutable history.
+
+### Process engine first
+
+> **Any activity that can be modelled as a Process or Workflow must be. Building a bespoke entity hierarchy, status machine, or sequencing mechanism for a specific feature — when the process engine already provides all of that — is a design error.**
+
+This principle exists because the temptation to build dedicated entities for specific workflows (management reviews, audits, maintenance plans, change orders) is strong and recurring. Each time it is done, the result is a partial reimplementation of the process engine that cannot share assignment, scheduling, execution wizard, action item, or reporting infrastructure. The correct response to any new structured-activity requirement is: define a Workflow, seed its Processes and Steps, and let the engine execute it. Reserve new entities for data that genuinely has no process-engine equivalent.
 
 ---
 
@@ -996,7 +1041,7 @@ A record of every period during which a piece of equipment was unavailable, whet
 | `EndedAt` | DateTime? | Null if currently down |
 | `Reason` | string | Description of why it went down |
 | `ResolvedBy` | string? | Person who brought it back up |
-| `LinkedMaintenanceTaskId` | FK? | If this downtime was caused by or resolved by a maintenance task |
+| `LinkedJobId` | FK? | The Job (PM or corrective maintenance) that caused or resolved this downtime — links directly to the Job engine rather than a bespoke maintenance task record |
 
 **Derived metrics (computed from DowntimeRecords):**
 - `Availability %` = (scheduled time − downtime) / scheduled time per equipment per period
@@ -1009,40 +1054,32 @@ A record of every period during which a piece of equipment was unavailable, whet
 
 #### 11d — Preventive Maintenance Scheduling
 
-Time-based and usage-based maintenance triggers that automatically generate maintenance tasks before failures occur.
+Time-based and usage-based maintenance triggers that automatically schedule PM work before failures occur. PM work is executed through the standard Job engine — not a bespoke maintenance task system — giving PM the full benefit of process definitions, structured prompts, content blocks, competency enforcement, and the guided execution wizard. The `MaintenanceTask` entity used in the initial Phase 11 implementation is superseded by this Jobs-based design; see Phase 11f for the prerequisite engine enhancements.
 
 **Key entity: `MaintenanceTrigger`**
 
 | Field | Type | Purpose |
 |---|---|---|
 | `EquipmentId` | FK | The machine this trigger watches |
-| `Title` | string | Name of the maintenance task it generates (e.g. "Annual calibration", "Lubricate spindle") |
+| `ProcessId` | FK → Process | The PM process to run when this trigger fires; must be `ProcessRole.Maintenance` |
 | `TriggerType` | enum | `TimeBased` or `UsageBased` |
-| `IntervalDays` | int? | For TimeBased: days between tasks |
-| `IntervalUsageCycles` | int? | For UsageBased: number of step executions on this equipment between tasks |
-| `LastTriggeredAt` | DateTime? | When the most recent task was generated |
-| `NextDueAt` | DateTime? | Computed: LastTriggeredAt + IntervalDays, or derived from usage count |
-| `AdvanceNoticeDays` | int | How many days before due to surface the upcoming task |
+| `IntervalDays` | int? | For TimeBased: days between jobs |
+| `IntervalUsageCycles` | int? | For UsageBased: step executions on this equipment between jobs |
+| `LastTriggeredAt` | DateTime? | When the most recent PM job was created |
+| `NextDueAt` | DateTime? | Computed: `LastTriggeredAt + IntervalDays`, or derived from usage count |
+| `AdvanceNoticeDays` | int | How many days before due to surface the upcoming PM work |
 
-**Key entity: `MaintenanceTask`**
+**`Equipment`** gains:
+- `DefaultMaintenanceProcessId FK? → Process` — the standard PM process for this machine; pre-fills the Quick PM Start button on EquipmentDetail (see Phase 11f-5)
 
-| Field | Type | Purpose |
-|---|---|---|
-| `EquipmentId` | FK | The machine to be maintained |
-| `TriggerId` | FK? | Null for ad-hoc tasks |
-| `Title` | string | What to do |
-| `Type` | enum | `PreventiveMaintenance`, `CorrectiveMaintenance`, `Inspection`, `Calibration` |
-| `Status` | enum | `Upcoming`, `Due`, `Overdue`, `InProgress`, `Completed`, `Cancelled` |
-| `DueDate` | DateTime | When the task must be completed |
-| `AssignedTo` | string? | Person or team responsible |
-| `CompletedAt` | DateTime? | Actual completion |
-| `CompletedBy` | string? | Who completed it |
-| `Notes` | string? | Completion notes, findings, parts used |
-| `LinkedDowntimeRecordId` | FK? | If this task created or resolved a downtime record |
+**PM generation:** When `NextDueAt` is within `AdvanceNoticeDays`, a background check (or on-demand trigger) creates a `Job` against `MaintenanceTrigger.ProcessId` with:
+- `ContextEntityType = Equipment`
+- `ContextEntityId = MaintenanceTrigger.EquipmentId`
+- `DueDate = NextDueAt`
 
-**PM generation:** A background process (or on-demand trigger) scans `MaintenanceTrigger` records and creates `MaintenanceTask` records when `NextDueAt` is within `AdvanceNoticeDays`. Tasks auto-transition to `Due` and `Overdue` based on `DueDate`.
+The resulting Job is a standard Job in every respect — the operator executes it through the guided wizard (or checklist view for simple routines), all steps and prompts are defined by the PM process, and completion is tracked by Job status. `MaintenanceTrigger.LastTriggeredAt` is updated on Job creation; `NextDueAt` is recomputed from the recurrence interval.
 
-**Calibration integration:** Calibration tasks (Type = Calibration) record the calibration result and due date. Equipment with overdue calibration is flagged on the equipment card and on any StepExecution that used that equipment while it was out of calibration — important for traceability in regulated environments.
+**Calibration integration:** For equipment subject to calibration, the `MaintenanceTrigger` references a Calibration-category PM Process whose steps capture the calibration result and pass/fail outcome. Equipment with an overdue calibration Job (`ContextEntityType = Equipment`, `DueDate` past, `Status != Completed`) is flagged on the equipment card and on any `StepExecution` that used that equipment while it was out of calibration — important for traceability in regulated environments.
 
 ---
 
@@ -1065,23 +1102,182 @@ A purpose-built view for production managers and planners. Not a replacement for
 
 **Late Jobs List:** All jobs where `IsLate = true`, sorted by `DaysLate` descending, with a one-click path to the job detail.
 
-**Maintenance Due List:** All `MaintenanceTask` records in `Due` or `Overdue` status, with equipment name and assigned person.
+**Maintenance Due List:** All Jobs where `ContextEntityType = Equipment`, `Status != Completed`, and `DueDate < today`, sorted by `DueDate` ascending, showing equipment name, job name, due date, and days overdue.
 
 **Surfaces:**
 - `ProductionDashboard.razor` — the main visibility page (route `/production`)
 - NavMenu entry under a new "Production" section
-- `EquipmentList.razor` / `EquipmentDetail.razor` — catalog with full history
-- `MaintenanceTaskList.razor` — all tasks across all equipment, filterable by status/type/equipment
+- `EquipmentList.razor` / `EquipmentDetail.razor` — catalog with full history; EquipmentDetail includes a **Jobs tab** filtered to `ContextEntityType = Equipment, ContextEntityId = equipment.Id`, showing all PM and ad-hoc maintenance jobs for that machine
 - `GET /api/equipment` — paginated equipment catalog
 - `GET /api/equipment/{id}/downtime` — downtime history
-- `GET /api/equipment/{id}/maintenance` — task list
+- `GET /api/jobs?contextEntityType=Equipment&contextEntityId={id}` — PM and ad-hoc jobs for a specific equipment record (standard jobs endpoint with context filters; see Phase 11f-1)
 - `GET /api/production/wip` — current WIP state for the dashboard
 - `GET /api/production/bottlenecks` — ranked bottleneck step list
-- MCP tools: `get_production_status` (WIP summary), `list_equipment_downtime` (current and recent), `list_overdue_maintenance`
+- MCP tools: `get_production_status` (WIP summary), `list_equipment_downtime` (current and recent), `list_overdue_maintenance` (queries Jobs by context entity type)
 
 ---
 
-## Architecture Decision: Production Visibility Over Scheduling (2026-03-02)
+#### 11f — Process Engine Enhancements for Lightweight Work
+
+**Goal:** Remove the friction that makes the process engine feel heavy for simple tasks, so that the same engine that handles a 15-step manufacturing process also handles a 3-step lubrication routine or an ad-hoc "fix the coolant line" ticket. This sub-phase is a prerequisite for the Phase 11d PM refactor and delivers general capability improvements that benefit every phase.
+
+**Status:** Designed — must be built before Phase 11d refactor is implemented.
+
+---
+
+##### 11f-1 — `Job.ContextEntityType` + `Job.ContextEntityId`
+
+Two new nullable fields on `Job`:
+
+| Field | Type | Purpose |
+|---|---|---|
+| `ContextEntityType` | enum? | The type of entity this job is contextually attached to |
+| `ContextEntityId` | Guid? | The specific entity instance |
+
+`ContextEntityType` enum values (closed set — not a free string):
+
+| Value | Entity | Use case |
+|---|---|---|
+| `Equipment` | Equipment | PM job, corrective maintenance job, inspection job for a specific machine |
+| `NonConformance` | NonConformance | Investigation or rework job triggered by an NC |
+| `MrbReview` | MrbReview | Corrective action job generated by an MRB decision |
+| `Supplier` | Supplier | Supplier qualification audit, SCAR follow-up, re-audit job |
+| `Product` | Product | First Article Inspection job, engineering change verification, NPI gate review |
+| `ManagementReview` | ManagementReview (Work Order context) | Inputs collection or follow-up action job linked to a management review run |
+| `AuditFinding` | StepExecution (audit finding ExecutionData) | Corrective action job generated from an audit finding |
+
+The closed enum allows the UI to render typed navigation links and context data panels: a Job with `ContextEntityType = Equipment` renders an "Equipment: CNC-01" card that routes to `/equipment/{ContextEntityId}`; a `Product` job renders the product name and routes to `/products/{ContextEntityId}`.
+
+**Effect on API:** `GET /api/jobs` accepts `?contextEntityType=` and `?contextEntityId=` query parameters for filtering. Job create/update DTOs accept optional `ContextEntityType` + `ContextEntityId`.
+
+**Effect on UI:** Job list and job create modal updated. EquipmentDetail gains a **Jobs tab** filtered to `ContextEntityType = Equipment, ContextEntityId = equipment.Id`. Future phases: NonConformanceDetail will similarly show related jobs.
+
+---
+
+##### 11f-2 — `ProcessRole.Maintenance`
+
+The `ProcessRole` enum (values: `ManufacturingProcess`, `ApprovalProcess`, `QmsDocument`, `WorkInstruction`, `Training`) gains a sixth value: `Maintenance`.
+
+Effects:
+- PM processes are organized separately from manufacturing and training processes in all lists and pickers
+- Quick PM Start button on EquipmentDetail pre-filters the process picker to `ProcessRole = Maintenance`
+- `MaintenanceTrigger.ProcessId` is validated on creation to reference a Maintenance-role process
+- Maintenance processes do not appear in the standard manufacturing job queue
+
+---
+
+##### 11f-3 — `Process.ExecutionMode` (Checklist vs. Wizard)
+
+A new `ExecutionMode` field on `Process`:
+
+| Value | Behaviour |
+|---|---|
+| `Auto` (default) | System decides: if all steps have zero prompts and zero AcknowledgmentRequired safety blocks → render as checklist; otherwise → wizard |
+| `Wizard` | Always use the 5-phase execution wizard regardless of step content |
+| `Checklist` | Always use checklist mode (explicit override; appropriate for routines the operator should follow sequentially without data capture) |
+
+**Checklist view** (`/execute/{jobId}/checklist`): All steps rendered on one page as a vertical list. Each step row shows the step name, description, and a "Mark Complete" button. No phase navigation. No prompt forms. Completing all steps closes the job. Appropriate for simple PM routines where the operator follows a procedure card and just needs to confirm each action was done.
+
+The 5-phase wizard remains the default for any process with data capture.
+
+---
+
+##### 11f-4 — Free-form Job (`Job.ProcessId` nullable)
+
+Making `ProcessId` nullable enables ad-hoc work orders that do not correspond to any defined process — e.g. "Replace broken coolant guard on CNC-01", "Fix labels on rack B".
+
+When `ProcessId` is null:
+- `Job.Title` is a standalone required field (for process-backed jobs, `Name` is currently derived from the process)
+- No `StepExecution` records are created
+- A single "Mark Complete" action closes the job; the user records a completion note
+- Rendered as a simple card with a completion button; no wizard navigation
+
+Free-form jobs fully support `ContextEntityType` / `ContextEntityId`, so ad-hoc maintenance tickets on specific equipment still appear in the equipment's Jobs tab and in the production dashboard's maintenance view.
+
+---
+
+##### 11f-5 — Quick-create Job Modal
+
+A reusable `<QuickCreateJobModal>` Blazor component parameterised by:
+- `PreselectedProcessRole` — pre-filters the process dropdown (e.g. `Maintenance`)
+- `ContextEntityType` + `ContextEntityId` — pre-fills the context association
+- `DefaultDueDate` — pre-fills due date (e.g. `NextDueAt` from the triggering `MaintenanceTrigger`)
+- `AllowFreeForm` — when true, shows a "No process / ad-hoc" toggle
+
+Used from:
+- `EquipmentDetail` — "Start PM" button (role = Maintenance, context = Equipment)
+- `EquipmentDetail` — "Log Ad-hoc Task" button (free-form, context = Equipment)
+- `NonConformanceDetail` (future) — "Start Investigation Job" button
+- `JobList` — general new-job creation
+
+Creates the Job (and optionally starts the first step) in one action without navigating away from the triggering page.
+
+---
+
+**Schema changes (single migration `Phase11f_ProcessEngineEnhancements`):**
+
+| Change | Scope |
+|---|---|
+| `ContextEntityType enum?` + `ContextEntityId Guid?` → `Job` | New nullable columns |
+| `DefaultMaintenanceProcessId Guid?` → `Equipment` | New nullable FK |
+| `ProcessId FK` replaces `Title string` on `MaintenanceTrigger` | Schema change + data migration |
+| `ExecutionMode enum` → `Process` | New column, default `Auto` |
+| `ProcessRole.Maintenance` value | Enum extension, no schema change |
+| `Job.ProcessId` → nullable | Column nullability change |
+| New `ContextEntityType` enum | New C# enum |
+| New `ExecutionMode` enum | New C# enum |
+
+---
+
+##### 11f-6 — Context Data Blocks
+
+**The problem:** The execution wizard today has two information layers — static *content blocks* (authored text and images) and *prompts* (data capture). There is a third layer that certain process types require: **live system data resolved at execution time** — not authored when the process was designed, but fetched from the database when the wizard opens. Without this, process authors must write instructions like "check the equipment's recent downtime history in a separate window" instead of embedding it inline.
+
+**Two-layer approach:**
+
+**Layer 1 — Automatic Context Panel (no authoring required):**
+When a Job has a `ContextEntityType`, the wizard automatically renders a collapsible context card at the top of every step showing the most relevant live data for that entity type:
+
+| ContextEntityType | Auto context panel content |
+|---|---|
+| `Equipment` | Equipment name, current status, last 3 downtime events, upcoming PM due dates |
+| `NonConformance` | NC summary: step, actual value, limit breached, current disposition |
+| `Supplier` | Supplier approval status, count of open NCs, last audit date |
+| `Product` | Product code/name/revision, linked process count, open FAI status |
+| `MrbReview` | MRB status, NC summary, participant list, required RCA status |
+
+This requires zero process authoring — it is generated entirely from the job's `ContextEntityType` value and the API layer.
+
+**Layer 2 — Authored Context Data Blocks (process author places live data inline):**
+A new `ContentBlockType.ContextData` with a `ContextDataKey` enum value. Authors embed named data slots into the step content sequence (interleaved with text, images, and prompts) where they want live data to appear at execution time:
+
+`ContextDataKey` enum values (closed set):
+
+| Key | Resolves to | Required ContextEntityType |
+|---|---|---|
+| `equipment.recent_downtime` | Last N downtime events for this machine | Equipment |
+| `equipment.open_pm_jobs` | Open PM jobs for this machine | Equipment |
+| `review_period.nc_summary` | NC count + trend chart for the configured review period | any / ManagementReview |
+| `review_period.action_close_rate` | % of action items closed on time | any |
+| `review_period.mbr_open_count` | Count of open MRBs and average age | any |
+| `prior_management_review.action_items` | Action items from the most recent prior review | ManagementReview |
+| `audit.open_findings_count` | Open corrective actions from prior audit | AuditFinding |
+| `product.linked_processes` | Processes currently associated with this product | Product |
+| `product.pfmea_status` | PFMEA list for this product's processes + RPN summary | Product |
+| `product.control_plan_status` | Control Plan list for this product's processes | Product |
+| `product.trial_run_job_results` | Cycle time, yield, NC count from Jobs tagged to this product | Product |
+| `product.fai_job_status` | FAI jobs for this product + pass/fail status | Product |
+| `supplier.open_ncs` | Open NCs linked to this supplier | Supplier |
+
+**Schema:** `StepTemplateContent` gains two new nullable fields:
+- `ContextDataKey enum?` — set when `ContentBlockType = ContextData`
+- `ContextDataLabel string?` — optional override for the panel heading (defaults to a system label per key)
+
+**Wizard rendering:** When the wizard encounters a `ContextData` content block, it calls a new `GET /api/context-data/{key}?jobId={id}` endpoint that resolves the key against the job's `ContextEntityId` and returns a structured data object. The wizard renders it as a well-formatted readonly panel (table, list, or chart as appropriate to the data type) in-line with the other content blocks.
+
+**Migration:** Additive-only — new nullable columns on `StepTemplateContent`. The `ContextDataKey` enum and the `ContextData` value on `ContentBlockType` require an enum extension.
+
+**Status:** Designed — included in `Phase11f_ProcessEngineEnhancements` migration. API endpoint `GET /api/context-data/{key}` required; implementations for each key added incrementally as new phases introduce the underlying entities.
 
 ### Why not finite capacity scheduling
 
@@ -1162,11 +1358,11 @@ Nullable because not all workflows use assignment. When set, it declares which O
 
 ---
 
-#### 12c — WorkflowJob (Workflow Execution Record)
+#### 12c — Work Order (Workflow Execution Record)
 
 A parent-level record for a complete workflow run. Analogous to `Job` for a single process, but spanning the entire workflow graph.
 
-**Key entity: `WorkflowJob`**
+**Key entity: `WorkOrder`**
 
 | Field | Type | Purpose |
 |---|---|---|
@@ -1180,7 +1376,7 @@ A parent-level record for a complete workflow run. Analogous to `Job` for a sing
 
 ```
 Job
-  + workflow_job_id      (FK → WorkflowJob, nullable)
+  + workorder_id      (FK → Work Order, nullable)
   + workflow_process_id  (FK → WorkflowProcess, nullable)
 ```
 
@@ -1190,13 +1386,13 @@ These link each process-level Job back to its parent workflow run and to the spe
 
 #### 12d — Sequencing Service
 
-Triggered whenever a `Job` status transitions to `Completed`. If the job has a `WorkflowJobId`:
+Triggered whenever a `Job` status transitions to `Completed`. If the job has a `WorkOrderId`:
 
 1. Look up the `WorkflowProcess` node the job corresponded to (`WorkflowProcessId`)
 2. Find all outgoing `WorkflowLink` edges from that node
 3. Evaluate routing: `Always` links always fire; `GradeBased` links fire when the job's item grades match a `WorkflowLinkCondition`; `Manual` links wait for an operator to confirm
-4. For each link that fires, create a new `Job` for the target `WorkflowProcess.ProcessId`, set `WorkflowJobId` and `WorkflowProcessId`, and notify `WorkflowProcess.AssigneeId`
-5. If no outgoing links fire (terminal node), mark the `WorkflowJob` as `Completed`
+4. For each link that fires, create a new `Job` for the target `WorkflowProcess.ProcessId`, set `WorkOrderId` and `WorkflowProcessId`, and notify `WorkflowProcess.AssigneeId`
+5. If no outgoing links fire (terminal node), mark the `WorkOrder` as `Completed`
 
 This is the complete sequencing loop. No changes to `WorkflowLink` or `WorkflowLinkCondition` are required — the graph routing model is already sufficient.
 
@@ -1204,26 +1400,26 @@ This is the complete sequencing loop. No changes to `WorkflowLink` or `WorkflowL
 
 **Key entities added:**
 - `OrgUnit` (Id, Code, Name, Type, ParentId, IsActive)
-- `WorkflowJob` (Id, WorkflowId, Subject, Status, StartedAt, CompletedAt)
-- `WorkflowJobStatus` enum: `Running`, `Completed`, `Cancelled`
+- `WorkOrder` (Id, WorkflowId, Subject, Status, StartedAt, CompletedAt)
+- `WorkOrderStatus` enum: `Running`, `Completed`, `Cancelled`
 - `OrgUnitType` enum: `Department`, `WorkArea`, `Role`, `Person`
 
 **Existing entities modified:**
 - `WorkflowProcess` + `assignee_id` (FK → OrgUnit, nullable)
-- `Job` + `workflow_job_id` (FK → WorkflowJob, nullable) + `workflow_process_id` (FK → WorkflowProcess, nullable)
+- `Job` + `workorder_id` (FK → Work Order, nullable) + `workflow_process_id` (FK → WorkflowProcess, nullable)
 
 **Surfaces:**
 - `OrgUnitList.razor` — manage departments, work areas, roles
 - `WorkflowDetail` updated — assignee picker per node
-- `WorkflowJobList.razor` / `WorkflowJobDetail.razor` — start a workflow run, view all in-flight runs, track progress through the graph
+- `WorkOrderList.razor` / `WorkOrderDetail.razor` — start a workflow run, view all in-flight runs, track progress through the graph
 - `MyWork` page updated — operators see jobs assigned to their OrgUnit(s) in addition to directly assigned jobs
-- `POST /api/workflowjobs` — start a new workflow run
-- `GET /api/workflowjobs/{id}` — current state + graph progress
+- `POST /api/workorders` — start a new workflow run
+- `GET /api/workorders/{id}` — current state + graph progress
 - Notification hooks for assignees when a new process job is created for their OrgUnit
 
 #### 12e — WorkflowSchedule (Periodic Execution)
 
-Workflows that run on a fixed recurrence (e.g. monthly calibration, weekly safety walk, quarterly management review) need a schedule entity that fires automatically and injects a `WorkflowJob` into the OrgUnit queues at the right time. Once created by the scheduler, the `WorkflowJob` is indistinguishable from an ad-hoc run — the same sequencing service handles it.
+Workflows that run on a fixed recurrence (e.g. monthly calibration, weekly safety walk, quarterly management review) need a schedule entity that fires automatically and injects a `WorkOrder` into the OrgUnit queues at the right time. Once created by the scheduler, the `WorkOrder` is indistinguishable from an ad-hoc run — the same sequencing service handles it.
 
 **Key entity: `WorkflowSchedule`**
 
@@ -1237,14 +1433,14 @@ Workflows that run on a fixed recurrence (e.g. monthly calibration, weekly safet
 | `DayOfMonth` | int? | 1–31, used when RecurrenceType = Monthly/Quarterly/Annually |
 | `StartDate` | DateOnly | When this schedule becomes active |
 | `EndDate` | DateOnly? | When it expires (null = runs indefinitely) |
-| `SubjectTemplate` | string(500) | Template for WorkflowJob.Subject, e.g. `"Monthly QC Audit — {Month} {Year}"` |
+| `SubjectTemplate` | string(500) | Template for Work Order.Subject, e.g. `"Monthly QC Audit — {Month} {Year}"` |
 | `IsActive` | bool | Whether the scheduler should process this record |
 | `NextRunAt` | DateTimeOffset? | Computed datetime of the next scheduled fire |
 | `LastRunAt` | DateTimeOffset? | When the scheduler last fired this schedule |
 
-**`WorkflowJob` gains one field:**
+**`WorkOrder` gains one field:**
 ```
-WorkflowJob
+Work Order
   + schedule_id  (FK → WorkflowSchedule, nullable)
 ```
 Null for ad-hoc runs; set when the job was created by the scheduler. Allows filtering "all runs of this schedule" and tracking whether a scheduled window was missed.
@@ -1252,7 +1448,7 @@ Null for ad-hoc runs; set when the job was created by the scheduler. Allows filt
 **Scheduler background service:**
 1. Runs on a configurable interval (e.g. every minute)
 2. Queries `WorkflowSchedule WHERE is_active = true AND next_run_at <= now`
-3. For each due schedule: creates a `WorkflowJob` (resolves subject template, sets `ScheduleId`), creates `Job` records for each entry-point `WorkflowProcess` node, pushes assignees from `WorkflowProcess.AssigneeId`
+3. For each due schedule: creates a `WorkOrder` (resolves subject template, sets `ScheduleId`), creates `Job` records for each entry-point `WorkflowProcess` node, pushes assignees from `WorkflowProcess.AssigneeId`
 4. Updates `last_run_at = now`, computes and writes `next_run_at` from the recurrence rule
 5. Handles missed windows gracefully — if the service was down, it fires once and advances `next_run_at` (no backfill of missed runs)
 
@@ -1269,10 +1465,10 @@ Null for ad-hoc runs; set when the job was created by the scheduler. Allows filt
 |---|---|
 | New `OrgUnits` table | Small |
 | `assignee_id` on `WorkflowProcesses` | Trivial |
-| New `WorkflowJobs` table | Small |
-| `workflow_job_id` + `workflow_process_id` on `Jobs` | Trivial |
+| New `WorkOrders` table | Small |
+| `workorder_id` + `workflow_process_id` on `Jobs` | Trivial |
 | New `WorkflowSchedules` table | Small |
-| `schedule_id` on `WorkflowJobs` | Trivial |
+| `schedule_id` on `WorkOrders` | Trivial |
 | Sequencing service (job completion hook) | Medium |
 | Scheduler background service | Medium |
 
@@ -1316,7 +1512,7 @@ A `Participant` role user is typically a member of one or more `OrgUnit`s. Their
 - Approval Queue
 - Admin / User Management
 - Kind / Grade management
-- WorkflowJob management (they receive work, they don't launch workflow runs)
+- Work Order management (they receive work, they don't launch workflow runs)
 
 **Implementation:**
 
@@ -1350,7 +1546,7 @@ This phase cannot deliver useful content until the following are built:
 |---|---|
 | Phase 2 PromptDefinition + PromptOption | Structured data collection on steps — without this, processes can't capture meaningful data |
 | Phase 12 OrgUnit + WorkflowProcess.AssigneeId | Department routing — without this, multi-department workflows can't be assigned |
-| Phase 12 WorkflowJob + sequencing service | Workflow execution — without this, workflows are diagrams, not running operations |
+| Phase 12 Work Order + sequencing service | Workflow execution — without this, workflows are diagrams, not running operations |
 | Phase 12 WorkflowSchedule | Periodic processes (audits, calibrations, reviews) require a schedule trigger |
 
 #### Delivery Mechanism
@@ -1584,38 +1780,70 @@ No new roles are introduced in v1 — tiers are delivered as purpose-built pages
 
 #### 15c — Management Review Support
 
-Formal periodic review at the executive level, providing structured inputs and decision recording to satisfy ISO 9001 clause 9.3.
+Formal periodic review at the executive level, satisfying ISO 9001 clause 9.3. **Redesigned as a Work Order** against a seeded "Management Review" workflow, replacing the original bespoke `ManagementReview` entity with the standard scheduling, OrgUnit assignment, execution wizard, and completion record infrastructure.
 
-**Key entity: `ManagementReview`**
+**Why Work Order rather than a bespoke entity:**
+- Management Review is a structured multi-step activity with defined inputs, a meeting phase, and action outputs — exactly the process engine's domain
+- The existing `ManagementReview` entity essentially reimplements a subset of Work Order capabilities (status lifecycle, auto-populated inputs, action items)
+- Running it as a scheduled Work Order means review runs appear in OrgUnit work queues, can be delegated, and produce permanent execution records via the standard wizard
+- Context Data Blocks (Phase 11f-6) replace the auto-populated input panel: the wizard shows live NC count, action item rates, and MRB status as authored context slots in the relevant process steps
 
-| Field | Type | Notes |
-|---|---|---|
-| `Id` | Guid | PK |
-| `Title` | string | e.g. "Q1 2026 Management Review" |
-| `ReviewType` | enum | `Quarterly` / `Annual` / `Special` |
-| `ScheduledDate` | DateTime | |
-| `Status` | enum | `Scheduled` / `InProgress` / `Complete` |
-| `ConductedBy` | string? | |
+**Seeded "Management Review" workflow (ProcessRole.ManagementReview):**
 
-**Inputs collected at review time:**
-- NC count by period — auto-populated from data
-- Action item close rate % — auto-populated
-- Open MRB count and average age — auto-populated
-- Customer complaints — manual entry
-- Supplier quality performance — manual entry
-- Internal audit status — manual entry linking to audit finding records
-- Prior review action item close-out status — linked `ActionItem` records for the previous review's outputs
+```
+WorkflowProcess A: "Collect Review Inputs"  [Parallel — one assignee per step]
+  Step: Quality Performance Inputs
+    ContextData block: review_period.nc_summary (NC count + trend for configured period)
+    ContextData block: review_period.action_close_rate (% closed on time)
+    ContextData block: review_period.mbr_open_count (open MRBs + avg age)
+    Prompt: NC performance vs target (Select: Acceptable / Concern / Unacceptable)
+    Prompt: Notable quality trends (LongText)
 
-**Outputs:**
-- `ManagementReview.Decisions` — free-text decisions and strategic direction
-- Action items created directly from the review — become `ActionItem` records with `SourceEntityType = ManagementReview`
-- New performance targets for the next review cycle
+  Step: Customer Feedback Inputs
+    Prompt: Number of customer complaints (Integer)
+    Prompt: Customer satisfaction summary (LongText)
 
-**Surfaces:**
-- `ManagementReviewList` / `ManagementReviewDetail` — create and conduct reviews; auto-populated input panels with manual-supplement fields; historical record of all reviews with trend comparisons between periods
-- MCP tool `get_management_review_status` — current open action items from the most recent management review, with completion status
+  Step: Supplier Performance Inputs
+    Prompt: Number of supplier NCs (Integer)
+    Prompt: Supplier performance notes (LongText)
 
-**Status:** Designed — depends on Phase 8c (NonConformance), Phase 10d (MRB), and Phase 10a–c (RCA) to have meaningful data to populate the auto-populated inputs.
+  Step: Internal Audit Status Inputs
+    ContextData block: audit.open_findings_count
+    Prompt: Audit findings summary (LongText)
+
+  Step: Resource Adequacy Assessment
+    Prompt: Are resources (people, equipment, infrastructure) adequate? (Select: Adequate / Concern / Inadequate)
+    Prompt: Resource notes (LongText)
+
+  Step: Prior Review Actions Close-out
+    ContextData block: prior_management_review.action_items (list of action items from last review + status)
+    Prompt: Prior action items review notes (LongText)
+
+WorkflowProcess B: "Conduct Management Review Meeting"
+  Step: Review Meeting Execution
+    Reference block: guidance on ISO 9001 §9.3 required discussion topics
+    Prompt: Quality objectives reviewed and updated (LongText)
+    Prompt: Decisions made (LongText)
+    Prompt: Performance targets for next period (LongText)
+    UserPicker: Management attendees (multi-capture pattern)
+    UserPicker: Quality representative present
+
+WorkflowProcess C: "Record and Distribute Outputs"
+  Step: Assign action items (operator creates ActionItems from meeting decisions; each becomes an ActionItem with SourceEntityType = ManagementReview)
+  Step: Distribute review record (UserPicker: distribution list acknowledgment)
+```
+
+**WorkflowSchedule:** A `WorkflowSchedule` record with `RecurrenceType = Quarterly` (or Annual for smaller organisations) drives automatic Work Order creation. The `SubjectTemplate` resolves to `"Management Review — {Quarter} {Year}"`.
+
+**Context:** WorkOrders for management reviews carry `ContextEntityType = ManagementReview` (a lightweight reference entity, or simply the Work Order's own Id) enabling the DashboardScorecard to query all management review runs and their action item close rates.
+
+**Migration note:** The existing `ManagementReview` entity built in Phase 15 remains in the codebase and is not removed — it represents the implementation that exists today and its data is preserved. The Work Order-based design is the *future* execution path once Phase 12 (Work Order + sequencing service) is built. The two approaches coexist: existing records stay in `ManagementReview`; new runs created after Phase 12 is built use the Work Order path.
+
+**Surfaces (Phase 12 dependent):**
+- `WorkflowScheduleList` on the Management Review workflow — configure quarterly/annual firing
+- MCP tool `get_management_review_status` updated to query Work Order execution data rather than the ManagementReview entity
+
+**Status:** Designed — depends on Phase 12 (Work Order + sequencing) and Phase 11f-6 (Context Data Blocks).
 
 ---
 
@@ -1719,7 +1947,410 @@ Seeded training process templates (Safety Induction, Quality System Orientation,
 
 ---
 
-### Phase 17+ — Integrations (future)
+### Phase 17 — Internal Audit Management
+
+**Goal:** Run internal quality audits as WorkOrders, capturing audit findings as structured `ExecutionData` on audit steps rather than in bespoke entities. Each finding that warrants a corrective action creates an `ActionItem` with `SourceEntityType = AuditFinding`, linking the action back to the specific step execution that identified the issue.
+
+**Design premise:** An audit is inherently a structured sequence: plan → notify → conduct by clause/area → issue findings → issue corrective actions → verify closure. This maps directly to a Work Order with process-steps. The finding data (clause reference, conformity rating, evidence description) lives in `ExecutionData` on the audit step — no separate `AuditFinding` entity is required. The `AuditFinding` value in `ContextEntityType` / `ActionItem.SourceEntityType` references the `StepExecution.Id` of the finding step, which carries the full finding data.
+
+---
+
+#### Seeded "Internal Audit" Workflow (`ProcessRole.Audit`)
+
+```
+WorkflowProcess A: "Audit Planning"  (assigned: Lead Auditor)
+  Step 1: Define audit scope and schedule
+    Prompt: Audit scope (LongText — clauses, processes, areas)
+    Prompt: Planned audit date (DateTime)
+    Prompt: Audit standard (Select: ISO 9001:2015 / IATF 16949 / AS9100D / Custom)
+    UserPicker: Lead auditor
+    UserPicker: Audit team members
+
+  Step 2: Notify auditees and confirm
+    Prompt: Auditees notified (Boolean — AcknowledgmentRequired)
+    Prompt: Audit plan distributed (Boolean)
+
+WorkflowProcess B: "Conduct Audit"  (assigned: Lead Auditor; one step per audit area)
+  [One step per clause/area — authors customise for their scope]
+  Example Step: "Clause 8.5 — Production and Service Provision"
+    Reference block: Clause 8.5 requirement text
+    Prompt: Conformity rating (Select: Conforms / Observation / Minor NC / Major NC / Not Applicable)
+    Prompt: Evidence reviewed (LongText)
+    Prompt: Finding description (LongText — required when rating != Conforms and != Not Applicable)
+    Prompt: Objective evidence reference (String — document number, record ID, photo description)
+
+  [Hard gate: if any step has rating = Major NC, workflow routes to Process D in parallel with C]
+
+WorkflowProcess C: "Close Audit"  (assigned: Lead Auditor)
+  Step 1: Prepare audit report
+    Prompt: Summary of findings (LongText)
+    Prompt: Number of Minor NCs (Integer)
+    Prompt: Number of Major NCs (Integer)
+    Prompt: Number of Observations (Integer)
+    Prompt: Overall audit conclusion (LongText)
+  Step 2: Auditee sign-off
+    UserPicker: Auditee representative
+    Prompt: Auditee acknowledgment (AcknowledgmentRequired Boolean)
+
+WorkflowProcess D: "Issue Corrective Actions"  (parallel branch — fires when any Major NC exists)
+  Step 1: Per finding requiring CAPA (one step per Major NC finding)
+    ContextData block: audit.open_findings_count (links back to finding ExecutionData)
+    Prompt: Corrective action required description (LongText)
+    Prompt: Assigned to (UserPicker)
+    Prompt: Due date (DateTime)
+    [Completion creates: ActionItem with SourceEntityType = AuditFinding, SourceEntityId = finding StepExecution.Id]
+
+WorkflowProcess E: "Verify Corrective Action Closure"  (triggered when all CAPAs in D are Completed+Verified)
+  Step 1: Verify effectiveness of each corrective action
+    ContextData block: linked ActionItems from process D + completion status
+    Prompt: Corrective actions effectively implemented (PassFail)
+    Prompt: Verification notes (LongText)
+    UserPicker: Verifying auditor
+```
+
+**WorkflowSchedule:** Typically Annual (`RecurrenceType = Annually`) or configured per clause/process area. Subject template: `"Internal Audit — {Year} — {scope}"`.
+
+**Finding retrieval:** `GET /api/step-executions?jobId={auditJobId}&promptKey=conformity_rating` returns all audit finding steps with their ratings. The MCP tool `get_audit_summary` queries this pattern.
+
+**`ActionItemSourceType` extension:** `AuditFinding` value already present in the ActionItem design — `SourceEntityId` points to the `StepExecution.Id` of the finding step, from which all finding detail can be retrieved.
+
+**MCP tool:** `get_audit_summary` — for a given audit WorkOrderId, returns finding count by rating, open corrective actions, and verification status.
+
+**Surfaces:**
+- Internal Audit runs managed via `WorkOrderList` filtered to the Internal Audit workflow
+- Finding summary visible on `WorkOrderDetail` (computed from step execution data)
+- Corrective actions appear on `TeamActions` / `MyActions` like all other ActionItems
+
+**Status:** Designed — depends on Phase 12 (Work Order + sequencing), Phase 11f (ContextEntityType + Context Data Blocks), and Phase 15 (ActionItem with AuditFinding source type).
+
+---
+
+### Phase 18 — Supplier Management
+
+**Goal:** Give the quality and procurement teams a first-class `Supplier` entity so that supplier-related jobs (qualification audits, SCAR follow-ups, re-audits) can carry typed context (`ContextEntityType = Supplier`) and supplier performance can be tracked as a first-class metric rather than free-text strings on NC records.
+
+**Design premise:** Suppliers are already referenced throughout the system — as free-text on NC records, as `SupplierCaused` booleans on MRBs, as free-text in management review inputs. Promoting them to a proper entity unlocks context-typed jobs, supplier performance metrics in the QualityScorecard, and the supplier qualification workflow.
+
+---
+
+#### 18a — Supplier Entity
+
+**Key entity: `Supplier`**
+
+| Field | Type | Purpose |
+|---|---|---|
+| `Code` | string | Short identifier (e.g. "SUP-042", "ACME") |
+| `Name` | string | Full trading name |
+| `Category` | string? | Type of supply (Raw Material, Sub-assembly, Services, Calibration, etc.) |
+| `ApprovalStatus` | enum | `Approved` / `Conditional` / `Suspended` / `Disqualified` |
+| `PrimaryContactName` | string? | |
+| `PrimaryContactEmail` | string? | |
+| `Website` | string? | |
+| `Notes` | string? | |
+| `IsActive` | bool | |
+| `LastAuditDate` | DateTime? | Date of most recently completed qualification audit Job |
+| `NextAuditDue` | DateTime? | Computed or manually set |
+
+**NC and MRB linkage:** `NonConformance` and `MrbReview` gain an optional `SupplierId FK → Supplier` (replacing the current `SupplierCaused bool` + free text). Existing records retain the bool flag; new records can link to supplier.
+
+**`ContextEntityType.Supplier`** enables:
+- Supplier qualification jobs (`ProcessRole.SupplierAudit`)
+- SCAR follow-up jobs with typed link to the supplier
+- "Show all jobs for this supplier" tab on SupplierDetail, same pattern as EquipmentDetail
+
+**Job filters:** `GET /api/jobs?contextEntityType=Supplier&contextEntityId={id}` returns all qualification, SCAR, and re-audit jobs for that supplier.
+
+**Surfaces:**
+- `SupplierList.razor` — paginated catalog, search/status filter, create modal
+- `SupplierDetail.razor` — info card, NC history (filtered by SupplierId), Jobs tab, approval status management
+- `GET /api/suppliers` — paginated CRUD
+- QualityScorecard: supplier NC count + top suppliers by NC frequency
+
+**Status:** Designed — Phase 11f (`ContextEntityType` pattern) is a prerequisite.
+
+---
+
+#### 18b — Supplier Qualification & Audit Workflow
+
+A seeded workflow (`ProcessRole.SupplierAudit`) that runs as a `WorkOrder` against a `Supplier` context entity.
+
+```
+WorkflowProcess A: "Supplier Self-Assessment"
+  Step: Self-assessment questionnaire
+    Multiple Select / LongText prompts covering: quality system, certifications, capacity, sub-tier controls
+
+WorkflowProcess B: "Desk Review"
+  Step: Review documentary evidence
+    ContextData block: supplier.open_ncs (existing NCs for this supplier)
+    Prompt: Quality cert status (Select: ISO 9001 / IATF / AS9100 / None)
+    Prompt: Desk review outcome (Select: Proceed to Site Audit / Conditionally Approved / Rejected — insufficient evidence)
+
+Routes:
+  GradeBased: Proceed to Site Audit → WorkflowProcess C
+  GradeBased: Conditionally Approved → WorkflowProcess D (skip site audit)
+  GradeBased: Rejected → WorkflowProcess E (Rejected notification + close)
+
+WorkflowProcess C: "Site Audit"  (ProcessRole.SupplierAudit)
+  Steps: Arrival + scope confirmation → facility walk → process observations →
+         documentation review → finding summary
+  Prompts: conformity ratings per audit area, finding descriptions (LongText)
+  Prompt: Overall score (Integer 0–100)
+  Prompt: Audit outcome (Select: Approved / Conditional / Rejected)
+
+WorkflowProcess D: "Record Decision & Notify"
+  Step: Update supplier approval status (sets Supplier.ApprovalStatus)
+  Step: Notify supplier of outcome (UserPicker: notified by)
+
+WorkflowProcess E: "Issue SCAR" (conditional branch on audit findings)
+  Step: Define corrective action requirements
+  Creates: ActionItem records with SourceEntityType = Supplier, linked SCAR jobs
+```
+
+**Re-audit scheduling:** A `WorkflowSchedule` fires annually (or as configured) to re-qualify active approved suppliers.
+
+**Status:** Designed — depends on Phase 12 (Work Order) and Phase 18a (Supplier entity).
+
+---
+
+### Phase 19 — Product & First Article Inspection
+
+**Goal:** Introduce a `Product` (part number) entity as the top-level context root for product-centric activities — First Article Inspections, engineering change orders, NPI gate reviews — enabling all those activities to carry `ContextEntityType = Product` and appear together on the product's detail page.
+
+**Design premise:** Many activities in a manufacturing company are fundamentally about a *product variant* rather than a *process*: an FAI certifies that a specific revision of a specific part was produced correctly; an ECO routes a change to a specific drawing and its affected processes; an NPI run gates a new product from concept to production release. All of these need a persistent `Product` record to anchor the context entity chain.
+
+---
+
+#### 19a — Product Entity
+
+**Key entity: `Product`**
+
+| Field | Type | Purpose |
+|---|---|---|
+| `Code` | string | Part number or product code |
+| `Name` | string | Human-readable description |
+| `Revision` | string? | Current drawing/spec revision (e.g. "Rev C", "2.1") |
+| `CustomerPartNumber` | string? | Customer's internal part number if different |
+| `Category` | string? | Product family or type |
+| `SupplierId` | FK → Supplier? | For purchased/supplied parts |
+| `IsActive` | bool | |
+| `Notes` | string? | |
+
+**Linkage to existing entities:**
+- `Kind` (Phase 1) remains the internal type-system entity (used for port compatibility, grade tracking). `Product` is the customer/commercial-facing identity. A `Product` may reference a `Kind` for process model linkage, or be independent for purely commercial tracking.
+- `NonConformance` gains optional `ProductId FK → Product` (replacing free-text part description on NCs)
+- `ControlPlanEntry` can optionally link a `ProductId` to ground the characteristic in a specific product revision
+
+**`ContextEntityType.Product`** enables:
+- FAI jobs tagged to a specific product
+- ECO jobs tagged to the product being changed
+- NPI Work Order runs tagged to the new product
+- "Show all jobs for this product" on ProductDetail
+
+**Surfaces:**
+- `ProductList.razor` — paginated catalog with search/category filter
+- `ProductDetail.razor` — info card, linked NCs, Jobs tab (FAI, ECO, NPI), linked processes/processes that produce this product
+- `GET /api/products` — paginated CRUD
+
+**Status:** Designed — Phase 11f (`ContextEntityType` pattern) is a prerequisite.
+
+---
+
+#### 19b — First Article Inspection (FAI) Workflow
+
+A First Article Inspection verifies that a new or changed production process can consistently produce a part that meets all engineering and drawing requirements. It is required before first production shipment, after major process changes, and after long production breaks (PPAP / AS9100 compliance).
+
+**Seeded "First Article Inspection" process** (`ProcessRole.Inspection`):
+
+```
+Step 1: Drawing & Specification Review
+  Reference block: FAI scope and applicable standard (AIAG PPAP / AS9102)
+  Prompt: Drawing revision confirmed (Boolean — must be ticked = hard gate)
+  Prompt: Applicable standards (LongText)
+
+Step 2: Dimensional Report
+  For each characteristic (operators add rows for each drawing dimension):
+    Prompt: Characteristic ID (String — drawing callout)
+    Prompt: Nominal value (Decimal)
+    Prompt: Actual measured value (Decimal — with LSL/USL from ControlPlan if linked)
+    Prompt: Pass/Fail (Select)
+  Prompt: Measurement system used (String — calibrated gauge ID)
+
+Step 3: Material Certification Review
+  Prompt: Material cert number (String)
+  Prompt: Material cert conforms to drawing requirement (PassFail)
+  Prompt: Material cert attached / on file (Boolean)
+
+Step 4: Process Capability Study (if required)
+  Prompt: Cpk value (Decimal)
+  Prompt: Sample size (Integer)
+  Prompt: Capability adequate (Cpk ≥ 1.33) (PassFail)
+
+Step 5: Functional Test
+  Prompt: Functional test standard (String)
+  Prompt: All functional tests passed (PassFail)
+  Prompt: Any deviations (LongText)
+
+Step 6: Customer Approval & Submission (if customer approval required)
+  UserPicker: Submitted to (customer contact name)
+  Prompt: Submission date (DateTime)
+  Prompt: Customer approval received (PassFail)
+  Prompt: PPAP submission level (Select: 1/2/3/4/5)
+```
+
+Context: `ContextEntityType = Product` — the FAI Job is linked to the specific product being inspected.
+
+Hard-limit on dimensional checks: any out-of-spec measurement generates a `NonConformance` via the existing Phase 8c disposition flow. The FAI cannot proceed to sign-off with open NCs unless dispositioned UseAsIs with justification.
+
+**Status:** Designed — depends on Phase 19a (Product entity) and Phase 11f (ContextEntityType pattern and checklist/wizard execution).
+
+---
+
+#### 19c — Engineering Change Order (ECO)
+
+An ECO manages the controlled transition of a product from one revision to another — ensuring that all processes, documents, tooling, and suppliers affected by the change are identified, reviewed, and updated before the new revision enters production.
+
+**Seeded "Engineering Change Order" workflow** (`ProcessRole.ChangeControl`):
+
+```
+WorkflowProcess A: "Change Request & Impact Assessment"
+  Step 1: Define the change
+    Prompt: Change description (LongText)
+    Prompt: Reason for change (Select: Customer requirement / Quality improvement / Cost reduction / Regulatory / Obsolescence / Other)
+    Prompt: Affected drawing / document revisions (LongText)
+    Prompt: Affected processes (multi-select from process list — ContextData block)
+    ContextData block: product.linked_processes (processes currently producing this product)
+
+  Step 2: Impact Assessment
+    Prompt: Does change affect safety or regulatory compliance? (PassFail — if Fail, routes to expedited approval)
+    Prompt: Estimated impact on cost/lead time (LongText)
+    Prompt: Tooling or equipment changes required (Boolean)
+    Prompt: Supplier changes required (Boolean → branches to supplier notification process)
+
+WorkflowProcess B: "Approvals"  [Parallel — same ParallelGroup pattern as Phase 14]
+  Step: Design Engineering approval
+    Prompt: Decision (Approve / Reject)
+    Prompt: Comments (LongText, required on Reject)
+  Step: Manufacturing Engineering approval
+    Prompt: Decision / Comments
+  Step: Quality Engineering approval
+    Prompt: Decision / Comments
+  [Optional] Step: Customer approval (if contractually required)
+
+WorkflowProcess C: "Implementation"
+  Step: Update affected process definitions
+    ContextData: list of affected processes identified in Step A
+    Prompt: All process revisions submitted for approval (Boolean)
+  Step: Update drawings and documents
+    Prompt: New revision level (String)
+    Prompt: Document control updated (Boolean)
+  Step: Tooling / equipment changes (if flagged in impact assessment)
+    Prompt: Changes completed (Boolean)
+  Step: Training on changed process completed
+    Prompt: Operators trained (Boolean — CompetencyRecord enforcement hook if training required)
+
+WorkflowProcess D: "Verification"
+  Step: First Article on new revision
+    Creates: FAI Job with ContextEntityType = Product (links to Phase 19b)
+  Step: Verification sign-off
+    Prompt: FAI passed (PassFail)
+    Prompt: Production release authorised (Boolean)
+    UserPicker: Release authority
+```
+
+`ContextEntityType = Product` on the ECO Work Order — all affected processes, FAI results, and supplier notifications are traceable back to the specific product change.
+
+**Status:** Designed — depends on Phase 12 (Work Order), Phase 19a (Product), and Phase 14 (process change control).
+
+---
+
+### Phase 20 — New Product Introduction (NPI)
+
+**Goal:** Use the workflow engine to gate a new product from concept to production release, ensuring that every required phase of development — design review, process design, quality planning (PFMEA/Control Plan), trial production, FAI, and customer approval — is completed and signed off before the product ships. NPI is the most powerful expression of the process engine's capabilities: it orchestrates activities across every other phase of the system.
+
+**Design premise:** NPI is a workflow. Each gate in the NPI process is a WorkflowProcess. The workflow graph enforces the sequence and gates. The evidence produced at each gate (PFMEA, Control Plan, FAI results, approval records) is captured by the existing quality engineering tools, already linked to Process and Product entities. NPI doesn't require new entities — it requires the workflow engine (Phase 12) and the Product entity (Phase 19a) to be in place, then a well-designed workflow definition.
+
+---
+
+#### NPI Gate Workflow (Seeded)
+
+```
+Work Order: "NPI — [Product.Code] [Product.Name]"
+  ContextEntityType = Product
+
+Gate 0: Concept Review
+  Step: Product concept approval
+    Prompt: Market requirement / customer commitment (LongText)
+    Prompt: Preliminary cost/benefit assessment (LongText)
+    Prompt: Proceed decision (Approve / Hold / Cancel)
+    UserPicker: Approving authority
+
+Gate 1: Design Review
+  Step: Design review completion
+    ContextData: product.linked_processes (processes currently planned)
+    Prompt: Design FMEA (DFMEA) completed (Boolean)
+    Prompt: Drawing revision submitted (String)
+    Prompt: Material and component list approved (Boolean)
+    Prompt: Design review outcome (Approve / Conditional / Cancel)
+    UserPicker: Design review attendees
+
+Gate 2: Process Design
+  Step: Process plan completion
+    Prompt: Process flow diagram approved (Boolean)
+    Prompt: All process definitions created and Released (Boolean — ContextData: list of linked processes + their status)
+    Prompt: Manufacturing locations / resources identified (LongText)
+
+Gate 3: Quality Planning
+  Step: PFMEA completed
+    ContextData: product.pfmea_status (PFMEA for each linked process + RPN summary)
+    Prompt: All high-RPN items have action plans (Boolean)
+    Prompt: PFMEA approved (PassFail)
+  Step: Control Plan completed
+    ContextData: product.control_plan_status
+    Prompt: Control Plan approved (PassFail)
+  Step: Measurement system analysis (MSA) completed
+    Prompt: R&R studies done for critical gauges (Boolean)
+    Prompt: MSA results acceptable (PassFail)
+
+Gate 4: Trial Production Run
+  Creates: Job(s) against the production Process definitions, tagged ContextEntityType = Product
+  Step: Trial run completion review
+    ContextData: product.trial_run_job_results (cycle times, NC count, yield from trial Jobs)
+    Prompt: Yield acceptable (PassFail)
+    Prompt: Cycle time within target (PassFail)
+    Prompt: Operator feedback (LongText)
+
+Gate 5: First Article Inspection
+  Creates: FAI Job (Phase 19b) with ContextEntityType = Product
+  Step: FAI results review
+    ContextData: product.fai_job_status
+    Prompt: FAI passed (PassFail)
+    Prompt: Any open NCs dispositioned (Boolean)
+
+Gate 6: Customer Approval / PPAP Submission (if required)
+  Step: PPAP package submission
+    Prompt: Submission level (Select: 1/2/3/4/5)
+    Prompt: Submission date (DateTime)
+    UserPicker: Submitted by
+  Step: Customer approval received
+    Prompt: Approval received (PassFail)
+    Prompt: PPAP approval date (DateTime)
+    Prompt: Any conditions (LongText)
+
+Gate 7: Production Release
+  Step: Production release sign-off
+    Prompt: All gate criteria met (Boolean — system validates all prior gates Completed)
+    Prompt: Production start date (DateTime)
+    UserPicker: Release authority
+    Sets: Product.IsReleased = true (new field), Process.Status = Released (if not already)
+```
+
+**Key design point:** The "trial production" and FAI gates do not have embedded execution — they *create* child Jobs (using the Quick-create Job modal mechanism from Phase 11f-5) that run in the standard Job engine. The NPI gate step watches for those child jobs to complete before it can be signed off. This cross-job dependency is the most sophisticated pattern in the system and may require a lightweight "blocking dependency" field on StepExecution — or can be enforced manually (the operator checks the result and records it as a prompt response).
+
+**Status:** Planned — depends on Phase 12 (Work Order), Phase 19 (Product + FAI + ECO), Phase 11f (ContextEntityType). Design intent documented; full spec to be written when Phase 12 is built.
+
+---
+
+### Phase 21+ — Integrations (future)
 
 **Goal:** Connect the process system to peripheral business functions.
 
@@ -1808,12 +2439,17 @@ Additional capability added post-Phase 6:
 - **Phase 16 — Training & Competency Management** ✅ ProcessRole.Training, CompetencyRecord + ProcessTrainingRequirement entities, CompetencyExpiryDays/CompetencyTitle on Process, job-creation enforcement hook, competency matrix view, TrainingList page (launch modal), CompetencyMatrix page, training compliance in QualityScorecard and ManagementReview snapshot, MCP `get_competency_status` tool
 - **Phase 2 enhancement — `LongText` and `UserPicker` prompt types** ✅ Both added to PromptType enum; UserPicker renders as Identity-backed user dropdown in ExecutionWizard (stores display name), used for instructor capture, witness, and handoff signatory; LongText renders as textarea for multi-line instructions
 - **Phase 13 (partial) — Seeded content library** ✅ 21 ISO 9001:2015 QMS documents (QMS-001–QMS-021) and 12 system onboarding training courses (TRN-SYS-001–TRN-SYS-012) seeded with full step content; all served as live user documentation via the Document Library and Training Catalogue
-- **Phase 11 — Production Management** ✅ EquipmentCategory + Equipment entities (catalog with location, manufacturer, model, serial); DowntimeRecord (Planned/Unplanned, open/close with resolver); MaintenanceTrigger (time/usage-based, advance notice, auto-advance NextDueAt on task completion); MaintenanceTask (lifecycle: Upcoming→Due→Overdue→InProgress→Completed/Cancelled, 4 task types); StepTemplate.ExpectedDurationMinutes + RequiredEquipmentCategoryId; Job.DueDate + PlannedStartDate; StepExecution.EquipmentId; Phase11_ProductionManagement migration; EquipmentController + ProductionController (WIP board, bottlenecks); 4 Blazor pages (ProductionDashboard, EquipmentList, EquipmentDetail, MaintenanceTaskList); Production NavMenu section; 3 MCP tools (get_production_status, list_equipment_downtime, list_overdue_maintenance); MCP v2.1
+- **Phase 11 — Production Management (initial build)** ✅ EquipmentCategory + Equipment entities (catalog with location, manufacturer, model, serial); DowntimeRecord (Planned/Unplanned, open/close with resolver); MaintenanceTrigger (time/usage-based, advance notice, auto-advance NextDueAt on task completion); MaintenanceTask ⚠️ *(initial implementation — to be superseded by Phase 11f Jobs-based design)*; StepTemplate.ExpectedDurationMinutes + RequiredEquipmentCategoryId; Job.DueDate + PlannedStartDate; StepExecution.EquipmentId; Phase11_ProductionManagement migration; EquipmentController + ProductionController (WIP board, bottlenecks); 4 Blazor pages (ProductionDashboard, EquipmentList, EquipmentDetail, MaintenanceTaskList); Production NavMenu section; 3 MCP tools (get_production_status, list_equipment_downtime, list_overdue_maintenance); MCP v2.1
 
 #### Not yet built
-- **Phase 12 — Workflow Execution & Department Assignment** — OrgUnit entity (department/work area/role/person); assignee field on WorkflowProcess nodes; WorkflowJob execution record that tracks the active workflow node; sequencing service that advances the workflow graph on job completion; WorkflowSchedule entity for periodic recurrence with background scheduler service
+- **Phase 11f — Process Engine Enhancements for Lightweight Work** — `Job.ContextEntityType` + `ContextEntityId` (polymorphic context pattern: Equipment/NonConformance/MrbReview/Supplier/Product/ManagementReview/AuditFinding); `ProcessRole.Maintenance` enum value; `Process.ExecutionMode` (Auto/Wizard/Checklist) with checklist view at `/execute/{id}/checklist`; `Job.ProcessId` nullable (free-form jobs); `Equipment.DefaultMaintenanceProcessId`; `DowntimeRecord.LinkedJobId`; `MaintenanceTrigger.ProcessId` (replaces `Title` string); Context Data Blocks (`ContentBlockType.ContextData`, `ContextDataKey` enum, automatic context panel per entity type, `GET /api/context-data/{key}` endpoint); `Phase11f_ProcessEngineEnhancements` EF migration; Quick-create Job modal component; refactored Phase 11d (triggers create Jobs, not MaintenanceTasks); remove MaintenanceTask entity + related endpoints + MaintenanceTaskList.razor
+- **Phase 12 — Workflow Execution & Department Assignment** — OrgUnit entity (department/work area/role/person); assignee field on WorkflowProcess nodes; Work Order execution record that tracks the active workflow node; sequencing service that advances the workflow graph on job completion; WorkflowSchedule entity for periodic recurrence with background scheduler service
 - **Phase 12f — Participant Portal** — `Participant` role with access scoped to My Work + ExecutionWizard only; all design, admin, and quality engineering routes hidden and route-guarded; stripped `ParticipantLayout` with minimal navigation; optional `/portal` URL entry point; OrgUnit membership on users driving queue assignment
 - **Phase 13 (remaining) — System content flag + "Copy to My Library"** — `IsSystemContent` flag on Process and StepTemplate to distinguish seeded content from user-created records; "Copy to My Library" action that clones a system process under the user's own code prefix; protects system records from accidental deletion or edit
+- **Phase 17 — Internal Audit Management** — seeded "Internal Audit" workflow (`ProcessRole.Audit`): planning → notify → conduct by clause (conformity rating + evidence prompts) → close audit → issue corrective actions (creates ActionItems with `SourceEntityType = AuditFinding`, `SourceEntityId = StepExecution.Id`) → verify closure; `WorkflowSchedule` for annual/periodic firing; MCP `get_audit_summary` tool; depends on Phase 12 + Phase 11f + Phase 15
+- **Phase 18 — Supplier Management** — `Supplier` entity (Code/Name/ApprovalStatus/contact fields); `ProcessRole.SupplierAudit`; seeded supplier qualification workflow (self-assessment → desk review → site audit → decision → SCAR branch); `WorkflowSchedule` for periodic re-qualification; `NonConformance.SupplierId` + `MrbReview.SupplierId` FKs; `ContextEntityType.Supplier`; SupplierList/Detail Blazor pages; depends on Phase 12 + Phase 11f
+- **Phase 19 — Product & First Article Inspection** — `Product` entity (Code/Name/Revision/CustomerPartNumber/SupplierId); `ContextEntityType.Product`; seeded FAI process (`ProcessRole.Inspection`, 6 steps with dimensional/material/functional prompts, hard-limit NC integration); seeded ECO workflow (`ProcessRole.ChangeControl`, change request → impact assessment → parallel approvals → implementation → FAI verification → release); `Product.IsReleased`; ProductList/Detail Blazor pages; depends on Phase 11f + Phase 14
+- **Phase 20 — New Product Introduction (NPI)** — seeded NPI workflow (`ProcessRole.NPI`): 7-gate Work Order (Concept → Design Review → Process Design → Quality Planning → Trial Production → FAI → Production Release); each gate is a WorkflowProcess with Context Data blocks showing live quality planning status; `Product.IsReleased` set on Gate 7 completion; depends on Phase 12 + Phase 17 + Phase 18 + Phase 19
 - **Phase 2 enhancement — `UserPicker` stores user Id** — current implementation stores display name as a plain string; a future enhancement would store the ASP.NET Identity user Id as the value and resolve the display name at render time, enabling joins to competency and accountability records
 
 #### Ongoing limitations

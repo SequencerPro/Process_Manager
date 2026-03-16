@@ -8,6 +8,7 @@
 | 0.2     | 2026-02-22 | Added RoutingType clarification; minor wording updates to reflect implemented system |
 | 0.3     | 2026-02-27 | Extended Port model with PortType (Material, Parameter, Characteristic, Condition); updated §1.4, §1.5, §6 |
 | 0.4     | 2026-03-15 | Added §3.5 Workorder; updated §7 vocabulary mapping |
+| 0.5     | 2026-03-15 | §3.4 Job definition corrected — Job now correctly defined as one execution of a Process (not "overarching work order driving items through Workflows"); cross-reference to Work Order added |
 
 ---
 
@@ -172,9 +173,11 @@ The Batch carries the Grade. All Items in the Batch inherit the Batch's Grade. I
 
 ### 3.4 Job
 
-The overarching work order or request that drives Items through Workflows. A Job is the reason Items come into existence and flow. When Items split, merge, or transform, the Job is the thread that ties the lineage together.
+One running execution of a **Process**. A Job is created whenever a Process needs to be performed — whether manually requested, triggered by a Maintenance Schedule, or automatically created by the Workflow sequencing service as a Work Order advances through its graph.
 
-A Job can always answer: "What has happened so far?" and "What needs to happen next?"
+A Job knows: which Process it is executing, its current status, which Items/Batches are flowing through its ports, and which Step Executions have been recorded against it. A Job reaches a terminal state (Completed or Cancelled) when its last Step is executed satisfactorily or the work is abandoned.
+
+Jobs that belong to a Work Order carry a `WorkOrderId` FK linking them to their parent. Jobs that are not part of any Workflow — for example, a standalone maintenance job or an ad-hoc process run — have no `WorkOrderId`.
 
 ### 3.5 Workorder
 

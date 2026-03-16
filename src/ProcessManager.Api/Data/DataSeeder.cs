@@ -450,6 +450,172 @@ public static class DataSeeder
             "it acquires additional knowledge per clause 7.1.6.",
             ProcessStatus.Draft, "A", 1, 30);
 
+        // ── Shared step template for all QMS document sections ───────────────
+        var stDocSect = new StepTemplate
+        {
+            Id = Guid.NewGuid(), CreatedAt = Utc(-400), UpdatedAt = Utc(-400),
+            Code = "DOC-SECT-01", Name = "Document Section",
+            Description = "A numbered section within a controlled QMS procedure document.",
+            Pattern = StepPattern.General, IsActive = true, IsShared = true,
+            Status = ProcessStatus.Released, Version = 1
+        };
+        db.StepTemplates.Add(stDocSect);
+
+        static void AddQmsSteps(Process doc, StepTemplate tmpl,
+            string purpose, string responsibilities, string procedure, string records)
+        {
+            doc.ProcessSteps.Add(new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = doc.CreatedAt, UpdatedAt = doc.CreatedAt,
+                ProcessId = doc.Id, StepTemplateId = tmpl.Id, Sequence = 1,
+                NameOverride = "Purpose and Scope", DescriptionOverride = purpose
+            });
+            doc.ProcessSteps.Add(new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = doc.CreatedAt, UpdatedAt = doc.CreatedAt,
+                ProcessId = doc.Id, StepTemplateId = tmpl.Id, Sequence = 2,
+                NameOverride = "Responsibilities", DescriptionOverride = responsibilities
+            });
+            doc.ProcessSteps.Add(new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = doc.CreatedAt, UpdatedAt = doc.CreatedAt,
+                ProcessId = doc.Id, StepTemplateId = tmpl.Id, Sequence = 3,
+                NameOverride = "Procedure", DescriptionOverride = procedure
+            });
+            doc.ProcessSteps.Add(new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = doc.CreatedAt, UpdatedAt = doc.CreatedAt,
+                ProcessId = doc.Id, StepTemplateId = tmpl.Id, Sequence = 4,
+                NameOverride = "Records and Documented Information", DescriptionOverride = records
+            });
+        }
+
+        AddQmsSteps(qms001, stDocSect,
+            "Defines the boundaries and applicability of the QMS including the products and services covered, relevant interested parties, and any exclusions with justification per clause 4.3.",
+            "Top management is accountable for defining the scope; the Quality Manager maintains, communicates, and reviews the scope statement whenever the organisation's context changes.",
+            "Review organisational context (clauses 4.1–4.2); determine relevant products, services, and interested parties; identify and justify any exclusions; obtain top-management sign-off; communicate the approved scope to all relevant parties before release.",
+            "Signed scope statement, interested-parties register, exclusion justification records, management approval record.");
+
+        AddQmsSteps(qms002, stDocSect,
+            "Communicates top management's commitment to quality and provides the framework for setting objectives and satisfying applicable requirements per clause 5.2.",
+            "Top management authors and is accountable for the policy; the Quality Manager distributes, maintains awareness records, and ensures the policy is reviewed at each management review.",
+            "Draft the policy aligned to organisational context and strategy; verify all clause 5.2 requirements are addressed; obtain top-management signature; communicate to all personnel and post at relevant locations; review annually and update as required.",
+            "Signed quality policy, distribution and acknowledgement records, management review minutes reflecting policy review.");
+
+        AddQmsSteps(qms003, stDocSect,
+            "Establishes measurable quality objectives aligned to the quality policy and specifies plans including owners, resources, timelines, and evaluation methods per clause 6.2.",
+            "The Quality Manager compiles and maintains the objectives register; process owners own individual objectives and report progress; senior management reviews achievement at each management review.",
+            "For each objective record the measure, target value, responsible owner, required resources, milestone dates, and review frequency; monitor progress monthly; report deviations with corrective actions; close and archive achieved objectives.",
+            "Quality objectives register, monthly progress reports, management review minutes, objective closure records.");
+
+        AddQmsSteps(qms004, stDocSect,
+            "Provides a high-level overview of the QMS structure and the interaction between processes, and references all applicable procedures per ISO 9001:2015 clause 4.",
+            "The Quality Manager maintains the manual and proposes revisions; top management approves each revision; the manual is available to all staff and relevant external parties on request.",
+            "Document organisational context, leadership commitments, planning approach, support processes, operations overview, performance evaluation approach, and improvement mechanism; link to all applicable procedure codes; review at minimum annually.",
+            "Approved quality manual with revision history, distribution acknowledgement log, management approval record.");
+
+        AddQmsSteps(qms005, stDocSect,
+            "Describes identification, assessment, and treatment of risks and opportunities to protect QMS intended outcomes and prevent undesired effects per clause 6.1.",
+            "Process owners identify and own the risks for their processes; the Quality Manager maintains the register and facilitates assessments; management reviews significant risks and the register at each management review.",
+            "Identify risks and opportunities for each QMS process; assess likelihood and consequence; determine whether to eliminate, reduce, accept, or exploit; assign owners and implement actions; monitor effectiveness; update the register whenever context changes and at each management review.",
+            "Risk and opportunity register, risk assessment records, treatment action tracker, management review minutes.");
+
+        AddQmsSteps(qms006, stDocSect,
+            "Governs creation, updating, distribution, access, retrieval, storage, preservation, and disposal of all documented information required or maintained by the QMS per clause 7.5.",
+            "The Document Controller or Quality Manager approves all document changes and maintains the master register; department managers control local access; IT maintains the document management system and backup schedule.",
+            "Assign a unique code and title using the approved naming convention; author or update using the approved template; submit for review and approval; distribute to all affected functions; protect from inadvertent use of obsolete versions; retain for the defined period; dispose of securely at retention end.",
+            "Document register, approval and review records, distribution records, obsolescence and disposal log, access control matrix.");
+
+        AddQmsSteps(qms007, stDocSect,
+            "Defines how competence requirements are determined, training needs identified and fulfilled, effectiveness evaluated, and awareness of quality commitments maintained per clauses 7.2 and 7.3.",
+            "HR and line managers identify competence requirements and nominate staff for training; the Training Coordinator schedules courses and maintains records; individuals complete assigned training within defined timescales.",
+            "Define competence requirements for each role; identify gaps against current staff competence; plan and deliver training through approved methods; evaluate effectiveness by assessment or observation; update competency records; brief staff on quality policy, objectives, and their contribution.",
+            "Competence framework, training needs analysis, training records, effectiveness evaluation results, awareness survey or sign-off records.");
+
+        AddQmsSteps(qms008, stDocSect,
+            "Ensures all monitoring and measuring resources are identified, calibrated, verified for fitness for purpose, and protected from damage that would invalidate results per clause 7.1.5.",
+            "The Metrology Coordinator maintains the calibration register, schedules recall, and acts on out-of-tolerance findings; operators verify equipment status before use and report damage or suspected drift immediately.",
+            "Identify all monitoring and measurement equipment; assign a unique ID, calibration standard, and recall interval; apply calibration status label; calibrate against traceable standards; quarantine and investigate any out-of-tolerance equipment; recall and re-evaluate all measurements taken since last valid calibration.",
+            "Calibration register, calibration certificates, out-of-tolerance investigation reports, recall and re-evaluation records.");
+
+        AddQmsSteps(qms009, stDocSect,
+            "Defines channels, responsibilities, and response timescales for communicating with customers on products and services, orders, feedback, complaints, and contingency arrangements per clause 8.2.1.",
+            "Sales manages enquiries and orders; Customer Service handles complaints and satisfaction monitoring; Technical responds to specification and compatibility queries; all contacts are logged in the CRM.",
+            "Acknowledge all customer contacts within the agreed timescale; log enquiries, orders, complaints, and feedback in the CRM; classify complaints by severity; escalate critical issues to management; resolve and close with written customer confirmation; conduct satisfaction surveys at defined intervals.",
+            "CRM log, complaint register with resolution records, customer satisfaction survey results, escalation and response records.");
+
+        AddQmsSteps(qms010, stDocSect,
+            "Ensures customer, statutory, and organisation-imposed requirements are fully determined, reviewed, and confirmed before commitment to supply, and that changes are re-reviewed per clauses 8.2.2–8.2.4.",
+            "The Sales or Account Manager performs the initial review and obtains sign-off; Technical and Production confirm feasibility; post-acceptance changes are re-reviewed by the same parties before communicating to the customer.",
+            "Capture all requirements from the customer (explicit and implied), applicable regulations, and internal standards; check for completeness and conflicts; resolve any gaps; confirm feasibility with Technical and Production; obtain customer confirmation; document the agreed specification; re-review and communicate all changes.",
+            "Requirements review record, order confirmation, customer correspondence, change review records, feasibility sign-off.");
+
+        AddQmsSteps(qms011, stDocSect,
+            "Establishes controls for design and development planning, inputs, outputs, reviews, verification, validation, and change management to ensure outputs meet requirements per clause 8.3.",
+            "The Design Lead owns the D&D plan and controls gate progression; independent reviewers provide unbiased assessment at each stage; Quality ensures gate criteria are met before authorising transfer to operations.",
+            "Plan the D&D activity defining stages, reviews, responsibilities, and resources; capture and validate all inputs; generate outputs meeting input requirements; conduct formal reviews and record actions; verify outputs against inputs; validate the design against intended use in representative conditions; document and review all design changes.",
+            "D&D plan, input and output records, review minutes and action log, verification and validation records, design change log, transfer authorisation.");
+
+        AddQmsSteps(qms012, stDocSect,
+            "Sets criteria and controls for evaluating, selecting, monitoring, and re-evaluating external providers to ensure externally provided products and services meet requirements per clause 8.4.",
+            "Procurement manages the approved-supplier register and performance monitoring programme; Quality sets acceptance criteria and reviews KPI data; Technical approves suppliers for critical or regulated items.",
+            "Apply selection criteria against each category of external provision; conduct initial assessment (audit, questionnaire, or trial order); approve or restrict accordingly; include quality requirements on all purchase orders; inspect or verify deliveries; score performance quarterly; re-assess formally and update register annually.",
+            "Approved supplier register, assessment records, purchase orders with quality clauses, incoming inspection records, supplier performance scorecards, re-evaluation records.");
+
+        AddQmsSteps(qms013, stDocSect,
+            "Defines how products and services are uniquely identified throughout processing and how traceability is maintained and recorded where it is a requirement per clause 8.5.2.",
+            "Production Supervisor ensures identification is applied correctly; operators record identifiers at each step; QA audits traceability records and investigates any break in chain.",
+            "Apply unique identifier (serial number, lot number, or batch label) at receipt or initial production stage; maintain through all processing steps without interruption; record the identifier against job, step execution, and item records; retain complete traceability records for the product lifetime or mandatory retention period; provide traceability reports on request.",
+            "Traveller, job card, or batch record; serialisation log; item history report; traceability audit findings.");
+
+        AddQmsSteps(qms014, stDocSect,
+            "Describes identification, protection, safeguarding, and reporting obligations for property belonging to customers or external providers including intellectual property and personal data per clause 8.5.3.",
+            "Receiving inspects and records customer property on arrival; the designated custodian maintains safe storage; Quality must be immediately notified of any loss, damage, or unsuitability finding.",
+            "Identify and tag all customer-owned items or data on receipt; record in the custody register with condition notes; store in a designated secure area; inspect condition at defined intervals; report immediately to the customer and internally if any item is lost, damaged, or found unsuitable; obtain disposal or return instructions in writing.",
+            "Customer property register, custody receipts, incoming inspection records, loss or damage reports, correspondence on disposition.");
+
+        AddQmsSteps(qms015, stDocSect,
+            "Specifies requirements for handling, packaging, storage, protection, and delivery of products and service outputs to prevent damage or deterioration during internal processing and final delivery per clause 8.5.4.",
+            "Stores personnel apply handling instructions and maintain storage conditions; Production applies preservation measures at each processing stage; Despatch verifies packaging and condition before shipment.",
+            "Define handling and packaging requirements per product type and risk (ESD, contamination, impact, temperature, humidity, orientation); apply preservation at each stage; store in designated areas with monitored conditions; stage for despatch using approved packaging; confirm product condition and documentation completeness before release for delivery.",
+            "Preservation requirements register, stores condition monitoring records, despatch inspection records, delivery documentation.");
+
+        AddQmsSteps(qms016, stDocSect,
+            "Defines how products and services that fail to conform to requirements are identified, segregated, evaluated, and dispositioned to prevent unintended use or delivery per clause 8.7.",
+            "First-line operators or inspectors raise nonconformances and apply hold tagging; QA reviews and authorises disposition; Engineering approves concessions; Management reviews trends for systemic issues.",
+            "Identify and physically tag the nonconforming output immediately; move to the quarantine hold area; evaluate against original requirements and acceptance criteria; select disposition (rework, concession, scrap, or return to supplier); implement and verify the disposition; re-inspect after rework; update records and analyse trend data.",
+            "Nonconformance reports, hold tags, disposition records, concession approvals, rework re-inspection records, NC trend analysis.");
+
+        AddQmsSteps(qms017, stDocSect,
+            "Describes methods for monitoring and measuring customer perception to determine whether customer needs have been met and to feed results into continual improvement per clause 9.1.2.",
+            "Customer Service administers surveys and logs spontaneous feedback; the Quality Manager analyses aggregated results and feeds them into the management review; Account Managers follow up on low satisfaction scores.",
+            "Issue structured satisfaction surveys at defined intervals (at minimum annually); record all unsolicited feedback, complaints, and compliments; analyse complaint trends, warranty return rates, and on-time delivery performance; compile a satisfaction index; report findings to management review; define improvement actions for any metric below target.",
+            "Customer satisfaction surveys, feedback log, complaint and NC trend reports, satisfaction index, management review input.");
+
+        AddQmsSteps(qms018, stDocSect,
+            "Establishes the internal audit programme to verify QMS conformance, effective implementation, and alignment with planned arrangements per clause 9.2.",
+            "The Quality Manager plans and manages the audit programme; certified internal auditors conduct audits independently of their own work; auditees are responsible for completing agreed corrective actions on time.",
+            "Draft the annual audit schedule covering all QMS processes and clauses; assign competent and independent auditors; issue advance notification to auditees; conduct audits using checklists and interviews; record findings and observations; issue the audit report; raise nonconformances for all findings; verify corrective action closure within agreed timescales.",
+            "Audit schedule, audit plans and checklists, audit reports, nonconformance records, corrective action tracker, closure verification records.");
+
+        AddQmsSteps(qms019, stDocSect,
+            "Defines the inputs, outputs, frequency, and responsibilities for management review of the QMS to ensure continuing suitability, adequacy, effectiveness, and strategic alignment per clause 9.3.",
+            "Top management chairs the review and owns resulting decisions; the Quality Manager prepares the input pack and records minutes; process owners present performance data for their areas.",
+            "Schedule formal reviews at minimum twice per year; compile all required inputs (customer satisfaction, quality objectives performance, process metrics, audit results, NC trends, supplier performance, risks, resource needs, continual improvement opportunities); conduct the meeting; record decisions and assign action owners with completion dates; circulate minutes; track action completion.",
+            "Management review agenda, pre-meeting input pack, meeting minutes, action tracker, previous review follow-up records.");
+
+        AddQmsSteps(qms020, stDocSect,
+            "Describes how nonconformities are reacted to, root causes identified, corrective actions implemented and verified for effectiveness, and the QMS continually improved per clauses 10.2 and 10.3.",
+            "The problem owner drives root-cause investigation and corrective action implementation; the Quality Manager verifies effectiveness and maintains the corrective action register; Management reviews significant systemic issues.",
+            "React to the nonconformity and contain its immediate effect; investigate root cause using a structured technique (5-Why, Fishbone, Fault Tree); implement the corrective action; verify effectiveness by monitoring for recurrence over an appropriate period; identify opportunities for broader QMS improvement; update the risk register if relevant.",
+            "Corrective action register, root-cause analysis records, action implementation evidence, effectiveness review outcome, improvement log.");
+
+        AddQmsSteps(qms021, stDocSect,
+            "Addresses how the organisation determines, maintains, and makes available the knowledge necessary for operations and for achieving conformity of products and services per clause 7.1.6.",
+            "Knowledge owners document and maintain their domain knowledge; the QMS Manager maintains the knowledge asset register; HR ensures planned knowledge transfer during role transitions and succession events.",
+            "Identify the knowledge needed for each key process and role; document and store in approved repositories (procedures, work instructions, training materials, databases); review currency annually; plan and execute knowledge transfer when roles change; identify gaps arising from new technology, regulatory changes, or market evolution; acquire additional knowledge through training, recruitment, or partnership.",
+            "Knowledge asset register, knowledge capture and transfer records, gap analysis, review and update logs.");
+
         db.Processes.AddRange(
             qms001, qms002, qms003, qms004, qms005,
             qms006, qms007, qms008, qms009, qms010,
@@ -657,6 +823,155 @@ public static class DataSeeder
             "Covers the Domain Vocabulary configuration page where terminology can be customised " +
             "per-process to match the organisation's own language.",
             expiryDays: 730, "A", 1, 55);
+
+        // ── Shared step template for all training course modules ─────────────
+        var stTrnMod = new StepTemplate
+        {
+            Id = Guid.NewGuid(), CreatedAt = Utc(-95), UpdatedAt = Utc(-95),
+            Code = "TRN-MOD-01", Name = "Training Module",
+            Description = "A learning module or topic within a training course.",
+            Pattern = StepPattern.General, IsActive = true, IsShared = true,
+            Status = ProcessStatus.Released, Version = 1
+        };
+        db.StepTemplates.Add(stTrnMod);
+
+        static void AddTrnStep(Process course, StepTemplate tmpl, int seq, string name, string description)
+        {
+            course.ProcessSteps.Add(new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = course.CreatedAt, UpdatedAt = course.CreatedAt,
+                ProcessId = course.Id, StepTemplateId = tmpl.Id, Sequence = seq,
+                NameOverride = name, DescriptionOverride = description
+            });
+        }
+
+        // TRN-SYS-001 ─ Introduction to Process Manager
+        AddTrnStep(trn001, stTrnMod, 1, "What is Process Manager?",
+            "Overview of the platform, its purpose, and the business problems it solves for manufacturing, quality, and training teams.");
+        AddTrnStep(trn001, stTrnMod, 2, "Core Concepts: Kinds, Grades, and Items",
+            "The material model explained: Kinds (product types), Grades (quality levels), and Items (individually tracked serialised units, batches, or bulk stock).");
+        AddTrnStep(trn001, stTrnMod, 3, "Processes and Jobs",
+            "The relationship between a Process (the reusable step template) and a Job (the execution record for a specific production run, training event, or service delivery), including the step execution lifecycle.");
+        AddTrnStep(trn001, stTrnMod, 4, "Platform Modules and Navigation",
+            "Guided tour of each UI section: Design, Execution, Quality, Config, Document Library, Accountability, Training, Admin, and Reports — and how they relate to each other.");
+        AddTrnStep(trn001, stTrnMod, 5, "Knowledge Check",
+            "Verify understanding of the platform's core concepts through a series of review questions covering Kinds, Processes, Jobs, and the document lifecycle.");
+
+        // TRN-SYS-002 ─ Navigating the Interface
+        AddTrnStep(trn002, stTrnMod, 1, "The Navigation Sidebar",
+            "Using the collapsible sidebar sections (Design, Execution, Config, Quality, Document Library, Accountability, Training, Admin, Reports), understanding the active-item highlight, and expanding or collapsing section groups.");
+        AddTrnStep(trn002, stTrnMod, 2, "List Pages, Search, and Filters",
+            "Using search boxes, dropdown type filters, status badge filters, and pagination controls to locate items quickly in any list view.");
+        AddTrnStep(trn002, stTrnMod, 3, "Detail Pages and Action Buttons",
+            "Understanding the breadcrumb trail, interpreting page-level action buttons (Edit, Builder, Submit for Approval, Archive, Delete), and using inline confirmation modals safely.");
+        AddTrnStep(trn002, stTrnMod, 4, "Knowledge Check",
+            "Demonstrate the ability to navigate to any major section and correctly interpret page elements, status badges, and action buttons presented on screen.");
+
+        // TRN-SYS-003 ─ Building and Managing Processes
+        AddTrnStep(trn003, stTrnMod, 1, "Creating a Process",
+            "How to open the Process Builder and create a new process by entering the code, name, description, and process role (Manufacturing Process, QMS Document, Work Instruction, Training, or Approval Process).");
+        AddTrnStep(trn003, stTrnMod, 2, "Adding and Arranging Steps",
+            "Browsing the step template library, adding steps to the process, and reordering or removing them to match the intended workflow sequence.");
+        AddTrnStep(trn003, stTrnMod, 3, "Builder Views: Diagram, Slide, and Document",
+            "When to use the Diagram view (flowchart canvas with drag-and-drop nodes), the Slide view (panel-per-step content editor), and the Document view (typeset read-only output for review and printing).");
+        AddTrnStep(trn003, stTrnMod, 4, "Adding Rich Content to Steps",
+            "Writing instructions and cautions; inserting images; adding reference links; and using the text editor tools in the Slide view to produce operator-ready work instructions.");
+        AddTrnStep(trn003, stTrnMod, 5, "Version Control and the Approval Workflow",
+            "How to save a draft, submit for approval with a change description, track review progress, act on reviewer feedback, and publish a new released revision of the process.");
+
+        // TRN-SYS-004 ─ Managing Step Templates
+        AddTrnStep(trn004, stTrnMod, 1, "Step Templates vs Process Steps",
+            "Understanding the distinction: a Step Template is a reusable definition in the shared library; a Process Step is an instance of that template placed at a specific position in one process with optional name and description overrides.");
+        AddTrnStep(trn004, stTrnMod, 2, "Creating a New Step Template",
+            "Setting code, name, description, step pattern (Transform, Assembly, Division, General), and port configuration for a new reusable step template.");
+        AddTrnStep(trn004, stTrnMod, 3, "Editing and Versioning Templates",
+            "How to update a template's instructions, description, or ports; how version numbering works; and the impact on processes that already reference the template.");
+        AddTrnStep(trn004, stTrnMod, 4, "Step Patterns Explained",
+            "When to use Transform (1 input, 1 output for single-unit processing), Assembly (multiple inputs, 1 output for combining parts), Division (1 input, multiple outputs for splitting), and General (any configuration for document-type steps).");
+
+        // TRN-SYS-005 ─ Using the Document Library
+        AddTrnStep(trn005, stTrnMod, 1, "Document Library Overview",
+            "How the Document Library differs from the Processes design list: code, revision label, effective date, and document role are surfaced to support a document-centric view for QMS, instructions, and training.");
+        AddTrnStep(trn005, stTrnMod, 2, "Browsing and Filtering Documents",
+            "Using the type filter (QMS Document, Work Instruction, Manufacturing Process, Training), the status filter, and the search box to locate a specific document quickly.");
+        AddTrnStep(trn005, stTrnMod, 3, "Viewing a Document's Detail Page",
+            "Reading the description, stepping through the document sections (steps), reviewing the revision history, and using the Builder and Edit buttons to switch into the authoring view.");
+        AddTrnStep(trn005, stTrnMod, 4, "Document Lifecycle States",
+            "Understanding Draft, Pending Approval, Released, Superseded, and Retired states — what each means for editing, usage in jobs, and discovery in the library.");
+
+        // TRN-SYS-006 ─ Document Approval Workflow
+        AddTrnStep(trn006, stTrnMod, 1, "Submitting a Document for Approval",
+            "How an Engineer submits a Draft document: writing a meaningful change description, selecting the approval process template, and assigning named reviewers to each approval step.");
+        AddTrnStep(trn006, stTrnMod, 2, "Acting as an Approver",
+            "Finding your pending approval tasks in My Work or the Approval Queue; reviewing the change description and document content; approving or rejecting with a comment; and withdrawing an approval request if needed.");
+        AddTrnStep(trn006, stTrnMod, 3, "Releasing a Document",
+            "How an approved document automatically transitions to Released state; the role of the effective date; and when an Admin can use Admin Release to bypass the approval workflow for urgent situations.");
+        AddTrnStep(trn006, stTrnMod, 4, "Creating a New Revision",
+            "How to branch a Released document into a new Draft revision, preserving the full version history, and how publishing the new revision automatically supersedes the previous one.");
+        AddTrnStep(trn006, stTrnMod, 5, "Roles and Permissions",
+            "Who can perform each action — submit (Engineer or Admin), approve (any named reviewer), admin-release (Admin only), retire (Admin), and delete (Admin, Draft-only) — based on system role.");
+
+        // TRN-SYS-007 ─ Creating and Managing Jobs
+        AddTrnStep(trn007, stTrnMod, 1, "Creating a Job",
+            "Selecting the target process (which must be in Released status), entering the job code and name, setting the priority, and understanding how step executions are automatically generated from the process steps.");
+        AddTrnStep(trn007, stTrnMod, 2, "Job Status Lifecycle",
+            "Understanding the Created → In Progress → Completed / On Hold / Cancelled state machine, and the actions (Start, Put On Hold, Resume, Complete, Cancel) that trigger each transition.");
+        AddTrnStep(trn007, stTrnMod, 3, "Working with Step Executions",
+            "How to start, complete, and annotate individual step executions; how to record step-level notes and raise alerts; and how the job timeline builds up as steps are completed.");
+        AddTrnStep(trn007, stTrnMod, 4, "Items and Job History",
+            "Attaching serialised items, batches, or bulk stock to a job; recording and updating grades as items move through steps; and reviewing the full job timeline and step-by-step history after completion.");
+
+        // TRN-SYS-008 ─ Working with Items, Batches and Grades
+        AddTrnStep(trn008, stTrnMod, 1, "The Item Model",
+            "What an Item represents: a trackable unit of work belonging to a specific Kind, with status and grade tracked at each point of its journey through a job.");
+        AddTrnStep(trn008, stTrnMod, 2, "Kinds, Grades, and the Material Model",
+            "How Kinds define a product type with its own serialisation and batch rules; how Grades define the quality levels for that Kind; and how Items are assigned a grade when inspected or processed.");
+        AddTrnStep(trn008, stTrnMod, 3, "Creating Items Within a Job",
+            "How to add serialised items (by serial number), batch items (by lot and quantity), and bulk stock records to an active job, and the difference between each type.");
+        AddTrnStep(trn008, stTrnMod, 4, "Updating Status and Grade",
+            "Progressing items through Available → In Process → Completed; recording grade changes at inspection steps; and what each item status means for downstream processing.");
+        AddTrnStep(trn008, stTrnMod, 5, "Batch Operations and Scrap Workflow",
+            "Performing bulk grade updates across multiple items; routing nonconforming items to scrap, rework, or supplier return; and viewing a batch's full processing history.");
+
+        // TRN-SYS-009 ─ Raising and Managing Non-Conformances
+        AddTrnStep(trn009, stTrnMod, 1, "What is a Non-Conformance?",
+            "The difference between a nonconformance (an actual deviation from requirements) and a PFMEA risk entry (a potential future failure mode); when each is the appropriate record to create.");
+        AddTrnStep(trn009, stTrnMod, 2, "Raising an NC",
+            "Selecting the severity (Minor, Major, Critical), category, and related job or item; describing the detected problem clearly; and recording the immediate containment action taken.");
+        AddTrnStep(trn009, stTrnMod, 3, "NC Status Lifecycle",
+            "Moving an NC from Open to Under Review to Closed (fully resolved) or Voided (incorrectly raised); adding root-cause analysis notes and the corrective action taken to formally close the record.");
+        AddTrnStep(trn009, stTrnMod, 4, "Reviewing NC History and Trends",
+            "Viewing all NCs for a specific item, process, or date range; identifying repeat failure patterns from the list; and feeding trends into the corrective action and QMS management review process.");
+
+        // TRN-SYS-010 ─ Analytics, Reports and Dashboards
+        AddTrnStep(trn010, stTrnMod, 1, "Analytics Module Overview",
+            "How Process Manager automatically captures operational metrics — job throughput, step cycle-time per process, NC rate — and makes them available through the Analytics module.");
+        AddTrnStep(trn010, stTrnMod, 2, "Using the Analytics Page",
+            "Reading throughput bar charts and step cycle-time trend lines; applying date range, process, and status filters; and exporting underlying data for further analysis.");
+        AddTrnStep(trn010, stTrnMod, 3, "Standard Reports",
+            "Running and exporting the built-in reports from the Reports section: job summary, process timing (average duration per step), and competency status across the workforce.");
+        AddTrnStep(trn010, stTrnMod, 4, "Power BI Integration",
+            "How to register your Power BI workspace in the Admin section, connect to the Process Manager API as a data source, and build custom dashboards using live operational data.");
+
+        // TRN-SYS-011 ─ Training Catalogue and Competency Records
+        AddTrnStep(trn011, stTrnMod, 1, "The Training Catalogue",
+            "How to browse available training courses, view course descriptions and learning objectives, and understand the competency requirements and expiry policy for each course.");
+        AddTrnStep(trn011, stTrnMod, 2, "Launching a Training Course",
+            "How starting a training course from the Catalogue creates a Job of type Training; completing each step in that job demonstrates the learning; and completing the job generates a Competency Record for the learner.");
+        AddTrnStep(trn011, stTrnMod, 3, "Competency Status",
+            "Understanding Current (valid), Expiring Soon (within 30 days of the expiry date), and Expired statuses; how the CompetencyExpiryDays setting on the course drives the expiry date on each competency record.");
+        AddTrnStep(trn011, stTrnMod, 4, "The Competency Matrix",
+            "How Admins and Engineers use the colour-coded Competency Matrix grid to see every user's status across all active training courses at a glance, and how to use it to plan re-training priorities.");
+
+        // TRN-SYS-012 ─ User Administration and Role Management
+        AddTrnStep(trn012, stTrnMod, 1, "The Two Built-In Roles",
+            "Admin (full access including user management, admin-release of documents, and all configuration) vs Engineer (design and authoring access: processes, documents, step templates, and training courses, but no user management or admin-release) vs standard user (operational access only).");
+        AddTrnStep(trn012, stTrnMod, 2, "Creating and Managing User Accounts",
+            "How to create a new user account from the Admin section, assign or change roles, reset a forgotten password, and deactivate an account when an employee leaves.");
+        AddTrnStep(trn012, stTrnMod, 3, "Domain Vocabulary Configuration",
+            "How to customise terminology per-process from the Config section so that Process Manager uses the language your team already knows — for example 'Work Order' instead of 'Job', or 'Board' instead of 'Item'.");
+        AddTrnStep(trn012, stTrnMod, 4, "Best Practices for Role Assignment",
+            "The principle of least privilege applied to Process Manager roles; guidance on Engineer vs Admin delegation; and when to use admin-release versus the standard document approval workflow.");
 
         db.Processes.AddRange(
             trn001, trn002, trn003, trn004, trn005, trn006,

@@ -465,7 +465,23 @@ public class ApiClient
     public async Task<WorkorderResponseDto?> CreateWorkorderAsync(CreateWorkorderDto dto)
     {
         var resp = await _http.PostAsJsonAsync("api/workorders", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            // Try to extract detail from ProblemDetails JSON
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(body);
+                if (doc.RootElement.TryGetProperty("detail", out var detail))
+                    throw new HttpRequestException(detail.GetString());
+                if (doc.RootElement.TryGetProperty("title", out var title))
+                    throw new HttpRequestException(title.GetString());
+            }
+            catch (System.Text.Json.JsonException) { }
+            throw new HttpRequestException(string.IsNullOrWhiteSpace(body)
+                ? $"Failed to create workorder ({resp.StatusCode})"
+                : body);
+        }
         return await resp.Content.ReadFromJsonAsync<WorkorderResponseDto>(_json);
     }
 

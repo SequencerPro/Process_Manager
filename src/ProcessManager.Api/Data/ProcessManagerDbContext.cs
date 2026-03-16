@@ -93,6 +93,13 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<CompetencyRecord> CompetencyRecords => Set<CompetencyRecord>();
     public DbSet<ProcessTrainingRequirement> ProcessTrainingRequirements => Set<ProcessTrainingRequirement>();
 
+    // Phase 11: Production Management
+    public DbSet<EquipmentCategory> EquipmentCategories => Set<EquipmentCategory>();
+    public DbSet<Equipment> Equipment => Set<Equipment>();
+    public DbSet<DowntimeRecord> DowntimeRecords => Set<DowntimeRecord>();
+    public DbSet<MaintenanceTrigger> MaintenanceTriggers => Set<MaintenanceTrigger>();
+    public DbSet<MaintenanceTask> MaintenanceTasks => Set<MaintenanceTask>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -1111,6 +1118,106 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(r => r.RequiredTrainingProcessId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── Phase 11: Production Management ─────────────────────────────────
+
+        // --- EquipmentCategory ---
+        modelBuilder.Entity<EquipmentCategory>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.HasIndex(c => c.Code).IsUnique();
+            e.Property(c => c.Code).HasMaxLength(50).IsRequired();
+            e.Property(c => c.Name).HasMaxLength(200).IsRequired();
+        });
+
+        // --- Equipment ---
+        modelBuilder.Entity<Equipment>(e =>
+        {
+            e.HasKey(eq => eq.Id);
+            e.HasIndex(eq => eq.Code).IsUnique();
+            e.Property(eq => eq.Code).HasMaxLength(50).IsRequired();
+            e.Property(eq => eq.Name).HasMaxLength(200).IsRequired();
+            e.Property(eq => eq.Location).HasMaxLength(200);
+            e.Property(eq => eq.Manufacturer).HasMaxLength(200);
+            e.Property(eq => eq.Model).HasMaxLength(200);
+            e.Property(eq => eq.SerialNumber).HasMaxLength(100);
+
+            e.HasOne(eq => eq.Category)
+                .WithMany(c => c.Equipment)
+                .HasForeignKey(eq => eq.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // StepTemplate — required equipment category (Phase 11b)
+        modelBuilder.Entity<StepTemplate>()
+            .HasOne(st => st.RequiredEquipmentCategory)
+            .WithMany()
+            .HasForeignKey(st => st.RequiredEquipmentCategoryId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // StepExecution — equipment used (Phase 11b)
+        modelBuilder.Entity<StepExecution>()
+            .HasOne(se => se.Equipment)
+            .WithMany()
+            .HasForeignKey(se => se.EquipmentId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // --- DowntimeRecord ---
+        modelBuilder.Entity<DowntimeRecord>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.Property(d => d.Type).HasConversion<string>().HasMaxLength(10);
+            e.Property(d => d.Reason).HasMaxLength(2000).IsRequired();
+            e.Property(d => d.ResolvedBy).HasMaxLength(200);
+
+            e.HasOne(d => d.Equipment)
+                .WithMany(eq => eq.DowntimeRecords)
+                .HasForeignKey(d => d.EquipmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(d => new { d.EquipmentId, d.StartedAt });
+        });
+
+        // --- MaintenanceTrigger ---
+        modelBuilder.Entity<MaintenanceTrigger>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Title).HasMaxLength(300).IsRequired();
+            e.Property(t => t.TriggerType).HasConversion<string>().HasMaxLength(10);
+
+            e.HasOne(t => t.Equipment)
+                .WithMany(eq => eq.MaintenanceTriggers)
+                .HasForeignKey(t => t.EquipmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- MaintenanceTask ---
+        modelBuilder.Entity<MaintenanceTask>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Title).HasMaxLength(300).IsRequired();
+            e.Property(t => t.Type).HasConversion<string>().HasMaxLength(25);
+            e.Property(t => t.Status).HasConversion<string>().HasMaxLength(15);
+            e.Property(t => t.AssignedTo).HasMaxLength(200);
+            e.Property(t => t.CompletedBy).HasMaxLength(200);
+            e.Property(t => t.Notes).HasMaxLength(2000);
+
+            e.HasOne(t => t.Equipment)
+                .WithMany(eq => eq.MaintenanceTasks)
+                .HasForeignKey(t => t.EquipmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(t => t.Trigger)
+                .WithMany()
+                .HasForeignKey(t => t.TriggerId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasIndex(t => new { t.EquipmentId, t.Status });
+            e.HasIndex(t => t.DueDate);
         });
     }
 

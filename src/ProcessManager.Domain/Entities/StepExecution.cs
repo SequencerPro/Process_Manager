@@ -38,7 +38,11 @@ public class StepExecution : BaseEntity
     /// <summary>Identity user Id of the person assigned to execute this step. Set at job creation; overridable by the submitting author.</summary>
     public string? AssignedToUserId { get; set; }
 
+    /// <summary>The specific machine this execution ran on (Phase 11b).</summary>
+    public Guid? EquipmentId { get; set; }
+
     // Navigation properties
+    public Equipment? Equipment { get; set; }
     public Job Job { get; set; } = null!;
     public ProcessStep ProcessStep { get; set; } = null!;
     public ICollection<PortTransaction> PortTransactions { get; set; } = new List<PortTransaction>();

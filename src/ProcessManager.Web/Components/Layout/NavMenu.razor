@@ -300,6 +300,38 @@
             </AuthorizeView>
         }
 
+        @* ── Production ── *@
+        <li class="mt-2">
+            <button type="button"
+                    class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
+                    @onclick='() => ToggleSection("production")'>
+                <span>Production</span>
+                @if (_overdueCount > 0 && _openSection != "production")
+                {
+                    <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem">@_overdueCount</span>
+                }
+                <i class='bi @(_openSection == "production" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
+            </button>
+        </li>
+        @if (_openSection == "production")
+        {
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="production">
+                    <i class="bi bi-speedometer me-2"></i> Production Dashboard
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="equipment">
+                    <i class="bi bi-gear-wide me-2"></i> Equipment
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="maintenance">
+                    <i class="bi bi-tools me-2"></i> Maintenance Tasks
+                </NavLink>
+            </li>
+        }
+
         @* ── Admin (role-gated) ── *@
         <AuthorizeView Roles="Admin">
             <Authorized>
@@ -377,6 +409,7 @@
     private int _alertCount;
     private int _pendingCount;
     private int _overdueActionCount;
+    private int _overdueCount;
     private string? _openSection;
 
     private static readonly Dictionary<string, string[]> _sectionPaths = new()
@@ -387,6 +420,7 @@
         ["quality"]   = ["pfmeas", "ce-matrices", "control-plans", "non-conformances", "root-cause-library", "ishikawa", "five-whys", "mrb"],
         ["documents"]  = ["documents"],
         ["accountability"] = ["my-actions", "team-actions", "quality-scorecard", "management-reviews"],
+        ["production"] = ["production", "equipment", "maintenance"],
         ["admin"]     = ["admin"],
         ["reports"]   = ["reports", "reports/process-timing", "powerbi-dashboards"],
     };
@@ -423,6 +457,15 @@
         {
             var overdue = await Api.GetActionItemsAsync(assignedToMe: true, overdue: true, pageSize: 1);
             _overdueActionCount = overdue?.TotalCount ?? 0;
+        }
+        catch { /* badge is best-effort */ }
+
+        try
+        {
+            var overdueMaint = await Api.GetAllMaintenanceTasksAsync(status: "Overdue", pageSize: 1);
+            _overdueCount = (overdueMaint?.TotalCount ?? 0);
+            var dueMaint = await Api.GetAllMaintenanceTasksAsync(status: "Due", pageSize: 1);
+            _overdueCount += (dueMaint?.TotalCount ?? 0);
         }
         catch { /* badge is best-effort */ }
     }

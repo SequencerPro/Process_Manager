@@ -123,7 +123,9 @@ public class JobsController : ControllerBase
             ProcessId = dto.ProcessId,
             Priority = dto.Priority,
             ProcessVersion = process.Version,
-            Status = JobStatus.Created
+            Status = JobStatus.Created,
+            DueDate = dto.DueDate,
+            PlannedStartDate = dto.PlannedStartDate
         };
 
         _db.Jobs.Add(job);
@@ -164,6 +166,8 @@ public class JobsController : ControllerBase
         job.Name = dto.Name;
         job.Description = dto.Description;
         job.Priority = dto.Priority;
+        job.DueDate = dto.DueDate;
+        job.PlannedStartDate = dto.PlannedStartDate;
 
         await _db.SaveChangesAsync();
         return MapJobToDto(job);
@@ -385,7 +389,9 @@ public class JobsController : ControllerBase
                 ? job.StepExecutions.OrderBy(se => se.Sequence)
                     .Select(se => MapStepExecutionToDto(se)).ToList()
                 : null,
-            job.DocumentApprovalRequestId);
+            job.DocumentApprovalRequestId,
+            job.DueDate,
+            job.PlannedStartDate);
     }
 
     internal static StepExecutionResponseDto MapStepExecutionToDto(StepExecution se, bool includePortTransactions = false)
@@ -413,7 +419,9 @@ public class JobsController : ControllerBase
             se.Job?.Name,
             se.ProcessStep?.ProcessId,
             se.ParallelGroup,
-            se.AssignedToUserId);
+            se.AssignedToUserId,
+            se.EquipmentId,
+            se.Equipment?.Code);
     }
 
     internal static PortTransactionResponseDto MapPortTransactionToDto(PortTransaction pt)

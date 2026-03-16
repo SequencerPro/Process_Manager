@@ -1,0 +1,557 @@
+@page "/equipment/{Id:guid}"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Equipment Detail — Process Manager</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_eq is null)
+{
+    <div class="alert alert-warning">Equipment not found.</div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1">
+                    <li class="breadcrumb-item"><a href="equipment">Equipment</a></li>
+                    <li class="breadcrumb-item active">@_eq.Code</li>
+                </ol>
+            </nav>
+            <h4 class="mb-0"><i class="bi bi-gear-wide me-2"></i>@_eq.Code — @_eq.Name</h4>
+        </div>
+        <div class="d-flex gap-2">
+            @if (_eq.IsCurrentlyDown)
+            {
+                <span class="badge bg-danger fs-6"><i class="bi bi-exclamation-triangle me-1"></i>Currently Down</span>
+            }
+            else
+            {
+                <span class="badge bg-success fs-6"><i class="bi bi-check-circle me-1"></i>Available</span>
+            }
+            <button class="btn btn-sm btn-outline-secondary" @onclick="Load">
+                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Info Card -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <div class="text-muted small">Category</div>
+                    <div>@_eq.CategoryName</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-muted small">Location</div>
+                    <div>@(_eq.Location ?? "—")</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-muted small">Manufacturer / Model</div>
+                    <div>@(_eq.Manufacturer ?? "—") @(_eq.Model is not null ? $"/ {_eq.Model}" : "")</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-muted small">Serial / Install Date</div>
+                    <div>@(_eq.SerialNumber ?? "—") @(_eq.InstallDate.HasValue ? $"/ {_eq.InstallDate.Value:MMM d, yyyy}" : "")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Downtime -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-semibold"><i class="bi bi-exclamation-triangle me-2"></i>Downtime History</span>
+            <AuthorizeView Roles="Admin,Engineer,Operator">
+                <Authorized>
+                    @if (_eq.IsCurrentlyDown)
+                    {
+                        <button class="btn btn-sm btn-success" @onclick="ShowCloseDowntimeModal">
+                            <i class="bi bi-check-circle me-1"></i>Resolve Downtime
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-danger" @onclick="ShowStartDowntimeModal">
+                            <i class="bi bi-exclamation-triangle me-1"></i>Log Downtime
+                        </button>
+                    }
+                </Authorized>
+            </AuthorizeView>
+        </div>
+        @if (_eq.DowntimeRecords is null || !_eq.DowntimeRecords.Any())
+        {
+            <div class="card-body text-muted small text-center py-3">No downtime history.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Type</th>
+                            <th>Started</th>
+                            <th>Ended</th>
+                            <th>Duration</th>
+                            <th>Reason</th>
+                            <th>Resolved By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var dt in _eq.DowntimeRecords.OrderByDescending(x => x.StartedAt))
+                        {
+                            <tr class="@(dt.EndedAt is null ? "table-warning" : "")">
+                                <td><span class="badge @(dt.Type == "Unplanned" ? "bg-danger" : "bg-warning text-dark")">@dt.Type</span></td>
+                                <td class="small">@dt.StartedAt.ToString("MMM d, yyyy HH:mm")</td>
+                                <td class="small">@(dt.EndedAt.HasValue ? dt.EndedAt.Value.ToString("MMM d, yyyy HH:mm") : "Open")</td>
+                                <td class="small">@(dt.DurationMinutes.HasValue ? FormatMinutes(dt.DurationMinutes.Value) : "—")</td>
+                                <td class="small">@dt.Reason</td>
+                                <td class="small text-muted">@(dt.ResolvedBy ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <!-- Maintenance Triggers -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-semibold"><i class="bi bi-alarm me-2"></i>Maintenance Triggers</span>
+            <AuthorizeView Roles="Admin,Engineer">
+                <Authorized>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="ShowCreateTriggerModal">
+                        <i class="bi bi-plus-lg me-1"></i>Add Trigger
+                    </button>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+        @if (_eq.MaintenanceTriggers is null || !_eq.MaintenanceTriggers.Any())
+        {
+            <div class="card-body text-muted small text-center py-3">No maintenance triggers defined.</div>
+        }
+        else
+        {
+            <ul class="list-group list-group-flush">
+                @foreach (var t in _eq.MaintenanceTriggers)
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fw-semibold small">@t.Title</div>
+                            <div class="text-muted" style="font-size:.78rem">
+                                @t.TriggerType
+                                @if (t.IntervalDays.HasValue) { <span> — every @t.IntervalDays days</span> }
+                                @if (t.NextDueAt.HasValue) { <span> — next due @t.NextDueAt.Value.ToString("MMM d, yyyy")</span> }
+                            </div>
+                        </div>
+                        <AuthorizeView Roles="Admin,Engineer">
+                            <Authorized>
+                                <button class="btn btn-sm btn-outline-danger py-0"
+                                        @onclick="() => DeleteTrigger(t.Id)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </Authorized>
+                        </AuthorizeView>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+
+    <!-- Maintenance Tasks -->
+    <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-semibold"><i class="bi bi-wrench-adjustable me-2"></i>Maintenance Tasks</span>
+            <AuthorizeView Roles="Admin,Engineer,Operator">
+                <Authorized>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="ShowCreateTaskModal">
+                        <i class="bi bi-plus-lg me-1"></i>Add Task
+                    </button>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+        @if (_eq.MaintenanceTasks is null || !_eq.MaintenanceTasks.Any())
+        {
+            <div class="card-body text-muted small text-center py-3">No maintenance tasks.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Title</th>
+                            <th>Type</th>
+                            <th>Due</th>
+                            <th>Assigned</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var t in _eq.MaintenanceTasks.OrderBy(x => x.DueDate))
+                        {
+                            <tr>
+                                <td class="small">@t.Title</td>
+                                <td><span class="badge bg-light text-dark border">@t.Type</span></td>
+                                <td class="small">@t.DueDate.ToString("MMM d, yyyy")</td>
+                                <td class="small text-muted">@(t.AssignedTo ?? "—")</td>
+                                <td><span class="badge @TaskStatusBadge(t.Status)">@t.Status</span></td>
+                                <td>
+                                    <div class="d-flex gap-1">
+                                        @if (t.Status == "Upcoming" || t.Status == "Due" || t.Status == "Overdue")
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary py-0" @onclick="() => StartTask(t.Id)" title="Start">
+                                                <i class="bi bi-play-fill"></i>
+                                            </button>
+                                        }
+                                        @if (t.Status == "InProgress")
+                                        {
+                                            <button class="btn btn-sm btn-outline-success py-0" @onclick="() => CompleteTask(t.Id)" title="Complete">
+                                                <i class="bi bi-check-lg"></i>
+                                            </button>
+                                        }
+                                        @if (t.Status != "Completed" && t.Status != "Cancelled")
+                                        {
+                                            <button class="btn btn-sm btn-outline-secondary py-0" @onclick="() => CancelTask(t.Id)" title="Cancel">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+<!-- Log Downtime Modal -->
+@if (_showStartDowntime)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Log Downtime</h5>
+                    <button class="btn-close" @onclick="() => _showStartDowntime = false"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_dtError is not null) { <div class="alert alert-danger small py-2">@_dtError</div> }
+                    <div class="mb-3">
+                        <label class="form-label small">Type</label>
+                        <select class="form-select form-select-sm" @bind="_dtType">
+                            <option value="Unplanned">Unplanned</option>
+                            <option value="Planned">Planned</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Reason <span class="text-danger">*</span></label>
+                        <textarea class="form-control form-control-sm" rows="3" @bind="_dtReason"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showStartDowntime = false">Cancel</button>
+                    <button class="btn btn-danger btn-sm" @onclick="LogDowntime" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> } Log Downtime
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Resolve Downtime Modal -->
+@if (_showCloseDowntime)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-success"><i class="bi bi-check-circle me-2"></i>Resolve Downtime</h5>
+                    <button class="btn-close" @onclick="() => _showCloseDowntime = false"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_dtError is not null) { <div class="alert alert-danger small py-2">@_dtError</div> }
+                    <div class="mb-3">
+                        <label class="form-label small">Resolved By</label>
+                        <input class="form-control form-control-sm" @bind="_dtResolvedBy" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showCloseDowntime = false">Cancel</button>
+                    <button class="btn btn-success btn-sm" @onclick="CloseDowntime" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> } Resolve
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Add Trigger Modal -->
+@if (_showCreateTrigger)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-alarm me-2"></i>Add Maintenance Trigger</h5>
+                    <button class="btn-close" @onclick="() => _showCreateTrigger = false"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_triggerError is not null) { <div class="alert alert-danger small py-2">@_triggerError</div> }
+                    <div class="mb-3">
+                        <label class="form-label small">Title <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" @bind="_triggerTitle" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Trigger Type</label>
+                        <select class="form-select form-select-sm" @bind="_triggerType">
+                            <option value="TimeBased">Time Based</option>
+                            <option value="UsageBased">Usage Based</option>
+                        </select>
+                    </div>
+                    @if (_triggerType == "TimeBased")
+                    {
+                        <div class="mb-3">
+                            <label class="form-label small">Interval (days)</label>
+                            <input type="number" class="form-control form-control-sm" @bind="_triggerIntervalDays" />
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-3">
+                            <label class="form-label small">Interval (usage cycles)</label>
+                            <input type="number" class="form-control form-control-sm" @bind="_triggerIntervalCycles" />
+                        </div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label small">Advance Notice (days)</label>
+                        <input type="number" class="form-control form-control-sm" @bind="_triggerAdvanceDays" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showCreateTrigger = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="CreateTrigger" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> } Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Add Task Modal -->
+@if (_showCreateTask)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-wrench-adjustable me-2"></i>Add Maintenance Task</h5>
+                    <button class="btn-close" @onclick="() => _showCreateTask = false"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_taskError is not null) { <div class="alert alert-danger small py-2">@_taskError</div> }
+                    <div class="mb-3">
+                        <label class="form-label small">Title <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" @bind="_taskTitle" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Type</label>
+                        <select class="form-select form-select-sm" @bind="_taskType">
+                            <option value="PreventiveMaintenance">Preventive Maintenance</option>
+                            <option value="CorrectiveMaintenance">Corrective Maintenance</option>
+                            <option value="Inspection">Inspection</option>
+                            <option value="Calibration">Calibration</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Due Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control form-control-sm"
+                               value="@_taskDueDate.ToString("yyyy-MM-dd")"
+                               @onchange="e => _taskDueDate = e.Value is string s && !string.IsNullOrEmpty(s) ? DateTime.Parse(s) : DateTime.Today.AddDays(7)" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Assigned To</label>
+                        <input class="form-control form-control-sm" @bind="_taskAssignedTo" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showCreateTask = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="CreateTask" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> } Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private EquipmentResponseDto? _eq;
+    private bool _loading = true;
+    private bool _saving;
+
+    // Downtime
+    private bool _showStartDowntime, _showCloseDowntime;
+    private string _dtType = "Unplanned";
+    private string _dtReason = "";
+    private string? _dtResolvedBy;
+    private string? _dtError;
+
+    // Triggers
+    private bool _showCreateTrigger;
+    private string _triggerTitle = "";
+    private string _triggerType = "TimeBased";
+    private int? _triggerIntervalDays = 90;
+    private int? _triggerIntervalCycles;
+    private int _triggerAdvanceDays = 7;
+    private string? _triggerError;
+
+    // Tasks
+    private bool _showCreateTask;
+    private string _taskTitle = "";
+    private string _taskType = "PreventiveMaintenance";
+    private DateTime _taskDueDate = DateTime.Today.AddDays(7);
+    private string? _taskAssignedTo;
+    private string? _taskError;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try { _eq = await Api.GetEquipmentByIdAsync(Id); }
+        finally { _loading = false; }
+    }
+
+    private void ShowStartDowntimeModal() { _dtReason = ""; _dtType = "Unplanned"; _dtError = null; _showStartDowntime = true; }
+    private void ShowCloseDowntimeModal() { _dtResolvedBy = null; _dtError = null; _showCloseDowntime = true; }
+    private void ShowCreateTriggerModal() { _triggerTitle = ""; _triggerType = "TimeBased"; _triggerIntervalDays = 90; _triggerAdvanceDays = 7; _triggerError = null; _showCreateTrigger = true; }
+    private void ShowCreateTaskModal() { _taskTitle = ""; _taskType = "PreventiveMaintenance"; _taskDueDate = DateTime.Today.AddDays(7); _taskAssignedTo = null; _taskError = null; _showCreateTask = true; }
+
+    private async Task LogDowntime()
+    {
+        _dtError = null;
+        if (string.IsNullOrWhiteSpace(_dtReason)) { _dtError = "Reason is required."; return; }
+        _saving = true;
+        try
+        {
+            var typeEnum = Enum.Parse<ProcessManager.Domain.Enums.DowntimeType>(_dtType);
+            await Api.StartDowntimeAsync(Id, new CreateDowntimeRecordDto(typeEnum, DateTime.UtcNow, _dtReason.Trim()));
+            _showStartDowntime = false;
+            await Load();
+        }
+        catch (Exception ex) { _dtError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task CloseDowntime()
+    {
+        _dtError = null;
+        _saving = true;
+        try
+        {
+            var openRecord = _eq?.DowntimeRecords?.FirstOrDefault(x => x.EndedAt is null);
+            if (openRecord is null) { _dtError = "No open downtime record found."; return; }
+            await Api.CloseDowntimeAsync(Id, openRecord.Id, new CloseDowntimeRecordDto(DateTime.UtcNow, _dtResolvedBy?.Trim()));
+            _showCloseDowntime = false;
+            await Load();
+        }
+        catch (Exception ex) { _dtError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task CreateTrigger()
+    {
+        _triggerError = null;
+        if (string.IsNullOrWhiteSpace(_triggerTitle)) { _triggerError = "Title is required."; return; }
+        _saving = true;
+        try
+        {
+            var typeEnum = Enum.Parse<ProcessManager.Domain.Enums.MaintenanceTriggerType>(_triggerType);
+            await Api.CreateTriggerAsync(Id, new CreateMaintenanceTriggerDto(
+                _triggerTitle.Trim(), typeEnum,
+                _triggerType == "TimeBased" ? _triggerIntervalDays : null,
+                _triggerType == "UsageBased" ? _triggerIntervalCycles : null,
+                _triggerAdvanceDays));
+            _showCreateTrigger = false;
+            await Load();
+        }
+        catch (Exception ex) { _triggerError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task DeleteTrigger(Guid triggerId)
+    {
+        await Api.DeleteTriggerAsync(Id, triggerId);
+        await Load();
+    }
+
+    private async Task CreateTask()
+    {
+        _taskError = null;
+        if (string.IsNullOrWhiteSpace(_taskTitle)) { _taskError = "Title is required."; return; }
+        _saving = true;
+        try
+        {
+            var typeEnum = Enum.Parse<ProcessManager.Domain.Enums.MaintenanceTaskType>(_taskType);
+            await Api.CreateMaintenanceTaskAsync(new CreateMaintenanceTaskDto(Id, _taskTitle.Trim(), typeEnum, _taskDueDate, _taskAssignedTo?.Trim()));
+            _showCreateTask = false;
+            await Load();
+        }
+        catch (Exception ex) { _taskError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task StartTask(Guid taskId)
+    {
+        await Api.StartMaintenanceTaskAsync(taskId);
+        await Load();
+    }
+
+    private async Task CompleteTask(Guid taskId)
+    {
+        await Api.CompleteMaintenanceTaskAsync(taskId, new CompleteMaintenanceTaskDto());
+        await Load();
+    }
+
+    private async Task CancelTask(Guid taskId)
+    {
+        await Api.CancelMaintenanceTaskAsync(taskId);
+        await Load();
+    }
+
+    private static string FormatMinutes(double mins)
+    {
+        if (mins < 60) return $"{(int)mins}m";
+        return $"{(int)(mins / 60)}h {(int)(mins % 60)}m";
+    }
+
+    private static string TaskStatusBadge(string status) => status switch
+    {
+        "Overdue" => "bg-danger",
+        "Due" => "bg-warning text-dark",
+        "InProgress" => "bg-primary",
+        "Upcoming" => "bg-secondary",
+        "Completed" => "bg-success",
+        "Cancelled" => "bg-light text-dark border",
+        _ => "bg-secondary"
+    };
+}

@@ -10,12 +10,16 @@ public record CreateJobDto(
     [Required, StringLength(200, MinimumLength = 1)] string Name,
     [StringLength(2000)] string? Description,
     Guid ProcessId,
-    [Range(0, int.MaxValue)] int Priority = 0);
+    [Range(0, int.MaxValue)] int Priority = 0,
+    DateTime? DueDate = null,
+    DateTime? PlannedStartDate = null);
 
 public record UpdateJobDto(
     [Required, StringLength(200, MinimumLength = 1)] string Name,
     [StringLength(2000)] string? Description,
-    [Range(0, int.MaxValue)] int Priority = 0);
+    [Range(0, int.MaxValue)] int Priority = 0,
+    DateTime? DueDate = null,
+    DateTime? PlannedStartDate = null);
 
 public record JobResponseDto(
     Guid Id,
@@ -33,7 +37,9 @@ public record JobResponseDto(
     DateTime CreatedAt,
     DateTime UpdatedAt,
     List<StepExecutionResponseDto>? StepExecutions = null,
-    Guid? DocumentApprovalRequestId = null);
+    Guid? DocumentApprovalRequestId = null,
+    DateTime? DueDate = null,
+    DateTime? PlannedStartDate = null);
 
 // ───── Item ─────
 
@@ -109,7 +115,9 @@ public record StepExecutionResponseDto(
     string? JobName = null,
     Guid? ProcessId = null,
     int ParallelGroup = 0,
-    string? AssignedToUserId = null);
+    string? AssignedToUserId = null,
+    Guid? EquipmentId = null,
+    string? EquipmentCode = null);
 
 public record UpdateStepExecutionNotesDto(
     string? Notes);

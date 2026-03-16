@@ -38,6 +38,12 @@ public class Job : BaseEntity
     /// <summary>Populated only for approval routing jobs created by the Submit for Approval flow.</summary>
     public Guid? DocumentApprovalRequestId { get; set; }
 
+    /// <summary>Committed delivery date for this job (Phase 11a).</summary>
+    public DateTime? DueDate { get; set; }
+
+    /// <summary>When the job is expected to begin (Phase 11a).</summary>
+    public DateTime? PlannedStartDate { get; set; }
+
     // Navigation properties
     public Process Process { get; set; } = null!;
     public ICollection<StepExecution> StepExecutions { get; set; } = new List<StepExecution>();

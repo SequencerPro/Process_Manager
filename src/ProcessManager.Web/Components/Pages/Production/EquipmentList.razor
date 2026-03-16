@@ -1,0 +1,295 @@
+@page "/equipment"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Equipment — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-gear-wide me-2 text-primary"></i>Equipment</h3>
+        <p class="text-muted small mb-0">Equipment catalog and availability status</p>
+    </div>
+    <div class="d-flex gap-2">
+        <AuthorizeView Roles="Admin,Engineer">
+            <Authorized>
+                <button class="btn btn-primary btn-sm" @onclick="ShowCreateModal">
+                    <i class="bi bi-plus-lg me-1"></i>Add Equipment
+                </button>
+            </Authorized>
+        </AuthorizeView>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="Load" disabled="@_loading">
+            <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <input class="form-control form-control-sm" placeholder="Search code or name…"
+                       @bind="_search" @bind:event="oninput" @onkeyup="OnSearchKey" />
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" @bind="_categoryFilter" @bind:after="Load">
+                    <option value="">All categories</option>
+                    @foreach (var c in _categories)
+                    {
+                        <option value="@c.Id">@c.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select form-select-sm" @bind="_activeFilter" @bind:after="Load">
+                    <option value="">Active &amp; Inactive</option>
+                    <option value="true">Active only</option>
+                    <option value="false">Inactive only</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_equipment is null || !_equipment.Items.Any())
+{
+    <div class="card shadow-sm">
+        <div class="card-body text-muted small text-center py-4">No equipment found.</div>
+    </div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Code</th>
+                        <th>Name</th>
+                        <th>Category</th>
+                        <th>Location</th>
+                        <th>Status</th>
+                        <th>Next Maintenance</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var eq in _equipment.Items)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@eq.Code</td>
+                            <td>@eq.Name</td>
+                            <td><span class="badge bg-light text-dark border">@eq.CategoryName</span></td>
+                            <td class="text-muted small">@(eq.Location ?? "—")</td>
+                            <td>
+                                @if (!eq.IsActive)
+                                {
+                                    <span class="badge bg-secondary">Inactive</span>
+                                }
+                                else if (eq.IsCurrentlyDown)
+                                {
+                                    <span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Down (@eq.CurrentDowntimeType)</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Available</span>
+                                }
+                            </td>
+                            <td class="small text-muted">
+                                @(eq.NextMaintenanceDue.HasValue ? eq.NextMaintenanceDue.Value.ToString("MMM d, yyyy") : "—")
+                            </td>
+                            <td>
+                                <a href="equipment/@eq.Id" class="btn btn-sm btn-outline-secondary py-0">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (_equipment.TotalCount > _pageSize)
+        {
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <span class="text-muted small">@_equipment.TotalCount total</span>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="PrevPage" disabled="@(_page <= 1)">‹ Prev</button>
+                    <span class="btn btn-sm disabled">@_page / @((_equipment.TotalCount + _pageSize - 1) / _pageSize)</span>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="NextPage" disabled="@(_page * _pageSize >= _equipment.TotalCount)">Next ›</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- Create Modal -->
+@if (_showCreate)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content shadow-lg">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-gear-wide me-2"></i>Add Equipment</h5>
+                    <button class="btn-close" @onclick="CloseCreateModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_createError is not null)
+                    {
+                        <div class="alert alert-danger small py-2">@_createError</div>
+                    }
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label small">Code <span class="text-danger">*</span></label>
+                            <input class="form-control form-control-sm" @bind="_createForm.Code" placeholder="e.g. CNC-001" />
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label small">Name <span class="text-danger">*</span></label>
+                            <input class="form-control form-control-sm" @bind="_createForm.Name" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small">Category <span class="text-danger">*</span></label>
+                            <select class="form-select form-select-sm" @bind="_createForm.CategoryId">
+                                <option value="">Select category…</option>
+                                @foreach (var c in _categories)
+                                {
+                                    <option value="@c.Id">@c.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small">Location</label>
+                            <input class="form-control form-control-sm" @bind="_createForm.Location" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Manufacturer</label>
+                            <input class="form-control form-control-sm" @bind="_createForm.Manufacturer" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Model</label>
+                            <input class="form-control form-control-sm" @bind="_createForm.Model" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Serial Number</label>
+                            <input class="form-control form-control-sm" @bind="_createForm.SerialNumber" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Install Date</label>
+                            <input type="date" class="form-control form-control-sm"
+                                   value="@_createForm.InstallDate?.ToString("yyyy-MM-dd")"
+                                   @onchange="e => _createForm.InstallDate = e.Value is string s && !string.IsNullOrEmpty(s) ? DateTime.Parse(s) : null" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="CloseCreateModal">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="CreateEquipment" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> } Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResponse<EquipmentSummaryDto>? _equipment;
+    private List<EquipmentCategoryResponseDto> _categories = new();
+    private bool _loading = true;
+    private string _search = "";
+    private string _categoryFilter = "";
+    private string _activeFilter = "true";
+    private int _page = 1;
+    private const int _pageSize = 20;
+
+    private bool _showCreate;
+    private bool _saving;
+    private string? _createError;
+    private EquipmentCreateForm _createForm = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = await Api.GetEquipmentCategoriesAsync() ?? new();
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            Guid? catId = Guid.TryParse(_categoryFilter, out var g) ? g : null;
+            bool? active = _activeFilter == "true" ? true : _activeFilter == "false" ? false : null;
+            _equipment = await Api.GetEquipmentAsync(_search, catId, active, _page, _pageSize);
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task OnSearchKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") { _page = 1; await Load(); }
+    }
+
+    private async Task PrevPage() { if (_page > 1) { _page--; await Load(); } }
+    private async Task NextPage() { _page++; await Load(); }
+
+    private void ShowCreateModal() { _createForm = new(); _createError = null; _showCreate = true; }
+    private void CloseCreateModal() { _showCreate = false; }
+
+    private async Task CreateEquipment()
+    {
+        _createError = null;
+        if (string.IsNullOrWhiteSpace(_createForm.Code) || string.IsNullOrWhiteSpace(_createForm.Name) || _createForm.CategoryId == Guid.Empty)
+        {
+            _createError = "Code, Name and Category are required.";
+            return;
+        }
+        _saving = true;
+        try
+        {
+            var dto = new EquipmentCreateDto(
+                _createForm.Code.Trim(),
+                _createForm.Name.Trim(),
+                _createForm.CategoryId,
+                _createForm.Location?.Trim(),
+                _createForm.Manufacturer?.Trim(),
+                _createForm.Model?.Trim(),
+                _createForm.SerialNumber?.Trim(),
+                _createForm.InstallDate);
+            var result = await Api.CreateEquipmentAsync(dto);
+            if (result is not null)
+            {
+                CloseCreateModal();
+                await Load();
+            }
+            else
+            {
+                _createError = "Failed to create equipment.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _createError = ex.Message;
+        }
+        finally { _saving = false; }
+    }
+
+    private class EquipmentCreateForm
+    {
+        public string Code { get; set; } = "";
+        public string Name { get; set; } = "";
+        public Guid CategoryId { get; set; }
+        public string? Location { get; set; }
+        public string? Manufacturer { get; set; }
+        public string? Model { get; set; }
+        public string? SerialNumber { get; set; }
+        public DateTime? InstallDate { get; set; }
+    }
+}

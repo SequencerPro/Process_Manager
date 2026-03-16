@@ -34,7 +34,14 @@ public class StepTemplate : BaseEntity
     /// </summary>
     public bool IsShared { get; set; } = true;
 
+    /// <summary>Expected duration under normal conditions. Used for schedule estimation and variance flagging.</summary>
+    public int? ExpectedDurationMinutes { get; set; }
+
+    /// <summary>Declares that this step must be performed on a machine of this category (Phase 11b).</summary>
+    public Guid? RequiredEquipmentCategoryId { get; set; }
+
     // Navigation properties
+    public EquipmentCategory? RequiredEquipmentCategory { get; set; }
     public ICollection<Port> Ports { get; set; } = new List<Port>();
     public ICollection<StepTemplateImage> Images { get; set; } = new List<StepTemplateImage>();
     public ICollection<RunChartWidget> RunChartWidgets { get; set; } = new List<RunChartWidget>();

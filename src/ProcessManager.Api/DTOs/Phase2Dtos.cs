@@ -35,7 +35,10 @@ public record StepTemplateResponseDto(
     DateTime UpdatedAt,
     List<PortResponseDto> Ports,
     List<StepTemplateImageResponseDto> Images,
-    MaturitySummaryDto? Maturity = null
+    MaturitySummaryDto? Maturity = null,
+    int? ExpectedDurationMinutes = null,
+    Guid? RequiredEquipmentCategoryId = null,
+    string? RequiredEquipmentCategoryName = null
 );
 
 public record StepTemplateImageResponseDto(

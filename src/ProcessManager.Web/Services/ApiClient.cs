@@ -1662,4 +1662,191 @@ public class ApiClient
         r.EnsureSuccessStatusCode();
         return await r.Content.ReadFromJsonAsync<MrbReviewResponseDto>(_json);
     }
+
+    // ══════════════════ Phase 11: Equipment & Production ══════════════════
+
+    // Equipment Categories
+    public async Task<List<EquipmentCategoryResponseDto>?> GetEquipmentCategoriesAsync()
+    {
+        var r = await _http.GetAsync("api/equipment/categories");
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<List<EquipmentCategoryResponseDto>>(_json);
+    }
+
+    public async Task<EquipmentCategoryResponseDto?> CreateEquipmentCategoryAsync(EquipmentCategoryCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/equipment/categories", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<EquipmentCategoryResponseDto>(_json);
+    }
+
+    public async Task<EquipmentCategoryResponseDto?> UpdateEquipmentCategoryAsync(Guid id, EquipmentCategoryUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/equipment/categories/{id}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<EquipmentCategoryResponseDto>(_json);
+    }
+
+    public async Task DeleteEquipmentCategoryAsync(Guid id)
+    {
+        var r = await _http.DeleteAsync($"api/equipment/categories/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    // Equipment
+    public async Task<PaginatedResponse<EquipmentSummaryDto>?> GetEquipmentAsync(
+        string? search = null, Guid? categoryId = null, bool? activeOnly = null,
+        int page = 1, int pageSize = 20)
+    {
+        var q = $"api/equipment?page={page}&pageSize={pageSize}";
+        if (!string.IsNullOrWhiteSpace(search)) q += $"&search={Uri.EscapeDataString(search)}";
+        if (categoryId.HasValue) q += $"&categoryId={categoryId}";
+        if (activeOnly.HasValue) q += $"&activeOnly={activeOnly.Value.ToString().ToLower()}";
+        var r = await _http.GetAsync(q);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PaginatedResponse<EquipmentSummaryDto>>(_json);
+    }
+
+    public async Task<EquipmentResponseDto?> GetEquipmentByIdAsync(Guid id)
+    {
+        var r = await _http.GetAsync($"api/equipment/{id}");
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<EquipmentResponseDto>(_json);
+    }
+
+    public async Task<EquipmentResponseDto?> CreateEquipmentAsync(EquipmentCreateDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/equipment", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<EquipmentResponseDto>(_json);
+    }
+
+    public async Task<EquipmentResponseDto?> UpdateEquipmentAsync(Guid id, EquipmentUpdateDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/equipment/{id}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<EquipmentResponseDto>(_json);
+    }
+
+    public async Task DeleteEquipmentAsync(Guid id)
+    {
+        var r = await _http.DeleteAsync($"api/equipment/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    // Downtime
+    public async Task<List<DowntimeRecordResponseDto>?> GetDowntimeAsync(Guid equipmentId)
+    {
+        var r = await _http.GetAsync($"api/equipment/{equipmentId}/downtime");
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<List<DowntimeRecordResponseDto>>(_json);
+    }
+
+    public async Task<DowntimeRecordResponseDto?> StartDowntimeAsync(Guid equipmentId, CreateDowntimeRecordDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/equipment/{equipmentId}/downtime", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<DowntimeRecordResponseDto>(_json);
+    }
+
+    public async Task<DowntimeRecordResponseDto?> CloseDowntimeAsync(Guid equipmentId, Guid recordId, CloseDowntimeRecordDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/equipment/{equipmentId}/downtime/{recordId}/close", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<DowntimeRecordResponseDto>(_json);
+    }
+
+    // Maintenance Triggers
+    public async Task<List<MaintenanceTriggerResponseDto>?> GetTriggersAsync(Guid equipmentId)
+    {
+        var r = await _http.GetAsync($"api/equipment/{equipmentId}/triggers");
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<List<MaintenanceTriggerResponseDto>>(_json);
+    }
+
+    public async Task<MaintenanceTriggerResponseDto?> CreateTriggerAsync(Guid equipmentId, CreateMaintenanceTriggerDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/equipment/{equipmentId}/triggers", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MaintenanceTriggerResponseDto>(_json);
+    }
+
+    public async Task DeleteTriggerAsync(Guid equipmentId, Guid triggerId)
+    {
+        var r = await _http.DeleteAsync($"api/equipment/{equipmentId}/triggers/{triggerId}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    // Maintenance Tasks
+    public async Task<PaginatedResponse<MaintenanceTaskResponseDto>?> GetAllMaintenanceTasksAsync(
+        string? status = null, string? type = null, Guid? equipmentId = null,
+        int page = 1, int pageSize = 20)
+    {
+        var q = $"api/equipment/tasks?page={page}&pageSize={pageSize}";
+        if (!string.IsNullOrWhiteSpace(status)) q += $"&status={Uri.EscapeDataString(status)}";
+        if (!string.IsNullOrWhiteSpace(type)) q += $"&type={Uri.EscapeDataString(type)}";
+        if (equipmentId.HasValue) q += $"&equipmentId={equipmentId}";
+        var r = await _http.GetAsync(q);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PaginatedResponse<MaintenanceTaskResponseDto>>(_json);
+    }
+
+    public async Task<List<MaintenanceTaskResponseDto>?> GetEquipmentTasksAsync(Guid equipmentId, string? status = null)
+    {
+        var q = $"api/equipment/{equipmentId}/tasks";
+        if (!string.IsNullOrWhiteSpace(status)) q += $"?status={Uri.EscapeDataString(status)}";
+        var r = await _http.GetAsync(q);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<List<MaintenanceTaskResponseDto>>(_json);
+    }
+
+    public async Task<MaintenanceTaskResponseDto?> CreateMaintenanceTaskAsync(CreateMaintenanceTaskDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/equipment/tasks", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MaintenanceTaskResponseDto>(_json);
+    }
+
+    public async Task<MaintenanceTaskResponseDto?> UpdateMaintenanceTaskAsync(Guid id, UpdateMaintenanceTaskDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/equipment/tasks/{id}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MaintenanceTaskResponseDto>(_json);
+    }
+
+    public async Task<MaintenanceTaskResponseDto?> StartMaintenanceTaskAsync(Guid id)
+    {
+        var r = await _http.PostAsync($"api/equipment/tasks/{id}/start", null);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MaintenanceTaskResponseDto>(_json);
+    }
+
+    public async Task<MaintenanceTaskResponseDto?> CompleteMaintenanceTaskAsync(Guid id, CompleteMaintenanceTaskDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/equipment/tasks/{id}/complete", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MaintenanceTaskResponseDto>(_json);
+    }
+
+    public async Task<MaintenanceTaskResponseDto?> CancelMaintenanceTaskAsync(Guid id)
+    {
+        var r = await _http.PostAsync($"api/equipment/tasks/{id}/cancel", null);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MaintenanceTaskResponseDto>(_json);
+    }
+
+    // Production Dashboard
+    public async Task<ProductionDashboardDto?> GetProductionDashboardAsync()
+    {
+        var r = await _http.GetAsync("api/production/wip");
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ProductionDashboardDto>(_json);
+    }
+
+    public async Task<List<BottleneckStepDto>?> GetBottlenecksAsync()
+    {
+        var r = await _http.GetAsync("api/production/bottlenecks");
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<List<BottleneckStepDto>>(_json);
+    }
 }

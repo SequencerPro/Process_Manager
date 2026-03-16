@@ -40,7 +40,7 @@ public class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "2.0";
+    private const string ServerVersion   = "2.1";
 
     public McpController(ProcessManagerDbContext db) => _db = db;
 
@@ -176,6 +176,20 @@ public class McpController : ControllerBase
                  Schema(
                      ("user_id", "string", "Optional: filter to a specific user's competency records — leave empty for all users"),
                      ("status",  "string", "Optional: Current, Expired, or Superseded — leave empty for Current and Expired only"))),
+
+            Tool("get_production_status",
+                 "Get a live production dashboard: active jobs, late jobs, equipment currently down, maintenance due/overdue, and top bottleneck steps. Requires authentication.",
+                 new { }),
+
+            Tool("list_equipment_downtime",
+                 "List equipment that is currently down (open downtime records) or recently experienced downtime. Requires authentication.",
+                 Schema(
+                     ("currently_down_only", "string", "true to return only equipment currently down, false/empty for all equipment with any downtime history"))),
+
+            Tool("list_overdue_maintenance",
+                 "List maintenance tasks that are Overdue or Due across all equipment, ordered by due date ascending. Requires authentication.",
+                 Schema(
+                     ("status", "string", "Optional: Overdue, Due, or InProgress — leave empty for Overdue and Due"))),
         }
     };
 
@@ -258,6 +272,9 @@ public class McpController : ControllerBase
             "get_mrb_summary"               => OkResponse(id, TextContent(await ToolGetMrbSummary(args))),
             "get_management_review_status"  => OkResponse(id, TextContent(await ToolGetManagementReviewStatus(args))),
             "get_competency_status"          => OkResponse(id, TextContent(await ToolGetCompetencyStatus(args))),
+            "get_production_status"          => OkResponse(id, TextContent(await ToolGetProductionStatus())),
+            "list_equipment_downtime"        => OkResponse(id, TextContent(await ToolListEquipmentDowntime(args))),
+            "list_overdue_maintenance"       => OkResponse(id, TextContent(await ToolListOverdueMaintenance(args))),
             _                               => ErrorResponse(id, -32602, $"Unknown tool: {toolName}")
         };
     }
@@ -1070,6 +1087,141 @@ public class McpController : ControllerBase
             foreach (var r in reviews)
                 sb.AppendLine($"| {r.Title} | {r.ReviewType} | {r.ScheduledDate:yyyy-MM-dd} | {r.Status} | {r.ConductedBy ?? "—"} |");
         }
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolGetProductionStatus()
+    {
+        var now = DateTime.UtcNow;
+
+        // Active jobs
+        var activeJobs = await _db.Jobs
+            .AsNoTracking()
+            .Include(j => j.Process)
+            .Where(j => j.Status == Domain.Enums.JobStatus.InProgress || j.Status == Domain.Enums.JobStatus.Created)
+            .ToListAsync();
+
+        // Equipment currently down
+        var downEquipment = await _db.DowntimeRecords
+            .AsNoTracking()
+            .Include(d => d.Equipment)
+            .Where(d => d.EndedAt == null)
+            .Select(d => d.Equipment!.Code)
+            .Distinct()
+            .ToListAsync();
+
+        // Maintenance due/overdue
+        var maintenanceDue = await _db.MaintenanceTasks
+            .AsNoTracking()
+            .Include(t => t.Equipment)
+            .Where(t => t.Status == Domain.Enums.MaintenanceTaskStatus.Due || t.Status == Domain.Enums.MaintenanceTaskStatus.Overdue)
+            .OrderBy(t => t.DueDate)
+            .Take(20)
+            .ToListAsync();
+
+        var lateJobs = activeJobs.Where(j => j.DueDate.HasValue && j.DueDate.Value < now).ToList();
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## Production Status\n");
+        sb.AppendLine($"- **Active Jobs:** {activeJobs.Count}");
+        sb.AppendLine($"- **Late Jobs:** {lateJobs.Count}");
+        sb.AppendLine($"- **Equipment Currently Down:** {downEquipment.Count}" +
+                      (downEquipment.Any() ? $" ({string.Join(", ", downEquipment)})" : ""));
+        sb.AppendLine($"- **Maintenance Due/Overdue:** {maintenanceDue.Count}");
+
+        if (lateJobs.Any())
+        {
+            sb.AppendLine("\n### Late Jobs");
+            foreach (var j in lateJobs.OrderBy(j => j.DueDate))
+            {
+                var daysLate = (int)(now - j.DueDate!.Value).TotalDays;
+                sb.AppendLine($"- **{j.Code}** — {j.Process?.Name ?? "?"} — {daysLate} day(s) late (due {j.DueDate.Value:MMM d, yyyy})");
+            }
+        }
+
+        if (maintenanceDue.Any())
+        {
+            sb.AppendLine("\n### Maintenance Due / Overdue");
+            foreach (var t in maintenanceDue)
+                sb.AppendLine($"- **{t.Equipment?.Code ?? "?"}** — {t.Title} — {t.Status} (due {t.DueDate:MMM d, yyyy})");
+        }
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolListEquipmentDowntime(JsonElement args)
+    {
+        var currentlyDownOnly = args.TryGetProperty("currently_down_only", out var c) && c.GetString() == "true";
+
+        IQueryable<Domain.Entities.DowntimeRecord> query = _db.DowntimeRecords
+            .AsNoTracking()
+            .Include(d => d.Equipment);
+
+        if (currentlyDownOnly)
+            query = query.Where(d => d.EndedAt == null);
+
+        var records = await query
+            .OrderByDescending(d => d.StartedAt)
+            .Take(50)
+            .ToListAsync();
+
+        if (!records.Any())
+            return currentlyDownOnly ? "No equipment is currently down." : "No downtime records found.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine(currentlyDownOnly
+            ? $"## Equipment Currently Down ({records.Count})\n"
+            : $"## Equipment Downtime History ({records.Count} most recent)\n");
+
+        foreach (var r in records)
+        {
+            var duration = r.EndedAt.HasValue
+                ? $"{(r.EndedAt.Value - r.StartedAt).TotalMinutes:F0} min"
+                : "ongoing";
+            sb.AppendLine($"- **{r.Equipment?.Code ?? "?"}** — {r.Type} — {r.StartedAt:MMM d HH:mm} → {(r.EndedAt.HasValue ? r.EndedAt.Value.ToString("MMM d HH:mm") : "now")} ({duration})");
+            sb.AppendLine($"  Reason: {r.Reason}");
+        }
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolListOverdueMaintenance(JsonElement args)
+    {
+        var statusFilter = args.TryGetProperty("status", out var s) ? s.GetString() : null;
+
+        var statuses = new List<Domain.Enums.MaintenanceTaskStatus>();
+        if (string.IsNullOrEmpty(statusFilter))
+        {
+            statuses.Add(Domain.Enums.MaintenanceTaskStatus.Overdue);
+            statuses.Add(Domain.Enums.MaintenanceTaskStatus.Due);
+        }
+        else if (Enum.TryParse<Domain.Enums.MaintenanceTaskStatus>(statusFilter, true, out var parsed))
+        {
+            statuses.Add(parsed);
+        }
+        else
+        {
+            return $"Invalid status '{statusFilter}'. Use Overdue, Due, or InProgress.";
+        }
+
+        var tasks = await _db.MaintenanceTasks
+            .AsNoTracking()
+            .Include(t => t.Equipment)
+            .Where(t => statuses.Contains(t.Status))
+            .OrderBy(t => t.DueDate)
+            .Take(50)
+            .ToListAsync();
+
+        if (!tasks.Any())
+            return "No maintenance tasks with the requested status.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Maintenance Tasks — {string.Join(" / ", statuses)} ({tasks.Count})\n");
+        sb.AppendLine("| Equipment | Title | Type | Due Date | Assigned | Status |");
+        sb.AppendLine("|---|---|---|---|---|---|");
+        foreach (var t in tasks)
+            sb.AppendLine($"| {t.Equipment?.Code ?? "?"} | {t.Title} | {t.Type} | {t.DueDate:MMM d, yyyy} | {t.AssignedTo ?? "—"} | **{t.Status}** |");
 
         return sb.ToString();
     }

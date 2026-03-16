@@ -1,0 +1,294 @@
+@page "/maintenance"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject ApiClient Api
+
+<PageTitle>Maintenance Tasks — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-tools me-2 text-primary"></i>Maintenance Tasks</h3>
+        <p class="text-muted small mb-0">All maintenance tasks across all equipment</p>
+    </div>
+    <div class="d-flex gap-2">
+        <AuthorizeView Roles="Admin,Engineer">
+            <Authorized>
+                <button class="btn btn-primary btn-sm" @onclick="ShowCreateModal">
+                    <i class="bi bi-plus-lg me-1"></i>Add Task
+                </button>
+            </Authorized>
+        </AuthorizeView>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="Load" disabled="@_loading">
+            <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" @bind="_statusFilter" @bind:after="Load">
+                    <option value="">All statuses</option>
+                    <option value="Upcoming">Upcoming</option>
+                    <option value="Due">Due</option>
+                    <option value="Overdue">Overdue</option>
+                    <option value="InProgress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Cancelled">Cancelled</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select form-select-sm" @bind="_typeFilter" @bind:after="Load">
+                    <option value="">All types</option>
+                    <option value="PreventiveMaintenance">Preventive Maintenance</option>
+                    <option value="CorrectiveMaintenance">Corrective Maintenance</option>
+                    <option value="Inspection">Inspection</option>
+                    <option value="Calibration">Calibration</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_tasks is null || !_tasks.Items.Any())
+{
+    <div class="card shadow-sm">
+        <div class="card-body text-muted small text-center py-4">No maintenance tasks found.</div>
+    </div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Equipment</th>
+                        <th>Title</th>
+                        <th>Type</th>
+                        <th>Due Date</th>
+                        <th>Assigned To</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in _tasks.Items)
+                    {
+                        <tr class="@RowClass(t.Status)">
+                            <td>
+                                <a href="equipment/@t.EquipmentId" class="text-decoration-none fw-semibold">@t.EquipmentCode</a>
+                                <div class="text-muted" style="font-size:.78rem">@t.EquipmentName</div>
+                            </td>
+                            <td class="small">@t.Title</td>
+                            <td><span class="badge bg-light text-dark border">@FormatType(t.Type)</span></td>
+                            <td class="small">@t.DueDate.ToString("MMM d, yyyy")</td>
+                            <td class="small text-muted">@(t.AssignedTo ?? "—")</td>
+                            <td><span class="badge @TaskStatusBadge(t.Status)">@t.Status</span></td>
+                            <td>
+                                <div class="d-flex gap-1">
+                                    @if (t.Status is "Upcoming" or "Due" or "Overdue")
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary py-0" @onclick="() => StartTask(t.Id)" title="Start">
+                                            <i class="bi bi-play-fill"></i>
+                                        </button>
+                                    }
+                                    @if (t.Status == "InProgress")
+                                    {
+                                        <button class="btn btn-sm btn-outline-success py-0" @onclick="() => CompleteTask(t.Id)" title="Complete">
+                                            <i class="bi bi-check-lg"></i>
+                                        </button>
+                                    }
+                                    @if (t.Status is not "Completed" and not "Cancelled")
+                                    {
+                                        <button class="btn btn-sm btn-outline-secondary py-0" @onclick="() => CancelTask(t.Id)" title="Cancel">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if (_tasks.TotalCount > _pageSize)
+        {
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <span class="text-muted small">@_tasks.TotalCount total</span>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="PrevPage" disabled="@(_page <= 1)">‹ Prev</button>
+                    <span class="btn btn-sm disabled">@_page / @((_tasks.TotalCount + _pageSize - 1) / _pageSize)</span>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="NextPage" disabled="@(_page * _pageSize >= _tasks.TotalCount)">Next ›</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<!-- Create Modal -->
+@if (_showCreate)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-wrench-adjustable me-2"></i>Add Maintenance Task</h5>
+                    <button class="btn-close" @onclick="() => _showCreate = false"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_createError is not null) { <div class="alert alert-danger small py-2">@_createError</div> }
+                    <div class="mb-3">
+                        <label class="form-label small">Equipment <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" @bind="_createEquipmentId">
+                            <option value="">Select equipment…</option>
+                            @foreach (var e in _allEquipment)
+                            {
+                                <option value="@e.Id">@e.Code — @e.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Title <span class="text-danger">*</span></label>
+                        <input class="form-control form-control-sm" @bind="_createTitle" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Type</label>
+                        <select class="form-select form-select-sm" @bind="_createType">
+                            <option value="PreventiveMaintenance">Preventive Maintenance</option>
+                            <option value="CorrectiveMaintenance">Corrective Maintenance</option>
+                            <option value="Inspection">Inspection</option>
+                            <option value="Calibration">Calibration</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Due Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control form-control-sm"
+                               value="@_createDueDate.ToString("yyyy-MM-dd")"
+                               @onchange="e => _createDueDate = e.Value is string s && !string.IsNullOrEmpty(s) ? DateTime.Parse(s) : DateTime.Today.AddDays(7)" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Assigned To</label>
+                        <input class="form-control form-control-sm" @bind="_createAssignedTo" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showCreate = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="CreateTask" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> } Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResponse<MaintenanceTaskResponseDto>? _tasks;
+    private List<EquipmentSummaryDto> _allEquipment = new();
+    private bool _loading = true;
+    private bool _saving;
+    private string _statusFilter = "";
+    private string _typeFilter = "";
+    private int _page = 1;
+    private const int _pageSize = 25;
+
+    private bool _showCreate;
+    private string? _createError;
+    private Guid _createEquipmentId;
+    private string _createTitle = "";
+    private string _createType = "PreventiveMaintenance";
+    private DateTime _createDueDate = DateTime.Today.AddDays(7);
+    private string? _createAssignedTo;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            _tasks = await Api.GetAllMaintenanceTasksAsync(
+                string.IsNullOrEmpty(_statusFilter) ? null : _statusFilter,
+                string.IsNullOrEmpty(_typeFilter) ? null : _typeFilter,
+                null, _page, _pageSize);
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task ShowCreateModal()
+    {
+        if (!_allEquipment.Any())
+        {
+            var result = await Api.GetEquipmentAsync(activeOnly: true, pageSize: 200);
+            _allEquipment = result?.Items ?? new();
+        }
+        _createEquipmentId = Guid.Empty;
+        _createTitle = "";
+        _createType = "PreventiveMaintenance";
+        _createDueDate = DateTime.Today.AddDays(7);
+        _createAssignedTo = null;
+        _createError = null;
+        _showCreate = true;
+    }
+
+    private async Task CreateTask()
+    {
+        _createError = null;
+        if (_createEquipmentId == Guid.Empty || string.IsNullOrWhiteSpace(_createTitle))
+        {
+            _createError = "Equipment and Title are required.";
+            return;
+        }
+        _saving = true;
+        try
+        {
+            var typeEnum = Enum.Parse<ProcessManager.Domain.Enums.MaintenanceTaskType>(_createType);
+            await Api.CreateMaintenanceTaskAsync(new CreateMaintenanceTaskDto(_createEquipmentId, _createTitle.Trim(), typeEnum, _createDueDate, _createAssignedTo?.Trim()));
+            _showCreate = false;
+            await Load();
+        }
+        catch (Exception ex) { _createError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task PrevPage() { if (_page > 1) { _page--; await Load(); } }
+    private async Task NextPage() { _page++; await Load(); }
+
+    private async Task StartTask(Guid id) { await Api.StartMaintenanceTaskAsync(id); await Load(); }
+    private async Task CompleteTask(Guid id) { await Api.CompleteMaintenanceTaskAsync(id, new CompleteMaintenanceTaskDto()); await Load(); }
+    private async Task CancelTask(Guid id) { await Api.CancelMaintenanceTaskAsync(id); await Load(); }
+
+    private static string TaskStatusBadge(string status) => status switch
+    {
+        "Overdue" => "bg-danger",
+        "Due" => "bg-warning text-dark",
+        "InProgress" => "bg-primary",
+        "Upcoming" => "bg-secondary",
+        "Completed" => "bg-success",
+        "Cancelled" => "bg-light text-dark border",
+        _ => "bg-secondary"
+    };
+
+    private static string RowClass(string status) => status switch
+    {
+        "Overdue" => "table-danger",
+        "Due" => "table-warning",
+        _ => ""
+    };
+
+    private static string FormatType(string type) => type switch
+    {
+        "PreventiveMaintenance" => "Preventive",
+        "CorrectiveMaintenance" => "Corrective",
+        _ => type
+    };
+}

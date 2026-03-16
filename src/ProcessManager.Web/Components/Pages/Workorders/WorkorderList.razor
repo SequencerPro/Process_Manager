@@ -224,7 +224,7 @@ else if (_data is not null)
             _showForm = false;
             await LoadData();
         }
-        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+        catch (Exception ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task Delete(Guid id)

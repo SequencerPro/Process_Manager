@@ -299,7 +299,6 @@ public static class DataSeeder
     // ─────────────────────────────────────────────────────────────────────────
     public static async Task SeedQmsDocumentsAsync(ProcessManagerDbContext db)
     {
-        if (db.Processes.Any(p => p.Code == "QMS-001")) return;
 
         // Helper — DRY up Process construction
         static Process Doc(string code, string name, string description,
@@ -451,15 +450,17 @@ public static class DataSeeder
             ProcessStatus.Draft, "A", 1, 30);
 
         // ── Shared step template for all QMS document sections ───────────────
-        var stDocSect = new StepTemplate
-        {
-            Id = Guid.NewGuid(), CreatedAt = Utc(-400), UpdatedAt = Utc(-400),
-            Code = "DOC-SECT-01", Name = "Document Section",
-            Description = "A numbered section within a controlled QMS procedure document.",
-            Pattern = StepPattern.General, IsActive = true, IsShared = true,
-            Status = ProcessStatus.Released, Version = 1
-        };
-        db.StepTemplates.Add(stDocSect);
+        var stDocSect = db.StepTemplates.FirstOrDefault(t => t.Code == "DOC-SECT-01")
+            ?? new StepTemplate
+            {
+                Id = Guid.NewGuid(), CreatedAt = Utc(-400), UpdatedAt = Utc(-400),
+                Code = "DOC-SECT-01", Name = "Document Section",
+                Description = "A numbered section within a controlled QMS procedure document.",
+                Pattern = StepPattern.General, IsActive = true, IsShared = true,
+                Status = ProcessStatus.Released, Version = 1
+            };
+        if (db.Entry(stDocSect).State == Microsoft.EntityFrameworkCore.EntityState.Detached)
+            db.StepTemplates.Add(stDocSect);
 
         static void AddQmsSteps(Process doc, StepTemplate tmpl,
             string purpose, string responsibilities, string procedure, string records)
@@ -616,12 +617,21 @@ public static class DataSeeder
             "Identify the knowledge needed for each key process and role; document and store in approved repositories (procedures, work instructions, training materials, databases); review currency annually; plan and execute knowledge transfer when roles change; identify gaps arising from new technology, regulatory changes, or market evolution; acquire additional knowledge through training, recruitment, or partnership.",
             "Knowledge asset register, knowledge capture and transfer records, gap analysis, review and update logs.");
 
-        db.Processes.AddRange(
+        // Per-record upsert — only insert docs whose code is not already in the database.
+        // This handles partial deletions without hitting the unique-code constraint.
+        var existingQmsCodes = db.Processes
+            .Where(p => p.Code.StartsWith("QMS-"))
+            .Select(p => p.Code)
+            .ToHashSet();
+        var allQmsDocs = new[]
+        {
             qms001, qms002, qms003, qms004, qms005,
             qms006, qms007, qms008, qms009, qms010,
             qms011, qms012, qms013, qms014, qms015,
             qms016, qms017, qms018, qms019, qms020,
-            qms021);
+            qms021
+        };
+        db.Processes.AddRange(allQmsDocs.Where(d => !existingQmsCodes.Contains(d.Code)));
 
         await db.SaveChangesAsync();
     }
@@ -633,7 +643,6 @@ public static class DataSeeder
     // ─────────────────────────────────────────────────────────────────────────
     public static async Task SeedTrainingDocumentsAsync(ProcessManagerDbContext db)
     {
-        if (db.Processes.Any(p => p.Code == "TRN-SYS-001")) return;
 
         static Process Course(
             string code, string name, string competencyTitle, string description,
@@ -825,15 +834,17 @@ public static class DataSeeder
             expiryDays: 730, "A", 1, 55);
 
         // ── Shared step template for all training course modules ─────────────
-        var stTrnMod = new StepTemplate
-        {
-            Id = Guid.NewGuid(), CreatedAt = Utc(-95), UpdatedAt = Utc(-95),
-            Code = "TRN-MOD-01", Name = "Training Module",
-            Description = "A learning module or topic within a training course.",
-            Pattern = StepPattern.General, IsActive = true, IsShared = true,
-            Status = ProcessStatus.Released, Version = 1
-        };
-        db.StepTemplates.Add(stTrnMod);
+        var stTrnMod = db.StepTemplates.FirstOrDefault(t => t.Code == "TRN-MOD-01")
+            ?? new StepTemplate
+            {
+                Id = Guid.NewGuid(), CreatedAt = Utc(-95), UpdatedAt = Utc(-95),
+                Code = "TRN-MOD-01", Name = "Training Module",
+                Description = "A learning module or topic within a training course.",
+                Pattern = StepPattern.General, IsActive = true, IsShared = true,
+                Status = ProcessStatus.Released, Version = 1
+            };
+        if (db.Entry(stTrnMod).State == Microsoft.EntityFrameworkCore.EntityState.Detached)
+            db.StepTemplates.Add(stTrnMod);
 
         static void AddTrnStep(Process course, StepTemplate tmpl, int seq, string name, string description)
         {
@@ -973,9 +984,17 @@ public static class DataSeeder
         AddTrnStep(trn012, stTrnMod, 4, "Best Practices for Role Assignment",
             "The principle of least privilege applied to Process Manager roles; guidance on Engineer vs Admin delegation; and when to use admin-release versus the standard document approval workflow.");
 
-        db.Processes.AddRange(
+        // Per-record upsert — only insert courses whose code is not already in the database.
+        var existingTrnCodes = db.Processes
+            .Where(p => p.Code.StartsWith("TRN-SYS-"))
+            .Select(p => p.Code)
+            .ToHashSet();
+        var allCourses = new[]
+        {
             trn001, trn002, trn003, trn004, trn005, trn006,
-            trn007, trn008, trn009, trn010, trn011, trn012);
+            trn007, trn008, trn009, trn010, trn011, trn012
+        };
+        db.Processes.AddRange(allCourses.Where(c => !existingTrnCodes.Contains(c.Code)));
 
         await db.SaveChangesAsync();
     }

@@ -142,7 +142,8 @@ using (var scope = app.Services.CreateScope())
             Email = "admin@processmanager.local",
             DisplayName = "Administrator"
         };
-        var result = await userManager.CreateAsync(adminUser, "Admin1234!");
+        var adminPassword = app.Configuration["SeedAdminPassword"] ?? "Admin1234!";
+        var result = await userManager.CreateAsync(adminUser, adminPassword);
         if (result.Succeeded)
             await userManager.AddToRoleAsync(adminUser, "Admin");
     }

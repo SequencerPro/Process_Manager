@@ -451,6 +451,51 @@ public class ApiClient
         resp.EnsureSuccessStatusCode();
     }
 
+    // ═══════════════════ Workorders ═══════════════════
+
+    public Task<PaginatedResponse<WorkorderResponseDto>?> GetWorkordersAsync(
+        string? search = null, string? status = null, Guid? workflowId = null,
+        int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<WorkorderResponseDto>>(
+            $"api/workorders?search={search}&status={status}&workflowId={workflowId}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<WorkorderResponseDto?> GetWorkorderAsync(Guid id)
+        => _http.GetFromJsonAsync<WorkorderResponseDto>($"api/workorders/{id}", _json);
+
+    public async Task<WorkorderResponseDto?> CreateWorkorderAsync(CreateWorkorderDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/workorders", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<WorkorderResponseDto>(_json);
+    }
+
+    public async Task<WorkorderResponseDto?> UpdateWorkorderAsync(Guid id, UpdateWorkorderDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/workorders/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<WorkorderResponseDto>(_json);
+    }
+
+    public async Task DeleteWorkorderAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/workorders/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<WorkorderResponseDto?> WorkorderTransitionAsync(Guid id, string action)
+    {
+        var resp = await _http.PostAsync($"api/workorders/{id}/{action}", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<WorkorderResponseDto>(_json);
+    }
+
+    public async Task<WorkorderResponseDto?> AdvanceWorkorderAsync(Guid id, AdvanceWorkorderDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/workorders/{id}/advance", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<WorkorderResponseDto>(_json);
+    }
+
     // ═══════════════════ Jobs ═══════════════════
 
     public Task<PaginatedResponse<JobResponseDto>?> GetJobsAsync(

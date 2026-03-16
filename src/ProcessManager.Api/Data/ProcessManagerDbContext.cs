@@ -93,6 +93,10 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<CompetencyRecord> CompetencyRecords => Set<CompetencyRecord>();
     public DbSet<ProcessTrainingRequirement> ProcessTrainingRequirements => Set<ProcessTrainingRequirement>();
 
+    // Workorders
+    public DbSet<Workorder> Workorders => Set<Workorder>();
+    public DbSet<WorkorderJob> WorkorderJobs => Set<WorkorderJob>();
+
     // Phase 11: Production Management
     public DbSet<EquipmentCategory> EquipmentCategories => Set<EquipmentCategory>();
     public DbSet<Equipment> Equipment => Set<Equipment>();
@@ -492,6 +496,12 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
 
             // DocumentApprovalRequestId is stored for quick lookup but FK is enforced via the DAR entity.
             e.Property(j => j.DocumentApprovalRequestId).IsRequired(false);
+
+            e.HasOne(j => j.Workorder)
+                .WithMany()
+                .HasForeignKey(j => j.WorkorderId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // --- Item ---
@@ -1117,6 +1127,44 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne(r => r.RequiredTrainingProcess)
                 .WithMany()
                 .HasForeignKey(r => r.RequiredTrainingProcessId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- Workorder ---
+        modelBuilder.Entity<Workorder>(e =>
+        {
+            e.HasKey(w => w.Id);
+            e.HasIndex(w => w.Code).IsUnique();
+            e.Property(w => w.Code).HasMaxLength(50).IsRequired();
+            e.Property(w => w.Name).HasMaxLength(200).IsRequired();
+            e.Property(w => w.Status).HasConversion<string>().HasMaxLength(20);
+
+            e.HasOne(w => w.Workflow)
+                .WithMany()
+                .HasForeignKey(w => w.WorkflowId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- WorkorderJob ---
+        modelBuilder.Entity<WorkorderJob>(e =>
+        {
+            e.HasKey(wj => wj.Id);
+            e.HasIndex(wj => new { wj.WorkorderId, wj.JobId }).IsUnique();
+            e.HasIndex(wj => new { wj.WorkorderId, wj.WorkflowProcessId });
+
+            e.HasOne(wj => wj.Workorder)
+                .WithMany(w => w.WorkorderJobs)
+                .HasForeignKey(wj => wj.WorkorderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(wj => wj.WorkflowProcess)
+                .WithMany()
+                .HasForeignKey(wj => wj.WorkflowProcessId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(wj => wj.Job)
+                .WithMany()
+                .HasForeignKey(wj => wj.JobId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

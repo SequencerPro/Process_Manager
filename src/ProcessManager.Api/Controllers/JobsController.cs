@@ -198,6 +198,39 @@ public class JobsController : ControllerBase
         if (job.Status != JobStatus.Created && job.Status != JobStatus.OnHold)
             return BadRequest($"Cannot start a job with status '{job.Status}'. Must be Created or OnHold.");
 
+        // Workorder dependency gate: if this job belongs to a workorder,
+        // verify all predecessor jobs in the workflow are completed.
+        if (job.WorkorderId.HasValue && job.Status == JobStatus.Created)
+        {
+            var wj = await _db.WorkorderJobs
+                .Include(wj => wj.WorkflowProcess)
+                .FirstOrDefaultAsync(wj => wj.JobId == id);
+
+            if (wj is not null && !wj.WorkflowProcess.IsEntryPoint)
+            {
+                var incomingLinks = await _db.WorkflowLinks
+                    .Where(l => l.WorkflowId == wj.WorkflowProcess.WorkflowId
+                             && l.TargetWorkflowProcessId == wj.WorkflowProcessId)
+                    .ToListAsync();
+
+                var workorderJobs = await _db.WorkorderJobs
+                    .Include(w => w.Job)
+                    .Where(w => w.WorkorderId == job.WorkorderId)
+                    .ToListAsync();
+
+                var blockers = new List<string>();
+                foreach (var link in incomingLinks)
+                {
+                    var sourceWj = workorderJobs.FirstOrDefault(w => w.WorkflowProcessId == link.SourceWorkflowProcessId);
+                    if (sourceWj is null || sourceWj.Job.Status != JobStatus.Completed)
+                        blockers.Add(sourceWj?.Job.Code ?? $"(missing job for workflow node {link.SourceWorkflowProcessId})");
+                }
+
+                if (blockers.Count > 0)
+                    return BadRequest($"Cannot start this job — predecessor job(s) not yet completed: {string.Join(", ", blockers)}");
+            }
+        }
+
         job.Status = JobStatus.InProgress;
         job.StartedAt ??= DateTime.UtcNow;
 
@@ -269,6 +302,14 @@ public class JobsController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
+
+        // ── Workorder auto-progression: create successor jobs when applicable ─────
+        if (job.WorkorderId.HasValue)
+        {
+            var workordersController = new WorkordersController(_db);
+            await workordersController.ProgressWorkorder(job.WorkorderId.Value, job.Id);
+        }
+
         return MapJobToDto(job);
     }
 

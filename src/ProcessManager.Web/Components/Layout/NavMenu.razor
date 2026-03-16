@@ -103,6 +103,11 @@
         @if (_openSection == "execution")
         {
             <li class="nav-item">
+                <NavLink class="nav-link text-white ps-4" href="workorders">
+                    <i class="bi bi-kanban me-2"></i> Workorders
+                </NavLink>
+            </li>
+            <li class="nav-item">
                 <NavLink class="nav-link text-white ps-4" href="jobs">
                     <i class="bi bi-clipboard-check me-2"></i> Jobs
                 </NavLink>
@@ -415,7 +420,7 @@
     private static readonly Dictionary<string, string[]> _sectionPaths = new()
     {
         ["design"]    = ["kinds", "step-templates", "processes", "approval-queue", "workflows"],
-        ["execution"] = ["jobs", "items", "batches", "step-executions"],
+        ["execution"] = ["workorders", "jobs", "items", "batches", "step-executions"],
         ["config"]    = ["vocabulary"],
         ["quality"]   = ["pfmeas", "ce-matrices", "control-plans", "non-conformances", "root-cause-library", "ishikawa", "five-whys", "mrb"],
         ["documents"]  = ["documents"],

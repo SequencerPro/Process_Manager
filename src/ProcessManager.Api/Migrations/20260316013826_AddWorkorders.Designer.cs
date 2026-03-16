@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ProcessManager.Api.Data;
@@ -11,9 +12,11 @@ using ProcessManager.Api.Data;
 namespace ProcessManager.Api.Migrations
 {
     [DbContext(typeof(ProcessManagerDbContext))]
-    partial class ProcessManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260316013826_AddWorkorders")]
+    partial class AddWorkorders
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -976,156 +979,6 @@ namespace ProcessManager.Api.Migrations
                     b.ToTable("DomainVocabularies");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.DowntimeRecord", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("EndedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("EquipmentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("LinkedMaintenanceTaskId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("ResolvedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("StartedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EquipmentId", "StartedAt");
-
-                    b.ToTable("DowntimeRecords");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.Equipment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("CategoryId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("InstallDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Location")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("Manufacturer")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("Model")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("SerialNumber")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CategoryId");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.ToTable("Equipment");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.EquipmentCategory", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.ToTable("EquipmentCategories");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.ExecutionData", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1571,16 +1424,10 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid?>("DocumentApprovalRequestId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("DueDate")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime?>("PlannedStartDate")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Priority")
                         .HasColumnType("integer");
@@ -1663,130 +1510,6 @@ namespace ProcessManager.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Kinds");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.MaintenanceTask", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("AssignedTo")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CompletedBy")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("DueDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("EquipmentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("LinkedDowntimeRecordId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(15)
-                        .HasColumnType("character varying(15)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<Guid?>("TriggerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(25)
-                        .HasColumnType("character varying(25)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DueDate");
-
-                    b.HasIndex("TriggerId");
-
-                    b.HasIndex("EquipmentId", "Status");
-
-                    b.ToTable("MaintenanceTasks");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.MaintenanceTrigger", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("AdvanceNoticeDays")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("EquipmentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int?>("IntervalDays")
-                        .HasColumnType("integer");
-
-                    b.Property<int?>("IntervalUsageCycles")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("LastTriggeredAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("NextDueAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<string>("TriggerType")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EquipmentId");
-
-                    b.ToTable("MaintenanceTriggers");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.ManagementReview", b =>
@@ -2949,9 +2672,6 @@ namespace ProcessManager.Api.Migrations
                     b.Property<string>("CreatedBy")
                         .HasColumnType("text");
 
-                    b.Property<Guid?>("EquipmentId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("JobId")
                         .HasColumnType("uuid");
 
@@ -2983,8 +2703,6 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("EquipmentId");
-
                     b.HasIndex("ProcessStepId");
 
                     b.HasIndex("JobId", "ProcessStepId")
@@ -3013,9 +2731,6 @@ namespace ProcessManager.Api.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
-                    b.Property<int?>("ExpectedDurationMinutes")
-                        .HasColumnType("integer");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -3031,9 +2746,6 @@ namespace ProcessManager.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
-
-                    b.Property<Guid?>("RequiredEquipmentCategoryId")
-                        .HasColumnType("uuid");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -3053,8 +2765,6 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("Code")
                         .IsUnique();
-
-                    b.HasIndex("RequiredEquipmentCategoryId");
 
                     b.ToTable("StepTemplates");
                 });
@@ -3730,28 +3440,6 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Process");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.DowntimeRecord", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.Equipment", "Equipment")
-                        .WithMany("DowntimeRecords")
-                        .HasForeignKey("EquipmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Equipment");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.Equipment", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.EquipmentCategory", "Category")
-                        .WithMany("Equipment")
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Category");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.ExecutionData", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.Batch", "Batch")
@@ -3930,35 +3618,6 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Process");
 
                     b.Navigation("Workorder");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.MaintenanceTask", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.Equipment", "Equipment")
-                        .WithMany("MaintenanceTasks")
-                        .HasForeignKey("EquipmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ProcessManager.Domain.Entities.MaintenanceTrigger", "Trigger")
-                        .WithMany()
-                        .HasForeignKey("TriggerId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Equipment");
-
-                    b.Navigation("Trigger");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.MaintenanceTrigger", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.Equipment", "Equipment")
-                        .WithMany("MaintenanceTriggers")
-                        .HasForeignKey("EquipmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Equipment");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.MrbParticipant", b =>
@@ -4238,11 +3897,6 @@ namespace ProcessManager.Api.Migrations
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepExecution", b =>
                 {
-                    b.HasOne("ProcessManager.Domain.Entities.Equipment", "Equipment")
-                        .WithMany()
-                        .HasForeignKey("EquipmentId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("ProcessManager.Domain.Entities.Job", "Job")
                         .WithMany("StepExecutions")
                         .HasForeignKey("JobId")
@@ -4255,21 +3909,9 @@ namespace ProcessManager.Api.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Equipment");
-
                     b.Navigation("Job");
 
                     b.Navigation("ProcessStep");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.StepTemplate", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.EquipmentCategory", "RequiredEquipmentCategory")
-                        .WithMany()
-                        .HasForeignKey("RequiredEquipmentCategoryId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("RequiredEquipmentCategory");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepTemplateContent", b =>
@@ -4427,20 +4069,6 @@ namespace ProcessManager.Api.Migrations
             modelBuilder.Entity("ProcessManager.Domain.Entities.ControlPlan", b =>
                 {
                     b.Navigation("Entries");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.Equipment", b =>
-                {
-                    b.Navigation("DowntimeRecords");
-
-                    b.Navigation("MaintenanceTasks");
-
-                    b.Navigation("MaintenanceTriggers");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.EquipmentCategory", b =>
-                {
-                    b.Navigation("Equipment");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.FiveWhysAnalysis", b =>

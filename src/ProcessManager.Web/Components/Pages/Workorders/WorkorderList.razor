@@ -90,6 +90,19 @@ else if (_data is not null)
                     @if (!_editId.HasValue)
                     {
                         <div class="mb-3">
+                            <label class="form-label">Workflow</label>
+                            <select class="form-select" value="@_formWorkflowId" @onchange="OnWorkflowChanged">
+                                <option value="">Select a workflow...</option>
+                                @if (_workflows is not null)
+                                {
+                                    @foreach (var wf in _workflows.Items)
+                                    {
+                                        <option value="@wf.Id">@wf.Name (@wf.Code)</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3">
                             <label class="form-label">Code</label>
                             <input class="form-control" @bind="_formCode" />
                         </div>
@@ -102,22 +115,6 @@ else if (_data is not null)
                         <label class="form-label">Description</label>
                         <textarea class="form-control" rows="2" @bind="_formDesc"></textarea>
                     </div>
-                    @if (!_editId.HasValue)
-                    {
-                        <div class="mb-3">
-                            <label class="form-label">Workflow</label>
-                            <select class="form-select" @bind="_formWorkflowId">
-                                <option value="">Select a workflow...</option>
-                                @if (_workflows is not null)
-                                {
-                                    @foreach (var wf in _workflows.Items)
-                                    {
-                                        <option value="@wf.Id">@wf.Name (@wf.Code)</option>
-                                    }
-                                }
-                            </select>
-                        </div>
-                    }
                     <div class="mb-3">
                         <label class="form-label">Priority</label>
                         <input type="number" class="form-control" @bind="_formPriority" />
@@ -186,10 +183,23 @@ else if (_data is not null)
 
     private async Task ShowCreate()
     {
-        _editId = null; _formCode = ""; _formName = ""; _formDesc = ""; _formWorkflowId = ""; _formPriority = 0;
+        _editId = null;
+        _formCode = $"WO-{Guid.NewGuid().ToString("N")[..8].ToUpper()}";
+        _formName = ""; _formDesc = ""; _formWorkflowId = ""; _formPriority = 0;
         _showForm = true;
         _workflows = await Api.GetWorkflowsAsync(pageSize: 100);
         StateHasChanged();
+    }
+
+    private void OnWorkflowChanged(ChangeEventArgs e)
+    {
+        _formWorkflowId = e.Value?.ToString() ?? "";
+        if (_workflows is not null && Guid.TryParse(_formWorkflowId, out var wfId))
+        {
+            var wf = _workflows.Items.FirstOrDefault(w => w.Id == wfId);
+            if (wf is not null)
+                _formName = wf.Name;
+        }
     }
 
     private void ShowEdit(WorkorderResponseDto w)

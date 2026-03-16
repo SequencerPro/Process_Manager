@@ -38,8 +38,12 @@ public class Job : BaseEntity
     /// <summary>Populated only for approval routing jobs created by the Submit for Approval flow.</summary>
     public Guid? DocumentApprovalRequestId { get; set; }
 
+    /// <summary>The Workorder this job belongs to (null for standalone jobs).</summary>
+    public Guid? WorkorderId { get; set; }
+
     // Navigation properties
     public Process Process { get; set; } = null!;
+    public Workorder? Workorder { get; set; }
     public ICollection<StepExecution> StepExecutions { get; set; } = new List<StepExecution>();
     public ICollection<Item> Items { get; set; } = new List<Item>();
     public ICollection<Batch> Batches { get; set; } = new List<Batch>();

@@ -7,6 +7,7 @@
 | 0.1     | 2026-02-16 | Initial draft                  |
 | 0.2     | 2026-02-22 | Added RoutingType clarification; minor wording updates to reflect implemented system |
 | 0.3     | 2026-02-27 | Extended Port model with PortType (Material, Parameter, Characteristic, Condition); updated §1.4, §1.5, §6 |
+| 0.4     | 2026-03-15 | Added §3.5 Workorder; updated §7 vocabulary mapping |
 
 ---
 
@@ -175,7 +176,20 @@ The overarching work order or request that drives Items through Workflows. A Job
 
 A Job can always answer: "What has happened so far?" and "What needs to happen next?"
 
-### 3.5 Step Execution
+### 3.5 Workorder
+
+A Workorder groups multiple **Jobs** under a single tracking number, driven by a **Workflow**. Where a Job executes a single Process, a Workorder orchestrates the full end-to-end flow through an entire Workflow graph.
+
+When a Workorder is created against a Workflow, the system creates Jobs for all **entry-point** Processes. As those Jobs complete, successor Jobs are automatically created following the Workflow's **Routing Decisions** (WorkflowLinks). The dependency rules are:
+
+- **Entry-point Jobs** can be started immediately — and in parallel when a Workflow has multiple entry points.
+- **Successor Jobs** are auto-created only when all predecessor Jobs (incoming links to a WorkflowProcess node) are completed.
+- At **merge points** where multiple paths converge, all incoming Jobs must complete before the next Job can begin.
+- **Terminal-node completion**: the Workorder auto-completes when all terminal paths in the Workflow are satisfied (i.e., all Jobs feeding into terminal nodes are done).
+
+A Workorder tracks its own lifecycle: Created → InProgress → Completed/Cancelled.
+
+### 3.6 Step Execution
 
 A record of a Step being performed at a specific point in time. A Step Execution captures:
 
@@ -240,6 +254,7 @@ The system uses generic terms internally. These are mapped to domain-specific la
 | Batch           | Lot              | Batch                 | Filing Group     |
 | Batch ID        | Lot Number       | Batch Number          | Group Reference  |
 | Job             | Work Order       | Work Order            | Case             |
+| Workorder       | Production Order | Production Order      | Case Bundle      |
 | Workflow        | Process Flow     | Value Stream          | Procedure        |
 | Process         | Process          | Process               | Process          |
 | Step            | Operation        | Operation             | Task             |

@@ -27,7 +27,8 @@
       "Bash(xargs ls:*)",
       "Bash(find /c/Users/James/source/repos/Process_Manager -path */obj/* -name *LinkRenderer* -o -path */obj/* -name *LinkWidget*)",
       "Bash(find /c/Users/James/source/repos/Process_Manager -name *.md -type f)",
-      "Bash(find /c/Users/James/source/repos/Process_Manager -name *.csproj)"
+      "Bash(find /c/Users/James/source/repos/Process_Manager -name *.csproj)",
+      "Bash(grep -E \"\\\\.\\(cs\\)$\")"
     ]
   }
 }

@@ -28,9 +28,12 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.AccessDeniedPath = "/account/access-denied";
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
         options.SlidingExpiration = true;
-        // Render terminates TLS at the load balancer; the container sees plain HTTP.
-        // Always mark cookies Secure so browsers send them over the HTTPS connection.
-        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+        // In production Render terminates TLS at the load balancer, so Always is correct.
+        // In development we run over plain HTTP, so SameAsRequest avoids the browser
+        // silently dropping the cookie.
+        options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+            ? CookieSecurePolicy.SameAsRequest
+            : CookieSecurePolicy.Always;
         options.Cookie.SameSite = SameSiteMode.Strict;
     });
 

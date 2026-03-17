@@ -127,8 +127,9 @@ public class WorkordersController : ControllerBase
             var process = ep.Process!;
             var jobCode = $"{dto.Code}-{process.Code}";
 
-            // Ensure unique job code by appending index if needed
-            if (await _db.Jobs.AnyAsync(j => j.Code == jobCode))
+            // Ensure unique job code by checking both DB and change tracker (for multi-entry-point workflows)
+            if (await _db.Jobs.AnyAsync(j => j.Code == jobCode)
+                || _db.Jobs.Local.Any(j => j.Code == jobCode))
                 jobCode = $"{dto.Code}-{jobIndex:D2}";
 
             var job = new Job
@@ -167,7 +168,14 @@ public class WorkordersController : ControllerBase
             jobIndex++;
         }
 
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+        {
+            return Conflict($"Failed to create workorder: {ex.InnerException?.Message ?? ex.Message}");
+        }
 
         // Reload with full nav properties
         return CreatedAtAction(nameof(GetById), new { id = workorder.Id },
@@ -408,7 +416,8 @@ public class WorkordersController : ControllerBase
     private async Task CreateJobForWorkflowProcess(Workorder workorder, WorkflowProcess wp, Process process)
     {
         var jobCode = $"{workorder.Code}-{process.Code}";
-        if (await _db.Jobs.AnyAsync(j => j.Code == jobCode))
+        if (await _db.Jobs.AnyAsync(j => j.Code == jobCode)
+            || _db.Jobs.Local.Any(j => j.Code == jobCode))
             jobCode = $"{workorder.Code}-{process.Code}-{Guid.NewGuid().ToString()[..4]}";
 
         var job = new Job

@@ -477,14 +477,22 @@ public class ApiClient
     public async Task<WorkorderResponseDto?> UpdateWorkorderAsync(Guid id, UpdateWorkorderDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/workorders/{id}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to update workorder ({resp.StatusCode})");
+        }
         return await resp.Content.ReadFromJsonAsync<WorkorderResponseDto>(_json);
     }
 
     public async Task DeleteWorkorderAsync(Guid id)
     {
         var resp = await _http.DeleteAsync($"api/workorders/{id}");
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to delete workorder ({resp.StatusCode})");
+        }
     }
 
     public async Task<WorkorderResponseDto?> WorkorderTransitionAsync(Guid id, string action)

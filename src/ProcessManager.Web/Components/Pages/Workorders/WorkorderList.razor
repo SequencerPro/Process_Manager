@@ -122,7 +122,10 @@ else if (_data is not null)
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
-                    <button class="btn btn-primary" @onclick="Save">Save</button>
+                    <button class="btn btn-primary" @onclick="Save" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save
+                    </button>
                 </div>
             </div>
         </div>
@@ -141,6 +144,7 @@ else if (_data is not null)
 
     // Form
     private bool _showForm;
+    private bool _saving;
     private Guid? _editId;
     private string _formCode = "";
     private string _formName = "";
@@ -212,6 +216,7 @@ else if (_data is not null)
 
     private async Task Save()
     {
+        _saving = true;
         try
         {
             if (_editId.HasValue)
@@ -225,6 +230,7 @@ else if (_data is not null)
             await LoadData();
         }
         catch (Exception ex) { Toast.ShowError(ex.Message); }
+        finally { _saving = false; }
     }
 
     private async Task Delete(Guid id)

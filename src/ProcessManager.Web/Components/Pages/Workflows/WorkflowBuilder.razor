@@ -179,6 +179,116 @@ else
                     <button class="btn btn-outline-danger btn-sm w-100" @onclick="DeleteSelectedNode">
                         <i class="bi bi-trash me-1"></i>Remove from Workflow
                     </button>
+
+                    @* ── Phase 4: Expanded Process Details ── *@
+                    @if (!_selectedNode.IsTerminalNode && _selectedProcessDetail is not null)
+                    {
+                        <hr class="my-2" />
+                        <h6 class="mb-1" style="font-size:0.8rem;">
+                            <i class="bi bi-diagram-3 me-1"></i>Process Details
+                        </h6>
+
+                        @if (_selectedProcessDetail.Steps?.Any() == true)
+                        {
+                            <div class="d-flex flex-column gap-1">
+                                @foreach (var step in _selectedProcessDetail.Steps.OrderBy(s => s.Sequence))
+                                {
+                                    <div style="border:1px solid #dee2e6; border-radius:4px; overflow:hidden;">
+                                        @* Step header — clickable to expand *@
+                                        <div style="padding:0.3rem 0.5rem; background:#f8f9fa; cursor:pointer;
+                                                     font-size:0.75rem; display:flex; align-items:center; gap:0.3rem;"
+                                             @onclick="() => ToggleStepExpand(step.Id)">
+                                            <i class="bi @(IsStepExpanded(step.Id) ? "bi-chevron-down" : "bi-chevron-right")"
+                                               style="font-size:0.6rem;"></i>
+                                            <span class="badge bg-secondary" style="font-size:0.6rem;">@step.Sequence</span>
+                                            <span class="text-truncate fw-semibold">@(step.NameOverride ?? step.StepTemplateName)</span>
+                                        </div>
+
+                                        @* Expanded content: ports *@
+                                        @if (IsStepExpanded(step.Id))
+                                        {
+                                            var ports = GetStepPorts(step);
+                                            var overrides = step.PortOverrides ?? new();
+                                            <div style="padding:0.3rem 0.5rem; font-size:0.68rem; border-top:1px solid #dee2e6;">
+                                                @if (ports.Any())
+                                                {
+                                                    <table class="w-100" style="font-size:0.68rem;">
+                                                        <thead>
+                                                            <tr style="color:#6c757d; border-bottom:1px solid #e9ecef;">
+                                                                <th style="padding:1px 4px; font-weight:600;">Dir</th>
+                                                                <th style="padding:1px 4px; font-weight:600;">Name</th>
+                                                                <th style="padding:1px 4px; font-weight:600;">Type</th>
+                                                                <th style="padding:1px 4px; font-weight:600;">Detail</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var port in ports.OrderBy(p => p.Direction).ThenBy(p => p.SortOrder))
+                                                            {
+                                                                var ov = overrides.FirstOrDefault(o => o.PortId == port.Id);
+                                                                var dir = ov?.DirectionOverride ?? port.Direction;
+                                                                var portName = ov?.NameOverride ?? port.Name;
+                                                                <tr style="border-bottom:1px solid #f0f0f0;">
+                                                                    <td style="padding:1px 4px;">
+                                                                        <span class="badge @(dir == PortDirection.Input ? "bg-warning text-dark" : "bg-info text-dark")"
+                                                                              style="font-size:0.55rem;">
+                                                                            @(dir == PortDirection.Input ? "IN" : "OUT")
+                                                                        </span>
+                                                                    </td>
+                                                                    <td style="padding:1px 4px;">@portName</td>
+                                                                    <td style="padding:1px 4px; color:#6c757d;">@port.PortType</td>
+                                                                    <td style="padding:1px 4px; font-size:0.6rem; color:#6c757d;">
+                                                                        @if (port.PortType == PortType.Material)
+                                                                        {
+                                                                            var kindName = ov?.KindOverrideName ?? port.KindName;
+                                                                            var gradeName = ov?.GradeOverrideName ?? port.GradeName;
+                                                                            @if (!string.IsNullOrEmpty(kindName))
+                                                                            {
+                                                                                <span>@kindName</span>
+                                                                                @if (!string.IsNullOrEmpty(gradeName))
+                                                                                {
+                                                                                    <span> / @gradeName</span>
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                        else if (port.PortType == PortType.Parameter || port.PortType == PortType.Characteristic)
+                                                                        {
+                                                                            @if (port.DataType.HasValue)
+                                                                            {
+                                                                                <span>@port.DataType</span>
+                                                                                @if (!string.IsNullOrEmpty(port.Units))
+                                                                                {
+                                                                                    <span> (@port.Units)</span>
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    </td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted fst-italic">No ports defined</span>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-muted small fst-italic">No steps defined</div>
+                        }
+                    }
+                    else if (!_selectedNode.IsTerminalNode && _loadingProcessDetails)
+                    {
+                        <hr class="my-2" />
+                        <div class="text-center text-muted small">
+                            <span class="spinner-border spinner-border-sm"></span> Loading details…
+                        </div>
+                    }
                 </div>
             }
 
@@ -385,6 +495,13 @@ else
     // Map WorkflowProcessId -> diagram node
     private Dictionary<Guid, WorkflowProcessNodeModel> _nodeMap = new();
 
+    // Process detail caches (loaded async after diagram renders)
+    private Dictionary<Guid, ProcessResponseDto> _processDetailCache = new();
+    private Dictionary<Guid, StepTemplateResponseDto> _stepTemplateCache = new();
+    private bool _loadingProcessDetails;
+    private ProcessResponseDto? _selectedProcessDetail;
+    private HashSet<Guid> _expandedStepIds = new();
+
     protected override async Task OnInitializedAsync()
     {
         var options = new BlazorDiagramOptions();
@@ -416,7 +533,11 @@ else
         {
             _wf = await Api.GetWorkflowAsync(Id);
             if (_wf is not null)
+            {
                 PopulateDiagram();
+                // Fire-and-forget: load process details for node badges
+                _ = LoadProcessDetailsAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -498,9 +619,11 @@ else
                             link.PathGenerator = new SmoothPathGenerator();
                         }
 
-                        // Add label showing routing type or name
-                        var label = lk.Name ?? lk.RoutingType.ToString();
-                        link.Labels.Add(new LinkLabelModel(link, label));
+                        // Add label showing routing type or name, plus grade conditions
+                        var labelParts = new List<string> { lk.Name ?? lk.RoutingType.ToString() };
+                        if (lk.RoutingType == RoutingType.GradeBased && lk.Conditions?.Any() == true)
+                            labelParts.Add($"[{string.Join(", ", lk.Conditions.Select(c => c.GradeCode))}]");
+                        link.Labels.Add(new LinkLabelModel(link, string.Join(" ", labelParts)));
 
                         _diagram.Links.Add(link);
                         _linkDataMap[link] = lk;
@@ -510,6 +633,122 @@ else
             }
         }
     }
+
+    // ───────────── Process Detail Loading ─────────────
+
+    private async Task LoadProcessDetailsAsync()
+    {
+        if (_loadingProcessDetails || _wf is null) return;
+        _loadingProcessDetails = true;
+
+        try
+        {
+            // 1. Load process details for all non-terminal nodes
+            var processIds = _nodeMap.Values
+                .Where(n => n.ProcessId.HasValue)
+                .Select(n => n.ProcessId!.Value)
+                .Distinct()
+                .ToList();
+
+            var processTasks = processIds.Select(pid => Api.GetProcessAsync(pid));
+            var processes = await Task.WhenAll(processTasks);
+            foreach (var p in processes)
+            {
+                if (p is not null)
+                    _processDetailCache[p.Id] = p;
+            }
+
+            // 2. Load all unique step templates referenced by those processes
+            var templateIds = _processDetailCache.Values
+                .SelectMany(p => p.Steps)
+                .Select(s => s.StepTemplateId)
+                .Distinct()
+                .Where(id => !_stepTemplateCache.ContainsKey(id))
+                .ToList();
+
+            var templateTasks = templateIds.Select(tid => Api.GetStepTemplateAsync(tid));
+            var templates = await Task.WhenAll(templateTasks);
+            foreach (var t in templates)
+            {
+                if (t is not null)
+                    _stepTemplateCache[t.Id] = t;
+            }
+
+            // 3. Populate node summary data from cached details
+            foreach (var node in _nodeMap.Values.Where(n => n.ProcessId.HasValue))
+            {
+                if (!_processDetailCache.TryGetValue(node.ProcessId!.Value, out var detail))
+                    continue;
+
+                node.StepCount = detail.Steps.Count;
+
+                int inPorts = 0, outPorts = 0;
+                var materialFlows = new List<MaterialFlowTag>();
+
+                foreach (var step in detail.Steps)
+                {
+                    if (!_stepTemplateCache.TryGetValue(step.StepTemplateId, out var tmpl))
+                        continue;
+
+                    foreach (var port in tmpl.Ports)
+                    {
+                        // Apply direction override if present
+                        var dir = port.Direction;
+                        var override_ = step.PortOverrides?.FirstOrDefault(o => o.PortId == port.Id);
+                        if (override_?.DirectionOverride is not null)
+                            dir = override_.DirectionOverride.Value;
+
+                        if (dir == PortDirection.Input) inPorts++;
+                        else outPorts++;
+
+                        // Collect material flow tags
+                        if (port.PortType == PortType.Material && port.KindName is not null)
+                        {
+                            var kindName = override_?.KindOverrideName ?? port.KindName;
+                            var gradeName = override_?.GradeOverrideName ?? port.GradeName ?? "";
+                            var dirStr = dir == PortDirection.Input ? "IN" : "OUT";
+                            if (!materialFlows.Any(m => m.KindName == kindName && m.GradeName == gradeName && m.Direction == dirStr))
+                                materialFlows.Add(new MaterialFlowTag(kindName, gradeName, dirStr));
+                        }
+                    }
+                }
+
+                node.InputPortCount = inPorts;
+                node.OutputPortCount = outPorts;
+                node.MaterialFlows = materialFlows;
+                node.DetailLoaded = true;
+            }
+
+            await InvokeAsync(() =>
+            {
+                _diagram.Refresh();
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[LoadProcessDetails] Error: {ex.Message}");
+        }
+        finally
+        {
+            _loadingProcessDetails = false;
+        }
+    }
+
+    private List<PortResponseDto> GetStepPorts(ProcessStepResponseDto step)
+    {
+        if (!_stepTemplateCache.TryGetValue(step.StepTemplateId, out var tmpl))
+            return new();
+        return tmpl.Ports;
+    }
+
+    private void ToggleStepExpand(Guid id)
+    {
+        if (!_expandedStepIds.Remove(id))
+            _expandedStepIds.Add(id);
+    }
+
+    private bool IsStepExpanded(Guid id) => _expandedStepIds.Contains(id);
 
     // ───────────── Selection ─────────────
 
@@ -522,6 +761,9 @@ else
             _selectedNode = node;
             _selectedLink = null;
             _selectedLinkData = null;
+            _expandedStepIds.Clear();
+            // Set cached process detail for sidebar
+            _selectedProcessDetail = node.ProcessId.HasValue && _processDetailCache.TryGetValue(node.ProcessId.Value, out var pd) ? pd : null;
         }
         else if (model is LinkModel link && model.Selected)
         {
@@ -686,8 +928,10 @@ else
 
                 _linkDataMap[diagramLink] = result;
                 _linkShapeMap[diagramLink] = "straight";
-                var label = result.Name ?? result.RoutingType.ToString();
-                diagramLink.Labels.Add(new LinkLabelModel(diagramLink, label));
+                var newLabelParts = new List<string> { result.Name ?? result.RoutingType.ToString() };
+                if (result.RoutingType == RoutingType.GradeBased && result.Conditions?.Any() == true)
+                    newLabelParts.Add($"[{string.Join(", ", result.Conditions.Select(c => c.GradeCode))}]");
+                diagramLink.Labels.Add(new LinkLabelModel(diagramLink, string.Join(" ", newLabelParts)));
                 Toast.ShowSuccess("Link created.");
             }
         }

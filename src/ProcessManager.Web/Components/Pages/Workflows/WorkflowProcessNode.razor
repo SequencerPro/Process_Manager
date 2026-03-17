@@ -34,6 +34,43 @@
                 <div style="padding:0.4rem 0.75rem; font-size:0.75rem; color:#6c757d;">
                     <code>@Node.ProcessCode</code>
                 </div>
+                @if (Node.DetailLoaded)
+                {
+                    <div style="padding:0.15rem 0.75rem 0.3rem; font-size:0.65rem; display:flex; gap:0.35rem; flex-wrap:wrap;">
+                        <span style="background:#e9ecef; border-radius:3px; padding:1px 5px;" title="Steps">
+                            <i class="bi bi-layers" style="font-size:0.55rem;"></i> @Node.StepCount
+                        </span>
+                        <span style="background:#d1ecf1; border-radius:3px; padding:1px 5px;" title="Input ports">
+                            <i class="bi bi-box-arrow-in-right" style="font-size:0.55rem;"></i> @Node.InputPortCount
+                        </span>
+                        <span style="background:#d4edda; border-radius:3px; padding:1px 5px;" title="Output ports">
+                            <i class="bi bi-box-arrow-right" style="font-size:0.55rem;"></i> @Node.OutputPortCount
+                        </span>
+                    </div>
+                    @if (Node.MaterialFlows.Any())
+                    {
+                        <div style="padding:0 0.75rem 0.3rem; font-size:0.58rem; display:flex; gap:2px; flex-wrap:wrap; max-height:2.5rem; overflow:hidden;">
+                            @foreach (var mf in Node.MaterialFlows.Take(4))
+                            {
+                                <span style="background:@(mf.Direction == "IN" ? "#fff3cd" : "#cfe2ff");
+                                             border-radius:2px; padding:0 3px; white-space:nowrap;"
+                                      title="@mf.Direction: @mf.KindName / @mf.GradeName">
+                                    @mf.Direction @mf.KindName/@mf.GradeName
+                                </span>
+                            }
+                            @if (Node.MaterialFlows.Count > 4)
+                            {
+                                <span style="color:#6c757d;">+@(Node.MaterialFlows.Count - 4)</span>
+                            }
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div style="padding:0.15rem 0.75rem 0.3rem; font-size:0.6rem; color:#adb5bd;">
+                        <span class="spinner-border spinner-border-sm" style="width:0.6rem; height:0.6rem;"></span>
+                    </div>
+                }
             </div>
         }
 

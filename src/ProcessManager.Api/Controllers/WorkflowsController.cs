@@ -299,6 +299,13 @@ public class WorkflowsController : ControllerBase
         if (hasLinks)
             return Conflict("Cannot remove a process that has workflow links. Remove the links first.");
 
+        // Remove any workorder job mappings referencing this workflow process
+        var workorderJobs = await _db.WorkorderJobs
+            .Where(wj => wj.WorkflowProcessId == wpId)
+            .ToListAsync();
+        if (workorderJobs.Any())
+            _db.WorkorderJobs.RemoveRange(workorderJobs);
+
         _db.WorkflowProcesses.Remove(wp);
         await _db.SaveChangesAsync();
         return NoContent();

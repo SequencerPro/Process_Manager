@@ -168,7 +168,10 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
-app.UseHttpsRedirection();
+// In development we run over plain HTTP; HTTPS redirection would cause HttpClient
+// to follow the redirect and strip the Authorization header → 401.
+if (!app.Environment.IsDevelopment())
+    app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();

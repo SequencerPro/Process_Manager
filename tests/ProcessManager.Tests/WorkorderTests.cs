@@ -162,6 +162,55 @@ public class WorkorderTests : IntegrationTestBase
         };
     }
 
+    /// <summary>
+    /// Builds a workflow where two entry points both reference the SAME process, merging into a third:
+    /// ProcessA (entry) ─┐
+    ///                    ├──→ ProcessB → End
+    /// ProcessA (entry) ─┘
+    /// Tests job code uniqueness when the same process appears as multiple entry points.
+    /// </summary>
+    private async Task<SameProcessEntryPointScenario> BuildSameProcessEntryPointScenario()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+
+        var kind = await CreateKind($"K-{pfx}", "Part");
+        var grade = await CreateGrade(kind.Id, "STD", "Standard", isDefault: true);
+
+        var stepA = await CreateTransformStep($"SA-{pfx}", "Step A",
+            kind.Id, grade.Id, kind.Id, grade.Id);
+        var stepB = await CreateTransformStep($"SB-{pfx}", "Step B",
+            kind.Id, grade.Id, kind.Id, grade.Id);
+
+        var procA = await CreateProcess($"PA-{pfx}", "Process A");
+        await AddProcessStep(procA.Id, stepA.Id, 1);
+        await ReleaseProcess(procA.Id);
+
+        var procB = await CreateProcess($"PB-{pfx}", "Process B");
+        await AddProcessStep(procB.Id, stepB.Id, 1);
+        await ReleaseProcess(procB.Id);
+
+        // Workflow: both entry points use Process A, merging into Process B
+        var wf = await CreateWorkflow($"WF-{pfx}", "Same Process EP Flow");
+        var wpA1 = await AddWorkflowProcess(wf.Id, procA.Id, isEntryPoint: true, sortOrder: 1);
+        var wpA2 = await AddWorkflowProcess(wf.Id, procA.Id, isEntryPoint: true, sortOrder: 2);
+        var wpB = await AddWorkflowProcess(wf.Id, procB.Id, sortOrder: 3);
+        var wpEnd = await AddWorkflowProcess(wf.Id, null, isTerminalNode: true, sortOrder: 4);
+        await AddWorkflowLink(wf.Id, wpA1.Id, wpB.Id);
+        await AddWorkflowLink(wf.Id, wpA2.Id, wpB.Id);
+        await AddWorkflowLink(wf.Id, wpB.Id, wpEnd.Id);
+
+        return new SameProcessEntryPointScenario
+        {
+            ProcessA = procA,
+            ProcessB = procB,
+            Workflow = wf,
+            WpA1 = wpA1,
+            WpA2 = wpA2,
+            WpB = wpB,
+            WpEnd = wpEnd
+        };
+    }
+
     private async Task<JobResponseDto> StartJob(Guid jobId)
     {
         var resp = await Client.PostAsync($"/api/jobs/{jobId}/start", null);
@@ -426,6 +475,84 @@ public class WorkorderTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Create_Workorder_MultipleEntryPoints_SameProcess_CreatesUniqueJobs()
+    {
+        var scenario = await BuildSameProcessEntryPointScenario();
+
+        var wo = await CreateWorkorder(scenario.Workflow.Id, name: "Same Process EP Test");
+        var detail = await GetWorkorder(wo.Id);
+
+        Assert.Equal("Created", detail.Status);
+        Assert.NotNull(detail.Jobs);
+        Assert.Equal(2, detail.Jobs.Count); // Two entry points → two jobs
+
+        // Job codes must be distinct despite using the same process
+        var codes = detail.Jobs.Select(j => j.JobCode).ToList();
+        Assert.Equal(codes.Distinct().Count(), codes.Count);
+    }
+
+    [Fact]
+    public async Task Create_Workorder_MultipleEntryPoints_DifferentProcesses_CreatesUniqueJobCodes()
+    {
+        var scenario = await BuildMergeWorkflowScenario();
+
+        var wo = await CreateWorkorder(scenario.Workflow.Id, name: "Diff Process EP Test");
+        var detail = await GetWorkorder(wo.Id);
+
+        Assert.Equal(2, detail.Jobs!.Count);
+
+        var codes = detail.Jobs.Select(j => j.JobCode).ToList();
+        Assert.Equal(codes.Distinct().Count(), codes.Count);
+    }
+
+    [Fact]
+    public async Task Start_Workorder_MultipleEntryPoints_AllJobsStart()
+    {
+        var scenario = await BuildMergeWorkflowScenario();
+
+        var wo = await CreateWorkorder(scenario.Workflow.Id, name: "Multi EP Start");
+        await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
+
+        var detail = await GetWorkorder(wo.Id);
+        Assert.Equal("InProgress", detail.Status);
+        Assert.Equal(2, detail.Jobs!.Count);
+        Assert.All(detail.Jobs, j => Assert.Equal("InProgress", j.JobStatus));
+    }
+
+    [Fact]
+    public async Task MergeWorkflow_FullLifecycle_CompletesWorkorder()
+    {
+        var scenario = await BuildMergeWorkflowScenario();
+
+        // Create and start
+        var wo = await CreateWorkorder(scenario.Workflow.Id, name: "Full Lifecycle");
+        await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
+        var detail = await GetWorkorder(wo.Id);
+
+        // Complete both entry-point jobs
+        var jobA = detail.Jobs!.First(j => j.ProcessName == "Process A");
+        var jobB = detail.Jobs!.First(j => j.ProcessName == "Process B");
+        await CompleteJobStepsAndJob(jobA.JobId);
+        await CompleteJobStepsAndJob(jobB.JobId);
+
+        // Merge job (Process C) should be auto-created
+        detail = await GetWorkorder(wo.Id);
+        Assert.Equal(3, detail.Jobs!.Count);
+        var jobC = detail.Jobs!.First(j => j.ProcessName == "Process C");
+        Assert.Equal("Created", jobC.JobStatus);
+        Assert.True(jobC.CanStart);
+
+        // Start and complete Process C
+        await StartJob(jobC.JobId);
+        await CompleteJobStepsAndJob(jobC.JobId);
+
+        // Workorder should auto-complete
+        detail = await GetWorkorder(wo.Id);
+        Assert.Equal("Completed", detail.Status);
+        Assert.NotNull(detail.CompletedAt);
+    }
+
+    [Fact]
     public async Task GetAll_WithStatusFilter_ReturnsFiltered()
     {
         var scenario = await BuildLinearWorkflowScenario();
@@ -469,5 +596,16 @@ public class MergeWorkflowScenario
     public WorkflowProcessResponseDto WpA { get; set; } = null!;
     public WorkflowProcessResponseDto WpB { get; set; } = null!;
     public WorkflowProcessResponseDto WpC { get; set; } = null!;
+    public WorkflowProcessResponseDto WpEnd { get; set; } = null!;
+}
+
+public class SameProcessEntryPointScenario
+{
+    public ProcessResponseDto ProcessA { get; set; } = null!;
+    public ProcessResponseDto ProcessB { get; set; } = null!;
+    public WorkflowResponseDto Workflow { get; set; } = null!;
+    public WorkflowProcessResponseDto WpA1 { get; set; } = null!;
+    public WorkflowProcessResponseDto WpA2 { get; set; } = null!;
+    public WorkflowProcessResponseDto WpB { get; set; } = null!;
     public WorkflowProcessResponseDto WpEnd { get; set; } = null!;
 }

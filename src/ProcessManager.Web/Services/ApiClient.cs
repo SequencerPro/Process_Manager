@@ -468,19 +468,8 @@ public class ApiClient
         if (!resp.IsSuccessStatusCode)
         {
             var body = await resp.Content.ReadAsStringAsync();
-            // Try to extract detail from ProblemDetails JSON
-            try
-            {
-                using var doc = System.Text.Json.JsonDocument.Parse(body);
-                if (doc.RootElement.TryGetProperty("detail", out var detail))
-                    throw new HttpRequestException(detail.GetString());
-                if (doc.RootElement.TryGetProperty("title", out var title))
-                    throw new HttpRequestException(title.GetString());
-            }
-            catch (System.Text.Json.JsonException) { }
-            throw new HttpRequestException(string.IsNullOrWhiteSpace(body)
-                ? $"Failed to create workorder ({resp.StatusCode})"
-                : body);
+            var message = ExtractErrorMessage(body) ?? $"Failed to create workorder ({resp.StatusCode})";
+            throw new HttpRequestException(message);
         }
         return await resp.Content.ReadFromJsonAsync<WorkorderResponseDto>(_json);
     }
@@ -488,27 +477,43 @@ public class ApiClient
     public async Task<WorkorderResponseDto?> UpdateWorkorderAsync(Guid id, UpdateWorkorderDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/workorders/{id}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to update workorder ({resp.StatusCode})");
+        }
         return await resp.Content.ReadFromJsonAsync<WorkorderResponseDto>(_json);
     }
 
     public async Task DeleteWorkorderAsync(Guid id)
     {
         var resp = await _http.DeleteAsync($"api/workorders/{id}");
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to delete workorder ({resp.StatusCode})");
+        }
     }
 
     public async Task<WorkorderResponseDto?> WorkorderTransitionAsync(Guid id, string action)
     {
         var resp = await _http.PostAsync($"api/workorders/{id}/{action}", null);
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Workorder {action} failed ({resp.StatusCode})");
+        }
         return await resp.Content.ReadFromJsonAsync<WorkorderResponseDto>(_json);
     }
 
     public async Task<WorkorderResponseDto?> AdvanceWorkorderAsync(Guid id, AdvanceWorkorderDto dto)
     {
         var resp = await _http.PostAsJsonAsync($"api/workorders/{id}/advance", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Workorder advance failed ({resp.StatusCode})");
+        }
         return await resp.Content.ReadFromJsonAsync<WorkorderResponseDto>(_json);
     }
 
@@ -1909,5 +1914,39 @@ public class ApiClient
         var r = await _http.GetAsync("api/production/bottlenecks");
         r.EnsureSuccessStatusCode();
         return await r.Content.ReadFromJsonAsync<List<BottleneckStepDto>>(_json);
+    }
+
+    // ═══════════════════ Helpers ═══════════════════
+
+    /// <summary>
+    /// Extracts a human-readable error message from an API error response body.
+    /// Handles ProblemDetails JSON, plain JSON strings, and raw text.
+    /// </summary>
+    private static string? ExtractErrorMessage(string? body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var root = doc.RootElement;
+
+            // ProblemDetails format: { "detail": "...", "title": "..." }
+            if (root.ValueKind == JsonValueKind.Object)
+            {
+                if (root.TryGetProperty("detail", out var detail) && detail.ValueKind == JsonValueKind.String)
+                    return detail.GetString();
+                if (root.TryGetProperty("title", out var title) && title.ValueKind == JsonValueKind.String)
+                    return title.GetString();
+            }
+
+            // BadRequest(string) returns a plain JSON string: "some message"
+            if (root.ValueKind == JsonValueKind.String)
+                return root.GetString();
+        }
+        catch (JsonException) { }
+
+        // Fallback: raw text
+        return body.Trim('"');
     }
 }

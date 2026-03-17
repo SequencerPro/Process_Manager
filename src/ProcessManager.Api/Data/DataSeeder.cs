@@ -515,35 +515,1207 @@ public static class DataSeeder
             "Document organisational context, leadership commitments, planning approach, support processes, operations overview, performance evaluation approach, and improvement mechanism; link to all applicable procedure codes; review at minimum annually.",
             "Approved quality manual with revision history, distribution acknowledgement log, management approval record.");
 
-        AddQmsSteps(qms005, stDocSect,
-            "Describes identification, assessment, and treatment of risks and opportunities to protect QMS intended outcomes and prevent undesired effects per clause 6.1.",
-            "Process owners identify and own the risks for their processes; the Quality Manager maintains the register and facilitates assessments; management reviews significant risks and the register at each management review.",
-            "Identify risks and opportunities for each QMS process; assess likelihood and consequence; determine whether to eliminate, reduce, accept, or exploit; assign owners and implement actions; monitor effectiveness; update the register whenever context changes and at each management review.",
-            "Risk and opportunity register, risk assessment records, treatment action tracker, management review minutes.");
+        // ── QMS-005 — full rich content blocks (ISO 9001:2015 clause 6.1) ────
+        {
+            static ProcessStepContent Blk(ProcessStep ps, int order, string body) => new()
+            {
+                Id = Guid.NewGuid(), CreatedAt = ps.CreatedAt, UpdatedAt = ps.CreatedAt,
+                ProcessStepId = ps.Id,
+                ContentType = StepContentType.Text,
+                ContentCategory = ContentCategory.Reference,
+                SortOrder = order, Body = body
+            };
 
-        AddQmsSteps(qms006, stDocSect,
-            "Governs creation, updating, distribution, access, retrieval, storage, preservation, and disposal of all documented information required or maintained by the QMS per clause 7.5.",
-            "The Document Controller or Quality Manager approves all document changes and maintains the master register; department managers control local access; IT maintains the document management system and backup schedule.",
-            "Assign a unique code and title using the approved naming convention; author or update using the approved template; submit for review and approval; distribute to all affected functions; protect from inadvertent use of obsolete versions; retain for the defined period; dispose of securely at retention end.",
-            "Document register, approval and review records, distribution records, obsolescence and disposal log, access control matrix.");
+            var ps1 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms005.CreatedAt, UpdatedAt = qms005.CreatedAt,
+                ProcessId = qms005.Id, StepTemplateId = stDocSect.Id, Sequence = 1,
+                NameOverride = "Purpose and Scope",
+                DescriptionOverride = "Purpose, scope, and normative context for risk and opportunity management per ISO 9001:2015 clause 6.1."
+            };
+            ps1.Contents.Add(Blk(ps1, 0,
+                "1.1  Purpose\n\n" +
+                "This procedure establishes a systematic and repeatable approach for identifying, assessing, " +
+                "and treating risks and opportunities that are relevant to the organisation's Quality Management " +
+                "System. Its purpose is to:\n\n" +
+                "  a)  Give assurance that the QMS can achieve its intended outcomes\n" +
+                "  b)  Enhance desirable effects and prevent or reduce undesired effects\n" +
+                "  c)  Achieve improvement in the QMS and in product and service quality\n\n" +
+                "Risk-based thinking is fundamental to ISO 9001:2015 and replaces the formal preventive action " +
+                "requirement of earlier revisions. Rather than reacting to problems, this procedure drives " +
+                "proactive consideration of what could go wrong — and what beneficial outcomes could be " +
+                "captured — before they occur."));
+            ps1.Contents.Add(Blk(ps1, 1,
+                "1.2  Scope\n\n" +
+                "This procedure applies to all processes, functions, and activities falling within the QMS " +
+                "scope defined in QMS-001. It covers:\n\n" +
+                "  • Strategic-level risks and opportunities identified through the context analysis (clause 4.1)\n" +
+                "  • Process-level risks arising from the QMS process architecture described in QMS-004\n" +
+                "  • Operational risks identified by process owners in the course of day-to-day management\n\n" +
+                "It does not replace the discipline-specific risk tools used in product design (DFMEA), " +
+                "process design (PFMEA/Control Plans), or health and safety management, which are governed " +
+                "by their respective procedures. Those findings are, however, fed into the QMS risk register " +
+                "when they represent a significant risk to QMS intended outcomes."));
+            ps1.Contents.Add(Blk(ps1, 2,
+                "1.3  Normative reference\n\n" +
+                "ISO 9001:2015, clause 6.1 — Actions to address risks and opportunities\n\n" +
+                "Clause 6.1 requires that when planning for the QMS the organisation shall consider the issues " +
+                "referred to in clause 4.1 and the requirements referred to in clause 4.2 and determine the " +
+                "risks and opportunities that need to be addressed to:\n\n" +
+                "  a)  Give assurance that the QMS can achieve its intended results\n" +
+                "  b)  Enhance desirable effects\n" +
+                "  c)  Prevent, or reduce, undesired effects\n" +
+                "  d)  Achieve improvement\n\n" +
+                "Clause 6.1.2 requires that the organisation shall plan actions to address those risks and " +
+                "opportunities; integrate and implement the actions into its QMS processes; and evaluate the " +
+                "effectiveness of those actions. Actions shall be proportionate to the potential impact on " +
+                "the conformity of products and services."));
+            ps1.Contents.Add(Blk(ps1, 3,
+                "1.4  Relationship to planning and management review\n\n" +
+                "The risk and opportunity register is a live document. It feeds directly into:\n\n" +
+                "  • QMS objectives setting (QMS-003) — objectives shall address significant risks\n" +
+                "  • Management review inputs (QMS-019) — the register and a summary of treatment effectiveness " +
+                "are standing agenda items at every management review\n" +
+                "  • Internal audit planning (QMS-018) — high-residual-risk areas receive priority in the audit " +
+                "schedule\n" +
+                "  • Corrective action (QMS-020) — where risk materialises, a corrective action is raised\n\n" +
+                "The interested parties register (QMS-001 annex) identifies the requirements of relevant " +
+                "interested parties and is a primary source for opportunity identification."));
+            qms005.ProcessSteps.Add(ps1);
 
-        AddQmsSteps(qms007, stDocSect,
-            "Defines how competence requirements are determined, training needs identified and fulfilled, effectiveness evaluated, and awareness of quality commitments maintained per clauses 7.2 and 7.3.",
-            "HR and line managers identify competence requirements and nominate staff for training; the Training Coordinator schedules courses and maintains records; individuals complete assigned training within defined timescales.",
-            "Define competence requirements for each role; identify gaps against current staff competence; plan and deliver training through approved methods; evaluate effectiveness by assessment or observation; update competency records; brief staff on quality policy, objectives, and their contribution.",
-            "Competence framework, training needs analysis, training records, effectiveness evaluation results, awareness survey or sign-off records.");
+            var ps2 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms005.CreatedAt, UpdatedAt = qms005.CreatedAt,
+                ProcessId = qms005.Id, StepTemplateId = stDocSect.Id, Sequence = 2,
+                NameOverride = "Responsibilities",
+                DescriptionOverride = "Accountability matrix for the risk and opportunity management process."
+            };
+            ps2.Contents.Add(Blk(ps2, 0,
+                "Top Management\n\n" +
+                "  • Approves the risk and opportunity management framework and the scoring criteria documented in this procedure\n" +
+                "  • Reviews the risk register and determines whether treatment plans for significant risks are adequate at each management review\n" +
+                "  • Allocates resources required for the implementation of risk treatment actions\n" +
+                "  • Ensures that quality objectives are aligned with the findings of the risk assessment"));
+            ps2.Contents.Add(Blk(ps2, 1,
+                "Quality Manager\n\n" +
+                "  • Owns and maintains the risk and opportunity register in Process Manager\n" +
+                "  • Coordinates the scheduled risk review cycle and ad-hoc assessments triggered by context changes\n" +
+                "  • Facilitates risk identification workshops with process owners\n" +
+                "  • Reviews treatment action progress and escalates overdue or ineffective actions to top management\n" +
+                "  • Presents the register summary at each management review meeting\n" +
+                "  • Maintains this procedure and initiates revision when the framework or criteria change"));
+            ps2.Contents.Add(Blk(ps2, 2,
+                "Process Owners\n\n" +
+                "  • Identify risks and opportunities within their own processes and report them to the Quality Manager\n" +
+                "  • Own and implement treatment actions assigned to risks in their process area\n" +
+                "  • Report treatment progress to the Quality Manager at each scheduled review\n" +
+                "  • Notify the Quality Manager promptly when a change within their process area introduces a new risk " +
+                "or changes the likelihood or consequence of an existing one\n" +
+                "  • Participate in the periodic risk review as required"));
+            ps2.Contents.Add(Blk(ps2, 3,
+                "All Employees\n\n" +
+                "  • Report potential risks, near-misses, and improvement opportunities through the nonconformance " +
+                "and improvement reporting channels (QMS-016, QMS-020)\n" +
+                "  • Implement risk control measures defined for their work activities\n" +
+                "  • Raise concerns directly with their line manager or the Quality Manager if they believe a " +
+                "control measure is inadequate or has broken down"));
+            qms005.ProcessSteps.Add(ps2);
 
-        AddQmsSteps(qms008, stDocSect,
-            "Ensures all monitoring and measuring resources are identified, calibrated, verified for fitness for purpose, and protected from damage that would invalidate results per clause 7.1.5.",
-            "The Metrology Coordinator maintains the calibration register, schedules recall, and acts on out-of-tolerance findings; operators verify equipment status before use and report damage or suspected drift immediately.",
-            "Identify all monitoring and measurement equipment; assign a unique ID, calibration standard, and recall interval; apply calibration status label; calibrate against traceable standards; quarantine and investigate any out-of-tolerance equipment; recall and re-evaluate all measurements taken since last valid calibration.",
-            "Calibration register, calibration certificates, out-of-tolerance investigation reports, recall and re-evaluation records.");
+            var ps3 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms005.CreatedAt, UpdatedAt = qms005.CreatedAt,
+                ProcessId = qms005.Id, StepTemplateId = stDocSect.Id, Sequence = 3,
+                NameOverride = "Procedure",
+                DescriptionOverride = "Step-by-step procedure for identifying, assessing, treating, and monitoring risks and opportunities."
+            };
+            ps3.Contents.Add(Blk(ps3, 0,
+                "Step 1 — Context review and risk identification\n\n" +
+                "At the start of each risk review cycle (minimum annually, or following a significant change " +
+                "in organisational context), the Quality Manager reviews the outputs of the context analysis " +
+                "(clause 4.1 — internal and external issues) and the interested parties register (clause 4.2 — " +
+                "requirements of relevant interested parties). These are the primary inputs to risk identification.\n\n" +
+                "For each QMS process the process owner is asked to identify:\n" +
+                "  a)  Risks — events or conditions that, if they occurred, would adversely affect the ability " +
+                "of the process to deliver its intended output or to conform to requirements\n" +
+                "  b)  Opportunities — conditions that, if exploited, would bring about enhancement of quality " +
+                "performance, customer satisfaction, or QMS effectiveness\n\n" +
+                "Additional sources for identification include: customer complaints and satisfaction data " +
+                "(QMS-017), audit findings (QMS-018), corrective action history (QMS-020), PFMEA outputs, " +
+                "supplier performance data (QMS-012), and changes in legal or regulatory requirements."));
+            ps3.Contents.Add(Blk(ps3, 1,
+                "Step 2 — Risk assessment\n\n" +
+                "Each identified risk is assessed using a 5×5 likelihood-consequence matrix:\n\n" +
+                "  Likelihood score (L):\n" +
+                "    1 = Rare          (less than once in 5 years)\n" +
+                "    2 = Unlikely      (once every 2–5 years)\n" +
+                "    3 = Possible      (once per year)\n" +
+                "    4 = Likely        (several times per year)\n" +
+                "    5 = Almost certain (monthly or more frequently)\n\n" +
+                "  Consequence score (C):\n" +
+                "    1 = Negligible    (no customer impact; contained internally)\n" +
+                "    2 = Minor         (minor customer inconvenience; no nonconformance)\n" +
+                "    3 = Moderate      (customer nonconformance; rework required)\n" +
+                "    4 = Significant   (customer complaint, delivery failure, or cost impact > £10 k)\n" +
+                "    5 = Severe        (loss of customer, regulatory action, or certification risk)\n\n" +
+                "  Risk Priority Number (RPN) = L × C\n\n" +
+                "  Risk bands:\n" +
+                "    1–4   = Low     — Accept; monitor at annual review\n" +
+                "    5–9   = Medium  — Treat; assign owner and action within 90 days\n" +
+                "    10–14 = High    — Treat urgently; present to management within 30 days\n" +
+                "    15–25 = Critical — Escalate to top management immediately; treatment mandatory before next delivery cycle\n\n" +
+                "Opportunity attractiveness is scored on a single combined scale of 1 (minor benefit) " +
+                "to 5 (transformational benefit) and is recorded alongside risks in the register."));
+            ps3.Contents.Add(Blk(ps3, 2,
+                "Step 3 — Determine treatment\n\n" +
+                "For each risk, the process owner and Quality Manager agree a treatment option:\n\n" +
+                "  Avoid    — Eliminate the risk by changing or discontinuing the activity that gives rise to it\n" +
+                "  Reduce   — Take action to lower the likelihood score, the consequence score, or both\n" +
+                "  Transfer — Share the risk contractually or through insurance (e.g., supplier quality agreements, " +
+                "extended warranty terms)\n" +
+                "  Accept   — Acknowledge and monitor without further action, where the cost of treatment " +
+                "exceeds the benefit and the RPN is Low\n\n" +
+                "For opportunities, treatment options are:\n" +
+                "  Exploit  — Take positive action to ensure the opportunity is realised\n" +
+                "  Enhance  — Increase the likelihood or magnitude of the beneficial outcome\n" +
+                "  Share    — Partner with another party to jointly exploit the opportunity\n" +
+                "  Ignore   — Accept that pursuing the opportunity is not feasible at this time\n\n" +
+                "Each treatment for a risk rated Medium or above must have:\n" +
+                "  • A named action owner\n" +
+                "  • A target completion date\n" +
+                "  • A description of the action and the expected residual RPN after implementation\n\n" +
+                "Treatment actions are tracked in the risk register action column and, where they are " +
+                "tied to QMS objectives, in the objectives tracker (QMS-003)."));
+            ps3.Contents.Add(Blk(ps3, 3,
+                "Step 4 — Implement and verify treatment actions\n\n" +
+                "Action owners implement their assigned treatments within the agreed target dates. The " +
+                "Quality Manager tracks progress and follows up overdue actions at each monthly quality " +
+                "meeting. On completion of a treatment action:\n\n" +
+                "  a)  The action owner confirms completion to the Quality Manager\n" +
+                "  b)  The Quality Manager re-scores the risk using the same L×C matrix to derive the " +
+                "residual RPN and records this in the register\n" +
+                "  c)  If the residual RPN remains High or Critical, a further treatment action is required\n" +
+                "  d)  If the residual RPN is Low or Medium, the risk is moved to the Monitored status " +
+                "and reviewed at the next scheduled review cycle\n\n" +
+                "Where a risk treatment action fails to achieve the expected reduction in RPN, a corrective " +
+                "action is raised under QMS-020 to investigate and address the root cause of the ineffectiveness."));
+            ps3.Contents.Add(Blk(ps3, 4,
+                "Step 5 — Monitor and review\n\n" +
+                "The risk register is a standing agenda item at every management review (QMS-019). At each " +
+                "review the Quality Manager presents:\n\n" +
+                "  • New risks added since the last review and their initial RPN\n" +
+                "  • Status of all open treatment actions (on track / overdue / complete)\n" +
+                "  • Risks where residual RPN has changed since the last review\n" +
+                "  • Any risks that materialised during the period and the resulting corrective actions\n" +
+                "  • Summary of opportunities pursued and benefits realised\n\n" +
+                "In addition to the management review cycle, the register is updated immediately when:\n" +
+                "  • A significant change in organisational context, customer base, or regulation is identified\n" +
+                "  • A major nonconformance, customer complaint, or audit finding reveals a previously " +
+                "unrecognised risk\n" +
+                "  • A new process, product, service, or supplier is introduced to the QMS scope\n" +
+                "  • A treatment action is closed and a residual RPN is confirmed"));
+            qms005.ProcessSteps.Add(ps3);
 
-        AddQmsSteps(qms009, stDocSect,
-            "Defines channels, responsibilities, and response timescales for communicating with customers on products and services, orders, feedback, complaints, and contingency arrangements per clause 8.2.1.",
-            "Sales manages enquiries and orders; Customer Service handles complaints and satisfaction monitoring; Technical responds to specification and compatibility queries; all contacts are logged in the CRM.",
-            "Acknowledge all customer contacts within the agreed timescale; log enquiries, orders, complaints, and feedback in the CRM; classify complaints by severity; escalate critical issues to management; resolve and close with written customer confirmation; conduct satisfaction surveys at defined intervals.",
-            "CRM log, complaint register with resolution records, customer satisfaction survey results, escalation and response records.");
+            var ps4 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms005.CreatedAt, UpdatedAt = qms005.CreatedAt,
+                ProcessId = qms005.Id, StepTemplateId = stDocSect.Id, Sequence = 4,
+                NameOverride = "Records and Documented Information",
+                DescriptionOverride = "Documented information maintained or retained under this procedure."
+            };
+            ps4.Contents.Add(Blk(ps4, 0,
+                "The following documented information shall be maintained or retained:\n\n" +
+                "  • Risk and opportunity register — the master register maintained in Process Manager; " +
+                "lists all identified risks and opportunities, their current scores, treatment options, " +
+                "action owners, target dates, and residual RPNs\n" +
+                "  • Risk assessment records — the scoring rationale for each risk (L, C, and RPN) preserved " +
+                "as a snapshot at each scheduled review, to provide an auditable history of how the risk profile " +
+                "has evolved over time\n" +
+                "  • Treatment action records — evidence that assigned treatment actions were implemented " +
+                "(e.g., updated work instructions, training records, supplier agreements, process change records)\n" +
+                "  • Management review minutes — must include the risk register summary presentation and " +
+                "management decisions on treatment; see QMS-019\n" +
+                "  • Corrective action records — raised under QMS-020 where a risk materialised or a " +
+                "treatment action proved ineffective"));
+            ps4.Contents.Add(Blk(ps4, 1,
+                "Retention periods\n\n" +
+                "The risk register shall be retained for the duration of the organisation's ISO 9001 " +
+                "certification plus a minimum of three years. Individual risk assessment snapshots and " +
+                "treatment action records shall be retained for a minimum of five years, or longer where " +
+                "required by customer contract or regulatory obligation. Records must be available to " +
+                "internal and external auditors on request."));
+            qms005.ProcessSteps.Add(ps4);
+        }
+
+        // ── QMS-006 — full rich content blocks (ISO 9001:2015 clause 7.5) ────
+        {
+            static ProcessStepContent Blk(ProcessStep ps, int order, string body) => new()
+            {
+                Id = Guid.NewGuid(), CreatedAt = ps.CreatedAt, UpdatedAt = ps.CreatedAt,
+                ProcessStepId = ps.Id,
+                ContentType = StepContentType.Text,
+                ContentCategory = ContentCategory.Reference,
+                SortOrder = order, Body = body
+            };
+
+            var ps1 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms006.CreatedAt, UpdatedAt = qms006.CreatedAt,
+                ProcessId = qms006.Id, StepTemplateId = stDocSect.Id, Sequence = 1,
+                NameOverride = "Purpose and Scope",
+                DescriptionOverride = "Purpose, scope, and normative context for control of documented information per ISO 9001:2015 clause 7.5."
+            };
+            ps1.Contents.Add(Blk(ps1, 0,
+                "1.1  Purpose\n\n" +
+                "This procedure establishes the requirements and controls for all documented information " +
+                "that is created, used, and maintained as part of the organisation's Quality Management " +
+                "System. Its purpose is to:\n\n" +
+                "  a)  Ensure that documented information is available, in the right format and media, " +
+                "where and when it is needed\n" +
+                "  b)  Protect documented information from loss of confidentiality, improper use, and loss " +
+                "of integrity\n" +
+                "  c)  Prevent the use of obsolete documents in operational processes\n" +
+                "  d)  Provide an auditable record of what information was current at any given point in time\n\n" +
+                "ISO 9001:2015 uses the term 'documented information' to encompass what earlier revisions " +
+                "called 'documents' (maintained information) and 'records' (retained information). This " +
+                "procedure addresses both categories under a unified control framework."));
+            ps1.Contents.Add(Blk(ps1, 1,
+                "1.2  Scope\n\n" +
+                "This procedure applies to all documented information falling within the scope of the QMS " +
+                "defined in QMS-001, including:\n\n" +
+                "  • Documented information required by ISO 9001:2015 (e.g., quality policy, quality " +
+                "objectives, scope statement, required procedures, records of conformity)\n" +
+                "  • Documented information determined by the organisation to be necessary for the " +
+                "effectiveness of the QMS (e.g., work instructions, forms, specifications, drawings)\n" +
+                "  • Documented information of external origin that the organisation determines is " +
+                "necessary for the planning and operation of the QMS (e.g., customer specifications, " +
+                "normative standards, statutory and regulatory documents)\n\n" +
+                "It does not govern the management of general business records outside the QMS scope, " +
+                "which are managed under the organisation's general records management policy."));
+            ps1.Contents.Add(Blk(ps1, 2,
+                "1.3  Normative reference\n\n" +
+                "ISO 9001:2015, clause 7.5 — Documented information\n\n" +
+                "Clause 7.5.1 requires the QMS to include documented information required by the standard " +
+                "and documented information determined as necessary for the effectiveness of the QMS.\n\n" +
+                "Clause 7.5.2 requires that when creating and updating documented information the organisation " +
+                "ensures appropriate identification and description, format, and review and approval for " +
+                "suitability and adequacy.\n\n" +
+                "Clause 7.5.3 requires that documented information required by the QMS and by the standard " +
+                "shall be controlled to ensure it is available, suitable for use, protected, distributed, " +
+                "stored, preserved, controlled for changes, retained, and disposed of appropriately.\n\n" +
+                "Clause 7.5.3 further requires that documented information of external origin determined to " +
+                "be necessary for the planning and operation of the QMS shall be identified as appropriate " +
+                "and its distribution controlled."));
+            ps1.Contents.Add(Blk(ps1, 3,
+                "1.4  Document categories and the Document Library\n\n" +
+                "All QMS documents are held in the Process Manager Document Library. Documents are categorised " +
+                "as follows:\n\n" +
+                "  Tier 1 — Quality Manual (QMS-004): the top-level description of the QMS\n" +
+                "  Tier 2 — Procedures (QMS-001 to QMS-021): define what is done, by whom, and when\n" +
+                "  Tier 3 — Work Instructions (WI-xxx): define in detail how specific tasks are performed\n" +
+                "  Tier 4 — Forms, templates, and reference documents: the working tools of the QMS\n" +
+                "  External documents: customer specifications, standards, statutory requirements\n\n" +
+                "Records (retained documented information) are the completed instances of forms and " +
+                "the outputs of QMS processes. They provide evidence of conformity and are subject to " +
+                "the retention requirements in this procedure."));
+            qms006.ProcessSteps.Add(ps1);
+
+            var ps2 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms006.CreatedAt, UpdatedAt = qms006.CreatedAt,
+                ProcessId = qms006.Id, StepTemplateId = stDocSect.Id, Sequence = 2,
+                NameOverride = "Responsibilities",
+                DescriptionOverride = "Accountability matrix for control of documented information."
+            };
+            ps2.Contents.Add(Blk(ps2, 0,
+                "Top Management\n\n" +
+                "  • Approves the initial release and major revisions of Tier 1 and Tier 2 QMS documents\n" +
+                "  • Ensures adequate resources (people, systems, storage) are provided for document management\n" +
+                "  • Reviews and approves the annual document register audit summary presented at management review (QMS-019)"));
+            ps2.Contents.Add(Blk(ps2, 1,
+                "Quality Manager / Document Controller\n\n" +
+                "  • Maintains the master document register and ensures it is up to date at all times\n" +
+                "  • Assigns document codes, titles, and revision letters/numbers to all new QMS documents\n" +
+                "  • Reviews all draft documents for compliance with the document control requirements of this procedure before submission for approval\n" +
+                "  • Approves minor revisions (editorial corrections, reference updates) to Tier 2–4 documents\n" +
+                "  • Controls the status of documents (Draft, In Review, Released, Superseded, Obsolete)\n" +
+                "  • Ensures obsolete documents are withdrawn from use and clearly identified\n" +
+                "  • Manages the external document register and coordinates distribution of controlled external documents\n" +
+                "  • Maintains this procedure and initiates revision when the document framework or controls change"));
+            ps2.Contents.Add(Blk(ps2, 2,
+                "Process Owners and Department Managers\n\n" +
+                "  • Author or commission documents within their process area using the approved templates\n" +
+                "  • Review documents before submission to the Quality Manager for approval\n" +
+                "  • Ensure that their teams use only current Released versions of controlled documents\n" +
+                "  • Notify the Quality Manager of any obsolete printed copies or locally-saved electronic copies requiring disposal\n" +
+                "  • Identify and submit external documents relevant to their processes to the Document Controller for registration"));
+            ps2.Contents.Add(Blk(ps2, 3,
+                "IT / Systems Administrator\n\n" +
+                "  • Maintains the Process Manager system infrastructure supporting the Document Library\n" +
+                "  • Implements and tests backups of the document repository on the schedule agreed with the Quality Manager\n" +
+                "  • Controls user access permissions in the Document Library in accordance with the access control matrix\n" +
+                "  • Notifies the Quality Manager of any system outages or data integrity issues affecting the Document Library"));
+            ps2.Contents.Add(Blk(ps2, 4,
+                "All Employees\n\n" +
+                "  • Use only Released versions of QMS documents obtained from the Process Manager Document Library\n" +
+                "  • Do not retain personal copies of controlled documents except where explicitly authorised (e.g., hard-copy controlled distribution)\n" +
+                "  • Report to their line manager any discrepancy between a document version in use and the version in the Document Library"));
+            qms006.ProcessSteps.Add(ps2);
+
+            var ps3 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms006.CreatedAt, UpdatedAt = qms006.CreatedAt,
+                ProcessId = qms006.Id, StepTemplateId = stDocSect.Id, Sequence = 3,
+                NameOverride = "Procedure",
+                DescriptionOverride = "Step-by-step procedure for creating, approving, distributing, revising, and disposing of QMS documents."
+            };
+            ps3.Contents.Add(Blk(ps3, 0,
+                "Step 1 — Create a new document\n\n" +
+                "  1.1  The process owner or Quality Manager identifies the need for a new QMS document " +
+                "(e.g., new process, new regulatory requirement, audit finding).\n\n" +
+                "  1.2  The Quality Manager assigns a unique document code using the approved coding convention:\n" +
+                "       QMS-xxx for QMS procedures; WI-xxx for work instructions; FRM-xxx for forms; " +
+                "EXT-xxx for external reference documents.\n\n" +
+                "  1.3  The author creates the document using the current approved template for the relevant tier. " +
+                "All templates are held in the Document Library under the 'Templates' category.\n\n" +
+                "  1.4  The document header must include: document code, title, revision status/letter, " +
+                "effective date, author name, approver name, and page numbering.\n\n" +
+                "  1.5  The document is saved in the Document Library at Draft status. Draft documents are " +
+                "visible to reviewers but are not available for operational use."));
+            ps3.Contents.Add(Blk(ps3, 1,
+                "Step 2 — Review and approval\n\n" +
+                "  2.1  The author submits the Draft document for review via the Document Library approval " +
+                "workflow. The workflow automatically notifies the designated reviewer(s).\n\n" +
+                "  2.2  Reviewer(s) assess the document for technical accuracy, completeness, and compliance " +
+                "with the document control requirements of this procedure. Reviewers record their comments " +
+                "within the workflow; the author resolves all comments before proceeding.\n\n" +
+                "  2.3  The document is submitted to the approver (Quality Manager for Tier 2; top management " +
+                "for Tier 1; process owner or Quality Manager for Tiers 3–4).\n\n" +
+                "  2.4  On approval, the Document Library automatically sets the status to Released, records " +
+                "the effective date, and increments or assigns the revision identifier. The previous Released " +
+                "version is automatically set to Superseded.\n\n" +
+                "  2.5  If the document is rejected during review or approval, the workflow returns it to " +
+                "Draft status with the reviewer's or approver's comments. The author addresses the comments " +
+                "and resubmits."));
+            ps3.Contents.Add(Blk(ps3, 2,
+                "Step 3 — Distribution and access control\n\n" +
+                "  3.1  On release, the Document Library notifies all users whose roles include the affected " +
+                "document's process area. Notification is by system alert and, for critical procedure changes, " +
+                "additionally by email from the Quality Manager.\n\n" +
+                "  3.2  Where hard-copy controlled distribution is required (e.g., for use in production areas " +
+                "without reliable network access), the Quality Manager prints and stamps controlled copies " +
+                "'CONTROLLED COPY — [date]', records the distribution in the hard-copy distribution log, " +
+                "and obtains sign-off from the recipient.\n\n" +
+                "  3.3  Uncontrolled printed copies must be marked 'UNCONTROLLED COPY — VERIFY AGAINST " +
+                "DOCUMENT LIBRARY BEFORE USE'. The use of uncontrolled copies is discouraged and is " +
+                "permitted only with explicit authorisation from the Quality Manager.\n\n" +
+                "  3.4  External documents (customer specifications, normative standards) are registered in " +
+                "the external document register. The Quality Manager assigns a responsible owner for each " +
+                "external document, who monitors for revisions and notifies the Quality Manager of changes " +
+                "that affect the QMS."));
+            ps3.Contents.Add(Blk(ps3, 3,
+                "Step 4 — Revise an existing document\n\n" +
+                "  4.1  Any employee may request a document revision by raising a revision request through " +
+                "the Document Library, describing the proposed change and reason.\n\n" +
+                "  4.2  The Quality Manager assesses the request and, if approved, creates a new Draft " +
+                "revision of the document. The version history section records the change description and " +
+                "the names of the author and approver.\n\n" +
+                "  4.3  The revision follows the same review and approval steps as a new document (Step 2).\n\n" +
+                "  4.4  Minor revisions (e.g., correction of a typographical error, update of a reference " +
+                "code) may be approved by the Quality Manager alone. Major revisions (substantive changes " +
+                "to process, responsibility, or requirement) require the same approver as the original.\n\n" +
+                "  4.5  On release of the revised document the previous revision is automatically Superseded. " +
+                "Hard-copy controlled distribution holders are notified and must return the superseded copy " +
+                "to the Quality Manager for secure disposal."));
+            ps3.Contents.Add(Blk(ps3, 4,
+                "Step 5 — Obsolescence and disposal\n\n" +
+                "  5.1  A document is made Obsolete when the process it governs is discontinued, the " +
+                "document is merged into another, or it is no longer required by the QMS or the standard.\n\n" +
+                "  5.2  The Quality Manager sets the document status to Obsolete in the Document Library. " +
+                "Obsolete documents are retained in the library as read-only records for the defined " +
+                "retention period but are clearly flagged and are not searchable in operational views.\n\n" +
+                "  5.3  All hard-copy controlled distributions of the obsolete document must be recalled " +
+                "and the copies shredded or otherwise securely destroyed. The disposal is recorded in the " +
+                "hard-copy distribution log.\n\n" +
+                "  5.4  At the end of the retention period, the Quality Manager arranges permanent deletion " +
+                "or secure archiving of the document, records the disposal action, and updates the document " +
+                "register accordingly."));
+            qms006.ProcessSteps.Add(ps3);
+
+            var ps4 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms006.CreatedAt, UpdatedAt = qms006.CreatedAt,
+                ProcessId = qms006.Id, StepTemplateId = stDocSect.Id, Sequence = 4,
+                NameOverride = "Records and Documented Information",
+                DescriptionOverride = "Documented information maintained or retained under this procedure."
+            };
+            ps4.Contents.Add(Blk(ps4, 0,
+                "The following documented information shall be maintained or retained:\n\n" +
+                "  • Document register — the master list of all QMS documents including code, title, " +
+                "revision status, effective date, process owner, approver, and retention period; " +
+                "maintained in the Process Manager Document Library\n" +
+                "  • Approval and review records — captured within the Document Library workflow; " +
+                "records the reviewer, approver, date, and any comments or rejections for each document revision\n" +
+                "  • Version history — all superseded and obsolete revisions retained in read-only form " +
+                "in the Document Library for the duration of the document retention period\n" +
+                "  • Hard-copy distribution log — records each controlled hard copy issued, recipient, " +
+                "date of issue, and date of recall or disposal\n" +
+                "  • External document register — list of all external documents in use within the QMS, " +
+                "responsible owner, and date of last currency check\n" +
+                "  • Access control matrix — defines which roles have create, edit, approve, and read-only " +
+                "access to each document category in the Document Library\n" +
+                "  • Disposal records — evidence of secure disposal of hard copies and permanently deleted " +
+                "electronic records at end of retention period"));
+            ps4.Contents.Add(Blk(ps4, 1,
+                "Retention periods\n\n" +
+                "  • Tier 1 and Tier 2 QMS documents — all revisions retained for the lifetime of the " +
+                "organisation's ISO 9001 certification plus a minimum of five years after the document " +
+                "is made Obsolete\n" +
+                "  • Tier 3 work instructions — current revision plus the two immediately preceding " +
+                "revisions retained; older revisions may be deleted after Quality Manager approval\n" +
+                "  • Tier 4 forms and templates — current version retained; superseded versions retained " +
+                "for one year after supersession unless a completed record exists, in which case the form " +
+                "version is retained alongside the record\n" +
+                "  • External documents — retained for as long as they are referenced in any current QMS " +
+                "document, plus two years\n" +
+                "  • Approval and review workflow records — retained for the same period as the document " +
+                "to which they relate\n\n" +
+                "Retention periods may be extended by customer contract or regulatory requirement. Where " +
+                "a conflict exists, the longer retention period takes precedence."));
+            qms006.ProcessSteps.Add(ps4);
+        }
+
+        // ── QMS-007 — full rich content blocks (ISO 9001:2015 clauses 7.2 & 7.3) ─
+        {
+            static ProcessStepContent Blk(ProcessStep ps, int order, string body) => new()
+            {
+                Id = Guid.NewGuid(), CreatedAt = ps.CreatedAt, UpdatedAt = ps.CreatedAt,
+                ProcessStepId = ps.Id,
+                ContentType = StepContentType.Text,
+                ContentCategory = ContentCategory.Reference,
+                SortOrder = order, Body = body
+            };
+
+            var ps1 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms007.CreatedAt, UpdatedAt = qms007.CreatedAt,
+                ProcessId = qms007.Id, StepTemplateId = stDocSect.Id, Sequence = 1,
+                NameOverride = "Purpose and Scope",
+                DescriptionOverride = "Purpose, scope, and normative context for competence, training and awareness per ISO 9001:2015 clauses 7.2 and 7.3."
+            };
+            ps1.Contents.Add(Blk(ps1, 0,
+                "1.1  Purpose\n\n" +
+                "This procedure defines how the organisation:\n\n" +
+                "  a)  Determines the competence required for persons performing work under its control that " +
+                "affects the performance and effectiveness of the QMS\n" +
+                "  b)  Ensures those persons are competent on the basis of appropriate education, training, " +
+                "or experience\n" +
+                "  c)  Where applicable, takes action to acquire the necessary competence and evaluates the " +
+                "effectiveness of those actions\n" +
+                "  d)  Ensures that persons performing work under the organisation's control are aware of the " +
+                "quality policy, relevant quality objectives, their contribution to the effectiveness of the " +
+                "QMS, and the implications of not conforming to QMS requirements\n\n" +
+                "Competent people are the foundation of a functioning QMS. This procedure replaces the " +
+                "reactive 'send someone on a course' approach with a systematic, role-based competency " +
+                "framework that drives targeted development and provides auditable evidence of capability."));
+            ps1.Contents.Add(Blk(ps1, 1,
+                "1.2  Scope\n\n" +
+                "This procedure applies to all persons performing work under the organisation's control " +
+                "that affects QMS performance, including:\n\n" +
+                "  • Permanent employees in all functions relevant to the QMS scope\n" +
+                "  • Fixed-term and temporary employees performing work that affects product or service conformity\n" +
+                "  • Contractors and agency workers performing tasks governed by a QMS procedure or work instruction\n" +
+                "  • Suppliers performing outsourced processes on the organisation's behalf, where competence " +
+                "requirements are placed on them by contract\n\n" +
+                "It does not govern the general HR development activities outside the QMS scope, " +
+                "though the training records system is shared."));
+            ps1.Contents.Add(Blk(ps1, 2,
+                "1.3  Normative reference\n\n" +
+                "ISO 9001:2015, clause 7.2 — Competence\n\n" +
+                "Requires the organisation to determine the necessary competence of persons doing work " +
+                "under its control that affects quality performance; ensure those persons are competent; " +
+                "take actions to acquire competence where needed; evaluate the effectiveness of those " +
+                "actions; and retain appropriate documented information as evidence.\n\n" +
+                "ISO 9001:2015, clause 7.3 — Awareness\n\n" +
+                "Requires that all persons doing work under the organisation's control are aware of: " +
+                "the quality policy; relevant quality objectives; their contribution to the effectiveness " +
+                "of the QMS, including the benefits of improved quality performance; and the implications " +
+                "of not conforming to QMS requirements."));
+            ps1.Contents.Add(Blk(ps1, 3,
+                "1.4  Relationship to other procedures\n\n" +
+                "  • QMS-002 (Quality Policy) — the current signed quality policy forms the basis of the " +
+                "awareness briefings required by clause 7.3\n" +
+                "  • QMS-003 (Quality Objectives) — relevant objectives are communicated to all employees " +
+                "as part of the annual awareness programme\n" +
+                "  • QMS-005 (Risk Management) — competence gaps identified in the TNA that represent a " +
+                "significant risk to QMS outcomes are entered into the risk register\n" +
+                "  • QMS-018 (Internal Audit) — audit findings relating to competence or awareness trigger " +
+                "a training needs review for the affected area\n" +
+                "  • QMS-020 (Corrective Action) — where a nonconformance root cause is attributed to a " +
+                "competence or awareness failure, retraining is a standard corrective action type"));
+            qms007.ProcessSteps.Add(ps1);
+
+            var ps2 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms007.CreatedAt, UpdatedAt = qms007.CreatedAt,
+                ProcessId = qms007.Id, StepTemplateId = stDocSect.Id, Sequence = 2,
+                NameOverride = "Responsibilities",
+                DescriptionOverride = "Accountability matrix for competence determination, training delivery, and awareness."
+            };
+            ps2.Contents.Add(Blk(ps2, 0,
+                "Top Management\n\n" +
+                "  • Approves the competency framework and ensures resources are allocated for training delivery\n" +
+                "  • Reviews the training needs analysis summary and training plan at management review (QMS-019)\n" +
+                "  • Ensures the quality policy and relevant objectives are communicated to all persons under " +
+                "the organisation's control\n" +
+                "  • Sets expectations for a culture of continuous learning and quality awareness"));
+            ps2.Contents.Add(Blk(ps2, 1,
+                "Human Resources Manager\n\n" +
+                "  • Maintains the HR system and training records for all employees\n" +
+                "  • Coordinates the annual training needs analysis process with line managers\n" +
+                "  • Sources, books, and administers training courses and external qualifications\n" +
+                "  • Issues training completion certificates and updates individual training records\n" +
+                "  • Reports training plan completion status to the Quality Manager quarterly\n" +
+                "  • Ensures new employees receive induction training before undertaking work that affects quality"));
+            ps2.Contents.Add(Blk(ps2, 2,
+                "Quality Manager\n\n" +
+                "  • Owns and maintains the competency framework (QMS-critical roles and required competencies)\n" +
+                "  • Reviews training effectiveness evidence and confirms whether competence has been achieved\n" +
+                "  • Designs and delivers quality-specific awareness sessions (policy, objectives, QMS changes)\n" +
+                "  • Escalates training plans that address significant quality risks to management\n" +
+                "  • Maintains this procedure and initiates revision when the framework changes"));
+            ps2.Contents.Add(Blk(ps2, 3,
+                "Line Managers / Process Owners\n\n" +
+                "  • Identify the competence requirements for each role within their team using the competency framework\n" +
+                "  • Conduct individual competence assessments against those requirements\n" +
+                "  • Nominate team members for training and confirm completion and effectiveness\n" +
+                "  • Ensure that personnel do not undertake quality-critical tasks without verified competence\n" +
+                "  • Notify HR and the Quality Manager when role requirements change or new tasks require new competencies"));
+            ps2.Contents.Add(Blk(ps2, 4,
+                "Individual Employees\n\n" +
+                "  • Complete assigned training within the timescales set in the training plan\n" +
+                "  • Notify their line manager if they do not feel competent to perform an assigned task\n" +
+                "  • Participate in competence assessments and awareness surveys honestly\n" +
+                "  • Apply the skills and knowledge acquired through training in their day-to-day work"));
+            qms007.ProcessSteps.Add(ps2);
+
+            var ps3 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms007.CreatedAt, UpdatedAt = qms007.CreatedAt,
+                ProcessId = qms007.Id, StepTemplateId = stDocSect.Id, Sequence = 3,
+                NameOverride = "Procedure",
+                DescriptionOverride = "Steps for determining competence requirements, identifying gaps, delivering training, evaluating effectiveness, and maintaining awareness."
+            };
+            ps3.Contents.Add(Blk(ps3, 0,
+                "Step 1 — Define and maintain the competency framework\n\n" +
+                "The Quality Manager, working with HR and process owners, maintains a competency framework " +
+                "that specifies, for each QMS-critical role:\n\n" +
+                "  a)  The education, qualifications, or professional registrations required (e.g., degree, " +
+                "trade apprenticeship, CIPS, IOSH)\n" +
+                "  b)  The technical skills and knowledge required (e.g., ability to read engineering drawings, " +
+                "operate CNC equipment, conduct first article inspection)\n" +
+                "  c)  The quality-specific competencies required (e.g., completion of QMS induction, " +
+                "ISO 9001 awareness, internal auditor training)\n" +
+                "  d)  Any regulatory or statutory competencies (e.g., fork-lift licence, COSHH awareness, " +
+                "electrical competency certificates)\n\n" +
+                "The framework is reviewed annually and updated whenever a role changes materially, a new " +
+                "process is introduced, or a regulatory requirement is revised."));
+            ps3.Contents.Add(Blk(ps3, 1,
+                "Step 2 — Identify competence gaps (Training Needs Analysis)\n\n" +
+                "Annually (and on the appointment of a new person to a role), the line manager conducts a " +
+                "Training Needs Analysis (TNA) for each person in their team:\n\n" +
+                "  2.1  Compare the individual's current verified competencies (from their training record) " +
+                "against the requirements of their role in the competency framework.\n\n" +
+                "  2.2  Identify gaps — competencies required by the role that the individual has not yet " +
+                "demonstrated.\n\n" +
+                "  2.3  Classify each gap by priority:\n" +
+                "       High   — required to perform current role safely or to conformance; must be closed " +
+                "within 30 days\n" +
+                "       Medium — required within the current role but risk is being managed (e.g., supervised " +
+                "working); close within 90 days\n" +
+                "       Low    — development need for career progression or contingency; include in annual plan\n\n" +
+                "  2.4  Submit TNA outputs to HR and the Quality Manager for consolidation into the " +
+                "organisation-wide training plan."));
+            ps3.Contents.Add(Blk(ps3, 2,
+                "Step 3 — Plan and deliver training\n\n" +
+                "HR prepares an annual training plan consolidating all identified gaps and categorising " +
+                "the appropriate training method for each:\n\n" +
+                "  On-the-job training (OJT) — for practical skills; delivered by a designated competent " +
+                "trainer/buddy; recorded on an OJT sign-off sheet\n" +
+                "  Internal classroom or e-learning — for quality policy, objectives, product knowledge, " +
+                "process awareness; delivered by Quality Manager or HR\n" +
+                "  External course or qualification — for specialist technical, safety, or professional " +
+                "competencies; sourced from approved training providers\n" +
+                "  Mentoring or coaching — for leadership, management, or complex technical development\n\n" +
+                "Before a person undertakes a quality-critical task without supervision, the line manager " +
+                "must confirm in the training system that the relevant competency has been verified. " +
+                "Personnel working under supervised conditions must have a designated supervisor who is " +
+                "personally verified as competent."));
+            ps3.Contents.Add(Blk(ps3, 3,
+                "Step 4 — Evaluate training effectiveness\n\n" +
+                "Training is not complete until its effectiveness has been evaluated. The method of " +
+                "evaluation is proportionate to the significance of the competency:\n\n" +
+                "  Test or assessment — for regulatory, safety-critical, or quality-critical competencies; " +
+                "a pass mark of 80% or higher is required\n" +
+                "  Observation — line manager or Quality Manager observes the individual performing the " +
+                "task to the required standard; outcome recorded on the OJT sign-off sheet\n" +
+                "  Supervisor confirmation — for lower-risk competencies; the individual's supervisor " +
+                "confirms in writing that the training has been applied effectively\n" +
+                "  Post-training review — line manager reviews whether quality metrics for the area have " +
+                "improved following training, at 90 days after delivery\n\n" +
+                "Where training is evaluated as ineffective, an alternative development approach is " +
+                "agreed between the line manager, HR, and the Quality Manager. Persistent effectiveness " +
+                "failures are escalated to top management."));
+            ps3.Contents.Add(Blk(ps3, 4,
+                "Step 5 — Maintain awareness of quality commitments\n\n" +
+                "Awareness is maintained through a structured programme, not a one-off induction event:\n\n" +
+                "  Induction — all new employees and contractors complete a QMS Induction within their " +
+                "first five working days. The induction covers: the quality policy and its meaning for " +
+                "the individual's role; the current quality objectives; the consequences of nonconformance " +
+                "for customers and the organisation; how to raise a nonconformance or improvement suggestion; " +
+                "who the Quality Manager is and how to contact them.\n\n" +
+                "  Annual re-briefing — the Quality Manager conducts a brief (15–30 minutes) annual " +
+                "quality awareness session for all staff, covering any changes to the quality policy " +
+                "or objectives, QMS performance highlights, any significant audit findings, and the " +
+                "improvement plan for the coming year.\n\n" +
+                "  Point-of-change communication — whenever a procedure, work instruction, or quality " +
+                "objective changes materially, the Quality Manager issues a briefing note and, where " +
+                "necessary, arranges targeted awareness training for affected staff.\n\n" +
+                "  Visual management — quality policy posters, current quality objectives displays, " +
+                "and QMS performance boards are maintained in prominent locations in all operational areas."));
+            qms007.ProcessSteps.Add(ps3);
+
+            var ps4 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms007.CreatedAt, UpdatedAt = qms007.CreatedAt,
+                ProcessId = qms007.Id, StepTemplateId = stDocSect.Id, Sequence = 4,
+                NameOverride = "Records and Documented Information",
+                DescriptionOverride = "Documented information maintained or retained under this procedure."
+            };
+            ps4.Contents.Add(Blk(ps4, 0,
+                "The following documented information shall be maintained or retained:\n\n" +
+                "  • Competency framework — the role-by-role matrix of required education, skills, " +
+                "qualifications, and quality competencies; maintained by the Quality Manager in the " +
+                "Document Library\n" +
+                "  • Training needs analysis records — annual TNA outputs for each individual; retained " +
+                "in the HR training system\n" +
+                "  • Training plan — the organisation-wide annual training schedule; approved by top " +
+                "management and included in management review inputs\n" +
+                "  • Individual training records — for each person: courses attended, dates, delivery " +
+                "method, trainer or provider, outcome/pass mark, and effectiveness evaluation result; " +
+                "maintained in the HR training system\n" +
+                "  • OJT sign-off sheets — for on-the-job skills verification; signed by trainer and " +
+                "trainee; retained as hard copy or scanned to the training record\n" +
+                "  • External qualifications and certificates — copies of certificates for externally " +
+                "accredited qualifications retained in the HR training system\n" +
+                "  • Induction completion records — confirmation that each new employee has completed " +
+                "the QMS induction; signed or acknowledged within the system\n" +
+                "  • Awareness session attendance records — sign-in sheets or electronic acknowledgements " +
+                "for annual briefings and point-of-change communications"));
+            ps4.Contents.Add(Blk(ps4, 1,
+                "Retention periods\n\n" +
+                "  • Individual training records — retained for the duration of the individual's employment " +
+                "plus five years after leaving, or as required by regulatory or customer obligation if longer\n" +
+                "  • OJT sign-off sheets and certificates — same period as the individual training record\n" +
+                "  • Training needs analysis records — retained for three years\n" +
+                "  • Competency framework — all revisions retained for the lifetime of the ISO 9001 " +
+                "certification plus three years\n" +
+                "  • Awareness session records — retained for three years\n\n" +
+                "Records must be available to internal and external auditors on request. Where a " +
+                "regulatory requirement specifies a longer retention period, that period takes precedence."));
+            qms007.ProcessSteps.Add(ps4);
+        }
+
+        // ── QMS-008 — full rich content blocks (ISO 9001:2015 clause 7.1.5) ────
+        {
+            static ProcessStepContent Blk(ProcessStep ps, int order, string body) => new()
+            {
+                Id = Guid.NewGuid(), CreatedAt = ps.CreatedAt, UpdatedAt = ps.CreatedAt,
+                ProcessStepId = ps.Id,
+                ContentType = StepContentType.Text,
+                ContentCategory = ContentCategory.Reference,
+                SortOrder = order, Body = body
+            };
+
+            var ps1 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms008.CreatedAt, UpdatedAt = qms008.CreatedAt,
+                ProcessId = qms008.Id, StepTemplateId = stDocSect.Id, Sequence = 1,
+                NameOverride = "Purpose and Scope",
+                DescriptionOverride = "Purpose, scope, and normative context for control of monitoring and measuring resources per ISO 9001:2015 clause 7.1.5."
+            };
+            ps1.Contents.Add(Blk(ps1, 0,
+                "1.1  Purpose\n\n" +
+                "This procedure establishes the requirements for identifying, calibrating, maintaining, " +
+                "and controlling all monitoring and measuring resources used to provide evidence of " +
+                "conformity of products and services to requirements. Its purpose is to:\n\n" +
+                "  a)  Ensure that measurement results are valid and traceable to national or international " +
+                "measurement standards\n" +
+                "  b)  Protect measurement equipment from damage, deterioration, and unauthorised adjustment " +
+                "that could invalidate calibration status\n" +
+                "  c)  Provide assurance that measurements used to make conformity decisions are fit for purpose\n" +
+                "  d)  Define the response when equipment is found to be out of tolerance, so that the " +
+                "impact on previously measured product can be assessed and appropriate action taken\n\n" +
+                "Measurement integrity is directly connected to product conformity; an uncalibrated or " +
+                "out-of-tolerance instrument can cause defective product to be accepted and conforming " +
+                "product to be rejected. This procedure ensures neither occurs."));
+            ps1.Contents.Add(Blk(ps1, 1,
+                "1.2  Scope\n\n" +
+                "This procedure applies to all monitoring and measuring equipment and devices used to:\n\n" +
+                "  • Verify conformity of incoming materials, in-process product, and finished goods to " +
+                "dimensional, physical, chemical, or functional requirements\n" +
+                "  • Perform process monitoring that provides input to product acceptance decisions\n" +
+                "  • Conduct environmental measurements required by the QMS or by customer specification " +
+                "(e.g., temperature and humidity monitoring in controlled storage or cleanroom areas)\n\n" +
+                "Equipment used exclusively for indicative, non-conformance-decision purposes (e.g., a " +
+                "workshop clock, a general-purpose thermometer used only for process guidance) is excluded " +
+                "from mandatory calibration but must be identified and clearly labelled as 'NOT FOR " +
+                "ACCEPTANCE USE'. Any equipment whose scope of use changes to include conformity decisions " +
+                "must be immediately added to the calibration register."));
+            ps1.Contents.Add(Blk(ps1, 2,
+                "1.3  Normative reference\n\n" +
+                "ISO 9001:2015, clause 7.1.5 — Monitoring and measuring resources\n\n" +
+                "Clause 7.1.5.1 (General) requires the organisation to determine and provide the resources " +
+                "needed to ensure valid and reliable results when monitoring or measuring is used to verify " +
+                "conformity of products and services.\n\n" +
+                "Clause 7.1.5.2 (Measurement traceability) requires that measuring equipment shall be:\n" +
+                "  a)  Calibrated or verified, or both, at specified intervals or prior to use, against " +
+                "measurement standards traceable to international or national measurement standards\n" +
+                "  b)  Identified in order to determine their status\n" +
+                "  c)  Safeguarded from adjustments, damage, or deterioration that would invalidate the " +
+                "calibration status and subsequent measurement results\n\n" +
+                "Where no international or national standard exists, the basis for calibration or " +
+                "verification shall be retained as documented information."));
+            ps1.Contents.Add(Blk(ps1, 3,
+                "1.4  Relationship to other procedures\n\n" +
+                "  • QMS-005 (Risk Management) — out-of-tolerance trends or systemic calibration failures " +
+                "are raised as QMS risks\n" +
+                "  • QMS-013 (Production Planning & Control) — in-process inspection requirements define " +
+                "which instruments are needed for each production stage\n" +
+                "  • QMS-014 (Inspection & Testing) — final inspection and test activities rely on " +
+                "equipment controlled by this procedure\n" +
+                "  • QMS-016 (Nonconformance Control) — product nonconformances discovered during recall " +
+                "and re-evaluation following an out-of-tolerance finding are processed under QMS-016\n" +
+                "  • QMS-020 (Corrective Action) — root cause analysis for repeated out-of-tolerance events " +
+                "or calibration system failures is managed under QMS-020"));
+            qms008.ProcessSteps.Add(ps1);
+
+            var ps2 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms008.CreatedAt, UpdatedAt = qms008.CreatedAt,
+                ProcessId = qms008.Id, StepTemplateId = stDocSect.Id, Sequence = 2,
+                NameOverride = "Responsibilities",
+                DescriptionOverride = "Accountability matrix for monitoring and measuring resource control."
+            };
+            ps2.Contents.Add(Blk(ps2, 0,
+                "Quality Manager\n\n" +
+                "  • Owns the calibration register and ensures it is complete, current, and accessible\n" +
+                "  • Approves or revises calibration intervals based on equipment history and risk\n" +
+                "  • Approves the use of external calibration laboratories and maintains the approved " +
+                "supplier list for calibration services\n" +
+                "  • Authorises the release of equipment following a successful post-calibration check\n" +
+                "  • Leads or delegates out-of-tolerance investigations and determines the scope of recall " +
+                "and re-evaluation\n" +
+                "  • Maintains this procedure and initiates revision when the framework or controls change"));
+            ps2.Contents.Add(Blk(ps2, 1,
+                "Metrology Coordinator\n\n" +
+                "  • Maintains the physical calibration register and schedules all due calibrations\n" +
+                "  • Arranges calibration with approved internal or external providers within the required recall period\n" +
+                "  • Applies calibration status labels to all equipment on receipt after calibration\n" +
+                "  • Removes equipment from service when calibration is overdue and quarantines it pending action\n" +
+                "  • Receives and files calibration certificates; flags any out-of-tolerance results immediately " +
+                "to the Quality Manager\n" +
+                "  • Maintains the calibration equipment store and ensures protection during storage and transit"));
+            ps2.Contents.Add(Blk(ps2, 2,
+                "Production / Inspection Supervisors\n\n" +
+                "  • Ensure operators check the calibration status label before using any measuring instrument\n" +
+                "  • Report damaged, suspect, or overdue equipment to the Metrology Coordinator immediately\n" +
+                "  • Segregate product measured by equipment subsequently found to be out of tolerance " +
+                "and await instruction from the Quality Manager before releasing or processing further\n" +
+                "  • Do not attempt to adjust, repair, or use equipment with a removed or expired calibration label"));
+            ps2.Contents.Add(Blk(ps2, 3,
+                "Operators and Inspectors\n\n" +
+                "  • Verify that the calibration status label is present and current before each use\n" +
+                "  • Handle measuring equipment with care; store in provided cases or rack locations\n" +
+                "  • Report any suspected damage, deterioration, or performance anomaly to the supervisor immediately\n" +
+                "  • Do not use equipment that displays an expired, missing, or 'OUT OF SERVICE' calibration label"));
+            qms008.ProcessSteps.Add(ps2);
+
+            var ps3 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms008.CreatedAt, UpdatedAt = qms008.CreatedAt,
+                ProcessId = qms008.Id, StepTemplateId = stDocSect.Id, Sequence = 3,
+                NameOverride = "Procedure",
+                DescriptionOverride = "Steps for registering, calibrating, labelling, and responding to out-of-tolerance findings for all monitoring and measuring equipment."
+            };
+            ps3.Contents.Add(Blk(ps3, 0,
+                "Step 1 — Register equipment\n\n" +
+                "Every item of monitoring and measuring equipment used for conformity decisions must be " +
+                "registered in the calibration register before first use. Registration requires:\n\n" +
+                "  a)  Assign a unique equipment ID (format: CAL-YYYY-NNN)\n" +
+                "  b)  Record: description, manufacturer, model, serial number, measurement range, " +
+                "resolution, and accuracy specification\n" +
+                "  c)  Assign the applicable calibration standard and method (internal procedure or " +
+                "external laboratory scope of accreditation)\n" +
+                "  d)  Set the calibration interval: typically 6 or 12 months; shorter intervals apply " +
+                "for equipment used in critical applications or with a history of drift; longer intervals " +
+                "may be approved by the Quality Manager where usage history supports it\n" +
+                "  e)  Record the location or responsible work area\n\n" +
+                "New equipment shall not be released for use on conformity-critical measurements until " +
+                "an initial calibration or verification has been performed and the calibration certificate " +
+                "received and filed."));
+            ps3.Contents.Add(Blk(ps3, 1,
+                "Step 2 — Calibrate and verify\n\n" +
+                "Calibration is performed by one of the following methods:\n\n" +
+                "  Internal calibration — using UKAS-accredited (or equivalent national accreditation body) " +
+                "reference standards held by the organisation; the internal calibration procedure defines " +
+                "the method, reference standard to be used, acceptance criteria, and correction factors\n\n" +
+                "  External calibration laboratory — using a UKAS-accredited (or equivalent) external " +
+                "laboratory; the laboratory must be on the approved supplier list (QMS-012); calibration " +
+                "certificates must quote the accreditation body, scope, uncertainty of measurement, and " +
+                "traceability statement\n\n" +
+                "On completion of calibration:\n" +
+                "  a)  The calibration result (pass or out-of-tolerance) is recorded in the calibration register\n" +
+                "  b)  A calibration certificate is received and filed (internal or external)\n" +
+                "  c)  If the instrument passes, a new calibration status label (showing equipment ID, " +
+                "calibration date, and next due date) is applied\n" +
+                "  d)  If the instrument fails, proceed to Step 4 (out-of-tolerance response)"));
+            ps3.Contents.Add(Blk(ps3, 2,
+                "Step 3 — Status labelling and safeguarding\n\n" +
+                "Every registered instrument shall carry one of the following status labels at all times:\n\n" +
+                "  GREEN label — 'CALIBRATED': equipment is in calibration; label shows equipment ID, " +
+                "calibration date, and next due date\n\n" +
+                "  YELLOW label — 'LIMITED USE': equipment is calibrated but with restrictions (e.g., " +
+                "one axis only, specific range); the restriction is stated on the label and in the register\n\n" +
+                "  RED label — 'OUT OF SERVICE': equipment is overdue, damaged, or out-of-tolerance; " +
+                "must not be used for any measurement; must be physically quarantined\n\n" +
+                "Equipment is protected from damage and unauthorised adjustment by:\n" +
+                "  • Storage in designated calibration equipment cases or racks when not in use\n" +
+                "  • Sealed adjustment mechanisms (tamper-evident seals) where fitted\n" +
+                "  • Restricted access to the calibration store (Metrology Coordinator only)\n" +
+                "  • Explicit prohibition on field adjustment without Quality Manager authorisation"));
+            ps3.Contents.Add(Blk(ps3, 3,
+                "Step 4 — Out-of-tolerance response\n\n" +
+                "When equipment is found to be out of tolerance (at scheduled calibration or at any point " +
+                "during use), the following steps are taken immediately:\n\n" +
+                "  4.1  The instrument is labelled OUT OF SERVICE and physically removed from the work area " +
+                "to the quarantine location.\n\n" +
+                "  4.2  The Metrology Coordinator notifies the Quality Manager and the supervisor(s) of all " +
+                "areas where the instrument was used since the last known good calibration.\n\n" +
+                "  4.3  The Quality Manager determines the scope of re-evaluation: which products were " +
+                "measured using the instrument, during which date range, and which characteristics were " +
+                "measured. This is assessed against the magnitude and direction of the out-of-tolerance error.\n\n" +
+                "  4.4  Affected product is segregated and inspected using a verified in-tolerance instrument. " +
+                "Results are recorded and product is dispositioned under QMS-016 (Nonconformance Control) " +
+                "where nonconformance is confirmed.\n\n" +
+                "  4.5  The out-of-tolerance event and its investigation are recorded in the calibration " +
+                "register. If this is a repeat event for the same instrument or a systemic issue across " +
+                "multiple instruments, a corrective action is raised under QMS-020.\n\n" +
+                "  4.6  The instrument is sent for repair and re-calibration before being returned to service. " +
+                "If it cannot be restored to tolerance, it is permanently decommissioned and the register updated."));
+            ps3.Contents.Add(Blk(ps3, 4,
+                "Step 5 — Recall scheduling and overdue management\n\n" +
+                "The Metrology Coordinator reviews the calibration register monthly and generates a recall " +
+                "list for instruments due within the next 30 days. For each:\n\n" +
+                "  a)  Schedule internal calibration or send to the external laboratory, allowing sufficient " +
+                "lead time to return the instrument before the due date\n" +
+                "  b)  If the instrument cannot be recalled within its due date (e.g., in continuous use on " +
+                "a critical production line), the Quality Manager assesses the risk and either approves a " +
+                "short extension (maximum 30 days, documented in the register) or arranges a substitute " +
+                "instrument to allow recall\n" +
+                "  c)  Instruments that are overdue without an approved extension are automatically placed " +
+                "OUT OF SERVICE by the Metrology Coordinator\n\n" +
+                "The calibration recall completion rate (% calibrations completed on or before due date) " +
+                "is reported at each management review as a QMS performance metric."));
+            qms008.ProcessSteps.Add(ps3);
+
+            var ps4 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms008.CreatedAt, UpdatedAt = qms008.CreatedAt,
+                ProcessId = qms008.Id, StepTemplateId = stDocSect.Id, Sequence = 4,
+                NameOverride = "Records and Documented Information",
+                DescriptionOverride = "Documented information maintained or retained under this procedure."
+            };
+            ps4.Contents.Add(Blk(ps4, 0,
+                "The following documented information shall be maintained or retained:\n\n" +
+                "  • Calibration register — master list of all registered monitoring and measuring equipment " +
+                "with ID, description, calibration interval, last calibration date, next due date, " +
+                "calibration result (pass/fail), and current status; maintained in Process Manager\n" +
+                "  • Calibration certificates — internal calibration records or external laboratory " +
+                "certificates for every calibration event; must include traceability statement, " +
+                "uncertainty, and result for each measured parameter\n" +
+                "  • Out-of-tolerance investigation records — scope of re-evaluation, affected product " +
+                "list, measurement results from re-inspection, and disposition of affected product\n" +
+                "  • Recall and extension records — documented approval of any calibration interval " +
+                "extension, including the risk assessment and approval by the Quality Manager\n" +
+                "  • Decommissioning records — record of instruments permanently removed from service, " +
+                "reason, and date; retained to provide a complete equipment history\n" +
+                "  • Calibration performance metric — monthly recall completion rate; included in " +
+                "management review pack (QMS-019)"));
+            ps4.Contents.Add(Blk(ps4, 1,
+                "Retention periods\n\n" +
+                "  • Calibration certificates — retained for the life of the instrument plus five years " +
+                "after decommissioning, or for the period required to cover the product warranty and any " +
+                "applicable statutory limitation period, whichever is longer\n" +
+                "  • Out-of-tolerance investigation records — retained for ten years, or longer if the " +
+                "affected product is subject to a customer or regulatory retention requirement\n" +
+                "  • Calibration register history — all revisions retained for the life of the " +
+                "ISO 9001 certification plus five years\n\n" +
+                "The Quality Manager shall review retention requirements annually against current customer " +
+                "contract terms and any changes to applicable statutory limitation periods."));
+            qms008.ProcessSteps.Add(ps4);
+        }
+
+        // ── QMS-009 — full rich content blocks (ISO 9001:2015 clause 8.2.1) ────
+        {
+            static ProcessStepContent Blk(ProcessStep ps, int order, string body) => new()
+            {
+                Id = Guid.NewGuid(), CreatedAt = ps.CreatedAt, UpdatedAt = ps.CreatedAt,
+                ProcessStepId = ps.Id,
+                ContentType = StepContentType.Text,
+                ContentCategory = ContentCategory.Reference,
+                SortOrder = order, Body = body
+            };
+
+            var ps1 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms009.CreatedAt, UpdatedAt = qms009.CreatedAt,
+                ProcessId = qms009.Id, StepTemplateId = stDocSect.Id, Sequence = 1,
+                NameOverride = "Purpose and Scope",
+                DescriptionOverride = "Purpose, scope, and normative context for customer communication per ISO 9001:2015 clause 8.2.1."
+            };
+            ps1.Contents.Add(Blk(ps1, 0,
+                "1.1  Purpose\n\n" +
+                "This procedure establishes the channels, responsibilities, and response timescales for " +
+                "all communication with customers relating to the organisation's products and services. " +
+                "Its purpose is to:\n\n" +
+                "  a)  Ensure customers receive accurate and timely information about products, services, " +
+                "pricing, lead times, and any changes that affect their orders\n" +
+                "  b)  Ensure all customer enquiries, contracts, and orders are handled consistently and " +
+                "that commitments are only made after requirements have been reviewed (see QMS-010)\n" +
+                "  c)  Provide a structured approach to handling customer feedback and complaints that " +
+                "protects the customer relationship and drives internal improvement\n" +
+                "  d)  Define the organisation's response to customer requests for contingency information " +
+                "and emergency communication needs\n\n" +
+                "Effective customer communication is not simply a courtesy — it is a primary input to " +
+                "understanding customer requirements, monitoring customer satisfaction, and preventing " +
+                "misunderstandings that lead to nonconformances and delivery failures."));
+            ps1.Contents.Add(Blk(ps1, 1,
+                "1.2  Scope\n\n" +
+                "This procedure applies to all communication with external customers across the following " +
+                "categories defined by ISO 9001:2015 clause 8.2.1:\n\n" +
+                "  a)  Providing information relating to products and services\n" +
+                "  b)  Handling enquiries, contracts, or orders, including changes\n" +
+                "  c)  Obtaining customer feedback relating to products and services, including customer complaints\n" +
+                "  d)  Handling or controlling customer property\n" +
+                "  e)  Establishing specific requirements for contingency actions, when relevant\n\n" +
+                "It applies to communication through all channels: telephone, email, written correspondence, " +
+                "customer portals, electronic data interchange (EDI), video conference, and on-site visits. " +
+                "Internal communications between departments are out of scope, as is communication with " +
+                "suppliers (governed by QMS-012)."));
+            ps1.Contents.Add(Blk(ps1, 2,
+                "1.3  Normative reference\n\n" +
+                "ISO 9001:2015, clause 8.2.1 — Customer communication\n\n" +
+                "Requires the organisation to implement communication with customers relating to:\n" +
+                "  a)  Information relating to products and services\n" +
+                "  b)  Handling enquiries, contracts, or orders, including changes\n" +
+                "  c)  Obtaining customer feedback relating to products and services, including customer complaints\n" +
+                "  d)  Handling or controlling customer property\n" +
+                "  e)  Establishing specific requirements for contingency actions, when relevant\n\n" +
+                "Customer communication is also an input to clause 9.1.2 (Customer Satisfaction), which " +
+                "requires the organisation to monitor customers' perceptions of the degree to which their " +
+                "needs and expectations have been fulfilled."));
+            ps1.Contents.Add(Blk(ps1, 3,
+                "1.4  Communication channels and response-time standards\n\n" +
+                "The following channels are authorised for customer communication and their response-time " +
+                "standards are:\n\n" +
+                "  Telephone — same working day for all inbound calls; voicemails returned within 4 hours\n" +
+                "  Email — acknowledged within 4 working hours; substantive response within 1 working day " +
+                "for routine matters; within 4 working hours for complaints or urgent delivery issues\n" +
+                "  Customer portal / EDI — monitored at least twice daily; order acknowledgements issued " +
+                "within 1 working day\n" +
+                "  Written correspondence — acknowledged within 2 working days; full response within 5 " +
+                "working days unless a longer timescale is agreed and confirmed in writing\n" +
+                "  On-site customer visit — confirmed in writing by the Sales or Account Manager; " +
+                "pre-visit agenda agreed; post-visit action log issued within 3 working days\n\n" +
+                "All customer contacts of any significance (enquiries, orders, complaints, feedback, " +
+                "technical queries, delivery issues) are logged in the CRM system on the same day of receipt."));
+            qms009.ProcessSteps.Add(ps1);
+
+            var ps2 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms009.CreatedAt, UpdatedAt = qms009.CreatedAt,
+                ProcessId = qms009.Id, StepTemplateId = stDocSect.Id, Sequence = 2,
+                NameOverride = "Responsibilities",
+                DescriptionOverride = "Accountability matrix for customer communication activities."
+            };
+            ps2.Contents.Add(Blk(ps2, 0,
+                "Sales Manager / Account Managers\n\n" +
+                "  • Primary point of contact for all commercial customer communications\n" +
+                "  • Own the CRM record for each customer account; ensure all contacts are logged accurately\n" +
+                "  • Handle enquiries, quotations, order placement, and order changes\n" +
+                "  • Conduct or coordinate customer satisfaction surveys (QMS-017) and communicate results internally\n" +
+                "  • Coordinate on-site customer visits; issue pre-visit agendas and post-visit action logs\n" +
+                "  • Escalate customer concerns that may affect delivery, quality, or the commercial relationship " +
+                "to the Commercial Director or Managing Director without delay"));
+            ps2.Contents.Add(Blk(ps2, 1,
+                "Customer Service Team\n\n" +
+                "  • Handle day-to-day order management and delivery status queries\n" +
+                "  • Receive and log customer complaints; assign a complaint reference number and acknowledge " +
+                "receipt to the customer within 4 working hours\n" +
+                "  • Track complaint resolution progress and ensure responses are issued within the agreed timescale\n" +
+                "  • Escalate complaints classified High or Critical to the Quality Manager and Sales Manager " +
+                "within 2 working hours of receipt\n" +
+                "  • Manage the handling of customer-owned property and maintain the customer property register"));
+            ps2.Contents.Add(Blk(ps2, 2,
+                "Technical / Engineering Team\n\n" +
+                "  • Respond to customer technical queries relating to product specifications, compatibility, " +
+                "materials, and application advice\n" +
+                "  • Provide technical inputs to quotations and contract reviews (QMS-010) where requested by Sales\n" +
+                "  • Issue technical documentation (drawings, material certificates, test reports) to customers " +
+                "in accordance with the agreed delivery terms\n" +
+                "  • Support customer audits and source inspections with accurate technical information"));
+            ps2.Contents.Add(Blk(ps2, 3,
+                "Quality Manager\n\n" +
+                "  • Receives and manages all customer 8D, SCAR, or formal corrective action requests\n" +
+                "  • Leads or coordinates the response to High and Critical complaints; ensures root cause " +
+                "analysis is conducted under QMS-020\n" +
+                "  • Communicates quality improvement actions and corrective action closures to the customer\n" +
+                "  • Monitors the complaint trend data and presents a summary at management review (QMS-019)\n" +
+                "  • Maintains this procedure and the customer complaint classification criteria"));
+            ps2.Contents.Add(Blk(ps2, 4,
+                "All Customer-Facing Staff\n\n" +
+                "  • Communicate professionally and accurately; never make commitments (delivery dates, " +
+                "prices, specifications) that have not been confirmed internally\n" +
+                "  • Log all significant customer contacts in the CRM on the day of the interaction\n" +
+                "  • Never discuss quality failures, nonconformances, or internal investigations with " +
+                "customers without first consulting the Quality Manager or Sales Manager\n" +
+                "  • Refer media, legal, or regulatory enquiries from customers to senior management immediately"));
+            qms009.ProcessSteps.Add(ps2);
+
+            var ps3 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms009.CreatedAt, UpdatedAt = qms009.CreatedAt,
+                ProcessId = qms009.Id, StepTemplateId = stDocSect.Id, Sequence = 3,
+                NameOverride = "Procedure",
+                DescriptionOverride = "Steps for handling enquiries, orders, complaints, feedback, and contingency communication."
+            };
+            ps3.Contents.Add(Blk(ps3, 0,
+                "Step 1 — Enquiries, quotations, and product information\n\n" +
+                "  1.1  All customer enquiries are logged in the CRM the day they are received, with the " +
+                "customer name, contact person, date, channel, and a brief description of the enquiry.\n\n" +
+                "  1.2  The Account Manager assesses whether the enquiry requires a formal quotation. " +
+                "Standard product or service enquiries are responded to directly from the current approved " +
+                "price list and lead-time schedule. Non-standard or high-value enquiries are escalated to " +
+                "the Commercial Director.\n\n" +
+                "  1.3  Before a quotation or commitment to supply is issued, the requirements review " +
+                "process defined in QMS-010 must be completed. No commitments are made before this step.\n\n" +
+                "  1.4  Product information (datasheets, specifications, drawings, certificates) issued " +
+                "to customers must be the current approved version from the Document Library. The " +
+                "Account Manager confirms the revision status before issuing."));
+            ps3.Contents.Add(Blk(ps3, 1,
+                "Step 2 — Order placement and management\n\n" +
+                "  2.1  On receipt of a customer purchase order or electronic order, the Customer Service " +
+                "team checks the order against the agreed quotation or supply agreement: price, part number, " +
+                "revision level, quantity, delivery date, and delivery address.\n\n" +
+                "  2.2  Discrepancies between the order and the agreed terms are resolved with the customer " +
+                "before acknowledgement. The resolution is documented in the CRM.\n\n" +
+                "  2.3  An order acknowledgement is issued to the customer within 1 working day confirming " +
+                "the accepted terms.\n\n" +
+                "  2.4  Order changes requested by the customer after acknowledgement are re-reviewed under " +
+                "QMS-010 before acceptance. The customer is notified in writing of the revised terms and a " +
+                "new acknowledgement is issued.\n\n" +
+                "  2.5  Delivery status updates are proactively communicated to customers where a confirmed " +
+                "delivery date is at risk of being missed. The Account Manager notifies the customer as soon " +
+                "as a delay is identified, provides a revised date, and records the communication in the CRM."));
+            ps3.Contents.Add(Blk(ps3, 2,
+                "Step 3 — Complaint receipt and classification\n\n" +
+                "A customer complaint is any expression of dissatisfaction — written or verbal — relating " +
+                "to a product, service, delivery, commercial term, or communication. All complaints are:\n\n" +
+                "  3.1  Logged in the complaint register with a unique reference number on the same day " +
+                "of receipt. Acknowledgement is sent to the customer within 4 working hours.\n\n" +
+                "  3.2  Classified by severity:\n" +
+                "       Critical — product safety issue, regulatory reportable event, risk of customer line " +
+                "stoppage, or threat of certification withdrawal; escalate to Quality Manager and Managing " +
+                "Director within 2 hours\n" +
+                "       High     — confirmed or suspected delivery of nonconforming product; customer " +
+                "measurement rejection; require 8D or formal SCAR response; escalate to Quality Manager " +
+                "within 4 working hours\n" +
+                "       Medium   — delivery late or incomplete; documentation error; customer inconvenience " +
+                "without product nonconformance; respond within 3 working days\n" +
+                "       Low      — general dissatisfaction, communication issue, or minor administrative " +
+                "error; respond within 5 working days\n\n" +
+                "  3.3  A nonconformance is raised under QMS-016 for any complaint involving nonconforming " +
+                "product. A corrective action is raised under QMS-020 for any High or Critical complaint " +
+                "or where a root cause has been requested by the customer."));
+            ps3.Contents.Add(Blk(ps3, 3,
+                "Step 4 — Complaint investigation and response\n\n" +
+                "  4.1  The Quality Manager leads the investigation for High and Critical complaints; " +
+                "the Customer Service Manager leads for Medium and Low complaints with Quality Manager support.\n\n" +
+                "  4.2  Where the customer has requested an 8D (Eight Disciplines) or SCAR (Supplier " +
+                "Corrective Action Request) response, the Quality Manager prepares this in the format " +
+                "specified by the customer and issues it within the timescale stated in the customer's request.\n\n" +
+                "  4.3  Where no specific format has been requested:\n" +
+                "       Critical/High — written investigation summary including containment action, root " +
+                "cause, corrective action, and effectiveness check timeline; issued within 5 working days\n" +
+                "       Medium — written response confirming the cause and the corrective or improvement action; " +
+                "issued within 5 working days\n" +
+                "       Low — written or email response confirming the issue has been noted and any action taken\n\n" +
+                "  4.4  The complaint is closed in the complaint register only when the customer has " +
+                "confirmed acceptance of the response, or when the agreed response timeline has elapsed " +
+                "with no further contact from the customer."));
+            ps3.Contents.Add(Blk(ps3, 4,
+                "Step 5 — Customer property and contingency communication\n\n" +
+                "Customer property (tooling, raw material, customer-supplied components, intellectual " +
+                "property, or data) is identified, verified, protected, and safeguarded against loss, " +
+                "damage, or misuse. A customer property register is maintained by the relevant department " +
+                "manager. Any loss, damage, or unsuitability of customer property is reported to the " +
+                "customer immediately and recorded in the CRM and customer property register.\n\n" +
+                "Where a customer has specified contingency communication requirements (e.g., notification " +
+                "within a defined timescale in the event of a production disruption, natural disaster, or " +
+                "key personnel change), those requirements are recorded in the relevant customer account " +
+                "record in the CRM and in the supply agreement. The Sales Manager is responsible for " +
+                "ensuring contingency notifications are issued in accordance with the agreed terms " +
+                "whenever a triggering event occurs."));
+            qms009.ProcessSteps.Add(ps3);
+
+            var ps4 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms009.CreatedAt, UpdatedAt = qms009.CreatedAt,
+                ProcessId = qms009.Id, StepTemplateId = stDocSect.Id, Sequence = 4,
+                NameOverride = "Records and Documented Information",
+                DescriptionOverride = "Documented information maintained or retained under this procedure."
+            };
+            ps4.Contents.Add(Blk(ps4, 0,
+                "The following documented information shall be maintained or retained:\n\n" +
+                "  • CRM log — record of all significant customer contacts; maintained in the CRM system " +
+                "with customer name, date, channel, contact person, summary, and outcome\n" +
+                "  • Complaint register — log of all customer complaints with unique reference, date, " +
+                "severity classification, description, owner, response date, and closure status; maintained " +
+                "in Process Manager\n" +
+                "  • Complaint investigation and response records — for High and Critical: 8D, SCAR, or " +
+                "written investigation summary; for Medium: written response; for Low: email or note\n" +
+                "  • Order acknowledgements and change confirmations — retained as evidence of the agreed " +
+                "commercial terms at the time of order\n" +
+                "  • Customer property register — list of all customer-owned items in the organisation's " +
+                "possession, with condition, location, and any loss or damage reports\n" +
+                "  • Customer satisfaction survey results — scored results and trend data; input to the " +
+                "management review (QMS-019) and the QMS-017 analysis\n" +
+                "  • Contingency notification records — where contingency events have been triggered, " +
+                "records of the notification issued and customer acknowledgement"));
+            ps4.Contents.Add(Blk(ps4, 1,
+                "Retention periods\n\n" +
+                "  • CRM log entries — retained for five years from the date of the interaction\n" +
+                "  • Complaint records and investigation evidence — retained for ten years, or for the " +
+                "period required to cover any statutory limitation period applicable to the product, " +
+                "whichever is longer; Critical complaints are retained for the life of the certification\n" +
+                "  • Order acknowledgements — retained for five years after the order is closed\n" +
+                "  • Customer property register entries — retained for five years after the property " +
+                "has been returned to the customer or disposed of\n" +
+                "  • Customer satisfaction survey results — retained for five years from the survey date\n\n" +
+                "Records must be retrievable by customer name, complaint reference, and date range for " +
+                "audit and potential legal purposes."));
+            qms009.ProcessSteps.Add(ps4);
+        }
 
         AddQmsSteps(qms010, stDocSect,
             "Ensures customer, statutory, and organisation-imposed requirements are fully determined, reviewed, and confirmed before commitment to supply, and that changes are re-reviewed per clauses 8.2.2–8.2.4.",

@@ -128,9 +128,13 @@ public class WorkordersController : ControllerBase
             var jobCode = $"{dto.Code}-{process.Code}";
 
             // Ensure unique job code by checking both DB and change tracker (for multi-entry-point workflows)
-            if (await _db.Jobs.AnyAsync(j => j.Code == jobCode)
-                || _db.Jobs.Local.Any(j => j.Code == jobCode))
-                jobCode = $"{dto.Code}-{jobIndex:D2}";
+            var suffix = 1;
+            while (await _db.Jobs.AnyAsync(j => j.Code == jobCode)
+                   || _db.Jobs.Local.Any(j => j.Code == jobCode))
+            {
+                jobCode = $"{dto.Code}-{process.Code}-{suffix:D2}";
+                suffix++;
+            }
 
             var job = new Job
             {
@@ -416,9 +420,13 @@ public class WorkordersController : ControllerBase
     private async Task CreateJobForWorkflowProcess(Workorder workorder, WorkflowProcess wp, Process process)
     {
         var jobCode = $"{workorder.Code}-{process.Code}";
-        if (await _db.Jobs.AnyAsync(j => j.Code == jobCode)
-            || _db.Jobs.Local.Any(j => j.Code == jobCode))
-            jobCode = $"{workorder.Code}-{process.Code}-{Guid.NewGuid().ToString()[..4]}";
+        var suffix = 1;
+        while (await _db.Jobs.AnyAsync(j => j.Code == jobCode)
+               || _db.Jobs.Local.Any(j => j.Code == jobCode))
+        {
+            jobCode = $"{workorder.Code}-{process.Code}-{suffix:D2}";
+            suffix++;
+        }
 
         var job = new Job
         {

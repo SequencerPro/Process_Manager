@@ -767,7 +767,11 @@ public class ApiClient
     public async Task DeleteWorkflowProcessAsync(Guid workflowId, Guid wpId)
     {
         var resp = await _http.DeleteAsync($"api/workflows/{workflowId}/processes/{wpId}");
-        resp.EnsureSuccessStatusCode();
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to remove process ({resp.StatusCode})");
+        }
     }
 
     public async Task UpdateWorkflowProcessPositionsAsync(Guid workflowId, UpdateWorkflowProcessPositionsDto dto)

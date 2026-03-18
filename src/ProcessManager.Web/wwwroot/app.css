@@ -400,3 +400,14 @@ h1:focus {
     font-size: 0.88rem;
     margin-bottom: 0.75rem;
 }
+
+/* ── Workflow Builder Slide/Document View Height Overrides ── */
+.wfb-slide-layout {
+    height: calc(100vh - 180px);
+    min-height: 380px;
+}
+
+.wfb-doc-view {
+    height: calc(100vh - 180px);
+    min-height: 380px;
+}

@@ -16,111 +16,145 @@
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search kinds..." />
 </div>
 
-@if (_loading)
-{
-    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
-}
-else if (_data is not null)
-{
-    <div class="table-responsive">
-        <table class="table table-hover table-sm align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th>Code</th>
-                    <th>Name</th>
-                    <th>Serialized</th>
-                    <th>Batchable</th>
-                    <th>Grades</th>
-                    <th style="width:120px">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (!_data.Items.Any())
-                {
-                    <tr><td colspan="6" class="text-center text-muted py-3">No kinds found.</td></tr>
-                }
-                else
-                {
-                @foreach (var kind in _data.Items)
-                {
-                    <tr>
-                        <td><code>@kind.Code</code></td>
-                        <td>
-                            <a href="kinds/@kind.Id">@kind.Name</a>
-                        </td>
-                        <td>@(kind.IsSerialized ? "Yes" : "No")</td>
-                        <td>@(kind.IsBatchable ? "Yes" : "No")</td>
-                        <td>
-                            @foreach (var g in kind.Grades)
-                            {
-                                <span class="badge bg-light text-dark border me-1">@g.Code</span>
-                            }
-                        </td>
-                        <td>
-                            <button class="btn btn-outline-secondary btn-sm me-1" title="Edit"
-                                    @onclick="() => ShowEditForm(kind)">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm" title="Delete"
-                                    @onclick="() => DeleteKind(kind)">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                }
-                }
-            </tbody>
-        </table>
+<div class="d-flex" style="gap: 0;">
+    @* ── Main Table ── *@
+    <div class="flex-grow-1" style="min-width: 0;">
+        @if (_loading)
+        {
+            <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+        }
+        else if (_data is not null)
+        {
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Code</th>
+                            <th>Name</th>
+                            <th>Serialized</th>
+                            <th>Batchable</th>
+                            <th>Grades</th>
+                            <th style="width:120px">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!_data.Items.Any())
+                        {
+                            <tr><td colspan="6" class="text-center text-muted py-3">No kinds found.</td></tr>
+                        }
+                        else
+                        {
+                        @foreach (var kind in _data.Items)
+                        {
+                            <tr class="@(_editingId == kind.Id ? "table-active" : "")">
+                                <td><code>@kind.Code</code></td>
+                                <td>
+                                    <a href="kinds/@kind.Id">@kind.Name</a>
+                                </td>
+                                <td>@(kind.IsSerialized ? "Yes" : "No")</td>
+                                <td>@(kind.IsBatchable ? "Yes" : "No")</td>
+                                <td>
+                                    @foreach (var g in kind.Grades)
+                                    {
+                                        <span class="badge bg-light text-dark border me-1">@g.Code</span>
+                                    }
+                                </td>
+                                <td>
+                                    <button class="btn btn-outline-secondary btn-sm me-1" title="Edit"
+                                            @onclick="() => ShowEditForm(kind)">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger btn-sm" title="Delete"
+                                            @onclick="() => DeleteKind(kind)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <Pager Page="_page" PageSize="_pageSize" TotalCount="_data.TotalCount"
+                   OnPageChanged="OnPageChanged" />
+        }
     </div>
 
-    <Pager Page="_page" PageSize="_pageSize" TotalCount="_data.TotalCount"
-           OnPageChanged="OnPageChanged" />
-}
-
-@if (_showForm)
-{
-    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">@(_editingId.HasValue ? "Edit Kind" : "New Kind")</h5>
-                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+    @* ── Side Panel ── *@
+    @if (_showForm)
+    {
+        <div class="kind-side-panel">
+            <div class="kind-side-panel-header">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi @(_editingId.HasValue ? "bi-pencil-square" : "bi-plus-circle") text-primary"></i>
+                    <h6 class="mb-0 fw-semibold">@(_editingId.HasValue ? "Edit Kind" : "New Kind")</h6>
                 </div>
-                <EditForm Model="_form" OnValidSubmit="SaveKind">
-                    <DataAnnotationsValidator />
-                    <div class="modal-body">
+                <button type="button" class="btn-close btn-close-sm" @onclick="CloseForm"></button>
+            </div>
+
+            <EditForm Model="_form" OnValidSubmit="SaveKind">
+                <DataAnnotationsValidator />
+                <div class="kind-side-panel-body">
+                    <div class="kind-side-panel-section">
+                        <label class="kind-side-panel-section-label">
+                            <i class="bi bi-tag me-1"></i>Identification
+                        </label>
                         <div class="mb-3">
-                            <label class="form-label">Code</label>
-                            <InputText class="form-control" @bind-Value="_form.Code" disabled="@_editingId.HasValue" />
+                            <label class="form-label small mb-1">Code</label>
+                            <InputText class="form-control form-control-sm" @bind-Value="_form.Code"
+                                       disabled="@_editingId.HasValue" placeholder="e.g. WDG-100" />
                             <ValidationMessage For="() => _form.Code" />
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Name</label>
-                            <InputText class="form-control" @bind-Value="_form.Name" />
+                            <label class="form-label small mb-1">Name</label>
+                            <InputText class="form-control form-control-sm" @bind-Value="_form.Name"
+                                       placeholder="e.g. Widget" />
                             <ValidationMessage For="() => _form.Name" />
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Description</label>
-                            <InputTextArea class="form-control" @bind-Value="_form.Description" rows="2" />
-                        </div>
-                        <div class="form-check mb-2">
-                            <InputCheckbox class="form-check-input" @bind-Value="_form.IsSerialized" />
-                            <label class="form-check-label">Serialized</label>
-                        </div>
-                        <div class="form-check mb-2">
-                            <InputCheckbox class="form-check-input" @bind-Value="_form.IsBatchable" />
-                            <label class="form-check-label">Batchable</label>
+                        <div class="mb-0">
+                            <label class="form-label small mb-1">Description</label>
+                            <InputTextArea class="form-control form-control-sm" @bind-Value="_form.Description"
+                                           rows="2" placeholder="Optional description..." />
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Save</button>
+
+                    <div class="kind-side-panel-section">
+                        <label class="kind-side-panel-section-label">
+                            <i class="bi bi-toggles me-1"></i>Properties
+                        </label>
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div>
+                                <div class="small fw-semibold">Serialized</div>
+                                <div class="text-muted" style="font-size:.7rem">Track individual items by serial number</div>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <InputCheckbox class="form-check-input" @bind-Value="_form.IsSerialized" />
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <div class="small fw-semibold">Batchable</div>
+                                <div class="text-muted" style="font-size:.7rem">Group items into batches for processing</div>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <InputCheckbox class="form-check-input" @bind-Value="_form.IsBatchable" />
+                            </div>
+                        </div>
                     </div>
-                </EditForm>
-            </div>
+                </div>
+
+                <div class="kind-side-panel-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CloseForm">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <i class="bi @(_editingId.HasValue ? "bi-check-lg" : "bi-plus-lg") me-1"></i>
+                        @(_editingId.HasValue ? "Update" : "Create")
+                    </button>
+                </div>
+            </EditForm>
         </div>
-    </div>
-}
+    }
+</div>
 
 @code {
     private PaginatedResponse<KindResponseDto>? _data;

@@ -3,6 +3,7 @@
 @inject ApiClient Api
 @inject IJSRuntime JS
 @inject VocabularyService Vocab
+@implements IDisposable
 
 <PageTitle>@Vocab.KindsAndGrades</PageTitle>
 
@@ -169,7 +170,10 @@
     private Guid? _editingId;
     private KindFormModel _form = new();
 
+    protected override void OnInitialized() => Vocab.OnChange += OnVocabChanged;
     protected override async Task OnInitializedAsync() => await LoadData();
+    private void OnVocabChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Vocab.OnChange -= OnVocabChanged;
 
     private async Task LoadData()
     {

@@ -3,6 +3,7 @@
 @inject ApiClient Api
 @inject IJSRuntime JS
 @inject VocabularyService Vocab
+@implements IDisposable
 
 <PageTitle>@Vocab.StepTemplates</PageTitle>
 
@@ -471,7 +472,10 @@ else if (_data is not null)
         public PortType PortType => PortType.Material;
     }
 
+    protected override void OnInitialized() => Vocab.OnChange += OnVocabChanged;
     protected override async Task OnInitializedAsync() => await LoadData();
+    private void OnVocabChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Vocab.OnChange -= OnVocabChanged;
 
     private async Task LoadData()
     {

@@ -11,7 +11,10 @@ public class VocabularyService
 {
     private DomainVocabularyResponseDto? _active;
 
-    /// <summary>Whether the service has attempted to load the active vocabulary.</summary>
+    /// <summary>Raised when the active vocabulary changes (load, activate, deactivate).</summary>
+    public event Action? OnChange;
+
+    /// <summary>Whether the service has successfully loaded the active vocabulary.</summary>
     public bool IsLoaded { get; private set; }
 
     /// <summary>Name of the active vocabulary, or null if none.</summary>
@@ -58,12 +61,14 @@ public class VocabularyService
         try
         {
             _active = await api.GetActiveVocabularyAsync();
+            IsLoaded = true;
+            OnChange?.Invoke();
         }
         catch
         {
             // Best-effort — if the API is unreachable, use defaults silently.
+            // IsLoaded stays false so the next circuit init can retry.
         }
-        IsLoaded = true;
     }
 
     /// <summary>
@@ -74,6 +79,7 @@ public class VocabularyService
     {
         _active = vocab;
         IsLoaded = true;
+        OnChange?.Invoke();
     }
 
     /// <summary>

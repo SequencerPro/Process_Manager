@@ -435,6 +435,7 @@
     {
         _openSection = GetSectionForUrl(Nav.Uri);
         Nav.LocationChanged += OnLocationChanged;
+        Vocab.OnChange += OnVocabChanged;
     }
 
     protected override async Task OnInitializedAsync()
@@ -498,5 +499,11 @@
         return null;
     }
 
-    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+    private void OnVocabChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        Vocab.OnChange -= OnVocabChanged;
+    }
 }

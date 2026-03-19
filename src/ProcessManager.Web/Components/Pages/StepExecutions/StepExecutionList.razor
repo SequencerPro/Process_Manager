@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject VocabularyService Vocab
+@implements IDisposable
 
 <PageTitle>@Vocab.StepExecutions</PageTitle>
 
@@ -90,6 +91,8 @@ else if (_data is not null)
     private int _pageSize = 25;
     private List<JobResponseDto>? _jobs;
 
+    protected override void OnInitialized() => Vocab.OnChange += OnVocabChanged;
+
     protected override async Task OnInitializedAsync()
     {
         _status = StatusQuery;
@@ -97,6 +100,9 @@ else if (_data is not null)
         _jobs = jobResult?.Items?.ToList();
         await LoadData();
     }
+
+    private void OnVocabChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Vocab.OnChange -= OnVocabChanged;
 
     private async Task LoadData()
     {

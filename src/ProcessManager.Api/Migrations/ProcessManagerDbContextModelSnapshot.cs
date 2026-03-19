@@ -318,7 +318,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("SourceType", "SourceEntityId");
 
-                    b.ToTable("ActionItems");
+                    b.ToTable("ActionItems", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.ApprovalRecord", b =>
@@ -388,7 +388,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("EntityType", "EntityId");
 
-                    b.ToTable("ApprovalRecords");
+                    b.ToTable("ApprovalRecords", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Batch", b =>
@@ -442,7 +442,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("KindId");
 
-                    b.ToTable("Batches");
+                    b.ToTable("Batches", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.CeCorrelation", b =>
@@ -484,7 +484,7 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("CeInputId", "CeOutputId")
                         .IsUnique();
 
-                    b.ToTable("CeCorrelations");
+                    b.ToTable("CeCorrelations", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.CeInput", b =>
@@ -530,7 +530,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("PortId");
 
-                    b.ToTable("CeInputs");
+                    b.ToTable("CeInputs", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.CeMatrix", b =>
@@ -566,7 +566,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("ProcessStepId");
 
-                    b.ToTable("CeMatrices");
+                    b.ToTable("CeMatrices", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.CeOutput", b =>
@@ -615,7 +615,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("PortId");
 
-                    b.ToTable("CeOutputs");
+                    b.ToTable("CeOutputs", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.CompetencyRecord", b =>
@@ -691,7 +691,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("UserId", "TrainingProcessId", "Status");
 
-                    b.ToTable("CompetencyRecords");
+                    b.ToTable("CompetencyRecords", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.ControlPlan", b =>
@@ -758,7 +758,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("ProcessId");
 
-                    b.ToTable("ControlPlans");
+                    b.ToTable("ControlPlans", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.ControlPlanEntry", b =>
@@ -838,7 +838,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("ProcessStepId");
 
-                    b.ToTable("ControlPlanEntries");
+                    b.ToTable("ControlPlanEntries", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.DocumentApprovalRequest", b =>
@@ -887,7 +887,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("ProcessId");
 
-                    b.ToTable("DocumentApprovalRequests");
+                    b.ToTable("DocumentApprovalRequests", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.DomainVocabulary", b =>
@@ -983,7 +983,7 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("DomainVocabularies");
+                    b.ToTable("DomainVocabularies", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.DowntimeRecord", b =>
@@ -1034,7 +1034,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("EquipmentId", "StartedAt");
 
-                    b.ToTable("DowntimeRecords");
+                    b.ToTable("DowntimeRecords", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Equipment", b =>
@@ -1097,7 +1097,7 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("Equipment");
+                    b.ToTable("Equipment", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.EquipmentCategory", b =>
@@ -1133,7 +1133,7 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("EquipmentCategories");
+                    b.ToTable("EquipmentCategories", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.ExecutionData", b =>
@@ -1190,7 +1190,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("StepExecutionId");
 
-                    b.ToTable("ExecutionData");
+                    b.ToTable("ExecutionData", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.FiveWhysAnalysis", b =>
@@ -1246,7 +1246,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("LinkedEntityId");
 
-                    b.ToTable("FiveWhysAnalyses");
+                    b.ToTable("FiveWhysAnalyses", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.FiveWhysNode", b =>
@@ -1296,7 +1296,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("RootCauseLibraryEntryId");
 
-                    b.ToTable("FiveWhysNodes");
+                    b.ToTable("FiveWhysNodes", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Flow", b =>
@@ -1344,7 +1344,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("TargetProcessStepId");
 
-                    b.ToTable("Flows");
+                    b.ToTable("Flows", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Grade", b =>
@@ -1392,7 +1392,7 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("KindId", "Code")
                         .IsUnique();
 
-                    b.ToTable("Grades");
+                    b.ToTable("Grades", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.IshikawaCause", b =>
@@ -1443,7 +1443,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("RootCauseLibraryEntryId");
 
-                    b.ToTable("IshikawaCauses");
+                    b.ToTable("IshikawaCauses", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.IshikawaDiagram", b =>
@@ -1499,7 +1499,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("LinkedEntityId");
 
-                    b.ToTable("IshikawaDiagrams");
+                    b.ToTable("IshikawaDiagrams", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Item", b =>
@@ -1552,7 +1552,7 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("KindId", "SerialNumber")
                         .IsUnique();
 
-                    b.ToTable("Items");
+                    b.ToTable("Items", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Job", b =>
@@ -1627,7 +1627,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("WorkorderId");
 
-                    b.ToTable("Jobs");
+                    b.ToTable("Jobs", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Kind", b =>
@@ -1672,7 +1672,7 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("Kinds");
+                    b.ToTable("Kinds", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.MaintenanceTask", b =>
@@ -1743,7 +1743,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("EquipmentId", "Status");
 
-                    b.ToTable("MaintenanceTasks");
+                    b.ToTable("MaintenanceTasks", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.MaintenanceTrigger", b =>
@@ -1796,7 +1796,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("EquipmentId");
 
-                    b.ToTable("MaintenanceTriggers");
+                    b.ToTable("MaintenanceTriggers", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.ManagementReview", b =>
@@ -1886,7 +1886,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("ManagementReviews");
+                    b.ToTable("ManagementReviews", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.MrbParticipant", b =>
@@ -1939,7 +1939,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("MrbReviewId");
 
-                    b.ToTable("MrbParticipants");
+                    b.ToTable("MrbParticipants", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.MrbReview", b =>
@@ -2024,7 +2024,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("MrbReviews");
+                    b.ToTable("MrbReviews", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.NonConformance", b =>
@@ -2088,7 +2088,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("StepExecutionId");
 
-                    b.ToTable("NonConformances");
+                    b.ToTable("NonConformances", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Pfmea", b =>
@@ -2155,7 +2155,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("ProcessId");
 
-                    b.ToTable("Pfmeas");
+                    b.ToTable("Pfmeas", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.PfmeaAction", b =>
@@ -2213,7 +2213,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("FailureModeId");
 
-                    b.ToTable("PfmeaActions");
+                    b.ToTable("PfmeaActions", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.PfmeaFailureMode", b =>
@@ -2282,7 +2282,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("ProcessStepId");
 
-                    b.ToTable("PfmeaFailureModes");
+                    b.ToTable("PfmeaFailureModes", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Port", b =>
@@ -2371,7 +2371,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("StepTemplateId");
 
-                    b.ToTable("Ports");
+                    b.ToTable("Ports", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.PortTransaction", b =>
@@ -2417,7 +2417,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("StepExecutionId");
 
-                    b.ToTable("PortTransactions");
+                    b.ToTable("PortTransactions", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.PowerBiDashboard", b =>
@@ -2460,7 +2460,7 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("PowerBiDashboards");
+                    b.ToTable("PowerBiDashboards", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Process", b =>
@@ -2542,7 +2542,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("ParentProcessId");
 
-                    b.ToTable("Processes");
+                    b.ToTable("Processes", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.ProcessStep", b =>
@@ -2590,7 +2590,7 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("ProcessId", "Sequence")
                         .IsUnique();
 
-                    b.ToTable("ProcessSteps");
+                    b.ToTable("ProcessSteps", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.ProcessStepContent", b =>
@@ -2680,7 +2680,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("ProcessStepId");
 
-                    b.ToTable("ProcessStepContents");
+                    b.ToTable("ProcessStepContents", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.ProcessStepPortOverride", b =>
@@ -2742,7 +2742,7 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("ProcessStepId", "PortId")
                         .IsUnique();
 
-                    b.ToTable("ProcessStepPortOverrides");
+                    b.ToTable("ProcessStepPortOverrides", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.ProcessTrainingRequirement", b =>
@@ -2784,7 +2784,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("SubjectType", "SubjectEntityId");
 
-                    b.ToTable("ProcessTrainingRequirements");
+                    b.ToTable("ProcessTrainingRequirements", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.PromptResponse", b =>
@@ -2837,7 +2837,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("StepTemplateContentId");
 
-                    b.ToTable("PromptResponses");
+                    b.ToTable("PromptResponses", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.RootCauseEntry", b =>
@@ -2887,7 +2887,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("Category");
 
-                    b.ToTable("RootCauseEntries");
+                    b.ToTable("RootCauseEntries", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.RunChartWidget", b =>
@@ -2937,7 +2937,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("StepTemplateId");
 
-                    b.ToTable("RunChartWidgets");
+                    b.ToTable("RunChartWidgets", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepExecution", b =>
@@ -3000,7 +3000,7 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("JobId", "ProcessStepId")
                         .IsUnique();
 
-                    b.ToTable("StepExecutions");
+                    b.ToTable("StepExecutions", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepTemplate", b =>
@@ -3066,7 +3066,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("RequiredEquipmentCategoryId");
 
-                    b.ToTable("StepTemplates");
+                    b.ToTable("StepTemplates", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepTemplateContent", b =>
@@ -3159,7 +3159,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("StepTemplateId");
 
-                    b.ToTable("StepTemplateContents");
+                    b.ToTable("StepTemplateContents", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepTemplateImage", b =>
@@ -3205,7 +3205,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("StepTemplateId");
 
-                    b.ToTable("StepTemplateImages");
+                    b.ToTable("StepTemplateImages", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Workflow", b =>
@@ -3250,7 +3250,7 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("Workflows");
+                    b.ToTable("Workflows", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.WorkflowLink", b =>
@@ -3304,7 +3304,7 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("SourceWorkflowProcessId", "TargetWorkflowProcessId")
                         .IsUnique();
 
-                    b.ToTable("WorkflowLinks");
+                    b.ToTable("WorkflowLinks", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.WorkflowLinkCondition", b =>
@@ -3338,7 +3338,7 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("WorkflowLinkId", "GradeId")
                         .IsUnique();
 
-                    b.ToTable("WorkflowLinkConditions");
+                    b.ToTable("WorkflowLinkConditions", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.WorkflowProcess", b =>
@@ -3389,7 +3389,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("WorkflowId", "ProcessId");
 
-                    b.ToTable("WorkflowProcesses");
+                    b.ToTable("WorkflowProcesses", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Workorder", b =>
@@ -3450,7 +3450,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("WorkflowId");
 
-                    b.ToTable("Workorders");
+                    b.ToTable("Workorders", (string)null);
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.WorkorderJob", b =>
@@ -3491,7 +3491,7 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasIndex("WorkorderId", "WorkflowProcessId");
 
-                    b.ToTable("WorkorderJobs");
+                    b.ToTable("WorkorderJobs", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

@@ -148,6 +148,8 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(d => d.TermWorkflow).HasMaxLength(100).IsRequired();
             e.Property(d => d.TermProcess).HasMaxLength(100).IsRequired();
             e.Property(d => d.TermStep).HasMaxLength(100).IsRequired();
+            e.Property(d => d.TermWorkorder).HasMaxLength(100).IsRequired();
+            e.Property(d => d.IsActive).HasDefaultValue(false);
         });
 
         // --- StepTemplate ---

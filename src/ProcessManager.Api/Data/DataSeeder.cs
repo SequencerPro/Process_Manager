@@ -23,7 +23,8 @@ public static class DataSeeder
             TermGrade = "Grade", TermItem = "Unit", TermItemId = "Serial No.",
             TermBatch = "Lot", TermBatchId = "Lot No.",
             TermJob = "Work Order", TermWorkflow = "Workflow",
-            TermProcess = "Process", TermStep = "Operation"
+            TermProcess = "Process", TermStep = "Operation",
+            TermWorkorder = "Work Order"
         };
         var vocabElec = new DomainVocabulary
         {
@@ -33,7 +34,8 @@ public static class DataSeeder
             TermGrade = "Quality Grade", TermItem = "Board", TermItemId = "Board S/N",
             TermBatch = "Panel", TermBatchId = "Panel ID",
             TermJob = "Production Order", TermWorkflow = "Build Plan",
-            TermProcess = "Build Process", TermStep = "Station"
+            TermProcess = "Build Process", TermStep = "Station",
+            TermWorkorder = "Production Order"
         };
         db.DomainVocabularies.AddRange(vocabGeneral, vocabElec);
 

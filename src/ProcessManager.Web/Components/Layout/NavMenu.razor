@@ -3,6 +3,7 @@
 @inject AuthenticationStateProvider AuthState
 @inject ApiClient Api
 @inject NavigationManager Nav
+@inject VocabularyService Vocab
 @implements IDisposable
 @using System.Security.Claims
 
@@ -62,17 +63,17 @@
         {
             <li class="nav-item">
                 <NavLink class="nav-link text-white ps-4" href="kinds">
-                    <i class="bi bi-box me-2"></i> Kinds &amp; Grades
+                    <i class="bi bi-box me-2"></i> @Vocab.KindsAndGrades
                 </NavLink>
             </li>
             <li class="nav-item">
                 <NavLink class="nav-link text-white ps-4" href="step-templates">
-                    <i class="bi bi-puzzle me-2"></i> Step Templates
+                    <i class="bi bi-puzzle me-2"></i> @Vocab.StepTemplates
                 </NavLink>
             </li>
             <li class="nav-item">
                 <NavLink class="nav-link text-white ps-4" href="processes">
-                    <i class="bi bi-diagram-3 me-2"></i> Processes
+                    <i class="bi bi-diagram-3 me-2"></i> @Vocab.Processes
                 </NavLink>
             </li>
             <li class="nav-item">
@@ -86,7 +87,7 @@
             </li>
             <li class="nav-item">
                 <NavLink class="nav-link text-white ps-4" href="workflows">
-                    <i class="bi bi-share me-2"></i> Workflows
+                    <i class="bi bi-share me-2"></i> @Vocab.Workflows
                 </NavLink>
             </li>
         }
@@ -104,27 +105,27 @@
         {
             <li class="nav-item">
                 <NavLink class="nav-link text-white ps-4" href="workorders">
-                    <i class="bi bi-kanban me-2"></i> Workorders
+                    <i class="bi bi-kanban me-2"></i> @Vocab.Workorders
                 </NavLink>
             </li>
             <li class="nav-item">
                 <NavLink class="nav-link text-white ps-4" href="jobs">
-                    <i class="bi bi-clipboard-check me-2"></i> Jobs
+                    <i class="bi bi-clipboard-check me-2"></i> @Vocab.Jobs
                 </NavLink>
             </li>
             <li class="nav-item">
                 <NavLink class="nav-link text-white ps-4" href="items">
-                    <i class="bi bi-tag me-2"></i> Items
+                    <i class="bi bi-tag me-2"></i> @Vocab.Items
                 </NavLink>
             </li>
             <li class="nav-item">
                 <NavLink class="nav-link text-white ps-4" href="batches">
-                    <i class="bi bi-collection me-2"></i> Batches
+                    <i class="bi bi-collection me-2"></i> @Vocab.Batches
                 </NavLink>
             </li>
             <li class="nav-item">
                 <NavLink class="nav-link text-white ps-4" href="step-executions">
-                    <i class="bi bi-play-circle me-2"></i> Step Executions
+                    <i class="bi bi-play-circle me-2"></i> @Vocab.StepExecutions
                 </NavLink>
             </li>
         }

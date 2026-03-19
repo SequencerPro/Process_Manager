@@ -1,10 +1,11 @@
 @page "/step-executions"
 @rendermode InteractiveServer
 @inject ApiClient Api
+@inject VocabularyService Vocab
 
-<PageTitle>Step Executions</PageTitle>
+<PageTitle>@Vocab.StepExecutions</PageTitle>
 
-<h3 class="mb-3">Step Executions</h3>
+<h3 class="mb-3">@Vocab.StepExecutions</h3>
 
 <div class="d-flex gap-3 mb-3 flex-wrap align-items-center">
     <select class="form-select form-select-sm" style="width:auto" @onchange="OnStatusFilter">

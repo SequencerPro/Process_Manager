@@ -39,6 +39,14 @@ public class DomainVocabulariesController : ControllerBase
             vocabs.Select(MapToDto).ToList(), totalCount, page, pageSize);
     }
 
+    [HttpGet("active")]
+    public async Task<ActionResult<DomainVocabularyResponseDto>> GetActive()
+    {
+        var vocab = await _db.DomainVocabularies.FirstOrDefaultAsync(v => v.IsActive);
+        if (vocab is null) return NoContent();
+        return MapToDto(vocab);
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<DomainVocabularyResponseDto>> GetById(Guid id)
     {
@@ -66,7 +74,8 @@ public class DomainVocabulariesController : ControllerBase
             TermJob = dto.TermJob,
             TermWorkflow = dto.TermWorkflow,
             TermProcess = dto.TermProcess,
-            TermStep = dto.TermStep
+            TermStep = dto.TermStep,
+            TermWorkorder = dto.TermWorkorder
         };
 
         _db.DomainVocabularies.Add(vocab);
@@ -93,7 +102,37 @@ public class DomainVocabulariesController : ControllerBase
         vocab.TermWorkflow = dto.TermWorkflow;
         vocab.TermProcess = dto.TermProcess;
         vocab.TermStep = dto.TermStep;
+        vocab.TermWorkorder = dto.TermWorkorder;
 
+        await _db.SaveChangesAsync();
+        return MapToDto(vocab);
+    }
+
+    [HttpPut("{id:guid}/activate")]
+    public async Task<ActionResult<DomainVocabularyResponseDto>> Activate(Guid id)
+    {
+        var vocab = await _db.DomainVocabularies.FindAsync(id);
+        if (vocab is null) return NotFound();
+
+        // Deactivate any currently active vocabulary
+        var currentlyActive = await _db.DomainVocabularies
+            .Where(v => v.IsActive)
+            .ToListAsync();
+        foreach (var c in currentlyActive)
+            c.IsActive = false;
+
+        vocab.IsActive = true;
+        await _db.SaveChangesAsync();
+        return MapToDto(vocab);
+    }
+
+    [HttpPut("{id:guid}/deactivate")]
+    public async Task<ActionResult<DomainVocabularyResponseDto>> Deactivate(Guid id)
+    {
+        var vocab = await _db.DomainVocabularies.FindAsync(id);
+        if (vocab is null) return NotFound();
+
+        vocab.IsActive = false;
         await _db.SaveChangesAsync();
         return MapToDto(vocab);
     }
@@ -110,11 +149,11 @@ public class DomainVocabulariesController : ControllerBase
     }
 
     private static DomainVocabularyResponseDto MapToDto(DomainVocabulary v) => new(
-        v.Id, v.Name,
+        v.Id, v.Name, v.IsActive,
         v.TermKind, v.TermKindCode, v.TermGrade,
         v.TermItem, v.TermItemId,
         v.TermBatch, v.TermBatchId,
-        v.TermJob, v.TermWorkflow, v.TermProcess, v.TermStep,
+        v.TermJob, v.TermWorkflow, v.TermProcess, v.TermStep, v.TermWorkorder,
         v.CreatedAt, v.UpdatedAt
     );
 }

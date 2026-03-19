@@ -1427,6 +1427,55 @@ else
         _loading = false;
     }
 
+    /// <summary>
+    /// Re-fetches the process from the API and rebuilds the diagram in-place,
+    /// avoiding a forceLoad that would destroy the circuit and reset scoped services.
+    /// </summary>
+    private async Task ReloadProcess(Guid processId)
+    {
+        _loading = true;
+        _steps.Clear();
+        _linkData.Clear();
+        _selectedNode = null;
+        _selectedLink = null;
+        StateHasChanged();
+
+        _origProc = await Api.GetProcessAsync(processId);
+        if (_origProc is not null)
+        {
+            _code = _origProc.Code;
+            _name = _origProc.Name;
+            _description = _origProc.Description;
+
+            foreach (var s in _origProc.Steps.OrderBy(s => s.Sequence))
+            {
+                _steps.Add(new BuilderStep
+                {
+                    ServerId = s.Id,
+                    Sequence = s.Sequence,
+                    StepTemplateId = s.StepTemplateId,
+                    NameOverride = s.NameOverride,
+                    DescriptionOverride = s.DescriptionOverride,
+                    PatternOverride = s.PatternOverride,
+                    PortOverrides = s.PortOverrides?.Select(po => new ProcessStepPortOverrideDto(
+                        po.PortId, po.NameOverride, po.DirectionOverride,
+                        po.KindIdOverride, po.GradeIdOverride,
+                        po.QtyRuleModeOverride, po.QtyRuleNOverride,
+                        po.SortOrderOverride)).ToList() ?? new()
+                });
+            }
+
+            await Task.WhenAll(_steps.Select(async step =>
+                step.Template = await Api.GetStepTemplateAsync(step.StepTemplateId)));
+
+            SetupDiagram();
+            PopulateDiagram();
+            RestoreFlowsFromOriginal();
+        }
+        _loading = false;
+        Toast.ShowSuccess("Process saved successfully.");
+    }
+
     private void SetupDiagram()
     {
         var options = new BlazorDiagramOptions();
@@ -2164,7 +2213,16 @@ else
                 }
             }
 
-            Nav.NavigateTo(IsDocumentContext ? $"documents/{processId}/builder" : IsTrainingContext ? $"training/{processId}/builder" : $"processes/{processId}/builder", forceLoad: true);
+            if (!Id.HasValue)
+            {
+                // New process — navigate to the URL with the new ID (triggers component re-init).
+                Nav.NavigateTo(IsDocumentContext ? $"documents/{processId}/builder" : IsTrainingContext ? $"training/{processId}/builder" : $"processes/{processId}/builder");
+            }
+            else
+            {
+                // Existing process — reload data in-place to preserve circuit state.
+                await ReloadProcess(processId);
+            }
         }
         catch (HttpRequestException ex)
         {

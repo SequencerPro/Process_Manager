@@ -2,11 +2,12 @@
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject IJSRuntime JS
+@inject VocabularyService Vocab
 
-<PageTitle>Step Templates</PageTitle>
+<PageTitle>@Vocab.StepTemplates</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3 class="mb-0">Step Templates</h3>
+    <h3 class="mb-0">@Vocab.StepTemplates</h3>
     <button class="btn btn-primary btn-sm" @onclick="ShowCreateForm">
         <i class="bi bi-plus-lg me-1"></i> New Template
     </button>

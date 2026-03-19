@@ -2,6 +2,8 @@
 @using System.Security.Claims
 @inject AuthenticationStateProvider AuthState
 @inject ProcessManager.Web.Services.TokenService TokenSvc
+@inject ProcessManager.Web.Services.VocabularyService Vocab
+@inject ApiClient Api
 
 <div class="d-flex vh-100">
     <NavMenu />
@@ -38,6 +40,11 @@
                 TokenSvc.DisplayName  = user.FindFirst("display_name")?.Value;
                 TokenSvc.Role         = user.FindFirst(ClaimTypes.Role)?.Value;
             }
+        }
+
+        if (!Vocab.IsLoaded)
+        {
+            await Vocab.LoadAsync(Api);
         }
     }
 }

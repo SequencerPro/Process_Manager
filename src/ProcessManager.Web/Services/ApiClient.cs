@@ -847,6 +847,28 @@ public class ApiClient
         resp.EnsureSuccessStatusCode();
     }
 
+    public async Task<DomainVocabularyResponseDto?> GetActiveVocabularyAsync()
+    {
+        var resp = await _http.GetAsync("api/domainvocabularies/active");
+        if (resp.StatusCode == System.Net.HttpStatusCode.NoContent) return null;
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<DomainVocabularyResponseDto>(_json);
+    }
+
+    public async Task<DomainVocabularyResponseDto?> ActivateVocabularyAsync(Guid id)
+    {
+        var resp = await _http.PutAsync($"api/domainvocabularies/{id}/activate", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<DomainVocabularyResponseDto>(_json);
+    }
+
+    public async Task<DomainVocabularyResponseDto?> DeactivateVocabularyAsync(Guid id)
+    {
+        var resp = await _http.PutAsync($"api/domainvocabularies/{id}/deactivate", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<DomainVocabularyResponseDto>(_json);
+    }
+
     // ══════════════════ Document Approvals ════════════════════════════════════
 
     public Task<PaginatedResponse<DocumentApprovalRequestDto>?> GetDocumentApprovalsAsync(

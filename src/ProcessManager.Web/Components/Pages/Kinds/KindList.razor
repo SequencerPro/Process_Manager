@@ -2,18 +2,19 @@
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject IJSRuntime JS
+@inject VocabularyService Vocab
 
-<PageTitle>Kinds & Grades</PageTitle>
+<PageTitle>@Vocab.KindsAndGrades</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3 class="mb-0">Kinds & Grades</h3>
+    <h3 class="mb-0">@Vocab.KindsAndGrades</h3>
     <button class="btn btn-primary btn-sm" @onclick="ShowCreateForm">
-        <i class="bi bi-plus-lg me-1"></i> New Kind
+        <i class="bi bi-plus-lg me-1"></i> New @Vocab.Kind
     </button>
 </div>
 
 <div class="d-flex gap-3 mb-3">
-    <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search kinds..." />
+    <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="@($"Search {Vocab.Kinds.ToLower()}...")" />
 </div>
 
 <div class="d-flex" style="gap: 0;">

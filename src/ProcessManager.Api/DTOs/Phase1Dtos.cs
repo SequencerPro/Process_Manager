@@ -74,7 +74,8 @@ public record DomainVocabularyCreateDto(
     [Required, StringLength(100, MinimumLength = 1)] string TermJob,
     [Required, StringLength(100, MinimumLength = 1)] string TermWorkflow,
     [Required, StringLength(100, MinimumLength = 1)] string TermProcess,
-    [Required, StringLength(100, MinimumLength = 1)] string TermStep
+    [Required, StringLength(100, MinimumLength = 1)] string TermStep,
+    [Required, StringLength(100, MinimumLength = 1)] string TermWorkorder
 );
 
 public record DomainVocabularyUpdateDto(
@@ -89,12 +90,14 @@ public record DomainVocabularyUpdateDto(
     [Required, StringLength(100, MinimumLength = 1)] string TermJob,
     [Required, StringLength(100, MinimumLength = 1)] string TermWorkflow,
     [Required, StringLength(100, MinimumLength = 1)] string TermProcess,
-    [Required, StringLength(100, MinimumLength = 1)] string TermStep
+    [Required, StringLength(100, MinimumLength = 1)] string TermStep,
+    [Required, StringLength(100, MinimumLength = 1)] string TermWorkorder
 );
 
 public record DomainVocabularyResponseDto(
     Guid Id,
     string Name,
+    bool IsActive,
     string TermKind,
     string TermKindCode,
     string TermGrade,
@@ -106,6 +109,7 @@ public record DomainVocabularyResponseDto(
     string TermWorkflow,
     string TermProcess,
     string TermStep,
+    string TermWorkorder,
     DateTime CreatedAt,
     DateTime UpdatedAt
 );

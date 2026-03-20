@@ -29,9 +29,13 @@ public class WorkflowProcess : BaseEntity
     /// <summary>Hex color for the tile in the visual builder (e.g. "#0d6efd").</summary>
     public string? Color { get; set; }
 
+    /// <summary>The OrgUnit responsible for executing the process at this node (nullable — not all workflows use assignment).</summary>
+    public Guid? AssigneeId { get; set; }
+
     // Navigation properties
     public Workflow Workflow { get; set; } = null!;
     public Process? Process { get; set; }
+    public OrgUnit? Assignee { get; set; }
 
     /// <summary>Links where this node is the source.</summary>
     public ICollection<WorkflowLink> OutgoingLinks { get; set; } = new List<WorkflowLink>();

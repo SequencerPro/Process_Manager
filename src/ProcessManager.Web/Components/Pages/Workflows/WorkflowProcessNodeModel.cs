@@ -29,6 +29,12 @@ public class WorkflowProcessNodeModel : NodeModel
     /// <summary>Hex color for the tile border/header (e.g. "#0d6efd").</summary>
     public string? Color { get; set; }
 
+    /// <summary>The OrgUnit assigned to this workflow process node.</summary>
+    public Guid? AssigneeId { get; set; }
+
+    /// <summary>Display name of the assigned OrgUnit.</summary>
+    public string? AssigneeName { get; set; }
+
     /// <summary>Server-side link Id, kept in a dictionary keyed by target node id for quick lookup.</summary>
     public Guid? ServerLinkId { get; set; }
 

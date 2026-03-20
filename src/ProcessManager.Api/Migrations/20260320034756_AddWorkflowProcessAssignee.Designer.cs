@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ProcessManager.Api.Data;
@@ -11,9 +12,11 @@ using ProcessManager.Api.Data;
 namespace ProcessManager.Api.Migrations
 {
     [DbContext(typeof(ProcessManagerDbContext))]
-    partial class ProcessManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260320034756_AddWorkflowProcessAssignee")]
+    partial class AddWorkflowProcessAssignee
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2140,42 +2143,6 @@ namespace ProcessManager.Api.Migrations
                     b.ToTable("OrgUnits");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.OrgUnitMember", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("OrgUnitId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("character varying(450)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrgUnitId");
-
-                    b.HasIndex("UserId", "OrgUnitId")
-                        .IsUnique();
-
-                    b.ToTable("OrgUnitMembers");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.Pfmea", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4112,23 +4079,6 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Parent");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.OrgUnitMember", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.OrgUnit", "OrgUnit")
-                        .WithMany("Members")
-                        .HasForeignKey("OrgUnitId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ProcessManager.Api.Data.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("OrgUnit");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.Pfmea", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.Process", "Process")
@@ -4626,8 +4576,6 @@ namespace ProcessManager.Api.Migrations
             modelBuilder.Entity("ProcessManager.Domain.Entities.OrgUnit", b =>
                 {
                     b.Navigation("Children");
-
-                    b.Navigation("Members");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Pfmea", b =>

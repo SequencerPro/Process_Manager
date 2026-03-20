@@ -1942,6 +1942,82 @@ public class ApiClient
         return await r.Content.ReadFromJsonAsync<List<BottleneckStepDto>>(_json);
     }
 
+    // ═══════════════════ OrgUnits ═══════════════════
+
+    public Task<PaginatedResponse<OrgUnitResponseDto>?> GetOrgUnitsAsync(
+        string? search = null, string? type = null, bool? activeOnly = null,
+        Guid? parentId = null, bool? topLevelOnly = null,
+        int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<OrgUnitResponseDto>>(
+            $"api/orgunits?search={search}&type={type}&activeOnly={activeOnly}&parentId={parentId}&topLevelOnly={topLevelOnly}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<OrgUnitResponseDto?> GetOrgUnitAsync(Guid id)
+        => _http.GetFromJsonAsync<OrgUnitResponseDto>($"api/orgunits/{id}", _json);
+
+    public Task<List<OrgUnitResponseDto>?> GetOrgUnitChildrenAsync(Guid id)
+        => _http.GetFromJsonAsync<List<OrgUnitResponseDto>>($"api/orgunits/{id}/children", _json);
+
+    public async Task<OrgUnitResponseDto?> CreateOrgUnitAsync(OrgUnitCreateDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/orgunits", dto, _json);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to create org unit ({resp.StatusCode})");
+        }
+        return await resp.Content.ReadFromJsonAsync<OrgUnitResponseDto>(_json);
+    }
+
+    public async Task<OrgUnitResponseDto?> UpdateOrgUnitAsync(Guid id, OrgUnitUpdateDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/orgunits/{id}", dto, _json);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to update org unit ({resp.StatusCode})");
+        }
+        return await resp.Content.ReadFromJsonAsync<OrgUnitResponseDto>(_json);
+    }
+
+    public async Task DeleteOrgUnitAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/orgunits/{id}");
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to delete org unit ({resp.StatusCode})");
+        }
+    }
+
+    // ═══════════════════ OrgUnit Membership ═══════════════════
+
+    public Task<List<OrgUnitMemberResponseDto>?> GetOrgUnitMembersAsync(Guid orgUnitId)
+        => _http.GetFromJsonAsync<List<OrgUnitMemberResponseDto>>($"api/orgunits/{orgUnitId}/members", _json);
+
+    public async Task<OrgUnitMemberResponseDto?> AddOrgUnitMemberAsync(Guid orgUnitId, OrgUnitMemberAddDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/orgunits/{orgUnitId}/members", dto, _json);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to add member ({resp.StatusCode})");
+        }
+        return await resp.Content.ReadFromJsonAsync<OrgUnitMemberResponseDto>(_json);
+    }
+
+    public async Task RemoveOrgUnitMemberAsync(Guid orgUnitId, Guid memberId)
+    {
+        var resp = await _http.DeleteAsync($"api/orgunits/{orgUnitId}/members/{memberId}");
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to remove member ({resp.StatusCode})");
+        }
+    }
+
+    public Task<List<UserOrgUnitResponseDto>?> GetUserOrgUnitsAsync(string userId)
+        => _http.GetFromJsonAsync<List<UserOrgUnitResponseDto>>($"api/users/{userId}/orgunits", _json);
+
     // ═══════════════════ Helpers ═══════════════════
 
     /// <summary>

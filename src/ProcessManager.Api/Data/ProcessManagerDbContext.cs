@@ -97,6 +97,10 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Workorder> Workorders => Set<Workorder>();
     public DbSet<WorkorderJob> WorkorderJobs => Set<WorkorderJob>();
 
+    // Phase 12: Workflow Execution & Department Assignment
+    public DbSet<OrgUnit> OrgUnits => Set<OrgUnit>();
+    public DbSet<OrgUnitMember> OrgUnitMembers => Set<OrgUnitMember>();
+
     // Phase 11: Production Management
     public DbSet<EquipmentCategory> EquipmentCategories => Set<EquipmentCategory>();
     public DbSet<Equipment> Equipment => Set<Equipment>();
@@ -439,6 +443,12 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(wp => wp.ProcessId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(wp => wp.Assignee)
+                .WithMany()
+                .HasForeignKey(wp => wp.AssigneeId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // --- WorkflowLink ---
@@ -1268,6 +1278,40 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
 
             e.HasIndex(t => new { t.EquipmentId, t.Status });
             e.HasIndex(t => t.DueDate);
+        });
+
+        // --- OrgUnit ---
+        modelBuilder.Entity<OrgUnit>(e =>
+        {
+            e.HasKey(o => o.Id);
+            e.HasIndex(o => o.Code).IsUnique();
+            e.Property(o => o.Code).HasMaxLength(50).IsRequired();
+            e.Property(o => o.Name).HasMaxLength(200).IsRequired();
+            e.Property(o => o.Type).HasConversion<string>().HasMaxLength(50);
+
+            e.HasOne(o => o.Parent)
+                .WithMany(o => o.Children)
+                .HasForeignKey(o => o.ParentId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // --- OrgUnitMember ---
+        modelBuilder.Entity<OrgUnitMember>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.HasIndex(m => new { m.UserId, m.OrgUnitId }).IsUnique();
+            e.Property(m => m.UserId).HasMaxLength(450).IsRequired();
+
+            e.HasOne(m => m.OrgUnit)
+                .WithMany(o => o.Members)
+                .HasForeignKey(m => m.OrgUnitId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(m => m.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

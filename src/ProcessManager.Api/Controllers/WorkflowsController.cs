@@ -51,6 +51,7 @@ public class WorkflowsController : ControllerBase
     {
         var workflow = await _db.Workflows
             .Include(w => w.WorkflowProcesses).ThenInclude(wp => wp.Process)
+            .Include(w => w.WorkflowProcesses).ThenInclude(wp => wp.Assignee)
             .Include(w => w.WorkflowLinks).ThenInclude(wl => wl.SourceWorkflowProcess).ThenInclude(wp => wp.Process)
             .Include(w => w.WorkflowLinks).ThenInclude(wl => wl.TargetWorkflowProcess).ThenInclude(wp => wp.Process)
             .Include(w => w.WorkflowLinks).ThenInclude(wl => wl.Conditions).ThenInclude(c => c.Grade)
@@ -214,6 +215,7 @@ public class WorkflowsController : ControllerBase
 
         var wps = await _db.WorkflowProcesses
             .Include(wp => wp.Process)
+            .Include(wp => wp.Assignee)
             .Where(wp => wp.WorkflowId == workflowId)
             .OrderBy(wp => wp.SortOrder)
             .ToListAsync();
@@ -248,6 +250,14 @@ public class WorkflowsController : ControllerBase
                 return BadRequest($"Process '{process.Code}' is not active.");
         }
 
+        OrgUnit? assignee = null;
+        if (dto.AssigneeId.HasValue)
+        {
+            assignee = await _db.OrgUnits.FindAsync(dto.AssigneeId.Value);
+            if (assignee is null)
+                return BadRequest($"OrgUnit '{dto.AssigneeId}' not found.");
+        }
+
         var wp = new WorkflowProcess
         {
             WorkflowId = workflowId,
@@ -257,13 +267,15 @@ public class WorkflowsController : ControllerBase
             SortOrder = dto.SortOrder,
             PositionX = dto.PositionX,
             PositionY = dto.PositionY,
-            Color = dto.Color
+            Color = dto.Color,
+            AssigneeId = dto.AssigneeId
         };
 
         _db.WorkflowProcesses.Add(wp);
         await _db.SaveChangesAsync();
 
         wp.Process = process;
+        wp.Assignee = assignee;
         return CreatedAtAction(nameof(GetById), new { id = workflowId }, MapWorkflowProcessToDto(wp));
     }
 
@@ -273,6 +285,7 @@ public class WorkflowsController : ControllerBase
     {
         var wp = await _db.WorkflowProcesses
             .Include(wp => wp.Process)
+            .Include(wp => wp.Assignee)
             .FirstOrDefaultAsync(wp => wp.Id == wpId && wp.WorkflowId == workflowId);
         if (wp is null) return NotFound();
 
@@ -281,6 +294,22 @@ public class WorkflowsController : ControllerBase
         if (dto.PositionX.HasValue) wp.PositionX = dto.PositionX.Value;
         if (dto.PositionY.HasValue) wp.PositionY = dto.PositionY.Value;
         if (dto.Color is not null) wp.Color = string.IsNullOrEmpty(dto.Color) ? null : dto.Color;
+        if (dto.AssigneeId.HasValue)
+        {
+            if (dto.AssigneeId.Value == Guid.Empty)
+            {
+                // Clear the assignment
+                wp.AssigneeId = null;
+                wp.Assignee = null;
+            }
+            else
+            {
+                var assignee = await _db.OrgUnits.FindAsync(dto.AssigneeId.Value);
+                if (assignee is null) return BadRequest($"OrgUnit '{dto.AssigneeId}' not found.");
+                wp.AssigneeId = dto.AssigneeId.Value;
+                wp.Assignee = assignee;
+            }
+        }
 
         await _db.SaveChangesAsync();
         return MapWorkflowProcessToDto(wp);
@@ -538,6 +567,7 @@ public class WorkflowsController : ControllerBase
             wp.IsTerminalNode ? "END" : (wp.Process?.Code ?? ""),
             wp.IsEntryPoint, wp.IsTerminalNode, wp.SortOrder,
             wp.PositionX, wp.PositionY, wp.Color,
+            wp.AssigneeId, wp.Assignee?.Name,
             wp.CreatedAt, wp.UpdatedAt);
     }
 

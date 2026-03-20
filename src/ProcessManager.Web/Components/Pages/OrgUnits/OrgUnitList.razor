@@ -1,0 +1,474 @@
+@page "/orgunits"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject IJSRuntime JS
+@inject VocabularyService Vocab
+@implements IDisposable
+
+<PageTitle>Org Units</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Org Units</h3>
+    <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
+        <i class="bi bi-plus-lg me-1"></i> New Org Unit
+    </button>
+</div>
+
+<div class="d-flex gap-3 mb-3 flex-wrap">
+    <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search org units..." />
+    <select class="form-select form-select-sm" style="width:auto" @onchange="OnTypeFilter">
+        <option value="" selected="@(_type is null)">All Types</option>
+        <option value="Department" selected="@(_type == "Department")">Department</option>
+        <option value="WorkArea" selected="@(_type == "WorkArea")">Work Area</option>
+        <option value="Role" selected="@(_type == "Role")">Role</option>
+        <option value="Person" selected="@(_type == "Person")">Person</option>
+    </select>
+    <select class="form-select form-select-sm" style="width:auto" @onchange="OnActiveFilter">
+        <option value="" selected="@(_activeOnly is null)">All</option>
+        <option value="true" selected="@(_activeOnly == true)">Active Only</option>
+    </select>
+    <div class="form-check form-check-inline align-self-center ms-2">
+        <input class="form-check-input" type="checkbox" id="topLevelOnly" checked="@_topLevelOnly" @onchange="OnTopLevelToggle" />
+        <label class="form-check-label" for="topLevelOnly">Top-level only</label>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_data is not null)
+{
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Parent</th>
+                    <th>Children</th>
+                    <th>Members</th>
+                    <th>Active</th>
+                    <th style="width:180px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!_data.Items.Any())
+                {
+                    <tr><td colspan="8" class="text-center text-muted py-3">No org units found.</td></tr>
+                }
+                else
+                {
+                    @foreach (var o in _data.Items)
+                    {
+                        <tr>
+                            <td><code>@o.Code</code></td>
+                            <td>@o.Name</td>
+                            <td><span class="badge bg-secondary">@o.Type</span></td>
+                            <td>@(o.ParentName ?? "—")</td>
+                            <td>
+                                @if (o.ChildCount > 0)
+                                {
+                                    <a href="orgunits?parentId=@o.Id" class="text-decoration-none">@o.ChildCount</a>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">0</span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-link btn-sm p-0 text-decoration-none" @onclick="() => ShowMembers(o)">
+                                    <i class="bi bi-people me-1"></i>@o.MemberCount
+                                </button>
+                            </td>
+                            <td>
+                                @if (o.IsActive)
+                                { <i class="bi bi-check-circle-fill text-success"></i> }
+                                else
+                                { <i class="bi bi-x-circle text-danger"></i> }
+                            </td>
+                            <td>
+                                <button class="btn btn-outline-info btn-sm me-1" title="Manage Members" @onclick="() => ShowMembers(o)">
+                                    <i class="bi bi-people"></i>
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEdit(o)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(o.Id)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <Pager Page="_page" PageSize="_pageSize" TotalCount="_data.TotalCount"
+           OnPageChanged="OnPageChanged" />
+}
+
+@* ───── Create / Edit OrgUnit Modal ───── *@
+@if (_showForm)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "New") Org Unit</h5>
+                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!_editId.HasValue)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label">Code</label>
+                            <input class="form-control" @bind="_formCode" />
+                        </div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input class="form-control" @bind="_formName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Type</label>
+                        <select class="form-select" @bind="_formType">
+                            <option value="Department">Department</option>
+                            <option value="WorkArea">Work Area</option>
+                            <option value="Role">Role</option>
+                            <option value="Person">Person</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Parent</label>
+                        <select class="form-select" @bind="_formParentId">
+                            <option value="">None (top-level)</option>
+                            @if (_parentOptions is not null)
+                            {
+                                @foreach (var p in _parentOptions.Items.Where(p => p.Id != _editId))
+                                {
+                                    <option value="@p.Id">@p.Name (@p.Code)</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    @if (_editId.HasValue)
+                    {
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="isActive" @bind="_formIsActive" />
+                            <label class="form-check-label" for="isActive">Active</label>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="Save" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ───── Members Modal ───── *@
+@if (_showMembers)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Members of @_membersOrgUnitName</h5>
+                    <button type="button" class="btn-close" @onclick="CloseMembers"></button>
+                </div>
+                <div class="modal-body">
+                    @* Add member *@
+                    <div class="d-flex gap-2 mb-3">
+                        <select class="form-select form-select-sm" @bind="_selectedUserId">
+                            <option value="">Select a user...</option>
+                            @if (_availableUsers is not null)
+                            {
+                                @foreach (var u in _availableUsers)
+                                {
+                                    <option value="@u.Id">@(u.DisplayName ?? u.UserName) (@u.UserName)</option>
+                                }
+                            }
+                        </select>
+                        <button class="btn btn-primary btn-sm" @onclick="AddMember"
+                                disabled="@(string.IsNullOrEmpty(_selectedUserId) || _addingMember)">
+                            @if (_addingMember) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="bi bi-plus-lg me-1"></i> Add
+                        </button>
+                    </div>
+
+                    @* Members list *@
+                    @if (_loadingMembers)
+                    {
+                        <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></div>
+                    }
+                    else if (_members is not null && _members.Any())
+                    {
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>User</th>
+                                    <th>Email</th>
+                                    <th>Added</th>
+                                    <th style="width:60px"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var m in _members)
+                                {
+                                    <tr>
+                                        <td>
+                                            @(m.DisplayName ?? m.UserName)
+                                            @if (m.DisplayName is not null)
+                                            {
+                                                <small class="text-muted ms-1">(@m.UserName)</small>
+                                            }
+                                        </td>
+                                        <td><small>@m.Email</small></td>
+                                        <td><small class="text-muted">@m.CreatedAt.ToString("yyyy-MM-dd")</small></td>
+                                        <td>
+                                            <button class="btn btn-outline-danger btn-sm" title="Remove"
+                                                    @onclick="() => RemoveMember(m.Id)">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    else
+                    {
+                        <p class="text-muted text-center py-3 mb-0">No members yet. Add users above.</p>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseMembers">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter][SupplyParameterFromQuery(Name = "parentId")] public string? ParentIdQuery { get; set; }
+
+    private PaginatedResponse<OrgUnitResponseDto>? _data;
+    private bool _loading = true;
+    private string _search = "";
+    private string? _type;
+    private bool? _activeOnly;
+    private bool _topLevelOnly;
+    private int _page = 1;
+    private int _pageSize = 25;
+
+    // Create/Edit Form
+    private bool _showForm;
+    private bool _saving;
+    private Guid? _editId;
+    private string _formCode = "";
+    private string _formName = "";
+    private string _formType = "Department";
+    private string _formParentId = "";
+    private bool _formIsActive = true;
+    private PaginatedResponse<OrgUnitResponseDto>? _parentOptions;
+
+    // Members Modal
+    private bool _showMembers;
+    private Guid _membersOrgUnitId;
+    private string _membersOrgUnitName = "";
+    private bool _loadingMembers;
+    private List<OrgUnitMemberResponseDto>? _members;
+    private List<UserResponseDto>? _availableUsers;
+    private string _selectedUserId = "";
+    private bool _addingMember;
+
+    protected override void OnInitialized() => Vocab.OnChange += OnVocabChanged;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private void OnVocabChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Vocab.OnChange -= OnVocabChanged;
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            Guid? parentId = null;
+            if (!string.IsNullOrEmpty(ParentIdQuery) && Guid.TryParse(ParentIdQuery, out var pid))
+                parentId = pid;
+
+            _data = await Api.GetOrgUnitsAsync(_search, _type, _activeOnly, parentId,
+                parentId.HasValue ? null : (_topLevelOnly ? true : null),
+                _page, _pageSize);
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnSearch(string v) { _search = v; _page = 1; await LoadData(); }
+    private async Task OnPageChanged(int p) { _page = p; await LoadData(); }
+
+    private async Task OnTypeFilter(ChangeEventArgs e)
+    {
+        _type = string.IsNullOrEmpty(e.Value?.ToString()) ? null : e.Value.ToString();
+        _page = 1; await LoadData();
+    }
+
+    private async Task OnActiveFilter(ChangeEventArgs e)
+    {
+        _activeOnly = string.IsNullOrEmpty(e.Value?.ToString()) ? null : bool.Parse(e.Value.ToString()!);
+        _page = 1; await LoadData();
+    }
+
+    private async Task OnTopLevelToggle(ChangeEventArgs e)
+    {
+        _topLevelOnly = (bool)(e.Value ?? false);
+        _page = 1; await LoadData();
+    }
+
+    // ───── Create / Edit ─────
+
+    private async Task ShowCreate()
+    {
+        _editId = null;
+        _formCode = ""; _formName = ""; _formType = "Department"; _formParentId = ""; _formIsActive = true;
+        _showForm = true;
+        _parentOptions = await Api.GetOrgUnitsAsync(activeOnly: true, pageSize: 100);
+        StateHasChanged();
+    }
+
+    private async Task ShowEdit(OrgUnitResponseDto o)
+    {
+        _editId = o.Id;
+        _formName = o.Name;
+        _formType = o.Type;
+        _formParentId = o.ParentId?.ToString() ?? "";
+        _formIsActive = o.IsActive;
+        _showForm = true;
+        _parentOptions = await Api.GetOrgUnitsAsync(activeOnly: true, pageSize: 100);
+        StateHasChanged();
+    }
+
+    private void CloseForm() { _showForm = false; }
+
+    private async Task Save()
+    {
+        _saving = true;
+        try
+        {
+            Guid? parentId = string.IsNullOrEmpty(_formParentId) ? null : Guid.Parse(_formParentId);
+            var type = Enum.Parse<ProcessManager.Domain.Enums.OrgUnitType>(_formType);
+
+            if (_editId.HasValue)
+                await Api.UpdateOrgUnitAsync(_editId.Value, new OrgUnitUpdateDto(_formName, type, parentId, _formIsActive));
+            else
+                await Api.CreateOrgUnitAsync(new OrgUnitCreateDto(_formCode, _formName, type, parentId));
+
+            _showForm = false;
+            await LoadData();
+        }
+        catch (Exception ex) { Toast.ShowError(ex.Message); }
+        finally { _saving = false; }
+    }
+
+    private async Task Delete(Guid id)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this org unit?")) return;
+        try { await Api.DeleteOrgUnitAsync(id); await LoadData(); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    // ───── Members ─────
+
+    private async Task ShowMembers(OrgUnitResponseDto o)
+    {
+        _membersOrgUnitId = o.Id;
+        _membersOrgUnitName = o.Name;
+        _showMembers = true;
+        _selectedUserId = "";
+        _loadingMembers = true;
+        StateHasChanged();
+
+        try
+        {
+            _members = await Api.GetOrgUnitMembersAsync(o.Id);
+            _availableUsers = await Api.GetUsersAsync();
+
+            // Filter out users who are already members
+            if (_members is not null && _availableUsers is not null)
+            {
+                var memberUserIds = _members.Select(m => m.UserId).ToHashSet();
+                _availableUsers = _availableUsers.Where(u => !memberUserIds.Contains(u.Id)).ToList();
+            }
+        }
+        catch (Exception ex) { Toast.ShowError(ex.Message); }
+        finally { _loadingMembers = false; StateHasChanged(); }
+    }
+
+    private void CloseMembers()
+    {
+        _showMembers = false;
+    }
+
+    private async Task AddMember()
+    {
+        if (string.IsNullOrEmpty(_selectedUserId)) return;
+        _addingMember = true;
+        try
+        {
+            await Api.AddOrgUnitMemberAsync(_membersOrgUnitId, new OrgUnitMemberAddDto(_selectedUserId));
+            _selectedUserId = "";
+
+            // Refresh members + available users
+            _members = await Api.GetOrgUnitMembersAsync(_membersOrgUnitId);
+            _availableUsers = await Api.GetUsersAsync();
+            if (_members is not null && _availableUsers is not null)
+            {
+                var memberUserIds = _members.Select(m => m.UserId).ToHashSet();
+                _availableUsers = _availableUsers.Where(u => !memberUserIds.Contains(u.Id)).ToList();
+            }
+
+            // Refresh table data to update member count
+            await LoadData();
+        }
+        catch (Exception ex) { Toast.ShowError(ex.Message); }
+        finally { _addingMember = false; }
+    }
+
+    private async Task RemoveMember(Guid memberId)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Remove this member?")) return;
+        try
+        {
+            await Api.RemoveOrgUnitMemberAsync(_membersOrgUnitId, memberId);
+
+            // Refresh members + available users
+            _members = await Api.GetOrgUnitMembersAsync(_membersOrgUnitId);
+            _availableUsers = await Api.GetUsersAsync();
+            if (_members is not null && _availableUsers is not null)
+            {
+                var memberUserIds = _members.Select(m => m.UserId).ToHashSet();
+                _availableUsers = _availableUsers.Where(u => !memberUserIds.Contains(u.Id)).ToList();
+            }
+
+            // Refresh table data to update member count
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+}

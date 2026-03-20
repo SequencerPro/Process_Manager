@@ -186,6 +186,27 @@ else
                                 </button>
                             </div>
                         </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-0">Assignee</label>
+                            <select class="form-select form-select-sm"
+                                    value="@(_selectedNode.AssigneeId?.ToString() ?? "")"
+                                    @onchange="HandleAssigneeChange">
+                                <option value="">— Unassigned —</option>
+                                @if (_orgUnits is not null)
+                                {
+                                    @foreach (var ou in _orgUnits)
+                                    {
+                                        <option value="@ou.Id">@ou.Name (@ou.Code)</option>
+                                    }
+                                }
+                            </select>
+                            @if (_selectedNode.AssigneeName is not null)
+                            {
+                                <div class="text-muted small mt-1">
+                                    <i class="bi bi-building me-1"></i>@_selectedNode.AssigneeName
+                                </div>
+                            }
+                        </div>
                     }
 
                     <hr class="my-2" />
@@ -585,6 +606,21 @@ else
                                             </button>
                                         </div>
                                     </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small mb-0">Assignee</label>
+                                        <select class="form-select form-select-sm"
+                                                value="@(_selectedNode?.AssigneeId?.ToString() ?? "")"
+                                                @onchange="HandleAssigneeChange">
+                                            <option value="">— Unassigned —</option>
+                                            @if (_orgUnits is not null)
+                                            {
+                                                @foreach (var ou in _orgUnits)
+                                                {
+                                                    <option value="@ou.Id">@ou.Name (@ou.Code)</option>
+                                                }
+                                            }
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
 
@@ -929,6 +965,9 @@ else
     private List<ProcessSummaryResponseDto>? _allProcesses;
     private List<ProcessSummaryResponseDto>? _filteredProcesses;
 
+    // OrgUnit assignee picker
+    private List<OrgUnitResponseDto>? _orgUnits;
+
     // Selection state
     private WorkflowProcessNodeModel? _selectedNode;
     private LinkModel? _selectedLink;
@@ -1000,6 +1039,15 @@ else
         _diagram.PointerDoubleClick += OnDoubleClick;
 
         await LoadWorkflow();
+
+        // Load active org units for assignee picker
+        try
+        {
+            var result = await Api.GetOrgUnitsAsync(activeOnly: true, pageSize: 200);
+            _orgUnits = result?.Items?.ToList();
+        }
+        catch { /* best-effort — picker will be empty if API is unreachable */ }
+
         _loading = false;
     }
 
@@ -1063,7 +1111,9 @@ else
                 ProcessCode = wp.ProcessCode,
                 IsEntryPoint = wp.IsEntryPoint,
                 SortOrder = wp.SortOrder,
-                Color = wp.Color
+                Color = wp.Color,
+                AssigneeId = wp.AssigneeId,
+                AssigneeName = wp.AssigneeName
             };
 
             node.AddPort(PortAlignment.Top);
@@ -1623,6 +1673,34 @@ else
             await Api.UpdateWorkflowProcessAsync(Id, _selectedNode.WorkflowProcessId,
                 new UpdateWorkflowProcessDto(Color: ""));
             _selectedNode.Color = null;
+            _selectedNode.Refresh();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task HandleAssigneeChange(ChangeEventArgs e)
+    {
+        if (_selectedNode is null) return;
+        var val = e.Value?.ToString();
+
+        try
+        {
+            if (string.IsNullOrEmpty(val))
+            {
+                // Clear assignment — send Guid.Empty as sentinel
+                await Api.UpdateWorkflowProcessAsync(Id, _selectedNode.WorkflowProcessId,
+                    new UpdateWorkflowProcessDto(AssigneeId: Guid.Empty));
+                _selectedNode.AssigneeId = null;
+                _selectedNode.AssigneeName = null;
+            }
+            else
+            {
+                var assigneeId = Guid.Parse(val);
+                await Api.UpdateWorkflowProcessAsync(Id, _selectedNode.WorkflowProcessId,
+                    new UpdateWorkflowProcessDto(AssigneeId: assigneeId));
+                _selectedNode.AssigneeId = assigneeId;
+                _selectedNode.AssigneeName = _orgUnits?.FirstOrDefault(o => o.Id == assigneeId)?.Name;
+            }
             _selectedNode.Refresh();
         }
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }

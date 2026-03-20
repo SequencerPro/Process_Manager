@@ -36,14 +36,16 @@ public record AddWorkflowProcessDto(
     double PositionX = 0,
     double PositionY = 0,
     string? Color = null,
-    bool IsTerminalNode = false);
+    bool IsTerminalNode = false,
+    Guid? AssigneeId = null);
 
 public record UpdateWorkflowProcessDto(
     bool? IsEntryPoint = null,
     int? SortOrder = null,
     double? PositionX = null,
     double? PositionY = null,
-    string? Color = null);
+    string? Color = null,
+    Guid? AssigneeId = null);
 
 public record WorkflowProcessResponseDto(
     Guid Id,
@@ -57,6 +59,8 @@ public record WorkflowProcessResponseDto(
     double PositionX,
     double PositionY,
     string? Color,
+    Guid? AssigneeId,
+    string? AssigneeName,
     DateTime CreatedAt,
     DateTime UpdatedAt);
 

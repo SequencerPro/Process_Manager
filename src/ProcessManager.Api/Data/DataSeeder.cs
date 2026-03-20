@@ -1717,23 +1717,525 @@ public static class DataSeeder
             qms009.ProcessSteps.Add(ps4);
         }
 
-        AddQmsSteps(qms010, stDocSect,
-            "Ensures customer, statutory, and organisation-imposed requirements are fully determined, reviewed, and confirmed before commitment to supply, and that changes are re-reviewed per clauses 8.2.2–8.2.4.",
-            "The Sales or Account Manager performs the initial review and obtains sign-off; Technical and Production confirm feasibility; post-acceptance changes are re-reviewed by the same parties before communicating to the customer.",
-            "Capture all requirements from the customer (explicit and implied), applicable regulations, and internal standards; check for completeness and conflicts; resolve any gaps; confirm feasibility with Technical and Production; obtain customer confirmation; document the agreed specification; re-review and communicate all changes.",
-            "Requirements review record, order confirmation, customer correspondence, change review records, feasibility sign-off.");
+        // ── QMS-010 — full rich content blocks (ISO 9001:2015 clauses 8.2.2–8.2.4) ─
+        {
+            static ProcessStepContent Blk(ProcessStep ps, int order, string body) => new()
+            {
+                Id = Guid.NewGuid(), CreatedAt = ps.CreatedAt, UpdatedAt = ps.CreatedAt,
+                ProcessStepId = ps.Id,
+                ContentType = StepContentType.Text,
+                ContentCategory = ContentCategory.Reference,
+                SortOrder = order, Body = body
+            };
 
-        AddQmsSteps(qms011, stDocSect,
-            "Establishes controls for design and development planning, inputs, outputs, reviews, verification, validation, and change management to ensure outputs meet requirements per clause 8.3.",
-            "The Design Lead owns the D&D plan and controls gate progression; independent reviewers provide unbiased assessment at each stage; Quality ensures gate criteria are met before authorising transfer to operations.",
-            "Plan the D&D activity defining stages, reviews, responsibilities, and resources; capture and validate all inputs; generate outputs meeting input requirements; conduct formal reviews and record actions; verify outputs against inputs; validate the design against intended use in representative conditions; document and review all design changes.",
-            "D&D plan, input and output records, review minutes and action log, verification and validation records, design change log, transfer authorisation.");
+            var ps1 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms010.CreatedAt, UpdatedAt = qms010.CreatedAt,
+                ProcessId = qms010.Id, StepTemplateId = stDocSect.Id, Sequence = 1,
+                NameOverride = "Purpose and Scope",
+                DescriptionOverride = "Purpose, scope, and normative context for customer requirements review per ISO 9001:2015 clauses 8.2.2–8.2.4."
+            };
+            ps1.Contents.Add(Blk(ps1, 0,
+                "1.1  Purpose\n\n" +
+                "This procedure ensures that all customer, statutory, regulatory, and organisation-imposed " +
+                "requirements are fully understood and confirmed before the organisation makes any commitment " +
+                "to supply a product or service. It prevents the acceptance of orders where requirements " +
+                "are ambiguous, unduly risky, or beyond organisational capability, and ensures that any " +
+                "subsequent changes to agreed requirements are reviewed and communicated before fulfilment " +
+                "proceeds on the changed basis."));
+            ps1.Contents.Add(Blk(ps1, 1,
+                "1.2  Normative reference\n\n" +
+                "ISO 9001:2015, clause 8.2.2 — Determining requirements for products and services\n" +
+                "Requires the organisation to determine the requirements for products and services to be " +
+                "offered to customers, including applicable statutory and regulatory requirements.\n\n" +
+                "ISO 9001:2015, clause 8.2.3 — Review of requirements for products and services\n" +
+                "Requires that before committing to supply, the organisation reviews requirements specified " +
+                "by the customer, requirements not stated but necessary for the intended use, and the " +
+                "organisation's own requirements; ensures it can meet the requirements it defines or is " +
+                "committed to; retains documented information of the review and of any new requirements.\n\n" +
+                "ISO 9001:2015, clause 8.2.4 — Changes to requirements for products and services\n" +
+                "Requires that when requirements change the relevant documented information is amended " +
+                "and that relevant persons are made aware of the changed requirements."));
+            ps1.Contents.Add(Blk(ps1, 2,
+                "1.3  Scope\n\n" +
+                "This procedure applies to all quotations issued and all orders accepted by the organisation, " +
+                "including:\n\n" +
+                "  • New product and new service orders\n" +
+                "  • Repeat orders where the requirements may have changed since the last supply\n" +
+                "  • Orders placed by verbal instruction (telephone or on-site), which must be subsequently " +
+                "confirmed in writing before production commences\n" +
+                "  • Post-acceptance changes requested by the customer or identified internally\n\n" +
+                "It does not apply to internal work orders. It is closely linked to QMS-009 (Customer " +
+                "Communication) — enquiry handling and complaint management are governed there."));
+            qms010.ProcessSteps.Add(ps1);
 
-        AddQmsSteps(qms012, stDocSect,
-            "Sets criteria and controls for evaluating, selecting, monitoring, and re-evaluating external providers to ensure externally provided products and services meet requirements per clause 8.4.",
-            "Procurement manages the approved-supplier register and performance monitoring programme; Quality sets acceptance criteria and reviews KPI data; Technical approves suppliers for critical or regulated items.",
-            "Apply selection criteria against each category of external provision; conduct initial assessment (audit, questionnaire, or trial order); approve or restrict accordingly; include quality requirements on all purchase orders; inspect or verify deliveries; score performance quarterly; re-assess formally and update register annually.",
-            "Approved supplier register, assessment records, purchase orders with quality clauses, incoming inspection records, supplier performance scorecards, re-evaluation records.");
+            var ps2 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms010.CreatedAt, UpdatedAt = qms010.CreatedAt,
+                ProcessId = qms010.Id, StepTemplateId = stDocSect.Id, Sequence = 2,
+                NameOverride = "Responsibilities",
+                DescriptionOverride = "Accountability for determining, reviewing, and communicating requirements."
+            };
+            ps2.Contents.Add(Blk(ps2, 0,
+                "Sales / Account Manager\n\n" +
+                "  • Captures all customer-stated requirements from the enquiry or purchase order\n" +
+                "  • Initiates and coordinates the requirements review process before issuing a quotation\n" +
+                "  • Obtains written customer confirmation of agreed requirements before acknowledgement\n" +
+                "  • Manages post-acceptance change requests and re-triggers the review process\n" +
+                "  • Communicates the agreed and any changed requirements to all internal stakeholders"));
+            ps2.Contents.Add(Blk(ps2, 1,
+                "Technical / Engineering\n\n" +
+                "  • Reviews requirements for technical completeness and compatibility with product/process capability\n" +
+                "  • Identifies any statutory, regulatory, or materials requirements applicable to the product\n" +
+                "  • Raises technical queries to the customer through the Sales Manager where requirements are unclear\n" +
+                "  • Confirms feasibility sign-off on the requirements review record"));
+            ps2.Contents.Add(Blk(ps2, 2,
+                "Production / Operations\n\n" +
+                "  • Confirms capacity and lead-time feasibility against the customer's delivery requirements\n" +
+                "  • Identifies any special process, tooling, or resource needs that affect acceptance\n" +
+                "  • Confirms feasibility sign-off on the requirements review record"));
+            ps2.Contents.Add(Blk(ps2, 3,
+                "Quality Manager\n\n" +
+                "  • Reviews requirements for quality plan, inspection, and testing implications\n" +
+                "  • Confirms whether any customer-specific quality requirements (e.g., PPAP, FAIR, " +
+                "special characteristics, customer-mandated suppliers) can be met\n" +
+                "  • Escalates requirements that cannot be met to the Sales Manager and Commercial Director " +
+                "before the quotation is issued"));
+            qms010.ProcessSteps.Add(ps2);
+
+            var ps3 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms010.CreatedAt, UpdatedAt = qms010.CreatedAt,
+                ProcessId = qms010.Id, StepTemplateId = stDocSect.Id, Sequence = 3,
+                NameOverride = "Procedure",
+                DescriptionOverride = "Steps for determining, reviewing, confirming, and managing changes to customer requirements."
+            };
+            ps3.Contents.Add(Blk(ps3, 0,
+                "Step 1 — Determine requirements\n\n" +
+                "On receipt of an enquiry or purchase order the Sales Manager compiles a complete " +
+                "requirements list covering:\n\n" +
+                "  a)  Customer-stated requirements — part number, revision level, quantity, delivery date, " +
+                "price, packaging, labelling, and any customer-specific quality, regulatory, or " +
+                "documentation requirements stated in the order or the applicable supply agreement\n" +
+                "  b)  Implied requirements — requirements not stated but necessary for the intended or " +
+                "specified use (e.g., industry standards, material certifications, standard packaging norms)\n" +
+                "  c)  Statutory and regulatory requirements applicable to the product or service in the " +
+                "customer's country of use\n" +
+                "  d)  Organisation-imposed requirements — internal standards, minimum margin thresholds, " +
+                "minimum lead times, and any constraints from the risk register (QMS-005)"));
+            ps3.Contents.Add(Blk(ps3, 1,
+                "Step 2 — Review for completeness and feasibility\n\n" +
+                "The Sales Manager circulates the requirements list to Technical, Production, and Quality " +
+                "for review. Each function signs off on the requirements review record within the agreed " +
+                "internal turnaround time (standard: 1 working day for repeat products; 3 working days " +
+                "for new products or unusually complex requirements).\n\n" +
+                "Reviewers check:\n" +
+                "  • That all requirements are clearly defined (no ambiguities or conflicts)\n" +
+                "  • That technical, capacity, and quality requirements can be met\n" +
+                "  • That all statutory and regulatory requirements have been identified\n\n" +
+                "Where a requirement cannot be met or a conflict is identified, the Sales Manager raises " +
+                "a query with the customer before proceeding. No quotation or order acknowledgement is " +
+                "issued until all queries are resolved and documented."));
+            ps3.Contents.Add(Blk(ps3, 2,
+                "Step 3 — Issue quotation or acknowledge order\n\n" +
+                "Once all reviewers have confirmed feasibility, the Sales Manager issues the quotation " +
+                "or order acknowledgement. The acknowledgement explicitly states the agreed requirements — " +
+                "part number, revision, quantity, price, delivery terms, and any special conditions — " +
+                "so that the customer can confirm their order on an unambiguous basis.\n\n" +
+                "Verbal orders received by telephone or during site visits are followed up with a written " +
+                "order acknowledgement before production or service provision commences."));
+            ps3.Contents.Add(Blk(ps3, 3,
+                "Step 4 — Manage changes to requirements\n\n" +
+                "Where requirements change after acceptance — whether requested by the customer or " +
+                "driven by an internal finding (e.g., an obsolete material, a design change, a " +
+                "regulatory update) — the Sales Manager:\n\n" +
+                "  a)  Re-initiates the requirements review process for the changed elements\n" +
+                "  b)  Updates the requirements review record with the change description, date, and reviewer sign-offs\n" +
+                "  c)  Issues a revised order acknowledgement or change confirmation to the customer\n" +
+                "  d)  Notifies all internal functions (Technical, Production, Quality, Stores) of the " +
+                "changed requirements before any further work is performed\n\n" +
+                "Production must not proceed on changed requirements until the revised acknowledgement " +
+                "has been issued to the customer and all internal functions have been notified."));
+            qms010.ProcessSteps.Add(ps3);
+
+            var ps4 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms010.CreatedAt, UpdatedAt = qms010.CreatedAt,
+                ProcessId = qms010.Id, StepTemplateId = stDocSect.Id, Sequence = 4,
+                NameOverride = "Records and Documented Information",
+                DescriptionOverride = "Documented information maintained or retained under this procedure."
+            };
+            ps4.Contents.Add(Blk(ps4, 0,
+                "The following documented information shall be maintained or retained:\n\n" +
+                "  • Requirements review record — completed for every quotation and order; signed off by " +
+                "Sales, Technical, Production, and Quality; retained in the order file\n" +
+                "  • Order acknowledgements — including the agreed requirements; retained for five years\n" +
+                "  • Change review records — updated requirements review record and revised acknowledgement " +
+                "for every post-acceptance change; retained in the order file\n" +
+                "  • Customer correspondence relating to requirements clarification — emails, meeting notes, " +
+                "or query/response chains; retained with the order file\n" +
+                "  • Feasibility sign-off — can be integrated into the requirements review record or held " +
+                "separately; must be traceable to the specific order\n\n" +
+                "Retention: all records associated with an order are retained for five years after the " +
+                "last delivery on that order, or longer if required by the customer or applicable regulation."));
+            qms010.ProcessSteps.Add(ps4);
+        }
+
+        // ── QMS-011 — full rich content blocks (ISO 9001:2015 clause 8.3) ────
+        {
+            static ProcessStepContent Blk(ProcessStep ps, int order, string body) => new()
+            {
+                Id = Guid.NewGuid(), CreatedAt = ps.CreatedAt, UpdatedAt = ps.CreatedAt,
+                ProcessStepId = ps.Id,
+                ContentType = StepContentType.Text,
+                ContentCategory = ContentCategory.Reference,
+                SortOrder = order, Body = body
+            };
+
+            var ps1 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms011.CreatedAt, UpdatedAt = qms011.CreatedAt,
+                ProcessId = qms011.Id, StepTemplateId = stDocSect.Id, Sequence = 1,
+                NameOverride = "Purpose and Scope",
+                DescriptionOverride = "Purpose, scope, and normative context for design and development per ISO 9001:2015 clause 8.3."
+            };
+            ps1.Contents.Add(Blk(ps1, 0,
+                "1.1  Purpose\n\n" +
+                "This procedure establishes a structured, stage-gated approach to design and development " +
+                "(D&D) that ensures:\n\n" +
+                "  a)  Design inputs are complete, unambiguous, and traceable to customer and regulatory requirements\n" +
+                "  b)  Design outputs can be verified against inputs before release to production\n" +
+                "  c)  The design is validated against intended use in representative conditions before first delivery\n" +
+                "  d)  Changes to design — at any stage — are reviewed, authorised, and communicated before implementation\n" +
+                "  e)  The risk of producing nonconforming product arising from a design deficiency is minimised"));
+            ps1.Contents.Add(Blk(ps1, 1,
+                "1.2  Normative reference — ISO 9001:2015 clause 8.3\n\n" +
+                "8.3.2 Planning: define stages, reviews, responsibilities, resources, and interfaces.\n" +
+                "8.3.3 Inputs: determine requirements derived from function, performance, regulatory, " +
+                "and prior similar design.\n" +
+                "8.3.4 Controls: apply reviews, verification, and validation at appropriate stages; " +
+                "resolve problems before proceeding.\n" +
+                "8.3.5 Outputs: ensure outputs meet input requirements; include specifications adequate " +
+                "for production; reference monitoring and acceptance criteria.\n" +
+                "8.3.6 Changes: identify, review, and control changes including evaluation of effect " +
+                "on already-delivered product; retain documented information."));
+            ps1.Contents.Add(Blk(ps1, 2,
+                "1.3  Scope\n\n" +
+                "This procedure applies to all new product or service design activities and to substantive " +
+                "changes to existing designs (i.e., changes that could affect form, fit, function, " +
+                "regulatory compliance, or safety). It applies whether design is performed in-house or " +
+                "by an external designer under the organisation's direction.\n\n" +
+                "It does not apply to minor engineering changes of a documented, predictable nature " +
+                "(e.g., toleranced dimension changes within an established process capability) which are " +
+                "managed under the engineering change notice (ECN) process referenced in the design change log."));
+            qms011.ProcessSteps.Add(ps1);
+
+            var ps2 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms011.CreatedAt, UpdatedAt = qms011.CreatedAt,
+                ProcessId = qms011.Id, StepTemplateId = stDocSect.Id, Sequence = 2,
+                NameOverride = "Responsibilities",
+                DescriptionOverride = "Accountability for design and development activities."
+            };
+            ps2.Contents.Add(Blk(ps2, 0,
+                "Design Lead / Chief Engineer\n\n" +
+                "  • Owns the D&D plan and controls progression through stage gates\n" +
+                "  • Responsible for the completeness and accuracy of design inputs and outputs\n" +
+                "  • Chairs or delegates design review meetings\n" +
+                "  • Signs off on verification and validation results before transfer to production\n" +
+                "  • Authorises engineering change notices for minor changes; escalates substantive " +
+                "changes to Quality for full D&D change review"));
+            ps2.Contents.Add(Blk(ps2, 1,
+                "Quality Manager\n\n" +
+                "  • Reviews the D&D plan to ensure review, verification, and validation activities " +
+                "are adequate and appropriately staged\n" +
+                "  • Participates in design reviews as an independent reviewer\n" +
+                "  • Confirms that gate criteria are met before authorising transfer to operations\n" +
+                "  • Manages design change review for substantive changes; updates the design change log\n" +
+                "  • Ensures that any regulatory or customer approval requirements (e.g., PPAP, FAI) " +
+                "are completed before first delivery"));
+            ps2.Contents.Add(Blk(ps2, 2,
+                "Independent Reviewers\n\n" +
+                "  • Provide unbiased technical assessment at each stage gate review\n" +
+                "  • Must not review their own design work\n" +
+                "  • Record comments and accept-with-actions or reject decisions in the review minutes\n\n" +
+                "Production / Manufacturing Engineering\n\n" +
+                "  • Review design outputs for manufacturability and process capability\n" +
+                "  • Confirm that design outputs include sufficient detail for production to proceed " +
+                "without ambiguity\n" +
+                "  • Participate in validation activities where process validation is required"));
+            qms011.ProcessSteps.Add(ps2);
+
+            var ps3 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms011.CreatedAt, UpdatedAt = qms011.CreatedAt,
+                ProcessId = qms011.Id, StepTemplateId = stDocSect.Id, Sequence = 3,
+                NameOverride = "Procedure",
+                DescriptionOverride = "Stage-gated steps from D&D planning through transfer to production."
+            };
+            ps3.Contents.Add(Blk(ps3, 0,
+                "Stage 1 — Planning\n\n" +
+                "The Design Lead prepares a D&D plan before design work commences, defining:\n" +
+                "  • Stages of the D&D activity and the criteria for progression between stages\n" +
+                "  • Review, verification, and validation activities at each stage\n" +
+                "  • Roles, responsibilities, and authorities\n" +
+                "  • Internal and external resources required\n" +
+                "  • Customer involvement and approval points\n" +
+                "  • Regulatory approvals or certifications required before delivery\n\n" +
+                "The plan is reviewed and approved by the Quality Manager before design work starts. " +
+                "It is a living document — updated as the design progresses and changes occur."));
+            ps3.Contents.Add(Blk(ps3, 1,
+                "Stage 2 — Inputs\n\n" +
+                "Design inputs are compiled from:\n" +
+                "  • Customer requirements from the requirements review (QMS-010)\n" +
+                "  • Functional and performance requirements\n" +
+                "  • Applicable statutory and regulatory requirements\n" +
+                "  • Information derived from previous similar designs (lessons learned, failure history)\n" +
+                "  • Any other requirements essential for the specific type of design\n\n" +
+                "Inputs must be complete and unambiguous. Conflicting requirements are resolved with the " +
+                "customer or the relevant authority before design proceeds. The inputs list is approved " +
+                "by the Design Lead and Quality Manager at the Stage 1 gate."));
+            ps3.Contents.Add(Blk(ps3, 2,
+                "Stage 3 — Design reviews\n\n" +
+                "Formal design reviews are conducted at each stage gate defined in the D&D plan. " +
+                "Each review:\n" +
+                "  • Is attended by representatives of all functions relevant to the stage being reviewed\n" +
+                "  • Includes at least one independent reviewer who has not been involved in creating the work being reviewed\n" +
+                "  • Is documented in review minutes recording: attendees, items reviewed, findings, decisions (pass/conditional pass/fail), and actions with owners and target dates\n\n" +
+                "The Design Lead may not authorise progression through a gate where unresolved action items remain open unless the Quality Manager grants a formal conditional approval with a documented risk assessment."));
+            ps3.Contents.Add(Blk(ps3, 3,
+                "Stage 4 — Verification and Validation\n\n" +
+                "Verification confirms that design outputs meet the design inputs. Methods include " +
+                "calculations, drawing checks, prototype testing, and comparison against proven designs.\n\n" +
+                "Validation confirms that the resulting product or service can meet the requirements " +
+                "for the specified application or intended use. Validation is performed under " +
+                "representative conditions (or defined alternatively where this is not possible). " +
+                "Where full validation before delivery is not feasible, partial validation and the " +
+                "remaining validation plan are approved by the Quality Manager and, where required, the customer.\n\n" +
+                "Verification and validation results are retained. Failures at either stage require " +
+                "the design to be revised and the affected verification/validation activities to be repeated."));
+            ps3.Contents.Add(Blk(ps3, 4,
+                "Stage 5 — Transfer and design changes\n\n" +
+                "The design is transferred to production only when the Quality Manager has confirmed " +
+                "that all gate criteria, verification, and validation activities are complete and that " +
+                "any required customer or regulatory approvals have been obtained.\n\n" +
+                "For any subsequent design change:\n" +
+                "  a)  The change is documented in the design change log with a description, reason, " +
+                "and the identity of affected documents and products\n" +
+                "  b)  The impact on previously delivered product is assessed; where delivered product " +
+                "may be affected, the Sales Manager and Quality Manager determine whether customer " +
+                "notification or field action is required\n" +
+                "  c)  Substantive changes follow the full D&D review, verification, and validation process\n" +
+                "  d)  Minor changes are processed as engineering change notices, reviewed and approved " +
+                "by the Design Lead and Quality Manager before release"));
+            qms011.ProcessSteps.Add(ps3);
+
+            var ps4 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms011.CreatedAt, UpdatedAt = qms011.CreatedAt,
+                ProcessId = qms011.Id, StepTemplateId = stDocSect.Id, Sequence = 4,
+                NameOverride = "Records and Documented Information",
+                DescriptionOverride = "Documented information maintained or retained under this procedure."
+            };
+            ps4.Contents.Add(Blk(ps4, 0,
+                "The following documented information shall be maintained or retained:\n\n" +
+                "  • D&D plan — including stage definitions, review/verification/validation activities, and responsible persons\n" +
+                "  • Design inputs record — the approved list of requirements forming the design basis\n" +
+                "  • Design output documentation — drawings, specifications, BOM, process descriptions, acceptance criteria\n" +
+                "  • Design review minutes — attendees, findings, decisions, and open actions for every formal review\n" +
+                "  • Verification records — calculations, test reports, comparison records demonstrating outputs meet inputs\n" +
+                "  • Validation records — test data, trial production results, or customer approval documentation\n" +
+                "  • Design change log — all changes post-transfer with impact assessment and approval\n" +
+                "  • Transfer authorisation — Quality Manager sign-off confirming all gates are closed\n\n" +
+                "Retention: D&D records are retained for the life of the product plus ten years, " +
+                "or as required by customer contract or regulation if longer."));
+            qms011.ProcessSteps.Add(ps4);
+        }
+
+        // ── QMS-012 — full rich content blocks (ISO 9001:2015 clause 8.4) ────
+        {
+            static ProcessStepContent Blk(ProcessStep ps, int order, string body) => new()
+            {
+                Id = Guid.NewGuid(), CreatedAt = ps.CreatedAt, UpdatedAt = ps.CreatedAt,
+                ProcessStepId = ps.Id,
+                ContentType = StepContentType.Text,
+                ContentCategory = ContentCategory.Reference,
+                SortOrder = order, Body = body
+            };
+
+            var ps1 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms012.CreatedAt, UpdatedAt = qms012.CreatedAt,
+                ProcessId = qms012.Id, StepTemplateId = stDocSect.Id, Sequence = 1,
+                NameOverride = "Purpose and Scope",
+                DescriptionOverride = "Purpose, scope, and normative context for control of externally provided processes, products and services per ISO 9001:2015 clause 8.4."
+            };
+            ps1.Contents.Add(Blk(ps1, 0,
+                "1.1  Purpose\n\n" +
+                "This procedure ensures that externally provided products, services, and processes " +
+                "conform to requirements before they are incorporated into the organisation's output " +
+                "or delivered directly to customers. It establishes a risk-based framework for " +
+                "supplier evaluation, selection, control, and re-evaluation that is proportionate " +
+                "to the potential impact on product and service conformity."));
+            ps1.Contents.Add(Blk(ps1, 1,
+                "1.2  Normative reference — ISO 9001:2015 clause 8.4\n\n" +
+                "8.4.1 (General) — Ensure externally provided processes, products and services conform; " +
+                "apply controls based on ability to meet requirements and potential impact; maintain " +
+                "an approved supplier register.\n\n" +
+                "8.4.2 (Type and extent of control) — Ensure externally provided processes remain " +
+                "within QMS control; define controls and verification activities; communicate requirements " +
+                "to external providers.\n\n" +
+                "8.4.3 (Information for external providers) — Communicate requirements for processes, " +
+                "products, services, methods, equipment, competence, QMS interactions, and performance " +
+                "monitoring before placement of orders."));
+            ps1.Contents.Add(Blk(ps1, 2,
+                "1.3  Scope and supplier categories\n\n" +
+                "This procedure covers all external providers from whom goods or services that affect " +
+                "product or service conformity are sourced. Suppliers are classified into three " +
+                "categories that determine the level of control applied:\n\n" +
+                "  Category A — Critical: suppliers of materials, components, or services that are " +
+                "directly incorporated into the product and where a failure would present a safety, " +
+                "regulatory, or major quality risk. Require initial on-site audit or PPAP; quarterly " +
+                "performance scoring; annual formal re-evaluation.\n\n" +
+                "  Category B — Significant: suppliers of standard purchased parts or services with " +
+                "a moderate impact on quality. Require initial questionnaire assessment or trial order; " +
+                "bi-annual performance scoring; annual review.\n\n" +
+                "  Category C — Standard: suppliers of indirect materials, consumables, and services " +
+                "with low quality impact. Require registration and periodic review; no formal audit."));
+            qms012.ProcessSteps.Add(ps1);
+
+            var ps2 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms012.CreatedAt, UpdatedAt = qms012.CreatedAt,
+                ProcessId = qms012.Id, StepTemplateId = stDocSect.Id, Sequence = 2,
+                NameOverride = "Responsibilities",
+                DescriptionOverride = "Accountability for supplier selection, control, and performance monitoring."
+            };
+            ps2.Contents.Add(Blk(ps2, 0,
+                "Procurement Manager\n\n" +
+                "  • Owns and maintains the approved supplier register\n" +
+                "  • Leads supplier selection and initial assessment activities\n" +
+                "  • Ensures purchase orders include all quality, technical, and regulatory requirements\n" +
+                "  • Coordinates the quarterly/bi-annual performance scoring process\n" +
+                "  • Initiates restriction or removal of under-performing suppliers"));
+            ps2.Contents.Add(Blk(ps2, 1,
+                "Quality Manager\n\n" +
+                "  • Sets the acceptance criteria for each supplier category and approves the assessment methodology\n" +
+                "  • Approves new Category A suppliers before first order placement\n" +
+                "  • Reviews incoming inspection data and supplier performance scorecards\n" +
+                "  • Raises supplier corrective action requests (SCARs) for significant performance failures\n" +
+                "  • Approves concessions for nonconforming incoming material (QMS-016)\n" +
+                "  • Maintains this procedure"));
+            ps2.Contents.Add(Blk(ps2, 2,
+                "Technical / Engineering\n\n" +
+                "  • Approves suppliers for technically critical or regulated items\n" +
+                "  • Defines the technical requirements (specifications, test requirements) to be " +
+                "communicated to suppliers via purchase orders\n" +
+                "  • Reviews supplier technical documentation (material certs, test reports, COCs)\n\n" +
+                "Goods-In / Stores\n\n" +
+                "  • Performs incoming inspection or verification in accordance with the incoming " +
+                "inspection plan for each supplier category\n" +
+                "  • Segregates and quarantines nonconforming deliveries; raises reports for Quality review\n" +
+                "  • Confirms that delivery documentation (delivery notes, material certs) matches the purchase order"));
+            qms012.ProcessSteps.Add(ps2);
+
+            var ps3 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms012.CreatedAt, UpdatedAt = qms012.CreatedAt,
+                ProcessId = qms012.Id, StepTemplateId = stDocSect.Id, Sequence = 3,
+                NameOverride = "Procedure",
+                DescriptionOverride = "Steps for supplier assessment, approval, ordering, incoming inspection, performance monitoring, and re-evaluation."
+            };
+            ps3.Contents.Add(Blk(ps3, 0,
+                "Step 1 — Evaluate and approve new suppliers\n\n" +
+                "Before placing a first order with any new supplier, Procurement classifies the supplier " +
+                "into a category (A, B, or C) based on the nature and risk of the goods or services " +
+                "to be sourced. The initial assessment method is determined by category:\n\n" +
+                "  Category A — on-site audit using the organisation's supplier audit checklist; " +
+                "or review of an equivalent second-party audit within the last 12 months; " +
+                "or review of current third-party certification (ISO 9001, AS9100, IATF 16949, etc.) " +
+                "plus a technical qualification (e.g., PPAP, first article approval)\n\n" +
+                "  Category B — supplier self-assessment questionnaire; or review of third-party " +
+                "certification; or a controlled trial order with enhanced incoming inspection\n\n" +
+                "  Category C — registration and confirmation of legal trading status; no formal quality assessment required\n\n" +
+                "The Quality Manager approves the assessment outcome for Category A; the Procurement " +
+                "Manager approves for Categories B and C. Approved suppliers are added to the " +
+                "approved supplier register with their category, scope of approval, and assessment date."));
+            ps3.Contents.Add(Blk(ps3, 1,
+                "Step 2 — Communicate requirements\n\n" +
+                "All purchase orders for Category A and B suppliers must include or reference:\n\n" +
+                "  • Full product or service specification (part number, revision level, drawing, standard)\n" +
+                "  • Required material certifications, test reports, or certificate of conformance\n" +
+                "  • Any applicable statutory or regulatory requirements\n" +
+                "  • Inspection and release authority requirements (e.g., customer source inspection rights)\n" +
+                "  • Packaging, labelling, and traceability requirements\n" +
+                "  • Right of access for the organisation, its customer, and regulatory authorities to " +
+                "the supplier's facilities and records\n" +
+                "  • Any specific quality management system requirements (e.g., PPAP, IMDS, REACH/RoHS compliance)\n\n" +
+                "Purchase orders are reviewed and approved by the Procurement Manager before issue. " +
+                "Verbal orders to approved Category B/C suppliers for standard items are permissible " +
+                "only where a standing supply agreement already captures the above requirements."));
+            ps3.Contents.Add(Blk(ps3, 2,
+                "Step 3 — Incoming inspection and verification\n\n" +
+                "Incoming goods are inspected or verified by Goods-In in accordance with the incoming " +
+                "inspection plan maintained by the Quality Manager. The plan specifies for each " +
+                "supplier/product category: the inspection method, sample size, acceptance criteria, " +
+                "and required documentation.\n\n" +
+                "  Category A — 100% dimensional or functional check on first articles; " +
+                "AQL-based sampling for subsequent deliveries\n" +
+                "  Category B — document verification (COC, certs) plus visual inspection; " +
+                "periodic dimensional sampling\n" +
+                "  Category C — document verification and visual check only\n\n" +
+                "Where incoming material fails inspection, it is quarantined and a nonconformance " +
+                "is raised under QMS-016. The supplier is notified of the rejection and a SCAR or " +
+                "return-to-vendor process is initiated by the Quality Manager."));
+            ps3.Contents.Add(Blk(ps3, 3,
+                "Step 4 — Monitor supplier performance\n\n" +
+                "Supplier performance is scored on the following KPIs:\n\n" +
+                "  • On-time delivery (OTD) — percentage of line items delivered on the confirmed date\n" +
+                "  • Quality acceptance rate (QAR) — percentage of deliveries passing incoming inspection without rejection\n" +
+                "  • Documentation compliance — percentage of deliveries accompanied by complete and correct documentation\n" +
+                "  • Responsiveness — speed and quality of response to quality queries and SCARs\n\n" +
+                "Category A suppliers are scored quarterly; Category B bi-annually. Scores are " +
+                "compiled by Procurement and reviewed by the Quality Manager. Suppliers falling below " +
+                "the target thresholds (OTD < 95%, QAR < 98%) are placed on a formal improvement " +
+                "plan with a 90-day recovery period. Failure to recover triggers restriction " +
+                "(new orders suspended) and formal re-evaluation."));
+            ps3.Contents.Add(Blk(ps3, 4,
+                "Step 5 — Re-evaluate and maintain register\n\n" +
+                "A formal re-evaluation is conducted annually for all Category A suppliers and for " +
+                "any Category B supplier placed on an improvement plan. Re-evaluation uses the same " +
+                "assessment method as the initial approval.\n\n" +
+                "Outcomes:\n" +
+                "  Continued approval — performance meets targets; no significant findings\n" +
+                "  Conditional approval — improvement plan in place; under monitoring\n" +
+                "  Restricted — new orders suspended pending corrective action\n" +
+                "  Removed — approval withdrawn; supplier removed from register; all open orders reviewed\n\n" +
+                "The approved supplier register is updated immediately on any status change. " +
+                "Procurement notifies all affected internal functions when a supplier's status changes."));
+            qms012.ProcessSteps.Add(ps3);
+
+            var ps4 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = qms012.CreatedAt, UpdatedAt = qms012.CreatedAt,
+                ProcessId = qms012.Id, StepTemplateId = stDocSect.Id, Sequence = 4,
+                NameOverride = "Records and Documented Information",
+                DescriptionOverride = "Documented information maintained or retained under this procedure."
+            };
+            ps4.Contents.Add(Blk(ps4, 0,
+                "The following documented information shall be maintained or retained:\n\n" +
+                "  • Approved supplier register — current approved list with category, scope, assessment date, status, and any restrictions\n" +
+                "  • Supplier assessment records — audit reports, questionnaire responses, trial order results used for initial and re-evaluation approval\n" +
+                "  • Purchase orders — including quality clauses and referenced specifications; retained for five years\n" +
+                "  • Incoming inspection records — inspection results, acceptance/rejection decisions, and nonconformance references\n" +
+                "  • Supplier performance scorecards — quarterly/bi-annual KPI data for each scored supplier\n" +
+                "  • SCAR records and responses — corrective action requests issued to suppliers and their responses\n" +
+                "  • Improvement plans — documented plans and progress records for suppliers on conditional approval\n\n" +
+                "Retention: supplier assessment and performance records are retained for five years " +
+                "from the supplier's removal from the register or the end of the last supply relationship. " +
+                "Incoming inspection records are retained for the same period as the associated product records."));
+            qms012.ProcessSteps.Add(ps4);
+        }
 
         AddQmsSteps(qms013, stDocSect,
             "Defines how products and services are uniquely identified throughout processing and how traceability is maintained and recorded where it is a requirement per clause 8.5.2.",

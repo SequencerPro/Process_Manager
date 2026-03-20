@@ -2,18 +2,20 @@
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject IJSRuntime JS
+@inject VocabularyService Vocab
+@implements IDisposable
 
-<PageTitle>Processes</PageTitle>
+<PageTitle>@Vocab.Processes</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3 class="mb-0">Processes</h3>
+    <h3 class="mb-0">@Vocab.Processes</h3>
     <a href="processes/builder" class="btn btn-primary btn-sm">
-        <i class="bi bi-plus-lg me-1"></i> New Process
+        <i class="bi bi-plus-lg me-1"></i> New @Vocab.Process
     </a>
 </div>
 
 <div class="d-flex gap-3 mb-3 flex-wrap">
-    <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search processes..." />
+    <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="@($"Search {Vocab.Processes.ToLower()}...")" />
     <select class="form-select form-select-sm" style="width:auto" @onchange="OnRoleFilter">
         <option value="">All Types</option>
         <option value="ManufacturingProcess">Manufacturing Process</option>
@@ -153,7 +155,10 @@ else if (_data is not null)
     private string _formName = "";
     private string _formDesc = "";
 
+    protected override void OnInitialized() => Vocab.OnChange += OnVocabChanged;
     protected override async Task OnInitializedAsync() => await LoadData();
+    private void OnVocabChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Vocab.OnChange -= OnVocabChanged;
 
     private async Task LoadData()
     {

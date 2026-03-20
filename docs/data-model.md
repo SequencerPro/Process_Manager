@@ -11,6 +11,7 @@
 | 0.5     | 2026-02-27 | Extended Port model with PortType enum (Material, Parameter, Characteristic, Condition); Kind/Grade/QtyRule fields now Material-only; added DataType/Units/NominalValue/Tolerance fields for Parameter and Characteristic ports |
 | 0.6     | 2026-03-08 | Phase 4 extensions for workflow execution: OrgUnit entity, assignee_id on WorkflowProcess, new WorkflowJob entity (with schedule_id), WorkflowSchedule entity; Phase 5 extension: workflow_job_id and workflow_process_id on Job |
 | 0.7     | 2026-03-08 | Phase 2 additions: PromptDefinition and PromptOption entities; ExecutionData: prompt_definition_id FK, value widened to text, extended DataType enum (Select, MultiSelect, Barcode, Photo, Signature) |
+| 0.9     | 2026-03-20 | OrgUnitMember join entity added (user ↔ OrgUnit many-to-many membership); unique composite index on (user_id, org_unit_id); cascade delete from both sides |
 | 0.8     | 2026-03-16 | Post-Phase-6 additions: `ProcessTimingDto` and `StepTimingDto` (report DTOs — not entities); three DataSeeder methods for manufacturing demo, ISO 9001 QMS documents (QMS-001–QMS-021), and system onboarding training courses (TRN-SYS-001–TRN-SYS-012); no schema changes — all additions populate existing Process/StepTemplate entities with `ProcessRole = Training / QmsDocument` values |
 
 ---
@@ -554,6 +555,22 @@ An assignable entity representing any responsible party: a department, work area
 | WorkArea   | A physical area or cell (e.g. SMT Line, CMM Room, Rework Bench)     |
 | Role       | A job function regardless of person (e.g. Process Engineer, Approver) |
 | Person     | A specific named individual (least preferred — use Role when possible) |
+
+### OrgUnitMember
+
+A many-to-many join between an `ApplicationUser` (ASP.NET Identity) and an `OrgUnit`. A user can belong to multiple OrgUnits; an OrgUnit can have multiple members. Used to determine which users are part of a department, work area, role, or team — enabling queue assignment and filtering in the Participant Portal and MyWork page.
+
+| Attribute      | Type        | Constraints                              | Description                                    |
+|----------------|-------------|------------------------------------------|------------------------------------------------|
+| id             | UUID        | PK                                       | Unique identifier                              |
+| user_id        | string(450) | FK → AspNetUsers, Not Null               | The ASP.NET Identity user Id                   |
+| org_unit_id    | UUID        | FK → OrgUnit, Not Null                   | The OrgUnit the user belongs to                |
+| created_at     | timestamp   | Not Null                                 | When the membership was created                |
+| updated_at     | timestamp   | Not Null                                 | Last modification time                         |
+
+**Constraints:**
+- Unique composite index on (`user_id`, `org_unit_id`) — a user can only be a member of an OrgUnit once
+- Cascade delete from both `OrgUnit` and `ApplicationUser` — removing either side cleans up memberships
 
 ### WorkflowJob
 

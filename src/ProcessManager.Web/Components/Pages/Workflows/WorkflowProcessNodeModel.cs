@@ -29,6 +29,34 @@ public class WorkflowProcessNodeModel : NodeModel
     /// <summary>Hex color for the tile border/header (e.g. "#0d6efd").</summary>
     public string? Color { get; set; }
 
+    /// <summary>The OrgUnit assigned to this workflow process node.</summary>
+    public Guid? AssigneeId { get; set; }
+
+    /// <summary>Display name of the assigned OrgUnit.</summary>
+    public string? AssigneeName { get; set; }
+
     /// <summary>Server-side link Id, kept in a dictionary keyed by target node id for quick lookup.</summary>
     public Guid? ServerLinkId { get; set; }
+
+    // ───────── Process detail data (loaded asynchronously after diagram renders) ─────────
+
+    /// <summary>Whether process detail data has been loaded.</summary>
+    public bool DetailLoaded { get; set; }
+
+    /// <summary>Number of steps in the process.</summary>
+    public int StepCount { get; set; }
+
+    /// <summary>Total input ports across all steps.</summary>
+    public int InputPortCount { get; set; }
+
+    /// <summary>Total output ports across all steps.</summary>
+    public int OutputPortCount { get; set; }
+
+    /// <summary>Material flow tags summarising what flows in/out of this process.</summary>
+    public List<MaterialFlowTag> MaterialFlows { get; set; } = new();
 }
+
+/// <summary>
+/// Summarises a single material input or output for display on a workflow node.
+/// </summary>
+public record MaterialFlowTag(string KindName, string GradeName, string Direction);

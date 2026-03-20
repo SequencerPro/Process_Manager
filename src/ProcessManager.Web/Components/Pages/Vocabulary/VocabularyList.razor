@@ -2,6 +2,8 @@
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject IJSRuntime JS
+@inject VocabularyService Vocab
+@implements IDisposable
 
 <PageTitle>Domain Vocabulary</PageTitle>
 
@@ -11,6 +13,14 @@
         <i class="bi bi-plus-lg me-1"></i> New Vocabulary
     </button>
 </div>
+
+@if (Vocab.ActiveName is not null)
+{
+    <div class="alert alert-success d-flex align-items-center py-2 mb-3">
+        <i class="bi bi-check-circle-fill me-2"></i>
+        <span>Active vocabulary: <strong>@Vocab.ActiveName</strong></span>
+    </div>
+}
 
 <div class="mb-3">
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search vocabularies..." />
@@ -27,35 +37,49 @@ else if (_data is not null)
             <thead class="table-light">
                 <tr>
                     <th>Name</th>
+                    <th>Active</th>
                     <th>Kind</th>
                     <th>Grade</th>
                     <th>Item</th>
                     <th>Batch</th>
                     <th>Job</th>
+                    <th>Workorder</th>
                     <th>Process</th>
                     <th>Step</th>
-                    <th style="width:140px">Actions</th>
+                    <th style="width:160px">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 @if (!_data.Items.Any())
                 {
-                    <tr><td colspan="9" class="text-center text-muted py-3">No vocabularies found.</td></tr>
+                    <tr><td colspan="11" class="text-center text-muted py-3">No vocabularies found.</td></tr>
                 }
                 else
                 {
                 @foreach (var v in _data.Items)
                 {
-                    <tr>
+                    <tr class="@(v.IsActive ? "table-success" : "")">
                         <td><strong>@v.Name</strong></td>
+                        <td>
+                            @if (v.IsActive)
+                            {
+                                <span class="badge bg-success"><i class="bi bi-check-lg"></i> Active</span>
+                            }
+                        </td>
                         <td>@v.TermKind</td>
                         <td>@v.TermGrade</td>
                         <td>@v.TermItem</td>
                         <td>@v.TermBatch</td>
                         <td>@v.TermJob</td>
+                        <td>@v.TermWorkorder</td>
                         <td>@v.TermProcess</td>
                         <td>@v.TermStep</td>
                         <td>
+                            <button class="btn @(v.IsActive ? "btn-success" : "btn-outline-success") btn-sm me-1"
+                                    @onclick="() => ToggleActive(v)"
+                                    title="@(v.IsActive ? "Deactivate" : "Activate")">
+                                <i class="bi @(v.IsActive ? "bi-toggle-on" : "bi-toggle-off")"></i>
+                            </button>
                             <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEdit(v)">
                                 <i class="bi bi-pencil"></i>
                             </button>
@@ -122,6 +146,10 @@ else if (_data is not null)
                             <input class="form-control" @bind="_formTermJob" />
                         </div>
                         <div class="col-md-4 mb-3">
+                            <label class="form-label">Term: Workorder</label>
+                            <input class="form-control" @bind="_formTermWorkorder" />
+                        </div>
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">Term: Workflow</label>
                             <input class="form-control" @bind="_formTermWorkflow" />
                         </div>
@@ -163,11 +191,15 @@ else if (_data is not null)
     private string _formTermBatch = "Batch";
     private string _formTermBatchId = "Batch Code";
     private string _formTermJob = "Job";
+    private string _formTermWorkorder = "Workorder";
     private string _formTermWorkflow = "Workflow";
     private string _formTermProcess = "Process";
     private string _formTermStep = "Step";
 
+    protected override void OnInitialized() => Vocab.OnChange += OnVocabChanged;
     protected override async Task OnInitializedAsync() => await LoadData();
+    private void OnVocabChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Vocab.OnChange -= OnVocabChanged;
 
     private async Task LoadData()
     {
@@ -196,7 +228,7 @@ else if (_data is not null)
         _formTermKind = "Kind"; _formTermKindCode = "Kind Code"; _formTermGrade = "Grade";
         _formTermItem = "Item"; _formTermItemId = "Serial Number";
         _formTermBatch = "Batch"; _formTermBatchId = "Batch Code";
-        _formTermJob = "Job"; _formTermWorkflow = "Workflow";
+        _formTermJob = "Job"; _formTermWorkorder = "Workorder"; _formTermWorkflow = "Workflow";
         _formTermProcess = "Process"; _formTermStep = "Step";
         _showForm = true;
     }
@@ -207,7 +239,7 @@ else if (_data is not null)
         _formTermKind = v.TermKind; _formTermKindCode = v.TermKindCode; _formTermGrade = v.TermGrade;
         _formTermItem = v.TermItem; _formTermItemId = v.TermItemId;
         _formTermBatch = v.TermBatch; _formTermBatchId = v.TermBatchId;
-        _formTermJob = v.TermJob; _formTermWorkflow = v.TermWorkflow;
+        _formTermJob = v.TermJob; _formTermWorkorder = v.TermWorkorder; _formTermWorkflow = v.TermWorkflow;
         _formTermProcess = v.TermProcess; _formTermStep = v.TermStep;
         _showForm = true;
     }
@@ -222,13 +254,32 @@ else if (_data is not null)
                 await Api.UpdateVocabularyAsync(_editId.Value, new DomainVocabularyUpdateDto(
                     _formName, _formTermKind, _formTermKindCode, _formTermGrade,
                     _formTermItem, _formTermItemId, _formTermBatch, _formTermBatchId,
-                    _formTermJob, _formTermWorkflow, _formTermProcess, _formTermStep));
+                    _formTermJob, _formTermWorkflow, _formTermProcess, _formTermStep, _formTermWorkorder));
             else
                 await Api.CreateVocabularyAsync(new DomainVocabularyCreateDto(
                     _formName, _formTermKind, _formTermKindCode, _formTermGrade,
                     _formTermItem, _formTermItemId, _formTermBatch, _formTermBatchId,
-                    _formTermJob, _formTermWorkflow, _formTermProcess, _formTermStep));
+                    _formTermJob, _formTermWorkflow, _formTermProcess, _formTermStep, _formTermWorkorder));
             _showForm = false;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task ToggleActive(DomainVocabularyResponseDto v)
+    {
+        try
+        {
+            if (v.IsActive)
+            {
+                await Api.DeactivateVocabularyAsync(v.Id);
+                Vocab.SetVocabulary(null);
+            }
+            else
+            {
+                var activated = await Api.ActivateVocabularyAsync(v.Id);
+                Vocab.SetVocabulary(activated);
+            }
             await LoadData();
         }
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }

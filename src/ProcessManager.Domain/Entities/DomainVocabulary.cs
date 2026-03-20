@@ -19,4 +19,8 @@ public class DomainVocabulary : BaseEntity
     public string TermWorkflow { get; set; } = "Workflow";
     public string TermProcess { get; set; } = "Process";
     public string TermStep { get; set; } = "Step";
+    public string TermWorkorder { get; set; } = "Workorder";
+
+    /// <summary>Whether this vocabulary is the currently active one (only one can be active at a time).</summary>
+    public bool IsActive { get; set; } = false;
 }

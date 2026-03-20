@@ -2,13 +2,15 @@
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject IJSRuntime JS
+@inject VocabularyService Vocab
+@implements IDisposable
 
-<PageTitle>Batches</PageTitle>
+<PageTitle>@Vocab.Batches</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h3 class="mb-0">Batches</h3>
+    <h3 class="mb-0">@Vocab.Batches</h3>
     <button class="btn btn-primary btn-sm" @onclick="ShowCreateForm">
-        <i class="bi bi-plus-lg me-1"></i> New Batch
+        <i class="bi bi-plus-lg me-1"></i> New @Vocab.Batch
     </button>
 </div>
 
@@ -163,7 +165,10 @@ else if (_data is not null)
     private PaginatedResponse<KindResponseDto>? _kinds;
     private List<GradeResponseDto>? _formGrades;
 
+    protected override void OnInitialized() => Vocab.OnChange += OnVocabChanged;
     protected override async Task OnInitializedAsync() => await LoadData();
+    private void OnVocabChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Vocab.OnChange -= OnVocabChanged;
 
     private async Task LoadData()
     {

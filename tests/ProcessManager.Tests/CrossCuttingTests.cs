@@ -322,7 +322,7 @@ public class CrossCuttingTests : IntegrationTestBase
     {
         var dto = new DomainVocabularyCreateDto("Test Vocab",
             "Kind", "KindCode", "Grade", "Item", "ItemId",
-            "Batch", "BatchId", "Job", "Workflow", "Process", "Step");
+            "Batch", "BatchId", "Job", "Workflow", "Process", "Step", "Workorder");
         await Client.PostAsJsonAsync("/api/domainvocabularies", dto, JsonOptions);
 
         var result = await Client.GetFromJsonAsync<PaginatedResponse<DomainVocabularyResponseDto>>(
@@ -337,7 +337,7 @@ public class CrossCuttingTests : IntegrationTestBase
     {
         var dto = new DomainVocabularyCreateDto("Unique Vocab XYZ",
             "Kind", "KindCode", "Grade", "Item", "ItemId",
-            "Batch", "BatchId", "Job", "Workflow", "Process", "Step");
+            "Batch", "BatchId", "Job", "Workflow", "Process", "Step", "Workorder");
         await Client.PostAsJsonAsync("/api/domainvocabularies", dto, JsonOptions);
 
         var result = await Client.GetFromJsonAsync<PaginatedResponse<DomainVocabularyResponseDto>>(

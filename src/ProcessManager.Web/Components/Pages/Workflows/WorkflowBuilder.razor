@@ -31,6 +31,23 @@ else
             <button class="btn btn-outline-info btn-sm" @onclick="Validate" disabled="@_saving">
                 <i class="bi bi-check2-circle me-1"></i>Validate
             </button>
+            <div class="btn-group btn-group-sm" role="group" title="Switch view">
+                <button type="button" title="Diagram view"
+                        class="btn @(_viewMode == "Diagram" ? "btn-secondary" : "btn-outline-secondary")"
+                        @onclick='() => _ = SetViewMode("Diagram")'>
+                    <i class="bi bi-diagram-3"></i>
+                </button>
+                <button type="button" title="Slide view"
+                        class="btn @(_viewMode == "Slide" ? "btn-secondary" : "btn-outline-secondary")"
+                        @onclick='() => _ = SetViewMode("Slide")'>
+                    <i class="bi bi-easel"></i>
+                </button>
+                <button type="button" title="Document view"
+                        class="btn @(_viewMode == "Document" ? "btn-secondary" : "btn-outline-secondary")"
+                        @onclick='() => _ = SetViewMode("Document")'>
+                    <i class="bi bi-file-earmark-richtext"></i>
+                </button>
+            </div>
             <button class="btn btn-primary btn-sm" @onclick="Save" disabled="@_saving">
                 @if (_saving)
                 {
@@ -67,7 +84,9 @@ else
         </div>
     }
 
-    @* ── Main Layout: Canvas + Sidebar ── *@
+    @* ── Diagram View ── *@
+    @if (_viewMode == "Diagram")
+    {
     <div class="d-flex" style="height: calc(100vh - 180px);">
         @* Diagram Canvas *@
         <div class="flex-grow-1 workflow-builder-canvas">
@@ -167,6 +186,27 @@ else
                                 </button>
                             </div>
                         </div>
+                        <div class="mb-2">
+                            <label class="form-label small mb-0">Assignee</label>
+                            <select class="form-select form-select-sm"
+                                    value="@(_selectedNode.AssigneeId?.ToString() ?? "")"
+                                    @onchange="HandleAssigneeChange">
+                                <option value="">— Unassigned —</option>
+                                @if (_orgUnits is not null)
+                                {
+                                    @foreach (var ou in _orgUnits)
+                                    {
+                                        <option value="@ou.Id">@ou.Name (@ou.Code)</option>
+                                    }
+                                }
+                            </select>
+                            @if (_selectedNode.AssigneeName is not null)
+                            {
+                                <div class="text-muted small mt-1">
+                                    <i class="bi bi-building me-1"></i>@_selectedNode.AssigneeName
+                                </div>
+                            }
+                        </div>
                     }
 
                     <hr class="my-2" />
@@ -179,6 +219,116 @@ else
                     <button class="btn btn-outline-danger btn-sm w-100" @onclick="DeleteSelectedNode">
                         <i class="bi bi-trash me-1"></i>Remove from Workflow
                     </button>
+
+                    @* ── Phase 4: Expanded Process Details ── *@
+                    @if (!_selectedNode.IsTerminalNode && _selectedProcessDetail is not null)
+                    {
+                        <hr class="my-2" />
+                        <h6 class="mb-1" style="font-size:0.8rem;">
+                            <i class="bi bi-diagram-3 me-1"></i>Process Details
+                        </h6>
+
+                        @if (_selectedProcessDetail.Steps?.Any() == true)
+                        {
+                            <div class="d-flex flex-column gap-1">
+                                @foreach (var step in _selectedProcessDetail.Steps.OrderBy(s => s.Sequence))
+                                {
+                                    <div style="border:1px solid #dee2e6; border-radius:4px; overflow:hidden;">
+                                        @* Step header — clickable to expand *@
+                                        <div style="padding:0.3rem 0.5rem; background:#f8f9fa; cursor:pointer;
+                                                     font-size:0.75rem; display:flex; align-items:center; gap:0.3rem;"
+                                             @onclick="() => ToggleStepExpand(step.Id)">
+                                            <i class="bi @(IsStepExpanded(step.Id) ? "bi-chevron-down" : "bi-chevron-right")"
+                                               style="font-size:0.6rem;"></i>
+                                            <span class="badge bg-secondary" style="font-size:0.6rem;">@step.Sequence</span>
+                                            <span class="text-truncate fw-semibold">@(step.NameOverride ?? step.StepTemplateName)</span>
+                                        </div>
+
+                                        @* Expanded content: ports *@
+                                        @if (IsStepExpanded(step.Id))
+                                        {
+                                            var ports = GetStepPorts(step);
+                                            var overrides = step.PortOverrides ?? new();
+                                            <div style="padding:0.3rem 0.5rem; font-size:0.68rem; border-top:1px solid #dee2e6;">
+                                                @if (ports.Any())
+                                                {
+                                                    <table class="w-100" style="font-size:0.68rem;">
+                                                        <thead>
+                                                            <tr style="color:#6c757d; border-bottom:1px solid #e9ecef;">
+                                                                <th style="padding:1px 4px; font-weight:600;">Dir</th>
+                                                                <th style="padding:1px 4px; font-weight:600;">Name</th>
+                                                                <th style="padding:1px 4px; font-weight:600;">Type</th>
+                                                                <th style="padding:1px 4px; font-weight:600;">Detail</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            @foreach (var port in ports.OrderBy(p => p.Direction).ThenBy(p => p.SortOrder))
+                                                            {
+                                                                var ov = overrides.FirstOrDefault(o => o.PortId == port.Id);
+                                                                var dir = ov?.DirectionOverride ?? port.Direction;
+                                                                var portName = ov?.NameOverride ?? port.Name;
+                                                                <tr style="border-bottom:1px solid #f0f0f0;">
+                                                                    <td style="padding:1px 4px;">
+                                                                        <span class="badge @(dir == PortDirection.Input ? "bg-warning text-dark" : "bg-info text-dark")"
+                                                                              style="font-size:0.55rem;">
+                                                                            @(dir == PortDirection.Input ? "IN" : "OUT")
+                                                                        </span>
+                                                                    </td>
+                                                                    <td style="padding:1px 4px;">@portName</td>
+                                                                    <td style="padding:1px 4px; color:#6c757d;">@port.PortType</td>
+                                                                    <td style="padding:1px 4px; font-size:0.6rem; color:#6c757d;">
+                                                                        @if (port.PortType == PortType.Material)
+                                                                        {
+                                                                            var kindName = ov?.KindOverrideName ?? port.KindName;
+                                                                            var gradeName = ov?.GradeOverrideName ?? port.GradeName;
+                                                                            @if (!string.IsNullOrEmpty(kindName))
+                                                                            {
+                                                                                <span>@kindName</span>
+                                                                                @if (!string.IsNullOrEmpty(gradeName))
+                                                                                {
+                                                                                    <span> / @gradeName</span>
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                        else if (port.PortType == PortType.Parameter || port.PortType == PortType.Characteristic)
+                                                                        {
+                                                                            @if (port.DataType.HasValue)
+                                                                            {
+                                                                                <span>@port.DataType</span>
+                                                                                @if (!string.IsNullOrEmpty(port.Units))
+                                                                                {
+                                                                                    <span> (@port.Units)</span>
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    </td>
+                                                                </tr>
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted fst-italic">No ports defined</span>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-muted small fst-italic">No steps defined</div>
+                        }
+                    }
+                    else if (!_selectedNode.IsTerminalNode && _loadingProcessDetails)
+                    {
+                        <hr class="my-2" />
+                        <div class="text-center text-muted small">
+                            <span class="spinner-border spinner-border-sm"></span> Loading details…
+                        </div>
+                    }
                 </div>
             }
 
@@ -244,7 +394,7 @@ else
         </div>
     </div>
 
-    @* ── Add Link Modal (routing type) ── *@
+    @* ── Add Link Modal (routing type, Diagram view only) ── *@
     @if (_showLinkModal)
     {
         <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
@@ -339,6 +489,465 @@ else
             </div>
         </div>
     }
+    } @* end Diagram view *@
+
+    @* ── Slide View ── *@
+    @if (_viewMode == "Slide")
+    {
+        var procs = OrderedProcesses;
+        @if (!procs.Any())
+        {
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-easel d-block mb-2" style="font-size:2rem"></i>
+                No processes in this workflow yet. Switch to Diagram view to add processes.
+            </div>
+        }
+        else
+        {
+            <div class="pb-slide-layout wfb-slide-layout">
+                @* Left Rail *@
+                <div class="pb-slide-rail">
+                    @for (int i = 0; i < procs.Count; i++)
+                    {
+                        var idx = i;
+                        var proc = procs[idx];
+                        <div class="pb-slide-thumbnail @(idx == _slideProcessIndex ? "active" : "")"
+                             @onclick="() => _ = SelectSlideProcess(idx)">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div class="text-truncate">
+                                    <span class="badge bg-secondary me-1" style="font-size:0.6rem;">@proc.SortOrder</span>
+                                    @if (proc.IsTerminalNode)
+                                    {
+                                        <i class="bi bi-stop-circle-fill me-1" style="color:#dc3545;"></i>
+                                        <span class="fw-semibold" style="font-size:.82rem">End Node</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="fw-semibold" style="font-size:.82rem">@proc.ProcessName</span>
+                                        <div class="text-muted" style="font-size:.7rem">@proc.ProcessCode</div>
+                                    }
+                                </div>
+                                <div class="d-flex flex-column gap-0">
+                                    @if (idx > 0)
+                                    {
+                                        <button class="btn btn-sm py-0 px-1 @(idx == _slideProcessIndex ? "text-white" : "text-muted")"
+                                                @onclick:stopPropagation="true"
+                                                @onclick="() => _ = MoveSlideProcess(idx, -1)"
+                                                title="Move earlier">
+                                            <i class="bi bi-chevron-up" style="font-size:.6rem"></i>
+                                        </button>
+                                    }
+                                    @if (idx < procs.Count - 1)
+                                    {
+                                        <button class="btn btn-sm py-0 px-1 @(idx == _slideProcessIndex ? "text-white" : "text-muted")"
+                                                @onclick:stopPropagation="true"
+                                                @onclick="() => _ = MoveSlideProcess(idx, 1)"
+                                                title="Move later">
+                                            <i class="bi bi-chevron-down" style="font-size:.6rem"></i>
+                                        </button>
+                                    }
+                                </div>
+                            </div>
+                            @if (proc.IsEntryPoint)
+                            {
+                                <span class="badge bg-success mt-1" style="font-size:.55rem">Entry Point</span>
+                            }
+                        </div>
+                    }
+                </div>
+
+                @* Right Editor *@
+                <div class="pb-slide-editor">
+                    @if (_slideProcess is not null)
+                    {
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <span class="badge bg-primary mb-1">Process @(_slideProcessIndex + 1) of @procs.Count</span>
+                                @if (_slideProcess.IsTerminalNode)
+                                {
+                                    <h5 class="mb-0"><i class="bi bi-stop-circle-fill me-1" style="color:#dc3545;"></i>End Node</h5>
+                                    <div class="text-muted small">Workflow ends when a process exits toward this node.</div>
+                                }
+                                else
+                                {
+                                    <h5 class="mb-0">@_slideProcess.ProcessName</h5>
+                                    <code style="font-size:.8rem">@_slideProcess.ProcessCode</code>
+                                }
+                            </div>
+                        </div>
+
+                        @if (!_slideProcess.IsTerminalNode)
+                        {
+                            @* Node Configuration *@
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title mb-3"><i class="bi bi-gear me-1"></i>Configuration</h6>
+                                    <div class="form-check mb-2">
+                                        <input type="checkbox" class="form-check-input" id="slideNodeEntry"
+                                               checked="@(_selectedNode?.IsEntryPoint ?? _slideProcess.IsEntryPoint)"
+                                               @onchange="e => ToggleEntryPoint((bool)e.Value!)" />
+                                        <label class="form-check-label" for="slideNodeEntry">Is Entry Point</label>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small mb-0">Sort Order</label>
+                                        <input type="number" class="form-control form-control-sm" style="max-width:120px"
+                                               value="@(_selectedNode?.SortOrder ?? _slideProcess.SortOrder)"
+                                               @onchange="HandleSortOrderChange" />
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small mb-0">Tile Color</label>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <input type="color" class="form-control form-control-color form-control-sm"
+                                                   value="@GetNodeColor()"
+                                                   @onchange="HandleColorChange" />
+                                            <button class="btn btn-outline-secondary btn-sm py-0 px-1"
+                                                    @onclick="ResetNodeColor" title="Reset to default">
+                                                <i class="bi bi-arrow-counterclockwise"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label small mb-0">Assignee</label>
+                                        <select class="form-select form-select-sm"
+                                                value="@(_selectedNode?.AssigneeId?.ToString() ?? "")"
+                                                @onchange="HandleAssigneeChange">
+                                            <option value="">— Unassigned —</option>
+                                            @if (_orgUnits is not null)
+                                            {
+                                                @foreach (var ou in _orgUnits)
+                                                {
+                                                    <option value="@ou.Id">@ou.Name (@ou.Code)</option>
+                                                }
+                                            }
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @* Process Details *@
+                            @if (_slideProcessDetail is not null)
+                            {
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h6 class="card-title mb-2"><i class="bi bi-diagram-3 me-1"></i>Process Steps</h6>
+                                        @if (_slideProcessDetail.Steps?.Any() == true)
+                                        {
+                                            <div class="d-flex flex-column gap-1">
+                                                @foreach (var step in _slideProcessDetail.Steps.OrderBy(s => s.Sequence))
+                                                {
+                                                    <div style="border:1px solid #dee2e6; border-radius:4px; overflow:hidden;">
+                                                        <div style="padding:0.35rem 0.5rem; background:#f8f9fa; cursor:pointer;
+                                                                     font-size:0.8rem; display:flex; align-items:center; gap:0.3rem;"
+                                                             @onclick="() => ToggleStepExpand(step.Id)">
+                                                            <i class="bi @(IsStepExpanded(step.Id) ? "bi-chevron-down" : "bi-chevron-right")"
+                                                               style="font-size:0.65rem;"></i>
+                                                            <span class="badge bg-secondary" style="font-size:0.6rem;">@step.Sequence</span>
+                                                            <span class="text-truncate fw-semibold">@(step.NameOverride ?? step.StepTemplateName)</span>
+                                                        </div>
+                                                        @if (IsStepExpanded(step.Id))
+                                                        {
+                                                            var ports = GetStepPorts(step);
+                                                            var overrides = step.PortOverrides ?? new();
+                                                            <div style="padding:0.35rem 0.5rem; font-size:0.75rem; border-top:1px solid #dee2e6;">
+                                                                @if (ports.Any())
+                                                                {
+                                                                    <table class="w-100" style="font-size:0.75rem;">
+                                                                        <thead>
+                                                                            <tr style="color:#6c757d; border-bottom:1px solid #e9ecef;">
+                                                                                <th style="padding:2px 4px; font-weight:600;">Dir</th>
+                                                                                <th style="padding:2px 4px; font-weight:600;">Name</th>
+                                                                                <th style="padding:2px 4px; font-weight:600;">Type</th>
+                                                                                <th style="padding:2px 4px; font-weight:600;">Detail</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            @foreach (var port in ports.OrderBy(p => p.Direction).ThenBy(p => p.SortOrder))
+                                                                            {
+                                                                                var ov = overrides.FirstOrDefault(o => o.PortId == port.Id);
+                                                                                var dir = ov?.DirectionOverride ?? port.Direction;
+                                                                                var portName = ov?.NameOverride ?? port.Name;
+                                                                                <tr style="border-bottom:1px solid #f0f0f0;">
+                                                                                    <td style="padding:2px 4px;">
+                                                                                        <span class="badge @(dir == PortDirection.Input ? "bg-warning text-dark" : "bg-info text-dark")"
+                                                                                              style="font-size:0.6rem;">
+                                                                                            @(dir == PortDirection.Input ? "IN" : "OUT")
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td style="padding:2px 4px;">@portName</td>
+                                                                                    <td style="padding:2px 4px; color:#6c757d;">@port.PortType</td>
+                                                                                    <td style="padding:2px 4px; font-size:0.65rem; color:#6c757d;">
+                                                                                        @if (port.PortType == PortType.Material)
+                                                                                        {
+                                                                                            var kindName = ov?.KindOverrideName ?? port.KindName;
+                                                                                            var gradeName = ov?.GradeOverrideName ?? port.GradeName;
+                                                                                            @if (!string.IsNullOrEmpty(kindName))
+                                                                                            {
+                                                                                                <span>@kindName</span>
+                                                                                                @if (!string.IsNullOrEmpty(gradeName))
+                                                                                                {
+                                                                                                    <span> / @gradeName</span>
+                                                                                                }
+                                                                                            }
+                                                                                        }
+                                                                                        else if (port.PortType == PortType.Parameter || port.PortType == PortType.Characteristic)
+                                                                                        {
+                                                                                            @if (port.DataType.HasValue)
+                                                                                            {
+                                                                                                <span>@port.DataType</span>
+                                                                                                @if (!string.IsNullOrEmpty(port.Units))
+                                                                                                {
+                                                                                                    <span> (@port.Units)</span>
+                                                                                                }
+                                                                                            }
+                                                                                        }
+                                                                                    </td>
+                                                                                </tr>
+                                                                            }
+                                                                        </tbody>
+                                                                    </table>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <span class="text-muted fst-italic">No ports defined</span>
+                                                                }
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="text-muted small fst-italic">No steps defined</div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                            else if (_loadingProcessDetails)
+                            {
+                                <div class="text-center text-muted py-3">
+                                    <span class="spinner-border spinner-border-sm"></span> Loading process details…
+                                </div>
+                            }
+
+                            @* Links Summary *@
+                            @if (_wf?.Links?.Any() == true)
+                            {
+                                var outgoing = _wf.Links.Where(l => l.SourceWorkflowProcessId == _slideProcess.Id).ToList();
+                                var incoming = _wf.Links.Where(l => l.TargetWorkflowProcessId == _slideProcess.Id).ToList();
+                                @if (outgoing.Any() || incoming.Any())
+                                {
+                                    <div class="card mb-3">
+                                        <div class="card-body">
+                                            <h6 class="card-title mb-2"><i class="bi bi-arrow-left-right me-1"></i>Links</h6>
+                                            @if (outgoing.Any())
+                                            {
+                                                <div class="mb-2">
+                                                    <label class="form-label small mb-1 fw-semibold">Outgoing</label>
+                                                    @foreach (var link in outgoing)
+                                                    {
+                                                        <div class="d-flex align-items-center gap-1 mb-1" style="font-size:.8rem">
+                                                            <i class="bi bi-arrow-right text-primary"></i>
+                                                            <span>@link.TargetProcessName</span>
+                                                            <span class="badge bg-info text-dark" style="font-size:.6rem">@link.RoutingType</span>
+                                                            @if (link.Conditions?.Any() == true)
+                                                            {
+                                                                @foreach (var c in link.Conditions)
+                                                                {
+                                                                    <span class="badge bg-light text-dark border" style="font-size:.55rem">@c.GradeCode</span>
+                                                                }
+                                                            }
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                            @if (incoming.Any())
+                                            {
+                                                <div>
+                                                    <label class="form-label small mb-1 fw-semibold">Incoming</label>
+                                                    @foreach (var link in incoming)
+                                                    {
+                                                        <div class="d-flex align-items-center gap-1 mb-1" style="font-size:.8rem">
+                                                            <i class="bi bi-arrow-left text-success"></i>
+                                                            <span>@link.SourceProcessName</span>
+                                                            <span class="badge bg-info text-dark" style="font-size:.6rem">@link.RoutingType</span>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            }
+
+                            <div class="d-flex gap-2">
+                                <a href="processes/@_slideProcess.ProcessId" class="btn btn-outline-secondary btn-sm">
+                                    <i class="bi bi-box-arrow-up-right me-1"></i>View Process
+                                </a>
+                                <button class="btn btn-outline-danger btn-sm" @onclick="DeleteSelectedNode">
+                                    <i class="bi bi-trash me-1"></i>Remove from Workflow
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            @* Terminal node - simplified view *@
+                            <button class="btn btn-outline-danger btn-sm" @onclick="DeleteSelectedNode">
+                                <i class="bi bi-trash me-1"></i>Remove from Workflow
+                            </button>
+                        }
+                    }
+                </div>
+            </div>
+        }
+    }
+
+    @* ── Document View ── *@
+    @if (_viewMode == "Document")
+    {
+        var procs = OrderedProcesses;
+        <div class="pb-doc-view wfb-doc-view" style="max-width:820px; margin:0 auto;">
+            @if (_docLoading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary"></div>
+                    <div class="text-muted mt-2">Loading process details…</div>
+                </div>
+            }
+            else if (!procs.Any())
+            {
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-file-earmark-richtext d-block mb-2" style="font-size:2rem"></i>
+                    No processes in this workflow yet. Switch to Diagram view to add processes.
+                </div>
+            }
+            else
+            {
+                <div class="d-flex align-items-center gap-2 mb-4 text-muted small">
+                    <i class="bi bi-eye"></i>
+                    <span>Read-only document view of the workflow. Click Edit to configure a process.</span>
+                </div>
+
+                @for (int i = 0; i < procs.Count; i++)
+                {
+                    var idx = i;
+                    var proc = procs[idx];
+                    <div class="pb-doc-step">
+                        <div class="pb-doc-step-number">
+                            @(proc.IsTerminalNode ? "END NODE" : $"PROCESS {idx + 1}")
+                        </div>
+                        <div class="pb-doc-step-title">
+                            @if (proc.IsTerminalNode)
+                            {
+                                <i class="bi bi-stop-circle-fill me-1" style="color:#dc3545;"></i>
+                                <span>End Node</span>
+                            }
+                            else
+                            {
+                                @proc.ProcessName
+                                @if (proc.IsEntryPoint)
+                                {
+                                    <span class="badge bg-success ms-2" style="font-size:.6rem">Entry Point</span>
+                                }
+                            }
+                        </div>
+                        @if (!proc.IsTerminalNode)
+                        {
+                            <div class="pb-doc-step-desc">
+                                <code>@proc.ProcessCode</code>
+                            </div>
+
+                            @* Process Steps *@
+                            @if (proc.ProcessId.HasValue && _processDetailCache.TryGetValue(proc.ProcessId.Value, out var detail))
+                            {
+                                @if (detail.Steps?.Any() == true)
+                                {
+                                    <div class="mb-2">
+                                        <strong class="small">Steps:</strong>
+                                        <div class="ms-2 mt-1">
+                                            @foreach (var step in detail.Steps.OrderBy(s => s.Sequence))
+                                            {
+                                                var ports = GetStepPorts(step);
+                                                var overrides = step.PortOverrides ?? new();
+                                                var inCount = ports.Count(p => (overrides.FirstOrDefault(o => o.PortId == p.Id)?.DirectionOverride ?? p.Direction) == PortDirection.Input);
+                                                var outCount = ports.Count - inCount;
+                                                <div class="d-flex align-items-center gap-1 mb-1" style="font-size:.8rem">
+                                                    <span class="badge bg-secondary" style="font-size:.55rem">@step.Sequence</span>
+                                                    <span class="fw-semibold">@(step.NameOverride ?? step.StepTemplateName)</span>
+                                                    @if (ports.Any())
+                                                    {
+                                                        <span class="text-muted" style="font-size:.7rem">(@inCount in / @outCount out)</span>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            }
+
+                            @* Links *@
+                            @if (_wf?.Links?.Any() == true)
+                            {
+                                var outgoing = _wf.Links.Where(l => l.SourceWorkflowProcessId == proc.Id).ToList();
+                                var incoming = _wf.Links.Where(l => l.TargetWorkflowProcessId == proc.Id).ToList();
+                                @if (outgoing.Any() || incoming.Any())
+                                {
+                                    <div class="mb-2" style="font-size:.8rem">
+                                        @if (outgoing.Any())
+                                        {
+                                            <div class="mb-1">
+                                                <strong class="small">Outgoing:</strong>
+                                                @foreach (var link in outgoing)
+                                                {
+                                                    <span class="ms-1">
+                                                        <i class="bi bi-arrow-right text-primary"></i>
+                                                        @link.TargetProcessName
+                                                        <span class="badge bg-info text-dark" style="font-size:.55rem">@link.RoutingType</span>
+                                                        @if (link.Conditions?.Any() == true)
+                                                        {
+                                                            <span class="text-muted">[@(string.Join(", ", link.Conditions.Select(c => c.GradeCode)))]</span>
+                                                        }
+                                                    </span>
+                                                }
+                                            </div>
+                                        }
+                                        @if (incoming.Any())
+                                        {
+                                            <div>
+                                                <strong class="small">Incoming:</strong>
+                                                @foreach (var link in incoming)
+                                                {
+                                                    <span class="ms-1">
+                                                        <i class="bi bi-arrow-left text-success"></i>
+                                                        @link.SourceProcessName
+                                                        <span class="badge bg-info text-dark" style="font-size:.55rem">@link.RoutingType</span>
+                                                    </span>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            }
+
+                            <button class="btn btn-outline-primary btn-sm" @onclick="() => _ = SwitchToSlideProcess(idx)">
+                                <i class="bi bi-pencil me-1"></i>Edit
+                            </button>
+                        }
+                    </div>
+                }
+
+                @* Workflow Summary Footer *@
+                <div class="border-top pt-3 mt-3 text-muted small">
+                    <div class="d-flex gap-3">
+                        <span><strong>@procs.Count</strong> processes</span>
+                        <span><strong>@procs.Count(p => p.IsEntryPoint)</strong> entry points</span>
+                        <span><strong>@procs.Count(p => p.IsTerminalNode)</strong> end nodes</span>
+                        <span><strong>@(_wf?.Links?.Count ?? 0)</strong> links</span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
 }
 
 @code {
@@ -355,6 +964,9 @@ else
     private string _pickerSearch = "";
     private List<ProcessSummaryResponseDto>? _allProcesses;
     private List<ProcessSummaryResponseDto>? _filteredProcesses;
+
+    // OrgUnit assignee picker
+    private List<OrgUnitResponseDto>? _orgUnits;
 
     // Selection state
     private WorkflowProcessNodeModel? _selectedNode;
@@ -385,6 +997,28 @@ else
     // Map WorkflowProcessId -> diagram node
     private Dictionary<Guid, WorkflowProcessNodeModel> _nodeMap = new();
 
+    // Process detail caches (loaded async after diagram renders)
+    private Dictionary<Guid, ProcessResponseDto> _processDetailCache = new();
+    private Dictionary<Guid, StepTemplateResponseDto> _stepTemplateCache = new();
+    private bool _loadingProcessDetails;
+    private ProcessResponseDto? _selectedProcessDetail;
+    private HashSet<Guid> _expandedStepIds = new();
+
+    // View mode
+    private string _viewMode = "Diagram";
+
+    // Slide view state
+    private int _slideProcessIndex;
+    private WorkflowProcessResponseDto? _slideProcess;
+    private ProcessResponseDto? _slideProcessDetail;
+
+    // Document view state
+    private bool _docLoading;
+
+    // Helper: ordered list of all workflow processes
+    private List<WorkflowProcessResponseDto> OrderedProcesses =>
+        _wf?.Processes?.OrderBy(p => p.SortOrder).ToList() ?? new();
+
     protected override async Task OnInitializedAsync()
     {
         var options = new BlazorDiagramOptions();
@@ -405,6 +1039,15 @@ else
         _diagram.PointerDoubleClick += OnDoubleClick;
 
         await LoadWorkflow();
+
+        // Load active org units for assignee picker
+        try
+        {
+            var result = await Api.GetOrgUnitsAsync(activeOnly: true, pageSize: 200);
+            _orgUnits = result?.Items?.ToList();
+        }
+        catch { /* best-effort — picker will be empty if API is unreachable */ }
+
         _loading = false;
     }
 
@@ -416,7 +1059,11 @@ else
         {
             _wf = await Api.GetWorkflowAsync(Id);
             if (_wf is not null)
+            {
                 PopulateDiagram();
+                // Fire-and-forget: load process details for node badges
+                _ = LoadProcessDetailsAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -464,7 +1111,9 @@ else
                 ProcessCode = wp.ProcessCode,
                 IsEntryPoint = wp.IsEntryPoint,
                 SortOrder = wp.SortOrder,
-                Color = wp.Color
+                Color = wp.Color,
+                AssigneeId = wp.AssigneeId,
+                AssigneeName = wp.AssigneeName
             };
 
             node.AddPort(PortAlignment.Top);
@@ -498,9 +1147,11 @@ else
                             link.PathGenerator = new SmoothPathGenerator();
                         }
 
-                        // Add label showing routing type or name
-                        var label = lk.Name ?? lk.RoutingType.ToString();
-                        link.Labels.Add(new LinkLabelModel(link, label));
+                        // Add label showing routing type or name, plus grade conditions
+                        var labelParts = new List<string> { lk.Name ?? lk.RoutingType.ToString() };
+                        if (lk.RoutingType == RoutingType.GradeBased && lk.Conditions?.Any() == true)
+                            labelParts.Add($"[{string.Join(", ", lk.Conditions.Select(c => c.GradeCode))}]");
+                        link.Labels.Add(new LinkLabelModel(link, string.Join(" ", labelParts)));
 
                         _diagram.Links.Add(link);
                         _linkDataMap[link] = lk;
@@ -510,6 +1161,122 @@ else
             }
         }
     }
+
+    // ───────────── Process Detail Loading ─────────────
+
+    private async Task LoadProcessDetailsAsync()
+    {
+        if (_loadingProcessDetails || _wf is null) return;
+        _loadingProcessDetails = true;
+
+        try
+        {
+            // 1. Load process details for all non-terminal nodes
+            var processIds = _nodeMap.Values
+                .Where(n => n.ProcessId.HasValue)
+                .Select(n => n.ProcessId!.Value)
+                .Distinct()
+                .ToList();
+
+            var processTasks = processIds.Select(pid => Api.GetProcessAsync(pid));
+            var processes = await Task.WhenAll(processTasks);
+            foreach (var p in processes)
+            {
+                if (p is not null)
+                    _processDetailCache[p.Id] = p;
+            }
+
+            // 2. Load all unique step templates referenced by those processes
+            var templateIds = _processDetailCache.Values
+                .SelectMany(p => p.Steps)
+                .Select(s => s.StepTemplateId)
+                .Distinct()
+                .Where(id => !_stepTemplateCache.ContainsKey(id))
+                .ToList();
+
+            var templateTasks = templateIds.Select(tid => Api.GetStepTemplateAsync(tid));
+            var templates = await Task.WhenAll(templateTasks);
+            foreach (var t in templates)
+            {
+                if (t is not null)
+                    _stepTemplateCache[t.Id] = t;
+            }
+
+            // 3. Populate node summary data from cached details
+            foreach (var node in _nodeMap.Values.Where(n => n.ProcessId.HasValue))
+            {
+                if (!_processDetailCache.TryGetValue(node.ProcessId!.Value, out var detail))
+                    continue;
+
+                node.StepCount = detail.Steps.Count;
+
+                int inPorts = 0, outPorts = 0;
+                var materialFlows = new List<MaterialFlowTag>();
+
+                foreach (var step in detail.Steps)
+                {
+                    if (!_stepTemplateCache.TryGetValue(step.StepTemplateId, out var tmpl))
+                        continue;
+
+                    foreach (var port in tmpl.Ports)
+                    {
+                        // Apply direction override if present
+                        var dir = port.Direction;
+                        var override_ = step.PortOverrides?.FirstOrDefault(o => o.PortId == port.Id);
+                        if (override_?.DirectionOverride is not null)
+                            dir = override_.DirectionOverride.Value;
+
+                        if (dir == PortDirection.Input) inPorts++;
+                        else outPorts++;
+
+                        // Collect material flow tags
+                        if (port.PortType == PortType.Material && port.KindName is not null)
+                        {
+                            var kindName = override_?.KindOverrideName ?? port.KindName;
+                            var gradeName = override_?.GradeOverrideName ?? port.GradeName ?? "";
+                            var dirStr = dir == PortDirection.Input ? "IN" : "OUT";
+                            if (!materialFlows.Any(m => m.KindName == kindName && m.GradeName == gradeName && m.Direction == dirStr))
+                                materialFlows.Add(new MaterialFlowTag(kindName, gradeName, dirStr));
+                        }
+                    }
+                }
+
+                node.InputPortCount = inPorts;
+                node.OutputPortCount = outPorts;
+                node.MaterialFlows = materialFlows;
+                node.DetailLoaded = true;
+            }
+
+            await InvokeAsync(() =>
+            {
+                _diagram.Refresh();
+                StateHasChanged();
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[LoadProcessDetails] Error: {ex.Message}");
+        }
+        finally
+        {
+            _loadingProcessDetails = false;
+        }
+    }
+
+    private List<PortResponseDto> GetStepPorts(ProcessStepResponseDto step)
+    {
+        if (!_stepTemplateCache.TryGetValue(step.StepTemplateId, out var tmpl))
+            return new();
+        return tmpl.Ports;
+    }
+
+    private void ToggleStepExpand(Guid id)
+    {
+        if (!_expandedStepIds.Remove(id))
+            _expandedStepIds.Add(id);
+    }
+
+    private bool IsStepExpanded(Guid id) => _expandedStepIds.Contains(id);
 
     // ───────────── Selection ─────────────
 
@@ -522,6 +1289,9 @@ else
             _selectedNode = node;
             _selectedLink = null;
             _selectedLinkData = null;
+            _expandedStepIds.Clear();
+            // Set cached process detail for sidebar
+            _selectedProcessDetail = node.ProcessId.HasValue && _processDetailCache.TryGetValue(node.ProcessId.Value, out var pd) ? pd : null;
         }
         else if (model is LinkModel link && model.Selected)
         {
@@ -686,8 +1456,10 @@ else
 
                 _linkDataMap[diagramLink] = result;
                 _linkShapeMap[diagramLink] = "straight";
-                var label = result.Name ?? result.RoutingType.ToString();
-                diagramLink.Labels.Add(new LinkLabelModel(diagramLink, label));
+                var newLabelParts = new List<string> { result.Name ?? result.RoutingType.ToString() };
+                if (result.RoutingType == RoutingType.GradeBased && result.Conditions?.Any() == true)
+                    newLabelParts.Add($"[{string.Join(", ", result.Conditions.Select(c => c.GradeCode))}]");
+                diagramLink.Labels.Add(new LinkLabelModel(diagramLink, string.Join(" ", newLabelParts)));
                 Toast.ShowSuccess("Link created.");
             }
         }
@@ -906,6 +1678,34 @@ else
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
+    private async Task HandleAssigneeChange(ChangeEventArgs e)
+    {
+        if (_selectedNode is null) return;
+        var val = e.Value?.ToString();
+
+        try
+        {
+            if (string.IsNullOrEmpty(val))
+            {
+                // Clear assignment — send Guid.Empty as sentinel
+                await Api.UpdateWorkflowProcessAsync(Id, _selectedNode.WorkflowProcessId,
+                    new UpdateWorkflowProcessDto(AssigneeId: Guid.Empty));
+                _selectedNode.AssigneeId = null;
+                _selectedNode.AssigneeName = null;
+            }
+            else
+            {
+                var assigneeId = Guid.Parse(val);
+                await Api.UpdateWorkflowProcessAsync(Id, _selectedNode.WorkflowProcessId,
+                    new UpdateWorkflowProcessDto(AssigneeId: assigneeId));
+                _selectedNode.AssigneeId = assigneeId;
+                _selectedNode.AssigneeName = _orgUnits?.FirstOrDefault(o => o.Id == assigneeId)?.Name;
+            }
+            _selectedNode.Refresh();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
     // ───────────── Link Shape Toggle ─────────────
 
     private string GetLinkShape()
@@ -1102,5 +1902,169 @@ else
         }
 
         return (srcNode.GetPort(srcAlign), tgtNode.GetPort(tgtAlign));
+    }
+
+    // ───────────── View Mode Switching ─────────────
+
+    private async Task SetViewMode(string mode)
+    {
+        if (_viewMode == mode) return;
+        _viewMode = mode;
+
+        if (mode == "Slide")
+        {
+            var procs = OrderedProcesses;
+            if (procs.Any())
+            {
+                var idx = _slideProcessIndex >= 0 && _slideProcessIndex < procs.Count
+                    ? _slideProcessIndex : 0;
+                await SelectSlideProcess(idx);
+            }
+        }
+        else if (mode == "Document")
+        {
+            await EnsureAllProcessDetailsLoaded();
+        }
+    }
+
+    private async Task SelectSlideProcess(int index)
+    {
+        var procs = OrderedProcesses;
+        if (index < 0 || index >= procs.Count) return;
+        _slideProcessIndex = index;
+        _slideProcess = procs[index];
+
+        // Load process detail if not cached and not terminal
+        if (_slideProcess.ProcessId.HasValue &&
+            !_processDetailCache.ContainsKey(_slideProcess.ProcessId.Value))
+        {
+            var detail = await Api.GetProcessAsync(_slideProcess.ProcessId.Value);
+            if (detail is not null)
+            {
+                _processDetailCache[detail.Id] = detail;
+
+                // Also load step templates
+                var templateIds = detail.Steps
+                    .Select(s => s.StepTemplateId)
+                    .Distinct()
+                    .Where(id => !_stepTemplateCache.ContainsKey(id))
+                    .ToList();
+                var templateTasks = templateIds.Select(tid => Api.GetStepTemplateAsync(tid));
+                var templates = await Task.WhenAll(templateTasks);
+                foreach (var t in templates)
+                {
+                    if (t is not null)
+                        _stepTemplateCache[t.Id] = t;
+                }
+            }
+        }
+
+        _slideProcessDetail = _slideProcess.ProcessId.HasValue &&
+            _processDetailCache.TryGetValue(_slideProcess.ProcessId.Value, out var pd)
+            ? pd : null;
+
+        // Set _selectedNode so existing config methods (ToggleEntryPoint, etc.) work
+        if (_nodeMap.TryGetValue(_slideProcess.Id, out var node))
+        {
+            _selectedNode = node;
+        }
+        _selectedLink = null;
+        _selectedLinkData = null;
+        _expandedStepIds.Clear();
+        _selectedProcessDetail = _slideProcessDetail;
+    }
+
+    private async Task MoveSlideProcess(int index, int direction)
+    {
+        var procs = OrderedProcesses;
+        int newIdx = index + direction;
+        if (newIdx < 0 || newIdx >= procs.Count) return;
+
+        var procA = procs[index];
+        var procB = procs[newIdx];
+
+        try
+        {
+            // Swap sort orders via API
+            await Api.UpdateWorkflowProcessAsync(Id, procA.Id,
+                new UpdateWorkflowProcessDto(SortOrder: procB.SortOrder));
+            await Api.UpdateWorkflowProcessAsync(Id, procB.Id,
+                new UpdateWorkflowProcessDto(SortOrder: procA.SortOrder));
+
+            // Update node models
+            if (_nodeMap.TryGetValue(procA.Id, out var nodeA))
+                nodeA.SortOrder = procB.SortOrder;
+            if (_nodeMap.TryGetValue(procB.Id, out var nodeB))
+                nodeB.SortOrder = procA.SortOrder;
+
+            // Reload workflow to get updated sort orders
+            _wf = await Api.GetWorkflowAsync(Id);
+            _slideProcessIndex = newIdx;
+            await SelectSlideProcess(newIdx);
+        }
+        catch (HttpRequestException ex)
+        {
+            Toast.ShowError(ex.Message);
+        }
+    }
+
+    private async Task SwitchToSlideProcess(int index)
+    {
+        _viewMode = "Slide";
+        await SelectSlideProcess(index);
+    }
+
+    private async Task EnsureAllProcessDetailsLoaded()
+    {
+        _docLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var processIds = OrderedProcesses
+                .Where(p => p.ProcessId.HasValue)
+                .Select(p => p.ProcessId!.Value)
+                .Distinct()
+                .Where(pid => !_processDetailCache.ContainsKey(pid))
+                .ToList();
+
+            if (processIds.Any())
+            {
+                var tasks = processIds.Select(pid => Api.GetProcessAsync(pid));
+                var results = await Task.WhenAll(tasks);
+                foreach (var r in results)
+                {
+                    if (r is not null)
+                        _processDetailCache[r.Id] = r;
+                }
+
+                // Also load any missing step templates
+                var templateIds = _processDetailCache.Values
+                    .SelectMany(p => p.Steps)
+                    .Select(s => s.StepTemplateId)
+                    .Distinct()
+                    .Where(id => !_stepTemplateCache.ContainsKey(id))
+                    .ToList();
+
+                if (templateIds.Any())
+                {
+                    var templateTasks = templateIds.Select(tid => Api.GetStepTemplateAsync(tid));
+                    var templates = await Task.WhenAll(templateTasks);
+                    foreach (var t in templates)
+                    {
+                        if (t is not null)
+                            _stepTemplateCache[t.Id] = t;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load process details: {ex.Message}");
+        }
+        finally
+        {
+            _docLoading = false;
+        }
     }
 }

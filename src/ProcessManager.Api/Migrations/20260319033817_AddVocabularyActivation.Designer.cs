@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ProcessManager.Api.Data;
@@ -11,9 +12,11 @@ using ProcessManager.Api.Data;
 namespace ProcessManager.Api.Migrations
 {
     [DbContext(typeof(ProcessManagerDbContext))]
-    partial class ProcessManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260319033817_AddVocabularyActivation")]
+    partial class AddVocabularyActivation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2091,91 +2094,6 @@ namespace ProcessManager.Api.Migrations
                     b.ToTable("NonConformances");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.OrgUnit", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid?>("ParentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.HasIndex("ParentId");
-
-                    b.ToTable("OrgUnits");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.OrgUnitMember", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("OrgUnitId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("character varying(450)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrgUnitId");
-
-                    b.HasIndex("UserId", "OrgUnitId")
-                        .IsUnique();
-
-                    b.ToTable("OrgUnitMembers");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.Pfmea", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3432,9 +3350,6 @@ namespace ProcessManager.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("AssigneeId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("Color")
                         .HasColumnType("text");
 
@@ -3472,8 +3387,6 @@ namespace ProcessManager.Api.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("AssigneeId");
 
                     b.HasIndex("ProcessId");
 
@@ -4102,33 +4015,6 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("StepExecution");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.OrgUnit", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.OrgUnit", "Parent")
-                        .WithMany("Children")
-                        .HasForeignKey("ParentId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Parent");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.OrgUnitMember", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.OrgUnit", "OrgUnit")
-                        .WithMany("Members")
-                        .HasForeignKey("OrgUnitId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ProcessManager.Api.Data.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("OrgUnit");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.Pfmea", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.Process", "Process")
@@ -4469,11 +4355,6 @@ namespace ProcessManager.Api.Migrations
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.WorkflowProcess", b =>
                 {
-                    b.HasOne("ProcessManager.Domain.Entities.OrgUnit", "Assignee")
-                        .WithMany()
-                        .HasForeignKey("AssigneeId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("ProcessManager.Domain.Entities.Process", "Process")
                         .WithMany()
                         .HasForeignKey("ProcessId")
@@ -4484,8 +4365,6 @@ namespace ProcessManager.Api.Migrations
                         .HasForeignKey("WorkflowId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Assignee");
 
                     b.Navigation("Process");
 
@@ -4621,13 +4500,6 @@ namespace ProcessManager.Api.Migrations
             modelBuilder.Entity("ProcessManager.Domain.Entities.MrbReview", b =>
                 {
                     b.Navigation("Participants");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.OrgUnit", b =>
-                {
-                    b.Navigation("Children");
-
-                    b.Navigation("Members");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Pfmea", b =>

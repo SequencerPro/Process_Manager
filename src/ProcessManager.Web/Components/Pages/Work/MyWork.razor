@@ -175,8 +175,8 @@ else
         _loading = true;
         try
         {
-            var inProgress = await Api.GetStepExecutionsAsync(status: "InProgress", pageSize: 200);
-            var pending    = await Api.GetStepExecutionsAsync(status: "Pending",    pageSize: 200);
+            var inProgress = await Api.GetStepExecutionsAsync(status: "InProgress", pageSize: 200, myWork: true);
+            var pending    = await Api.GetStepExecutionsAsync(status: "Pending",    pageSize: 200, myWork: true);
             _inProgress = inProgress?.Items ?? new();
             _pending    = pending?.Items    ?? new();
         }

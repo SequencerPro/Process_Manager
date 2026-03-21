@@ -666,9 +666,9 @@ public class ApiClient
     // ═══════════════════ Step Executions ═══════════════════
 
     public Task<PaginatedResponse<StepExecutionResponseDto>?> GetStepExecutionsAsync(
-        Guid? jobId = null, string? status = null, int page = 1, int pageSize = 25)
+        Guid? jobId = null, string? status = null, int page = 1, int pageSize = 25, bool myWork = false)
         => _http.GetFromJsonAsync<PaginatedResponse<StepExecutionResponseDto>>(
-            $"api/step-executions?jobId={jobId}&status={E(status)}&page={page}&pageSize={pageSize}", _json);
+            $"api/step-executions?jobId={jobId}&status={E(status)}&page={page}&pageSize={pageSize}&myWork={myWork}", _json);
 
     public Task<StepExecutionResponseDto?> GetStepExecutionAsync(Guid id)
         => _http.GetFromJsonAsync<StepExecutionResponseDto>($"api/step-executions/{id}", _json);

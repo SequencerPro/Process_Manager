@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,7 @@ public class StepExecutionsController : ControllerBase
     public async Task<ActionResult<PaginatedResponse<StepExecutionResponseDto>>> GetAll(
         [FromQuery] Guid? jobId = null,
         [FromQuery] string? status = null,
+        [FromQuery] string? myWork = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
@@ -37,6 +39,32 @@ public class StepExecutionsController : ControllerBase
 
         if (!string.IsNullOrEmpty(status) && Enum.TryParse<StepExecutionStatus>(status, true, out var s))
             query = query.Where(se => se.Status == s);
+
+        if (myWork == "true")
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrEmpty(userId))
+            {
+                // Jobs reachable via OrgUnit membership
+                var orgUnitIds = await _db.OrgUnitMembers
+                    .Where(m => m.UserId == userId)
+                    .Select(m => m.OrgUnitId)
+                    .ToListAsync();
+
+                var orgUnitJobIds = orgUnitIds.Count > 0
+                    ? await _db.WorkorderJobs
+                        .Where(wj => wj.WorkflowProcess.AssigneeId.HasValue
+                                  && orgUnitIds.Contains(wj.WorkflowProcess.AssigneeId.Value))
+                        .Select(wj => wj.JobId)
+                        .ToListAsync()
+                    : new List<Guid>();
+
+                // Directly assigned OR OrgUnit-assigned
+                query = query.Where(se =>
+                    se.AssignedToUserId == userId ||
+                    orgUnitJobIds.Contains(se.JobId));
+            }
+        }
 
         var totalCount = await query.CountAsync();
 

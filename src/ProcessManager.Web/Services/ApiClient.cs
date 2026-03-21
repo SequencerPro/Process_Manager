@@ -23,11 +23,14 @@ public class ApiClient
         _json = json;
     }
 
+    /// <summary>Encodes a string parameter for safe use in URL query strings.</summary>
+    private static string E(string? value) => Uri.EscapeDataString(value ?? string.Empty);
+
     // ═══════════════════ Kinds ═══════════════════
 
     public Task<PaginatedResponse<KindResponseDto>?> GetKindsAsync(string? search = null, int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<KindResponseDto>>(
-            $"api/kinds?search={search}&page={page}&pageSize={pageSize}", _json);
+            $"api/kinds?search={E(search)}&page={page}&pageSize={pageSize}", _json);
 
     public Task<KindResponseDto?> GetKindAsync(Guid id)
         => _http.GetFromJsonAsync<KindResponseDto>($"api/kinds/{id}", _json);
@@ -80,7 +83,7 @@ public class ApiClient
         string? search = null, bool? active = null, string? status = null,
         bool? sharedOnly = null, int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<StepTemplateResponseDto>>(
-            $"api/steptemplates?search={search}&active={active}&status={status}&sharedOnly={sharedOnly}&page={page}&pageSize={pageSize}", _json);
+            $"api/steptemplates?search={E(search)}&active={active}&status={E(status)}&sharedOnly={sharedOnly}&page={page}&pageSize={pageSize}", _json);
 
     public Task<StepTemplateResponseDto?> GetStepTemplateAsync(Guid id)
         => _http.GetFromJsonAsync<StepTemplateResponseDto>($"api/steptemplates/{id}", _json);
@@ -302,7 +305,7 @@ public class ApiClient
         bool documentRolesOnly = false, bool workInstructionsOnly = false,
         int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<ProcessSummaryResponseDto>>(
-            $"api/processes?search={search}&active={active}&status={status}&processRole={processRole}&excludeDocumentRoles={excludeDocumentRoles}&documentRolesOnly={documentRolesOnly}&workInstructionsOnly={workInstructionsOnly}&page={page}&pageSize={pageSize}", _json);
+            $"api/processes?search={E(search)}&active={active}&status={E(status)}&processRole={E(processRole)}&excludeDocumentRoles={excludeDocumentRoles}&documentRolesOnly={documentRolesOnly}&workInstructionsOnly={workInstructionsOnly}&page={page}&pageSize={pageSize}", _json);
 
     public Task<ProcessResponseDto?> GetProcessAsync(Guid id)
         => _http.GetFromJsonAsync<ProcessResponseDto>($"api/processes/{id}", _json);
@@ -457,7 +460,7 @@ public class ApiClient
         string? search = null, string? status = null, Guid? workflowId = null,
         int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<WorkorderResponseDto>>(
-            $"api/workorders?search={search}&status={status}&workflowId={workflowId}&page={page}&pageSize={pageSize}", _json);
+            $"api/workorders?search={E(search)}&status={E(status)}&workflowId={workflowId}&page={page}&pageSize={pageSize}", _json);
 
     public Task<WorkorderResponseDto?> GetWorkorderAsync(Guid id)
         => _http.GetFromJsonAsync<WorkorderResponseDto>($"api/workorders/{id}", _json);
@@ -497,7 +500,7 @@ public class ApiClient
 
     public async Task<WorkorderResponseDto?> WorkorderTransitionAsync(Guid id, string action)
     {
-        var resp = await _http.PostAsync($"api/workorders/{id}/{action}", null);
+        var resp = await _http.PostAsync($"api/workorders/{id}/{E(action)}", null);
         if (!resp.IsSuccessStatusCode)
         {
             var body = await resp.Content.ReadAsStringAsync();
@@ -523,7 +526,7 @@ public class ApiClient
         string? search = null, string? status = null, Guid? processId = null,
         int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<JobResponseDto>>(
-            $"api/jobs?search={search}&status={status}&processId={processId}&page={page}&pageSize={pageSize}", _json);
+            $"api/jobs?search={E(search)}&status={E(status)}&processId={processId}&page={page}&pageSize={pageSize}", _json);
 
     public Task<JobResponseDto?> GetJobAsync(Guid id)
         => _http.GetFromJsonAsync<JobResponseDto>($"api/jobs/{id}", _json);
@@ -550,7 +553,7 @@ public class ApiClient
 
     public async Task<JobResponseDto?> JobTransitionAsync(Guid id, string action)
     {
-        var resp = await _http.PostAsync($"api/jobs/{id}/{action}", null);
+        var resp = await _http.PostAsync($"api/jobs/{id}/{E(action)}", null);
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<JobResponseDto>(_json);
     }
@@ -561,7 +564,7 @@ public class ApiClient
         string? search = null, Guid? jobId = null, Guid? kindId = null, string? status = null,
         int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<ItemResponseDto>>(
-            $"api/items?search={search}&jobId={jobId}&kindId={kindId}&status={status}&page={page}&pageSize={pageSize}", _json);
+            $"api/items?search={E(search)}&jobId={jobId}&kindId={kindId}&status={E(status)}&page={page}&pageSize={pageSize}", _json);
 
     public Task<ItemResponseDto?> GetItemAsync(Guid id)
         => _http.GetFromJsonAsync<ItemResponseDto>($"api/items/{id}", _json);
@@ -602,7 +605,7 @@ public class ApiClient
         string? search = null, Guid? jobId = null, Guid? kindId = null, string? status = null,
         int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<BatchResponseDto>>(
-            $"api/batches?search={search}&jobId={jobId}&kindId={kindId}&status={status}&page={page}&pageSize={pageSize}", _json);
+            $"api/batches?search={E(search)}&jobId={jobId}&kindId={kindId}&status={E(status)}&page={page}&pageSize={pageSize}", _json);
 
     public Task<BatchResponseDto?> GetBatchAsync(Guid id)
         => _http.GetFromJsonAsync<BatchResponseDto>($"api/batches/{id}", _json);
@@ -665,14 +668,14 @@ public class ApiClient
     public Task<PaginatedResponse<StepExecutionResponseDto>?> GetStepExecutionsAsync(
         Guid? jobId = null, string? status = null, int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<StepExecutionResponseDto>>(
-            $"api/step-executions?jobId={jobId}&status={status}&page={page}&pageSize={pageSize}", _json);
+            $"api/step-executions?jobId={jobId}&status={E(status)}&page={page}&pageSize={pageSize}", _json);
 
     public Task<StepExecutionResponseDto?> GetStepExecutionAsync(Guid id)
         => _http.GetFromJsonAsync<StepExecutionResponseDto>($"api/step-executions/{id}", _json);
 
     public async Task<StepExecutionResponseDto?> StepExecutionTransitionAsync(Guid id, string action)
     {
-        var resp = await _http.PostAsync($"api/step-executions/{id}/{action}", null);
+        var resp = await _http.PostAsync($"api/step-executions/{id}/{E(action)}", null);
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<StepExecutionResponseDto>(_json);
     }
@@ -709,7 +712,7 @@ public class ApiClient
     public Task<PaginatedResponse<WorkflowResponseDto>?> GetWorkflowsAsync(
         string? search = null, bool? active = null, int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<WorkflowResponseDto>>(
-            $"api/workflows?search={search}&active={active}&page={page}&pageSize={pageSize}", _json);
+            $"api/workflows?search={E(search)}&active={active}&page={page}&pageSize={pageSize}", _json);
 
     public Task<WorkflowResponseDto?> GetWorkflowAsync(Guid id)
         => _http.GetFromJsonAsync<WorkflowResponseDto>($"api/workflows/{id}", _json);
@@ -822,7 +825,7 @@ public class ApiClient
     public Task<PaginatedResponse<DomainVocabularyResponseDto>?> GetVocabulariesAsync(
         string? search = null, int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<DomainVocabularyResponseDto>>(
-            $"api/domainvocabularies?search={search}&page={page}&pageSize={pageSize}", _json);
+            $"api/domainvocabularies?search={E(search)}&page={page}&pageSize={pageSize}", _json);
 
     public Task<DomainVocabularyResponseDto?> GetVocabularyAsync(Guid id)
         => _http.GetFromJsonAsync<DomainVocabularyResponseDto>($"api/domainvocabularies/{id}", _json);
@@ -874,7 +877,7 @@ public class ApiClient
     public Task<PaginatedResponse<DocumentApprovalRequestDto>?> GetDocumentApprovalsAsync(
         Guid? processId = null, string? status = null, int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<DocumentApprovalRequestDto>>(
-            $"api/document-approvals?processId={processId}&status={status}&page={page}&pageSize={pageSize}", _json);
+            $"api/document-approvals?processId={processId}&status={E(status)}&page={page}&pageSize={pageSize}", _json);
 
     public Task<DocumentApprovalRequestDto?> GetDocumentApprovalAsync(Guid id)
         => _http.GetFromJsonAsync<DocumentApprovalRequestDto>($"api/document-approvals/{id}", _json);
@@ -1002,7 +1005,7 @@ public class ApiClient
     public Task<PaginatedResponse<PfmeaSummaryDto>?> GetPfmeasAsync(
             string? search = null, Guid? processId = null, bool? active = null, int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<PfmeaSummaryDto>>(
-            $"api/pfmeas?search={search}&processId={processId}&active={active}&page={page}&pageSize={pageSize}", _json);
+            $"api/pfmeas?search={E(search)}&processId={processId}&active={active}&page={page}&pageSize={pageSize}", _json);
 
     public Task<PfmeaResponseDto?> GetPfmeaAsync(Guid id)
         => _http.GetFromJsonAsync<PfmeaResponseDto>($"api/pfmeas/{id}", _json);
@@ -1081,7 +1084,7 @@ public class ApiClient
     public Task<PaginatedResponse<CeMatrixSummaryDto>?> GetCeMatricesAsync(
             string? search = null, Guid? processStepId = null, int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<CeMatrixSummaryDto>>(
-            $"api/cematrices?search={search}&processStepId={processStepId}&page={page}&pageSize={pageSize}", _json);
+            $"api/cematrices?search={E(search)}&processStepId={processStepId}&page={page}&pageSize={pageSize}", _json);
 
     public Task<CeMatrixResponseDto?> GetCeMatrixAsync(Guid id)
         => _http.GetFromJsonAsync<CeMatrixResponseDto>($"api/cematrices/{id}", _json);
@@ -1161,7 +1164,7 @@ public class ApiClient
             string? search = null, Guid? processId = null, bool? active = null, bool? stale = null,
             int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<ControlPlanSummaryDto>>(
-            $"api/controlplans?search={search}&processId={processId}&active={active}&stale={stale}&page={page}&pageSize={pageSize}", _json);
+            $"api/controlplans?search={E(search)}&processId={processId}&active={active}&stale={stale}&page={page}&pageSize={pageSize}", _json);
 
     public Task<ControlPlanResponseDto?> GetControlPlanAsync(Guid id)
         => _http.GetFromJsonAsync<ControlPlanResponseDto>($"api/controlplans/{id}", _json);
@@ -1220,7 +1223,7 @@ public class ApiClient
         Guid? jobId = null, Guid? stepExecutionId = null, string? status = null,
         int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<NonConformanceResponseDto>>(
-            $"api/non-conformances?jobId={jobId}&stepExecutionId={stepExecutionId}&status={status}&page={page}&pageSize={pageSize}", _json);
+            $"api/non-conformances?jobId={jobId}&stepExecutionId={stepExecutionId}&status={E(status)}&page={page}&pageSize={pageSize}", _json);
 
     public Task<NonConformanceResponseDto?> GetNonConformanceAsync(Guid id)
         => _http.GetFromJsonAsync<NonConformanceResponseDto>($"api/non-conformances/{id}", _json);
@@ -1244,7 +1247,7 @@ public class ApiClient
     public Task<PaginatedResponse<RootCauseEntryResponseDto>?> GetRootCauseEntriesAsync(
         string? q = null, string? category = null, int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<RootCauseEntryResponseDto>>(
-            $"api/root-cause-entries?q={Uri.EscapeDataString(q ?? string.Empty)}&category={category}&page={page}&pageSize={pageSize}", _json);
+            $"api/root-cause-entries?q={Uri.EscapeDataString(q ?? string.Empty)}&category={E(category)}&page={page}&pageSize={pageSize}", _json);
 
     public Task<List<RootCauseEntryResponseDto>?> SearchRootCauseEntriesAsync(string q)
         => _http.GetFromJsonAsync<List<RootCauseEntryResponseDto>>(
@@ -1292,7 +1295,7 @@ public class ApiClient
         string? linkedEntityType = null, Guid? linkedEntityId = null, string? status = null,
         int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<IshikawaDiagramSummaryDto>>(
-            $"api/ishikawa?linkedEntityType={linkedEntityType}&linkedEntityId={linkedEntityId}&status={status}&page={page}&pageSize={pageSize}", _json);
+            $"api/ishikawa?linkedEntityType={E(linkedEntityType)}&linkedEntityId={linkedEntityId}&status={E(status)}&page={page}&pageSize={pageSize}", _json);
 
     public Task<IshikawaDiagramResponseDto?> GetIshikawaDiagramAsync(Guid id)
         => _http.GetFromJsonAsync<IshikawaDiagramResponseDto>($"api/ishikawa/{id}", _json);
@@ -1319,9 +1322,9 @@ public class ApiClient
         int page = 1, int pageSize = 50)
     {
         var url = $"api/action-items?page={page}&pageSize={pageSize}";
-        if (!string.IsNullOrEmpty(status))      url += $"&status={status}";
-        if (!string.IsNullOrEmpty(priority))    url += $"&priority={priority}";
-        if (!string.IsNullOrEmpty(sourceType))  url += $"&sourceType={sourceType}";
+        if (!string.IsNullOrEmpty(status))      url += $"&status={E(status)}";
+        if (!string.IsNullOrEmpty(priority))    url += $"&priority={E(priority)}";
+        if (!string.IsNullOrEmpty(sourceType))  url += $"&sourceType={E(sourceType)}";
         if (assignedToMe)                       url += "&assignedToMe=true";
         if (overdue)                            url += "&overdue=true";
         if (sourceEntityId.HasValue)            url += $"&sourceEntityId={sourceEntityId}";
@@ -1388,8 +1391,8 @@ public class ApiClient
         string? status = null, string? reviewType = null, int page = 1, int pageSize = 25)
     {
         var url = $"api/management-reviews?page={page}&pageSize={pageSize}";
-        if (!string.IsNullOrEmpty(status))     url += $"&status={status}";
-        if (!string.IsNullOrEmpty(reviewType)) url += $"&reviewType={reviewType}";
+        if (!string.IsNullOrEmpty(status))     url += $"&status={E(status)}";
+        if (!string.IsNullOrEmpty(reviewType)) url += $"&reviewType={E(reviewType)}";
         return _http.GetFromJsonAsync<PaginatedResponse<ManagementReviewSummaryDto>>(url, _json);
     }
 
@@ -1441,9 +1444,9 @@ public class ApiClient
         int page = 1, int pageSize = 25)
     {
         var url = $"api/competency?page={page}&pageSize={pageSize}";
-        if (!string.IsNullOrEmpty(userId))          url += $"&userId={userId}";
+        if (!string.IsNullOrEmpty(userId))          url += $"&userId={E(userId)}";
         if (trainingProcessId.HasValue)             url += $"&trainingProcessId={trainingProcessId}";
-        if (!string.IsNullOrEmpty(status))          url += $"&status={status}";
+        if (!string.IsNullOrEmpty(status))          url += $"&status={E(status)}";
         return _http.GetFromJsonAsync<PaginatedResponse<CompetencyRecordSummaryDto>>(url, _json);
     }
 
@@ -1479,7 +1482,7 @@ public class ApiClient
     public Task<List<ProcessTrainingRequirementDto>?> GetTrainingRequirementsAsync(
         string subjectType, Guid subjectEntityId)
         => _http.GetFromJsonAsync<List<ProcessTrainingRequirementDto>>(
-            $"api/competency/requirements?subjectType={subjectType}&subjectEntityId={subjectEntityId}", _json);
+            $"api/competency/requirements?subjectType={E(subjectType)}&subjectEntityId={subjectEntityId}", _json);
 
     public async Task<ProcessTrainingRequirementDto?> AddTrainingRequirementAsync(AddTrainingRequirementDto dto)
     {
@@ -1543,7 +1546,7 @@ public class ApiClient
         string? linkedEntityType = null, Guid? linkedEntityId = null, string? status = null,
         int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<FiveWhysAnalysisSummaryDto>>(
-            $"api/five-whys?linkedEntityType={linkedEntityType}&linkedEntityId={linkedEntityId}&status={status}&page={page}&pageSize={pageSize}", _json);
+            $"api/five-whys?linkedEntityType={E(linkedEntityType)}&linkedEntityId={linkedEntityId}&status={E(status)}&page={page}&pageSize={pageSize}", _json);
 
     public Task<FiveWhysAnalysisResponseDto?> GetFiveWhysAnalysisAsync(Guid id)
         => _http.GetFromJsonAsync<FiveWhysAnalysisResponseDto>($"api/five-whys/{id}", _json);
@@ -1608,7 +1611,7 @@ public class ApiClient
     public Task<PaginatedResponse<ApprovalRecordResponseDto>?> GetApprovalRecordsAsync(
         string? entityType = null, Guid? entityId = null, string? decision = null, int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<ApprovalRecordResponseDto>>(
-            $"api/approvals?entityType={entityType}&entityId={entityId}&decision={decision}&page={page}&pageSize={pageSize}", _json);
+            $"api/approvals?entityType={E(entityType)}&entityId={entityId}&decision={E(decision)}&page={page}&pageSize={pageSize}", _json);
 
     public async Task<ProcessResponseDto?> SubmitProcessForApprovalAsync(Guid id, SubmitForApprovalDto dto)
     {
@@ -1679,7 +1682,7 @@ public class ApiClient
         string? status = null, Guid? nonConformanceId = null, bool? scarRequired = null,
         bool? supplierCaused = null, string? dispositionDecision = null, int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<MrbReviewSummaryDto>>(
-            $"api/mrb?status={status}&nonConformanceId={nonConformanceId}&scarRequired={scarRequired}&supplierCaused={supplierCaused}&dispositionDecision={dispositionDecision}&page={page}&pageSize={pageSize}", _json);
+            $"api/mrb?status={E(status)}&nonConformanceId={nonConformanceId}&scarRequired={scarRequired}&supplierCaused={supplierCaused}&dispositionDecision={E(dispositionDecision)}&page={page}&pageSize={pageSize}", _json);
 
     public Task<MrbReviewResponseDto?> GetMrbReviewAsync(Guid id)
         => _http.GetFromJsonAsync<MrbReviewResponseDto>($"api/mrb/{id}", _json);
@@ -1949,7 +1952,7 @@ public class ApiClient
         Guid? parentId = null, bool? topLevelOnly = null,
         int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<OrgUnitResponseDto>>(
-            $"api/orgunits?search={search}&type={type}&activeOnly={activeOnly}&parentId={parentId}&topLevelOnly={topLevelOnly}&page={page}&pageSize={pageSize}", _json);
+            $"api/orgunits?search={E(search)}&type={E(type)}&activeOnly={activeOnly}&parentId={parentId}&topLevelOnly={topLevelOnly}&page={page}&pageSize={pageSize}", _json);
 
     public Task<OrgUnitResponseDto?> GetOrgUnitAsync(Guid id)
         => _http.GetFromJsonAsync<OrgUnitResponseDto>($"api/orgunits/{id}", _json);

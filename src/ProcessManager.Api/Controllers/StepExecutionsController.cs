@@ -87,6 +87,9 @@ public class StepExecutionsController : ControllerBase
         if (se.Status != StepExecutionStatus.Pending)
             return BadRequest($"Cannot start a step execution with status '{se.Status}'. Must be Pending.");
 
+        if (se.Job is null)
+            return BadRequest("Step execution has no associated job.");
+
         if (se.Job.Status != JobStatus.InProgress)
             return BadRequest("Cannot start a step execution when the job is not InProgress.");
 
@@ -305,6 +308,9 @@ public class StepExecutionsController : ControllerBase
 
         if (se.Status != StepExecutionStatus.InProgress)
             return BadRequest("Can only record port transactions on an InProgress step execution.");
+
+        if (se.ProcessStep is null)
+            return BadRequest("Step execution has no associated process step.");
 
         // Validate port belongs to this step's template
         var port = await _db.Ports

@@ -364,18 +364,39 @@ public class WorkordersController : ControllerBase
         var completedWj = workorder.WorkorderJobs.FirstOrDefault(wj => wj.JobId == completedJobId);
         if (completedWj is null) return;
 
-        // Get all outgoing links from this workflow process (Always routing only)
+        // Get all outgoing links that can auto-fire: Always and GradeBased (Manual links are never auto-fired)
         var outgoingLinks = await _db.WorkflowLinks
             .Include(l => l.TargetWorkflowProcess)
                 .ThenInclude(wp => wp.Process)
                     .ThenInclude(p => p!.ProcessSteps)
+            .Include(l => l.Conditions)
             .Where(l => l.WorkflowId == workorder.WorkflowId
                      && l.SourceWorkflowProcessId == completedWj.WorkflowProcessId
-                     && l.RoutingType == RoutingType.Always)
+                     && (l.RoutingType == RoutingType.Always || l.RoutingType == RoutingType.GradeBased))
             .ToListAsync();
+
+        // Load the completed job's item grades once (only if GradeBased links exist)
+        HashSet<Guid>? completedJobGradeIds = null;
+        if (outgoingLinks.Any(l => l.RoutingType == RoutingType.GradeBased))
+        {
+            var gradeIds = await _db.Items
+                .Where(i => i.JobId == completedJobId)
+                .Select(i => i.GradeId)
+                .Distinct()
+                .ToListAsync();
+            completedJobGradeIds = gradeIds.ToHashSet();
+        }
 
         foreach (var link in outgoingLinks)
         {
+            // GradeBased: fire only if any item grade matches a condition grade
+            if (link.RoutingType == RoutingType.GradeBased)
+            {
+                var conditionGradeIds = link.Conditions.Select(c => c.GradeId).ToHashSet();
+                if (completedJobGradeIds is null || !completedJobGradeIds.Overlaps(conditionGradeIds))
+                    continue;
+            }
+
             var targetWpId = link.TargetWorkflowProcessId;
 
             // Skip if a job already exists for this target

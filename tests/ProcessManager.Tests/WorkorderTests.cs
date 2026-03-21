@@ -33,9 +33,11 @@ public class WorkorderTests : IntegrationTestBase
 
     private async Task<WorkflowLinkResponseDto> AddWorkflowLink(
         Guid workflowId, Guid sourceWpId, Guid targetWpId,
-        RoutingType routingType = RoutingType.Always, string? name = null)
+        RoutingType routingType = RoutingType.Always, string? name = null,
+        List<Guid>? conditionGradeIds = null)
     {
-        var dto = new CreateWorkflowLinkDto(sourceWpId, targetWpId, routingType, name);
+        var dto = new CreateWorkflowLinkDto(sourceWpId, targetWpId, routingType, name,
+            ConditionGradeIds: conditionGradeIds);
         var response = await Client.PostAsJsonAsync(
             $"/api/workflows/{workflowId}/links", dto, JsonOptions);
         response.EnsureSuccessStatusCode();
@@ -571,6 +573,248 @@ public class WorkorderTests : IntegrationTestBase
         Assert.NotNull(resp);
         Assert.DoesNotContain(resp.Items, w => w.Id == wo.Id);
     }
+
+    // ──────── GradeBased scenario builder ────────
+
+    /// <summary>
+    /// Builds a grade-based routing workflow:
+    ///   EntryWp (entry) ──[GradeBased PASS]──→ PassWp
+    ///                   └─[GradeBased FAIL]──→ FailWp
+    /// </summary>
+    private async Task<GradeBasedWorkflowScenario> BuildGradeBasedWorkflowScenario()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+
+        var kind = await CreateKind($"K-{pfx}", "Part");
+        var passGrade = await CreateGrade(kind.Id, "PASS", "Passed", isDefault: true);
+        var failGrade = await CreateGrade(kind.Id, "FAIL", "Failed");
+        var otherGrade = await CreateGrade(kind.Id, "OTHER", "Other");
+
+        var stepEntry = await CreateTransformStep($"SE-{pfx}", "Entry Step",
+            kind.Id, passGrade.Id, kind.Id, passGrade.Id);
+        var stepPass = await CreateTransformStep($"SP-{pfx}", "Pass Step",
+            kind.Id, passGrade.Id, kind.Id, passGrade.Id);
+        var stepFail = await CreateTransformStep($"SF-{pfx}", "Fail Step",
+            kind.Id, failGrade.Id, kind.Id, failGrade.Id);
+
+        var entryProc = await CreateProcess($"PE-{pfx}", "Entry Process");
+        await AddProcessStep(entryProc.Id, stepEntry.Id, 1);
+        await ReleaseProcess(entryProc.Id);
+
+        var passProc = await CreateProcess($"PP-{pfx}", "Pass Process");
+        await AddProcessStep(passProc.Id, stepPass.Id, 1);
+        await ReleaseProcess(passProc.Id);
+
+        var failProc = await CreateProcess($"PF-{pfx}", "Fail Process");
+        await AddProcessStep(failProc.Id, stepFail.Id, 1);
+        await ReleaseProcess(failProc.Id);
+
+        var wf = await CreateWorkflow($"WF-{pfx}", "GradeBased Flow");
+        var wpEntry = await AddWorkflowProcess(wf.Id, entryProc.Id, isEntryPoint: true, sortOrder: 1);
+        var wpPass = await AddWorkflowProcess(wf.Id, passProc.Id, sortOrder: 2);
+        var wpFail = await AddWorkflowProcess(wf.Id, failProc.Id, sortOrder: 3);
+
+        var linkPass = await AddWorkflowLink(wf.Id, wpEntry.Id, wpPass.Id,
+            routingType: RoutingType.GradeBased, conditionGradeIds: new List<Guid> { passGrade.Id });
+        var linkFail = await AddWorkflowLink(wf.Id, wpEntry.Id, wpFail.Id,
+            routingType: RoutingType.GradeBased, conditionGradeIds: new List<Guid> { failGrade.Id });
+
+        return new GradeBasedWorkflowScenario
+        {
+            Kind = kind,
+            PassGrade = passGrade,
+            FailGrade = failGrade,
+            OtherGrade = otherGrade,
+            EntryProcess = entryProc,
+            PassProcess = passProc,
+            FailProcess = failProc,
+            Workflow = wf,
+            WpEntry = wpEntry,
+            WpPass = wpPass,
+            WpFail = wpFail,
+            LinkPass = linkPass,
+            LinkFail = linkFail
+        };
+    }
+
+    // ──────── GradeBased Tests ────────
+
+    [Fact]
+    public async Task GradeBasedLink_Fires_WhenMatchingGradePresent()
+    {
+        var scenario = await BuildGradeBasedWorkflowScenario();
+
+        var wo = await CreateWorkorder(scenario.Workflow.Id, name: "GradeBased Fire Test");
+        await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
+
+        var detail = await GetWorkorder(wo.Id);
+        var entryJob = detail.Jobs!.Single();
+
+        // Add a PASS item to the entry job
+        await CreateItem(entryJob.JobId, scenario.Kind.Id, scenario.PassGrade.Id);
+
+        // Complete the entry job
+        await CompleteJobStepsAndJob(entryJob.JobId);
+
+        // Pass Process job should be auto-created; Fail Process job should not
+        detail = await GetWorkorder(wo.Id);
+        Assert.Contains(detail.Jobs!, j => j.ProcessName == "Pass Process");
+        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Fail Process");
+    }
+
+    [Fact]
+    public async Task GradeBasedLink_DoesNotFire_WhenNoItemsMatchCondition()
+    {
+        var scenario = await BuildGradeBasedWorkflowScenario();
+
+        var wo = await CreateWorkorder(scenario.Workflow.Id, name: "GradeBased NoFire Test");
+        await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
+
+        var detail = await GetWorkorder(wo.Id);
+        var entryJob = detail.Jobs!.Single();
+
+        // Add an OTHER item — matches neither PASS nor FAIL conditions
+        await CreateItem(entryJob.JobId, scenario.Kind.Id, scenario.OtherGrade.Id);
+
+        await CompleteJobStepsAndJob(entryJob.JobId);
+
+        detail = await GetWorkorder(wo.Id);
+        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Pass Process");
+        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Fail Process");
+    }
+
+    [Fact]
+    public async Task GradeBasedLink_DoesNotFire_WhenJobHasNoItems()
+    {
+        var scenario = await BuildGradeBasedWorkflowScenario();
+
+        var wo = await CreateWorkorder(scenario.Workflow.Id, name: "GradeBased NoItems Test");
+        await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
+
+        var detail = await GetWorkorder(wo.Id);
+        var entryJob = detail.Jobs!.Single();
+
+        // No items added — GradeBased links should not fire
+        await CompleteJobStepsAndJob(entryJob.JobId);
+
+        detail = await GetWorkorder(wo.Id);
+        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Pass Process");
+        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Fail Process");
+    }
+
+    [Fact]
+    public async Task AlwaysLinks_FireRegardlessOfItemGrades()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+
+        var kind = await CreateKind($"K-{pfx}", "Part");
+        var passGrade = await CreateGrade(kind.Id, "PASS", "Passed", isDefault: true);
+        var failGrade = await CreateGrade(kind.Id, "FAIL", "Failed");
+
+        var stepA = await CreateTransformStep($"SA-{pfx}", "Step A",
+            kind.Id, passGrade.Id, kind.Id, passGrade.Id);
+        var stepB = await CreateTransformStep($"SB-{pfx}", "Step B",
+            kind.Id, passGrade.Id, kind.Id, passGrade.Id);
+        var stepC = await CreateTransformStep($"SC-{pfx}", "Step C",
+            kind.Id, failGrade.Id, kind.Id, failGrade.Id);
+
+        var procEntry = await CreateProcess($"PA-{pfx}", "Entry Process");
+        await AddProcessStep(procEntry.Id, stepA.Id, 1);
+        await ReleaseProcess(procEntry.Id);
+
+        var procAlways = await CreateProcess($"PB-{pfx}", "Always Process");
+        await AddProcessStep(procAlways.Id, stepB.Id, 1);
+        await ReleaseProcess(procAlways.Id);
+
+        var procGrade = await CreateProcess($"PC-{pfx}", "Grade Process");
+        await AddProcessStep(procGrade.Id, stepC.Id, 1);
+        await ReleaseProcess(procGrade.Id);
+
+        var wf = await CreateWorkflow($"WF-{pfx}", "Mixed Routing Flow");
+        var wpEntry = await AddWorkflowProcess(wf.Id, procEntry.Id, isEntryPoint: true, sortOrder: 1);
+        var wpAlways = await AddWorkflowProcess(wf.Id, procAlways.Id, sortOrder: 2);
+        var wpGrade = await AddWorkflowProcess(wf.Id, procGrade.Id, sortOrder: 3);
+
+        // Always link → AlwaysProcess; GradeBased link with FAIL condition → GradeProcess
+        await AddWorkflowLink(wf.Id, wpEntry.Id, wpAlways.Id, routingType: RoutingType.Always);
+        await AddWorkflowLink(wf.Id, wpEntry.Id, wpGrade.Id,
+            routingType: RoutingType.GradeBased,
+            conditionGradeIds: new List<Guid> { failGrade.Id });
+
+        var wo = await CreateWorkorder(wf.Id, name: "Always Fires Test");
+        await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
+
+        var detail = await GetWorkorder(wo.Id);
+        var entryJob = detail.Jobs!.Single();
+
+        // No items added — Always link fires, GradeBased does not
+        await CompleteJobStepsAndJob(entryJob.JobId);
+
+        detail = await GetWorkorder(wo.Id);
+        Assert.Contains(detail.Jobs!, j => j.ProcessName == "Always Process");
+        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Grade Process");
+    }
+
+    [Fact]
+    public async Task ManualLinks_AreNotAutoFired()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+
+        var kind = await CreateKind($"K-{pfx}", "Part");
+        var grade = await CreateGrade(kind.Id, "STD", "Standard", isDefault: true);
+
+        var stepA = await CreateTransformStep($"SA-{pfx}", "Step A",
+            kind.Id, grade.Id, kind.Id, grade.Id);
+        var stepB = await CreateTransformStep($"SB-{pfx}", "Step B",
+            kind.Id, grade.Id, kind.Id, grade.Id);
+
+        var procA = await CreateProcess($"PA-{pfx}", "Process A");
+        await AddProcessStep(procA.Id, stepA.Id, 1);
+        await ReleaseProcess(procA.Id);
+
+        var procB = await CreateProcess($"PB-{pfx}", "Process B");
+        await AddProcessStep(procB.Id, stepB.Id, 1);
+        await ReleaseProcess(procB.Id);
+
+        var wf = await CreateWorkflow($"WF-{pfx}", "Manual Routing Flow");
+        var wpA = await AddWorkflowProcess(wf.Id, procA.Id, isEntryPoint: true, sortOrder: 1);
+        var wpB = await AddWorkflowProcess(wf.Id, procB.Id, sortOrder: 2);
+
+        await AddWorkflowLink(wf.Id, wpA.Id, wpB.Id, routingType: RoutingType.Manual);
+
+        var wo = await CreateWorkorder(wf.Id, name: "Manual Link Test");
+        await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
+
+        var detail = await GetWorkorder(wo.Id);
+        var jobA = detail.Jobs!.Single();
+        await CompleteJobStepsAndJob(jobA.JobId);
+
+        // Manual link should NOT auto-create Process B job
+        detail = await GetWorkorder(wo.Id);
+        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Process B");
+    }
+
+    [Fact]
+    public async Task GradeBased_MultipleLinks_RouteToCorrectNode()
+    {
+        var scenario = await BuildGradeBasedWorkflowScenario();
+
+        // Test FAIL grade routes to FailProcess only
+        var wo = await CreateWorkorder(scenario.Workflow.Id, name: "GradeBased Multi Test");
+        await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
+
+        var detail = await GetWorkorder(wo.Id);
+        var entryJob = detail.Jobs!.Single();
+
+        // Add a FAIL item
+        await CreateItem(entryJob.JobId, scenario.Kind.Id, scenario.FailGrade.Id);
+
+        await CompleteJobStepsAndJob(entryJob.JobId);
+
+        detail = await GetWorkorder(wo.Id);
+        Assert.Contains(detail.Jobs!, j => j.ProcessName == "Fail Process");
+        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Pass Process");
+    }
 }
 
 // ──────── Scenario Records ────────
@@ -608,4 +852,21 @@ public class SameProcessEntryPointScenario
     public WorkflowProcessResponseDto WpA2 { get; set; } = null!;
     public WorkflowProcessResponseDto WpB { get; set; } = null!;
     public WorkflowProcessResponseDto WpEnd { get; set; } = null!;
+}
+
+public class GradeBasedWorkflowScenario
+{
+    public KindResponseDto Kind { get; set; } = null!;
+    public GradeResponseDto PassGrade { get; set; } = null!;
+    public GradeResponseDto FailGrade { get; set; } = null!;
+    public GradeResponseDto OtherGrade { get; set; } = null!;
+    public ProcessResponseDto EntryProcess { get; set; } = null!;
+    public ProcessResponseDto PassProcess { get; set; } = null!;
+    public ProcessResponseDto FailProcess { get; set; } = null!;
+    public WorkflowResponseDto Workflow { get; set; } = null!;
+    public WorkflowProcessResponseDto WpEntry { get; set; } = null!;
+    public WorkflowProcessResponseDto WpPass { get; set; } = null!;
+    public WorkflowProcessResponseDto WpFail { get; set; } = null!;
+    public WorkflowLinkResponseDto LinkPass { get; set; } = null!;
+    public WorkflowLinkResponseDto LinkFail { get; set; } = null!;
 }

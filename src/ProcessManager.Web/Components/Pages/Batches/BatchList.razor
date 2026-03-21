@@ -100,16 +100,21 @@ else if (_data is not null)
                     </div>
                     <div class="pm-input-group">
                         <label><i class="bi bi-briefcase"></i> Job</label>
-                        <select class="form-select" @bind="_formJobId">
-                            <option value="">Select job...</option>
-                            @if (_jobs is not null)
-                            {
-                                @foreach (var j in _jobs.Items)
+                        <div class="d-flex gap-2">
+                            <select class="form-select" @bind="_formJobId">
+                                <option value="">Select job...</option>
+                                @if (_jobs is not null)
                                 {
-                                    <option value="@j.Id">@j.Name (@j.Code)</option>
+                                    @foreach (var j in _jobs.Items)
+                                    {
+                                        <option value="@j.Id">@j.Name (@j.Code)</option>
+                                    }
                                 }
-                            }
-                        </select>
+                            </select>
+                            <button type="button" class="pm-browse-btn" title="Browse jobs" @onclick="() => _showJobPicker = true">
+                                <i class="bi bi-grid-3x3-gap"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="pm-modal-divider">Material</div>
                     <div class="pm-input-group">
@@ -221,6 +226,60 @@ else if (_data is not null)
     </div>
 }
 
+@if (_showJobPicker && _jobs is not null)
+{
+    <div class="modal show d-block pm-modal pm-picker" tabindex="-1" style="background: rgba(0,0,0,.55); z-index: 1060">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-orange">
+                        <i class="bi bi-briefcase"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">Select @Vocab.Job</h5>
+                        <div class="pm-modal-subtitle">Browse and choose a job for this batch</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showJobPicker = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="pm-picker-search">
+                        <input type="text" placeholder="Search jobs..." @bind="_jobPickerSearch" @bind:event="oninput" />
+                    </div>
+                    <div class="pm-picker-grid">
+                        @{ var filteredJobs = _jobs.Items.Where(j =>
+                            string.IsNullOrEmpty(_jobPickerSearch)
+                            || j.Name.Contains(_jobPickerSearch, StringComparison.OrdinalIgnoreCase)
+                            || j.Code.Contains(_jobPickerSearch, StringComparison.OrdinalIgnoreCase)).ToList(); }
+                        @if (!filteredJobs.Any())
+                        {
+                            <div class="pm-picker-empty">
+                                <i class="bi bi-search d-block mb-2" style="font-size: 1.5rem"></i>
+                                No jobs match your search
+                            </div>
+                        }
+                        @foreach (var j in filteredJobs)
+                        {
+                            <div class="pm-picker-tile" @onclick="() => SelectJobFromPicker(j)">
+                                <div class="pm-picker-tile-code">@j.Code</div>
+                                <div class="pm-picker-tile-name">@j.Name</div>
+                                @if (!string.IsNullOrEmpty(j.Description))
+                                {
+                                    <div class="pm-picker-tile-desc">@j.Description</div>
+                                }
+                                <div class="pm-picker-tile-meta">
+                                    <span class="pm-picker-tile-badge" style="background: #dbeafe; color: #1d4ed8">@j.Status</span>
+                                    <span class="pm-picker-tile-badge" style="background: #f3e8ff; color: #7c3aed">P@(j.Priority)</span>
+                                    <span class="pm-picker-tile-badge">@j.ProcessName</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private PaginatedResponse<BatchResponseDto>? _data;
     private bool _loading = true;
@@ -240,6 +299,10 @@ else if (_data is not null)
     private PaginatedResponse<JobResponseDto>? _jobs;
     private PaginatedResponse<KindResponseDto>? _kinds;
     private List<GradeResponseDto>? _formGrades;
+
+    // Job picker
+    private bool _showJobPicker;
+    private string _jobPickerSearch = "";
 
     // Kind picker
     private bool _showKindPicker;
@@ -287,6 +350,13 @@ else if (_data is not null)
     }
 
     private void CloseForm() => _showForm = false;
+
+    private void SelectJobFromPicker(JobResponseDto j)
+    {
+        _formJobId = j.Id.ToString();
+        _showJobPicker = false;
+        _jobPickerSearch = "";
+    }
 
     private async Task OnFormKindChanged()
     {

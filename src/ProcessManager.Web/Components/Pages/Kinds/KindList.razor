@@ -18,145 +18,200 @@
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="@($"Search {Vocab.Kinds.ToLower()}...")" />
 </div>
 
-<div class="d-flex" style="gap: 0;">
-    @* ── Main Table ── *@
-    <div class="flex-grow-1" style="min-width: 0;">
-        @if (_loading)
-        {
-            <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
-        }
-        else if (_data is not null)
-        {
-            <div class="table-responsive">
-                <table class="table table-hover table-sm align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Code</th>
-                            <th>Name</th>
-                            <th>Serialized</th>
-                            <th>Batchable</th>
-                            <th>Grades</th>
-                            <th style="width:120px">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (!_data.Items.Any())
-                        {
-                            <tr><td colspan="6" class="text-center text-muted py-3">No kinds found.</td></tr>
-                        }
-                        else
-                        {
-                        @foreach (var kind in _data.Items)
-                        {
-                            <tr class="@(_editingId == kind.Id ? "table-active" : "")">
-                                <td><code>@kind.Code</code></td>
-                                <td>
-                                    <a href="kinds/@kind.Id">@kind.Name</a>
-                                </td>
-                                <td>@(kind.IsSerialized ? "Yes" : "No")</td>
-                                <td>@(kind.IsBatchable ? "Yes" : "No")</td>
-                                <td>
-                                    @foreach (var g in kind.Grades)
-                                    {
-                                        <span class="badge bg-light text-dark border me-1">@g.Code</span>
-                                    }
-                                </td>
-                                <td>
-                                    <button class="btn btn-outline-secondary btn-sm me-1" title="Edit"
-                                            @onclick="() => ShowEditForm(kind)">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <button class="btn btn-outline-danger btn-sm" title="Delete"
-                                            @onclick="() => DeleteKind(kind)">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        }
-                        }
-                    </tbody>
-                </table>
-            </div>
-
-            <Pager Page="_page" PageSize="_pageSize" TotalCount="_data.TotalCount"
-                   OnPageChanged="OnPageChanged" />
-        }
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_data is not null)
+{
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Serialized</th>
+                    <th>Batchable</th>
+                    <th>Grades</th>
+                    <th style="width:120px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!_data.Items.Any())
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-3">No kinds found.</td></tr>
+                }
+                else
+                {
+                @foreach (var kind in _data.Items)
+                {
+                    <tr>
+                        <td><code>@kind.Code</code></td>
+                        <td>
+                            <a href="kinds/@kind.Id">@kind.Name</a>
+                        </td>
+                        <td>@(kind.IsSerialized ? "Yes" : "No")</td>
+                        <td>@(kind.IsBatchable ? "Yes" : "No")</td>
+                        <td>
+                            @foreach (var g in kind.Grades)
+                            {
+                                <span class="badge bg-light text-dark border me-1">@g.Code</span>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-outline-secondary btn-sm me-1" title="Edit"
+                                    @onclick="() => ShowEditForm(kind)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" title="Delete"
+                                    @onclick="() => DeleteKind(kind)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+                }
+            </tbody>
+        </table>
     </div>
 
-    @* ── Side Panel ── *@
-    @if (_showForm)
-    {
-        <div class="kind-side-panel">
-            <div class="kind-side-panel-header">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="bi @(_editingId.HasValue ? "bi-pencil-square" : "bi-plus-circle") text-primary"></i>
-                    <h6 class="mb-0 fw-semibold">@(_editingId.HasValue ? "Edit Kind" : "New Kind")</h6>
-                </div>
-                <button type="button" class="btn-close btn-close-sm" @onclick="CloseForm"></button>
-            </div>
+    <Pager Page="_page" PageSize="_pageSize" TotalCount="_data.TotalCount"
+           OnPageChanged="OnPageChanged" />
+}
 
-            <EditForm Model="_form" OnValidSubmit="SaveKind">
-                <DataAnnotationsValidator />
-                <div class="kind-side-panel-body">
-                    <div class="kind-side-panel-section">
-                        <label class="kind-side-panel-section-label">
-                            <i class="bi bi-tag me-1"></i>Identification
-                        </label>
-                        <div class="mb-3">
-                            <label class="form-label small mb-1">Code</label>
-                            <InputText class="form-control form-control-sm" @bind-Value="_form.Code"
-                                       disabled="@_editingId.HasValue" placeholder="e.g. WDG-100" />
-                            <ValidationMessage For="() => _form.Code" />
+@if (_showForm)
+{
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-green">
+                        <i class="bi @(_editingId.HasValue ? "bi-pencil-square" : "bi-plus-circle")"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">@(_editingId.HasValue ? "Edit" : "New") @Vocab.Kind</h5>
+                        <div class="pm-modal-subtitle">@(_editingId.HasValue ? "Update kind details" : "Define a new kind or clone from an existing one")</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseForm"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!_editingId.HasValue)
+                    {
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-copy"></i> Clone from existing</label>
+                            <div class="d-flex gap-2">
+                                <input class="form-control" readonly placeholder="Browse kinds to clone..." value="@_cloneSourceName" />
+                                <button type="button" class="pm-browse-btn" title="Browse kinds" @onclick="() => _showPicker = true">
+                                    <i class="bi bi-grid-3x3-gap"></i>
+                                </button>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label small mb-1">Name</label>
-                            <InputText class="form-control form-control-sm" @bind-Value="_form.Name"
-                                       placeholder="e.g. Widget" />
-                            <ValidationMessage For="() => _form.Name" />
+                        <div class="pm-modal-divider">Identification</div>
+                    }
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-upc-scan"></i> Code</label>
+                        <input class="form-control" @bind="_form.Code" disabled="@_editingId.HasValue" placeholder="e.g. WDG-100" />
+                    </div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Name</label>
+                        <input class="form-control" @bind="_form.Name" placeholder="e.g. Widget" />
+                    </div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-card-text"></i> Description</label>
+                        <textarea class="form-control" rows="2" @bind="_form.Description" placeholder="Optional description..."></textarea>
+                    </div>
+                    <div class="pm-modal-divider">Properties</div>
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <div>
+                            <div class="small fw-semibold">Serialized</div>
+                            <div class="text-muted" style="font-size:.7rem">Track individual items by serial number</div>
                         </div>
-                        <div class="mb-0">
-                            <label class="form-label small mb-1">Description</label>
-                            <InputTextArea class="form-control form-control-sm" @bind-Value="_form.Description"
-                                           rows="2" placeholder="Optional description..." />
+                        <div class="form-check form-switch mb-0">
+                            <input type="checkbox" class="form-check-input" @bind="_form.IsSerialized" />
                         </div>
                     </div>
-
-                    <div class="kind-side-panel-section">
-                        <label class="kind-side-panel-section-label">
-                            <i class="bi bi-toggles me-1"></i>Properties
-                        </label>
-                        <div class="d-flex align-items-center justify-content-between mb-2">
-                            <div>
-                                <div class="small fw-semibold">Serialized</div>
-                                <div class="text-muted" style="font-size:.7rem">Track individual items by serial number</div>
-                            </div>
-                            <div class="form-check form-switch mb-0">
-                                <InputCheckbox class="form-check-input" @bind-Value="_form.IsSerialized" />
-                            </div>
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <div class="small fw-semibold">Batchable</div>
+                            <div class="text-muted" style="font-size:.7rem">Group items into batches for processing</div>
                         </div>
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div>
-                                <div class="small fw-semibold">Batchable</div>
-                                <div class="text-muted" style="font-size:.7rem">Group items into batches for processing</div>
-                            </div>
-                            <div class="form-check form-switch mb-0">
-                                <InputCheckbox class="form-check-input" @bind-Value="_form.IsBatchable" />
-                            </div>
+                        <div class="form-check form-switch mb-0">
+                            <input type="checkbox" class="form-check-input" @bind="_form.IsBatchable" />
                         </div>
                     </div>
                 </div>
-
-                <div class="kind-side-panel-footer">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CloseForm">Cancel</button>
-                    <button type="submit" class="btn btn-primary btn-sm">
-                        <i class="bi @(_editingId.HasValue ? "bi-check-lg" : "bi-plus-lg") me-1"></i>
-                        @(_editingId.HasValue ? "Update" : "Create")
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveKind" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                        <i class="bi @(_editingId.HasValue ? "bi-check-lg" : "bi-plus-lg")"></i>
+                        @(_editingId.HasValue ? "Save Changes" : "Create Kind")
                     </button>
                 </div>
-            </EditForm>
+            </div>
         </div>
-    }
-</div>
+    </div>
+}
+
+@if (_showPicker && _allKinds is not null)
+{
+    <div class="modal show d-block pm-modal pm-picker" tabindex="-1" style="background: rgba(0,0,0,.55); z-index: 1060">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-green">
+                        <i class="bi bi-copy"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">Clone from Existing Kind</h5>
+                        <div class="pm-modal-subtitle">Select a kind to copy its settings into the form</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showPicker = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="pm-picker-search">
+                        <input type="text" placeholder="Search kinds..." @bind="_pickerSearch" @bind:event="oninput" />
+                    </div>
+                    <div class="pm-picker-grid">
+                        @{ var filtered = _allKinds.Items.Where(k =>
+                            string.IsNullOrEmpty(_pickerSearch)
+                            || k.Name.Contains(_pickerSearch, StringComparison.OrdinalIgnoreCase)
+                            || k.Code.Contains(_pickerSearch, StringComparison.OrdinalIgnoreCase)).ToList(); }
+                        @if (!filtered.Any())
+                        {
+                            <div class="pm-picker-empty">
+                                <i class="bi bi-search d-block mb-2" style="font-size: 1.5rem"></i>
+                                No kinds match your search
+                            </div>
+                        }
+                        @foreach (var k in filtered)
+                        {
+                            <div class="pm-picker-tile" @onclick="() => SelectKindFromPicker(k)">
+                                <div class="pm-picker-tile-code">@k.Code</div>
+                                <div class="pm-picker-tile-name">@k.Name</div>
+                                @if (!string.IsNullOrEmpty(k.Description))
+                                {
+                                    <div class="pm-picker-tile-desc">@k.Description</div>
+                                }
+                                <div class="pm-picker-tile-meta">
+                                    @if (k.IsSerialized)
+                                    {
+                                        <span class="pm-picker-tile-badge" style="background: #dbeafe; color: #1d4ed8">Serialized</span>
+                                    }
+                                    @if (k.IsBatchable)
+                                    {
+                                        <span class="pm-picker-tile-badge" style="background: #fef3c7; color: #92400e">Batchable</span>
+                                    }
+                                    <span class="pm-picker-tile-badge">@k.Grades.Count grade@(k.Grades.Count != 1 ? "s" : "")</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private PaginatedResponse<KindResponseDto>? _data;
@@ -167,8 +222,15 @@
 
     // Form state
     private bool _showForm;
+    private bool _saving;
     private Guid? _editingId;
     private KindFormModel _form = new();
+    private string _cloneSourceName = "";
+
+    // Tile picker
+    private bool _showPicker;
+    private string _pickerSearch = "";
+    private PaginatedResponse<KindResponseDto>? _allKinds;
 
     protected override void OnInitialized() => Vocab.OnChange += OnVocabChanged;
     protected override async Task OnInitializedAsync() => await LoadData();
@@ -195,11 +257,25 @@
     private async Task OnSearch(string value) { _search = value; _page = 1; await LoadData(); }
     private async Task OnPageChanged(int page) { _page = page; await LoadData(); }
 
-    private void ShowCreateForm()
+    private async Task ShowCreateForm()
     {
         _editingId = null;
         _form = new();
+        _cloneSourceName = "";
         _showForm = true;
+        _allKinds = await Api.GetKindsAsync(pageSize: 100);
+        StateHasChanged();
+    }
+
+    private void SelectKindFromPicker(KindResponseDto k)
+    {
+        _form.Name = k.Name;
+        _form.Description = k.Description;
+        _form.IsSerialized = k.IsSerialized;
+        _form.IsBatchable = k.IsBatchable;
+        _cloneSourceName = $"{k.Name} ({k.Code})";
+        _showPicker = false;
+        _pickerSearch = "";
     }
 
     private void ShowEditForm(KindResponseDto kind)
@@ -214,6 +290,7 @@
 
     private async Task SaveKind()
     {
+        _saving = true;
         try
         {
             if (_editingId.HasValue)
@@ -230,6 +307,7 @@
         {
             Toast.ShowError(ex.Message);
         }
+        finally { _saving = false; }
     }
 
     private async Task DeleteKind(KindResponseDto kind)

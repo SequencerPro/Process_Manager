@@ -630,6 +630,11 @@ h1:focus {
     color: #16a34a;
     border: 1px solid #bbf7d0;
 }
+.pm-modal-icon-purple {
+    background: #f5f3ff;
+    color: #7c3aed;
+    border: 1px solid #c4b5fd;
+}
 
 .pm-modal .modal-title {
     font-size: 1.05rem;

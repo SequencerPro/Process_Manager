@@ -113,34 +113,54 @@ else if (_data is not null)
            OnPageChanged="OnPageChanged" />
 }
 
-@* Create / Edit Modal *@
+@* ── Create / Edit Modal ── *@
 @if (_showForm)
 {
-    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
-        <div class="modal-dialog modal-lg">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(_isEdit ? "Edit Step Template" : "New Step Template")</h5>
-                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                    <div class="pm-modal-icon pm-modal-icon-purple">
+                        <i class="bi @(_isEdit ? "bi-pencil-square" : "bi-plus-circle")"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">@(_isEdit ? "Edit" : "New") Step Template</h5>
+                        <div class="pm-modal-subtitle">@(_isEdit ? "Update template details" : "Define a new step template or clone from an existing one")</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseForm"></button>
                 </div>
                 <div class="modal-body">
                     @if (!_isEdit)
                     {
-                        <div class="mb-3">
-                            <label class="form-label">Code</label>
-                            <input class="form-control" @bind="_formCode" />
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-copy"></i> Clone from existing</label>
+                            <div class="d-flex gap-2">
+                                <input class="form-control" readonly placeholder="Browse templates to clone..." value="@_cloneSourceName" />
+                                <button type="button" class="pm-browse-btn" title="Browse templates" @onclick="() => _showClonePicker = true">
+                                    <i class="bi bi-grid-3x3-gap"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="pm-modal-divider">Details</div>
+                    }
+
+                    @if (!_isEdit)
+                    {
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-upc-scan"></i> Code</label>
+                            <input class="form-control" @bind="_formCode" placeholder="e.g. ST-ASSY-001" />
                         </div>
                     }
-                    <div class="mb-3">
-                        <label class="form-label">Name</label>
-                        <input class="form-control" @bind="_formName" />
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Name</label>
+                        <input class="form-control" @bind="_formName" placeholder="e.g. Weld Assembly" />
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea class="form-control" rows="2" @bind="_formDescription"></textarea>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-card-text"></i> Description</label>
+                        <textarea class="form-control" rows="2" @bind="_formDescription" placeholder="Optional description..."></textarea>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Pattern</label>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-diagram-2"></i> Pattern</label>
                         <select class="form-select" @bind="_formPattern">
                             @foreach (var p in Enum.GetValues<StepPattern>())
                             {
@@ -197,156 +217,161 @@ else if (_data is not null)
                             }
                         </div>
                     </div>
+
                     @if (_isEdit)
                     {
-                        <div class="form-check">
-                            <input type="checkbox" class="form-check-input" id="formIsActive" @bind="_formIsActive" />
-                            <label class="form-check-label" for="formIsActive">Active</label>
+                        <div class="pm-input-group">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="small fw-semibold">Active</div>
+                                    <div class="text-muted" style="font-size:.7rem">Whether this template is available for use</div>
+                                </div>
+                                <div class="form-check form-switch mb-0">
+                                    <input type="checkbox" class="form-check-input" id="formIsActive" @bind="_formIsActive" />
+                                </div>
+                            </div>
                         </div>
                     }
 
                     @* Inline port builder for create only *@
                     @if (!_isEdit)
                     {
-                        <div class="step-ports-section">
-                            <div class="step-ports-header">
-                                <i class="bi bi-diagram-3 me-1"></i>
-                                Ports <span class="text-muted small fw-normal">(at least one required)</span>
-                            </div>
+                        <div class="pm-modal-divider">Ports</div>
 
-                            @* ── Dynamic Port Diagram ── *@
-                            <div class="step-diagram">
-                                @{
-                                    var inputs = _formPorts.Where(p => p.Direction == PortDirection.Input).ToList();
-                                    var outputs = _formPorts.Where(p => p.Direction == PortDirection.Output).ToList();
-                                    var showPlaceholders = !_formPorts.Any();
-                                    var placeholderInputs = _formPattern switch
+                        @* ── Dynamic Port Diagram ── *@
+                        <div class="step-diagram">
+                            @{
+                                var inputs = _formPorts.Where(p => p.Direction == PortDirection.Input).ToList();
+                                var outputs = _formPorts.Where(p => p.Direction == PortDirection.Output).ToList();
+                                var showPlaceholders = !_formPorts.Any();
+                                var placeholderInputs = _formPattern switch
+                                {
+                                    StepPattern.Transform => 1,
+                                    StepPattern.Assembly => 2,
+                                    StepPattern.Division => 1,
+                                    _ => 1
+                                };
+                                var placeholderOutputs = _formPattern switch
+                                {
+                                    StepPattern.Transform => 1,
+                                    StepPattern.Assembly => 1,
+                                    StepPattern.Division => 2,
+                                    _ => 1
+                                };
+                                var maxInCount = showPlaceholders ? placeholderInputs : inputs.Count;
+                                var maxOutCount = showPlaceholders ? placeholderOutputs : outputs.Count;
+                                var maxPorts = Math.Max(maxInCount, maxOutCount);
+                                var svgHeight = Math.Max(120, maxPorts * 40 + 40);
+                                var blockH = Math.Max(60, maxPorts * 36 + 16);
+                                var blockY = (svgHeight - blockH) / 2.0;
+                                var stepLabel = string.IsNullOrWhiteSpace(_formName) ? "Step" : (_formName.Length > 14 ? _formName[..14] + "..." : _formName);
+                            }
+                            <svg width="100%" height="@svgHeight" viewBox="0 0 600 @svgHeight" class="step-diagram-svg">
+                                @* Central step block *@
+                                <rect x="220" y="@blockY" width="160" height="@blockH" rx="8" ry="8"
+                                      fill="#f8f9fa" stroke="#6c757d" stroke-width="2" />
+                                @((MarkupString)SvgText(300, blockY + blockH / 2.0 + 5, "middle", 14, "600", "#495057", 1, stepLabel))
+
+                                @if (showPlaceholders)
+                                {
+                                    @* Placeholder input arrows (dashed) *@
+                                    @for (int i = 0; i < placeholderInputs; i++)
                                     {
-                                        StepPattern.Transform => 1,
-                                        StepPattern.Assembly => 2,
-                                        StepPattern.Division => 1,
-                                        _ => 1
-                                    };
-                                    var placeholderOutputs = _formPattern switch
+                                        var yPos = blockY + (blockH / (placeholderInputs + 1.0)) * (i + 1);
+                                        <line x1="60" y1="@yPos" x2="215" y2="@yPos"
+                                              stroke="#198754" stroke-width="2" stroke-dasharray="6,4" opacity="0.4" />
+                                        <polygon points="@($"{215},{yPos - 5} {215},{yPos + 5} {220},{yPos}")"
+                                                 fill="#198754" opacity="0.4" />
+                                        @((MarkupString)SvgText(40, yPos + 4, "end", 11, "400", "#198754", 0.5, _formPattern == StepPattern.General ? "input +" : "input"))
+                                    }
+                                    @* Placeholder output arrows (dashed) *@
+                                    @for (int i = 0; i < placeholderOutputs; i++)
                                     {
-                                        StepPattern.Transform => 1,
-                                        StepPattern.Assembly => 1,
-                                        StepPattern.Division => 2,
-                                        _ => 1
-                                    };
-                                    var maxInCount = showPlaceholders ? placeholderInputs : inputs.Count;
-                                    var maxOutCount = showPlaceholders ? placeholderOutputs : outputs.Count;
-                                    var maxPorts = Math.Max(maxInCount, maxOutCount);
-                                    var svgHeight = Math.Max(120, maxPorts * 40 + 40);
-                                    var blockH = Math.Max(60, maxPorts * 36 + 16);
-                                    var blockY = (svgHeight - blockH) / 2.0;
-                                    var stepLabel = string.IsNullOrWhiteSpace(_formName) ? "Step" : (_formName.Length > 14 ? _formName[..14] + "..." : _formName);
+                                        var yPos = blockY + (blockH / (placeholderOutputs + 1.0)) * (i + 1);
+                                        <line x1="380" y1="@yPos" x2="535" y2="@yPos"
+                                              stroke="#0d6efd" stroke-width="2" stroke-dasharray="6,4" opacity="0.4" />
+                                        <polygon points="@($"{535},{yPos - 5} {535},{yPos + 5} {540},{yPos}")"
+                                                 fill="#0d6efd" opacity="0.4" />
+                                        @((MarkupString)SvgText(560, yPos + 4, "start", 11, "400", "#0d6efd", 0.5, _formPattern == StepPattern.General ? "output +" : "output"))
+                                    }
                                 }
-                                <svg width="100%" height="@svgHeight" viewBox="0 0 600 @svgHeight" class="step-diagram-svg">
-                                    @* Central step block *@
-                                    <rect x="220" y="@blockY" width="160" height="@blockH" rx="8" ry="8"
-                                          fill="#f8f9fa" stroke="#6c757d" stroke-width="2" />
-                                    @((MarkupString)SvgText(300, blockY + blockH / 2.0 + 5, "middle", 14, "600", "#495057", 1, stepLabel))
-
-                                    @if (showPlaceholders)
+                                else
+                                {
+                                    @* Actual input port arrows *@
+                                    @for (int i = 0; i < inputs.Count; i++)
                                     {
-                                        @* Placeholder input arrows (dashed) *@
-                                        @for (int i = 0; i < placeholderInputs; i++)
-                                        {
-                                            var yPos = blockY + (blockH / (placeholderInputs + 1.0)) * (i + 1);
-                                            <line x1="60" y1="@yPos" x2="215" y2="@yPos"
-                                                  stroke="#198754" stroke-width="2" stroke-dasharray="6,4" opacity="0.4" />
-                                            <polygon points="@($"{215},{yPos - 5} {215},{yPos + 5} {220},{yPos}")"
-                                                     fill="#198754" opacity="0.4" />
-                                            @((MarkupString)SvgText(40, yPos + 4, "end", 11, "400", "#198754", 0.5, _formPattern == StepPattern.General ? "input +" : "input"))
-                                        }
-                                        @* Placeholder output arrows (dashed) *@
-                                        @for (int i = 0; i < placeholderOutputs; i++)
-                                        {
-                                            var yPos = blockY + (blockH / (placeholderOutputs + 1.0)) * (i + 1);
-                                            <line x1="380" y1="@yPos" x2="535" y2="@yPos"
-                                                  stroke="#0d6efd" stroke-width="2" stroke-dasharray="6,4" opacity="0.4" />
-                                            <polygon points="@($"{535},{yPos - 5} {535},{yPos + 5} {540},{yPos}")"
-                                                     fill="#0d6efd" opacity="0.4" />
-                                            @((MarkupString)SvgText(560, yPos + 4, "start", 11, "400", "#0d6efd", 0.5, _formPattern == StepPattern.General ? "output +" : "output"))
-                                        }
+                                        var port = inputs[i];
+                                        var yPos = blockY + (blockH / (inputs.Count + 1.0)) * (i + 1);
+                                        <line x1="60" y1="@yPos" x2="215" y2="@yPos"
+                                              stroke="#198754" stroke-width="2" class="step-diagram-arrow" />
+                                        <polygon points="@($"{215},{yPos - 5} {215},{yPos + 5} {220},{yPos}")"
+                                                 fill="#198754" class="step-diagram-arrow" />
+                                        <circle cx="60" cy="@yPos" r="4" fill="#198754" class="step-diagram-arrow" />
+                                        @((MarkupString)SvgText(55, yPos + 4, "end", 11, "500", "#198754", 1, port.Name.Length > 12 ? port.Name[..12] + ".." : port.Name))
                                     }
-                                    else
+                                    @* Actual output port arrows *@
+                                    @for (int i = 0; i < outputs.Count; i++)
                                     {
-                                        @* Actual input port arrows *@
-                                        @for (int i = 0; i < inputs.Count; i++)
-                                        {
-                                            var port = inputs[i];
-                                            var yPos = blockY + (blockH / (inputs.Count + 1.0)) * (i + 1);
-                                            <line x1="60" y1="@yPos" x2="215" y2="@yPos"
-                                                  stroke="#198754" stroke-width="2" class="step-diagram-arrow" />
-                                            <polygon points="@($"{215},{yPos - 5} {215},{yPos + 5} {220},{yPos}")"
-                                                     fill="#198754" class="step-diagram-arrow" />
-                                            <circle cx="60" cy="@yPos" r="4" fill="#198754" class="step-diagram-arrow" />
-                                            @((MarkupString)SvgText(55, yPos + 4, "end", 11, "500", "#198754", 1, port.Name.Length > 12 ? port.Name[..12] + ".." : port.Name))
-                                        }
-                                        @* Actual output port arrows *@
-                                        @for (int i = 0; i < outputs.Count; i++)
-                                        {
-                                            var port = outputs[i];
-                                            var yPos = blockY + (blockH / (outputs.Count + 1.0)) * (i + 1);
-                                            <line x1="380" y1="@yPos" x2="535" y2="@yPos"
-                                                  stroke="#0d6efd" stroke-width="2" class="step-diagram-arrow" />
-                                            <polygon points="@($"{535},{yPos - 5} {535},{yPos + 5} {540},{yPos}")"
-                                                     fill="#0d6efd" class="step-diagram-arrow" />
-                                            <circle cx="540" cy="@yPos" r="4" fill="#0d6efd" class="step-diagram-arrow" />
-                                            @((MarkupString)SvgText(545, yPos + 4, "start", 11, "500", "#0d6efd", 1, port.Name.Length > 12 ? port.Name[..12] + ".." : port.Name))
-                                        }
+                                        var port = outputs[i];
+                                        var yPos = blockY + (blockH / (outputs.Count + 1.0)) * (i + 1);
+                                        <line x1="380" y1="@yPos" x2="535" y2="@yPos"
+                                              stroke="#0d6efd" stroke-width="2" class="step-diagram-arrow" />
+                                        <polygon points="@($"{535},{yPos - 5} {535},{yPos + 5} {540},{yPos}")"
+                                                 fill="#0d6efd" class="step-diagram-arrow" />
+                                        <circle cx="540" cy="@yPos" r="4" fill="#0d6efd" class="step-diagram-arrow" />
+                                        @((MarkupString)SvgText(545, yPos + 4, "start", 11, "500", "#0d6efd", 1, port.Name.Length > 12 ? port.Name[..12] + ".." : port.Name))
                                     }
-                                </svg>
-                            </div>
+                                }
+                            </svg>
+                        </div>
 
-                            @* ── Port Cards ── *@
-                            @if (_formPorts.Any())
-                            {
-                                <div class="step-port-cards mb-3">
-                                    @foreach (var fp in _formPorts)
-                                    {
-                                        var isInput = fp.Direction == PortDirection.Input;
-                                        <div class="step-port-card @(isInput ? "step-port-card-input" : "step-port-card-output")">
-                                            <div class="d-flex align-items-center gap-2 flex-grow-1">
-                                                <i class="bi @(isInput ? "bi-box-arrow-in-right text-success" : "bi-box-arrow-right text-primary")" style="font-size:1.1rem"></i>
-                                                <div class="flex-grow-1">
-                                                    <div class="fw-semibold small">@fp.Name</div>
-                                                    <div class="text-muted" style="font-size:.7rem">
-                                                        @(_kinds?.Items.FirstOrDefault(k => k.Id == fp.KindId)?.Name ?? "Kind") / @fp.GradeCode
-                                                        <span class="ms-1 badge bg-light text-dark border" style="font-size:.6rem">@fp.QtyRuleMode</span>
-                                                    </div>
+                        @* ── Port Cards ── *@
+                        @if (_formPorts.Any())
+                        {
+                            <div class="step-port-cards mb-3">
+                                @foreach (var fp in _formPorts)
+                                {
+                                    var isInput = fp.Direction == PortDirection.Input;
+                                    <div class="step-port-card @(isInput ? "step-port-card-input" : "step-port-card-output")">
+                                        <div class="d-flex align-items-center gap-2 flex-grow-1">
+                                            <i class="bi @(isInput ? "bi-box-arrow-in-right text-success" : "bi-box-arrow-right text-primary")" style="font-size:1.1rem"></i>
+                                            <div class="flex-grow-1">
+                                                <div class="fw-semibold small">@fp.Name</div>
+                                                <div class="text-muted" style="font-size:.7rem">
+                                                    @(_kinds?.Items.FirstOrDefault(k => k.Id == fp.KindId)?.Name ?? "Kind") / @fp.GradeCode
+                                                    <span class="ms-1 badge bg-light text-dark border" style="font-size:.6rem">@fp.QtyRuleMode</span>
                                                 </div>
                                             </div>
-                                            <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => _formPorts.Remove(fp)" title="Remove port">
-                                                <i class="bi bi-x-lg"></i>
-                                            </button>
                                         </div>
-                                    }
-                                </div>
-                            }
+                                        <button class="btn btn-outline-danger btn-sm py-0 px-1" @onclick="() => _formPorts.Remove(fp)" title="Remove port">
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </div>
+                                }
+                            </div>
+                        }
 
-                            @* ── Add Port Form ── *@
-                            <div class="step-port-add-form @(_ipDirection == PortDirection.Input ? "step-port-add-input" : "step-port-add-output")">
-                                <div class="step-port-add-form-header">
-                                    <i class="bi @(_ipDirection == PortDirection.Input ? "bi-box-arrow-in-right" : "bi-box-arrow-right") me-1"></i>
-                                    Add Port
+                        @* ── Add Port Form ── *@
+                        <div class="step-port-add-form @(_ipDirection == PortDirection.Input ? "step-port-add-input" : "step-port-add-output")">
+                            <div class="step-port-add-form-header">
+                                <i class="bi @(_ipDirection == PortDirection.Input ? "bi-box-arrow-in-right" : "bi-box-arrow-right") me-1"></i>
+                                Add Port
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label form-label-sm">Port Name</label>
+                                    <input class="form-control form-control-sm" @bind="_ipName" placeholder="e.g. Part In" />
                                 </div>
-                                <div class="row g-2">
-                                    <div class="col-md-4">
-                                        <label class="form-label form-label-sm">Port Name</label>
-                                        <input class="form-control form-control-sm" @bind="_ipName" placeholder="e.g. Part In" />
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label form-label-sm">Direction</label>
-                                        <select class="form-select form-select-sm" @bind="_ipDirection">
-                                            <option value="@PortDirection.Input">Input</option>
-                                            <option value="@PortDirection.Output">Output</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-5">
-                                        <label class="form-label form-label-sm">Kind</label>
+                                <div class="col-md-3">
+                                    <label class="form-label form-label-sm">Direction</label>
+                                    <select class="form-select form-select-sm" @bind="_ipDirection">
+                                        <option value="@PortDirection.Input">Input</option>
+                                        <option value="@PortDirection.Output">Output</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label form-label-sm">Kind</label>
+                                    <div class="d-flex gap-1">
                                         <select class="form-select form-select-sm" @bind="_ipKindId" @bind:after="OnInlineKindChanged">
                                             <option value="">Select kind...</option>
                                             @if (_kinds is not null)
@@ -357,75 +382,199 @@ else if (_data is not null)
                                                 }
                                             }
                                         </select>
-                                    </div>
-                                </div>
-                                <div class="row g-2 mt-1">
-                                    <div class="col-md-4">
-                                        <label class="form-label form-label-sm">Grade</label>
-                                        <select class="form-select form-select-sm" @bind="_ipGradeId">
-                                            <option value="">Select grade...</option>
-                                            @if (_ipGrades is not null)
-                                            {
-                                                @foreach (var g in _ipGrades)
-                                                {
-                                                    <option value="@g.Id">@g.Name (@g.Code)</option>
-                                                }
-                                            }
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label form-label-sm">Qty Mode</label>
-                                        <select class="form-select form-select-sm" @bind="_ipQtyMode">
-                                            @foreach (var m in Enum.GetValues<QuantityRuleMode>())
-                                            {
-                                                <option value="@m">@m</option>
-                                            }
-                                        </select>
-                                    </div>
-                                    @if (_ipQtyMode == QuantityRuleMode.Exactly || _ipQtyMode == QuantityRuleMode.ZeroOrN)
-                                    {
-                                        <div class="col-md-3">
-                                            <label class="form-label form-label-sm">N</label>
-                                            <input type="number" class="form-control form-control-sm" @bind="_ipQtyN" min="1" />
-                                        </div>
-                                    }
-                                    else if (_ipQtyMode == QuantityRuleMode.Range)
-                                    {
-                                        <div class="col-md-2">
-                                            <label class="form-label form-label-sm">Min</label>
-                                            <input type="number" class="form-control form-control-sm" @bind="_ipQtyMin" min="0" />
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label class="form-label form-label-sm">Max</label>
-                                            <input type="number" class="form-control form-control-sm" @bind="_ipQtyMax" min="0" />
-                                        </div>
-                                    }
-                                    else if (_ipQtyMode == QuantityRuleMode.Unbounded)
-                                    {
-                                        <div class="col-md-3">
-                                            <label class="form-label form-label-sm">Min</label>
-                                            <input type="number" class="form-control form-control-sm" @bind="_ipQtyMin" min="0" />
-                                        </div>
-                                    }
-                                    <div class="col-md-3">
-                                        <label class="form-label form-label-sm">Sort Order</label>
-                                        <input type="number" class="form-control form-control-sm" @bind="_ipSortOrder" />
-                                    </div>
-                                    <div class="col-md-2 d-flex align-items-end">
-                                        <button class="btn btn-sm @(_ipDirection == PortDirection.Input ? "btn-success" : "btn-primary") w-100" @onclick="AddInlinePort">
-                                            <i class="bi bi-plus-lg"></i> Add
+                                        <button type="button" class="pm-browse-btn" style="padding: 2px 6px; font-size: .75rem" title="Browse kinds" @onclick="() => _showKindPicker = true">
+                                            <i class="bi bi-grid-3x3-gap"></i>
                                         </button>
                                     </div>
+                                </div>
+                            </div>
+                            <div class="row g-2 mt-1">
+                                <div class="col-md-4">
+                                    <label class="form-label form-label-sm">Grade</label>
+                                    <select class="form-select form-select-sm" @bind="_ipGradeId">
+                                        <option value="">Select grade...</option>
+                                        @if (_ipGrades is not null)
+                                        {
+                                            @foreach (var g in _ipGrades)
+                                            {
+                                                <option value="@g.Id">@g.Name (@g.Code)</option>
+                                            }
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label form-label-sm">Qty Mode</label>
+                                    <select class="form-select form-select-sm" @bind="_ipQtyMode">
+                                        @foreach (var m in Enum.GetValues<QuantityRuleMode>())
+                                        {
+                                            <option value="@m">@m</option>
+                                        }
+                                    </select>
+                                </div>
+                                @if (_ipQtyMode == QuantityRuleMode.Exactly || _ipQtyMode == QuantityRuleMode.ZeroOrN)
+                                {
+                                    <div class="col-md-3">
+                                        <label class="form-label form-label-sm">N</label>
+                                        <input type="number" class="form-control form-control-sm" @bind="_ipQtyN" min="1" />
+                                    </div>
+                                }
+                                else if (_ipQtyMode == QuantityRuleMode.Range)
+                                {
+                                    <div class="col-md-2">
+                                        <label class="form-label form-label-sm">Min</label>
+                                        <input type="number" class="form-control form-control-sm" @bind="_ipQtyMin" min="0" />
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label class="form-label form-label-sm">Max</label>
+                                        <input type="number" class="form-control form-control-sm" @bind="_ipQtyMax" min="0" />
+                                    </div>
+                                }
+                                else if (_ipQtyMode == QuantityRuleMode.Unbounded)
+                                {
+                                    <div class="col-md-3">
+                                        <label class="form-label form-label-sm">Min</label>
+                                        <input type="number" class="form-control form-control-sm" @bind="_ipQtyMin" min="0" />
+                                    </div>
+                                }
+                                <div class="col-md-3">
+                                    <label class="form-label form-label-sm">Sort Order</label>
+                                    <input type="number" class="form-control form-control-sm" @bind="_ipSortOrder" />
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end">
+                                    <button class="btn btn-sm @(_ipDirection == PortDirection.Input ? "btn-success" : "btn-primary") w-100" @onclick="AddInlinePort">
+                                        <i class="bi bi-plus-lg"></i> Add
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     }
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
-                    <button type="button" class="btn btn-primary" @onclick="SaveForm">
-                        @(_isEdit ? "Update" : "Create")
+                    <button class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveForm" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                        <i class="bi @(_isEdit ? "bi-check-lg" : "bi-plus-lg")"></i>
+                        @(_isEdit ? "Save Changes" : "Create Template")
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Clone from Existing Template Picker ── *@
+@if (_showClonePicker && _allTemplates is not null)
+{
+    <div class="modal show d-block pm-modal pm-picker" tabindex="-1" style="background: rgba(0,0,0,.55); z-index: 1060">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-purple">
+                        <i class="bi bi-copy"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">Clone from Existing Template</h5>
+                        <div class="pm-modal-subtitle">Select a template to copy its settings and ports into the form</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showClonePicker = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="pm-picker-search">
+                        <input type="text" placeholder="Search templates..." @bind="_clonePickerSearch" @bind:event="oninput" />
+                    </div>
+                    <div class="pm-picker-grid">
+                        @{ var filteredTemplates = _allTemplates.Items.Where(t =>
+                            string.IsNullOrEmpty(_clonePickerSearch)
+                            || t.Name.Contains(_clonePickerSearch, StringComparison.OrdinalIgnoreCase)
+                            || t.Code.Contains(_clonePickerSearch, StringComparison.OrdinalIgnoreCase)).ToList(); }
+                        @if (!filteredTemplates.Any())
+                        {
+                            <div class="pm-picker-empty">
+                                <i class="bi bi-search d-block mb-2" style="font-size: 1.5rem"></i>
+                                No templates match your search
+                            </div>
+                        }
+                        @foreach (var t in filteredTemplates)
+                        {
+                            <div class="pm-picker-tile" @onclick="() => SelectTemplateFromPicker(t)">
+                                <div class="pm-picker-tile-code">@t.Code</div>
+                                <div class="pm-picker-tile-name">@t.Name</div>
+                                @if (!string.IsNullOrEmpty(t.Description))
+                                {
+                                    <div class="pm-picker-tile-desc">@t.Description</div>
+                                }
+                                <div class="pm-picker-tile-meta">
+                                    <span class="pm-picker-tile-badge" style="background: #e0e7ff; color: #3730a3">@t.Pattern</span>
+                                    <span class="pm-picker-tile-badge">
+                                        @(t.Ports?.Count(p => p.Direction == PortDirection.Input) ?? 0) in / @(t.Ports?.Count(p => p.Direction == PortDirection.Output) ?? 0) out
+                                    </span>
+                                    <span class="pm-picker-tile-badge">v@(t.Version)</span>
+                                    <span class="pm-picker-tile-badge" style="background: @(t.Status == "Released" ? "#dcfce7" : "#f3f4f6"); color: @(t.Status == "Released" ? "#166534" : "#374151")">@t.Status</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Kind Tile Picker (for port kind selection) ── *@
+@if (_showKindPicker && _kinds is not null)
+{
+    <div class="modal show d-block pm-modal pm-picker" tabindex="-1" style="background: rgba(0,0,0,.55); z-index: 1060">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-green">
+                        <i class="bi bi-box-seam"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">Select Kind</h5>
+                        <div class="pm-modal-subtitle">Choose a kind for this port</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showKindPicker = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="pm-picker-search">
+                        <input type="text" placeholder="Search kinds..." @bind="_kindPickerSearch" @bind:event="oninput" />
+                    </div>
+                    <div class="pm-picker-grid">
+                        @{ var filteredKinds = _kinds.Items.Where(k =>
+                            string.IsNullOrEmpty(_kindPickerSearch)
+                            || k.Name.Contains(_kindPickerSearch, StringComparison.OrdinalIgnoreCase)
+                            || k.Code.Contains(_kindPickerSearch, StringComparison.OrdinalIgnoreCase)).ToList(); }
+                        @if (!filteredKinds.Any())
+                        {
+                            <div class="pm-picker-empty">
+                                <i class="bi bi-search d-block mb-2" style="font-size: 1.5rem"></i>
+                                No kinds match your search
+                            </div>
+                        }
+                        @foreach (var k in filteredKinds)
+                        {
+                            <div class="pm-picker-tile" @onclick="() => SelectKindFromPicker(k)">
+                                <div class="pm-picker-tile-code">@k.Code</div>
+                                <div class="pm-picker-tile-name">@k.Name</div>
+                                @if (!string.IsNullOrEmpty(k.Description))
+                                {
+                                    <div class="pm-picker-tile-desc">@k.Description</div>
+                                }
+                                <div class="pm-picker-tile-meta">
+                                    @if (k.IsSerialized)
+                                    {
+                                        <span class="pm-picker-tile-badge" style="background: #dbeafe; color: #1d4ed8">Serialized</span>
+                                    }
+                                    @if (k.IsBatchable)
+                                    {
+                                        <span class="pm-picker-tile-badge" style="background: #fef3c7; color: #92400e">Batchable</span>
+                                    }
+                                    <span class="pm-picker-tile-badge">@k.Grades.Count grade@(k.Grades.Count != 1 ? "s" : "")</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
                 </div>
             </div>
         </div>
@@ -444,12 +593,19 @@ else if (_data is not null)
     // Form state
     private bool _showForm;
     private bool _isEdit;
+    private bool _saving;
     private Guid? _editId;
     private string _formCode = "";
     private string _formName = "";
     private string? _formDescription;
     private StepPattern _formPattern = StepPattern.Transform;
     private bool _formIsActive = true;
+
+    // Clone picker
+    private bool _showClonePicker;
+    private string _clonePickerSearch = "";
+    private string _cloneSourceName = "";
+    private PaginatedResponse<StepTemplateResponseDto>? _allTemplates;
 
     // Inline port builder (create mode only)
     private List<InlinePort> _formPorts = new();
@@ -462,6 +618,10 @@ else if (_data is not null)
     private int? _ipQtyMin;
     private int? _ipQtyMax;
     private int _ipSortOrder;
+
+    // Kind picker (for port kind selection)
+    private bool _showKindPicker;
+    private string _kindPickerSearch = "";
 
     // Lookups
     private PaginatedResponse<KindResponseDto>? _kinds;
@@ -517,9 +677,11 @@ else if (_data is not null)
         _formCode = ""; _formName = ""; _formDescription = null;
         _formPattern = StepPattern.Transform; _formIsActive = true;
         _formPorts.Clear();
+        _cloneSourceName = "";
         ResetInlinePort();
         _showForm = true;
         _kinds = await Api.GetKindsAsync("", 1, 100);
+        _allTemplates = await Api.GetStepTemplatesAsync(pageSize: 100);
         StateHasChanged();
     }
 
@@ -533,7 +695,48 @@ else if (_data is not null)
         _showForm = true;
     }
 
-    private void CloseForm() { _showForm = false; }
+    private void CloseForm() { _showForm = false; _showClonePicker = false; _showKindPicker = false; }
+
+    private async Task SelectTemplateFromPicker(StepTemplateResponseDto t)
+    {
+        // Copy basic fields
+        _formName = t.Name;
+        _formDescription = t.Description;
+        _formPattern = t.Pattern;
+        _cloneSourceName = $"{t.Name} ({t.Code})";
+
+        // Fetch full detail to get port info including KindId, GradeId etc.
+        _formPorts.Clear();
+        try
+        {
+            var detail = await Api.GetStepTemplateAsync(t.Id);
+            if (detail?.Ports is not null)
+            {
+                foreach (var p in detail.Ports.Where(p => p.KindId.HasValue && p.GradeId.HasValue))
+                {
+                    _formPorts.Add(new InlinePort(
+                        p.Name, p.Direction, p.KindId!.Value, p.GradeId!.Value,
+                        p.GradeCode ?? p.GradeId.Value.ToString()[..8],
+                        p.QtyRuleMode ?? QuantityRuleMode.Exactly, p.QtyRuleN, p.QtyRuleMin, p.QtyRuleMax, p.SortOrder));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load template ports: {ex.Message}");
+        }
+
+        _showClonePicker = false;
+        _clonePickerSearch = "";
+    }
+
+    private async Task SelectKindFromPicker(KindResponseDto k)
+    {
+        _ipKindId = k.Id.ToString();
+        _showKindPicker = false;
+        _kindPickerSearch = "";
+        await OnInlineKindChanged();
+    }
 
     private async Task OnInlineKindChanged()
     {
@@ -579,6 +782,7 @@ else if (_data is not null)
 
     private async Task SaveForm()
     {
+        _saving = true;
         try
         {
             if (_isEdit)
@@ -588,7 +792,7 @@ else if (_data is not null)
             }
             else
             {
-                if (!_formPorts.Any()) { Toast.ShowError("Add at least one port."); return; }
+                if (!_formPorts.Any()) { Toast.ShowError("Add at least one port."); _saving = false; return; }
                 var ports = _formPorts.Select(p =>
                     new PortCreateDto(p.Name, p.Direction, PortType.Material,
                         p.KindId, p.GradeId, p.QtyRuleMode, p.QtyRuleN, p.QtyRuleMin, p.QtyRuleMax,
@@ -599,6 +803,7 @@ else if (_data is not null)
             await LoadData();
         }
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+        finally { _saving = false; }
     }
 
     private async Task Delete(StepTemplateResponseDto st)

@@ -78,23 +78,28 @@ else if (_data is not null)
            OnPageChanged="OnPageChanged" />
 }
 
-@* Create Batch Modal *@
 @if (_showForm)
 {
-    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
-        <div class="modal-dialog">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">New Batch</h5>
-                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                    <div class="pm-modal-icon pm-modal-icon-blue">
+                        <i class="bi bi-plus-circle"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">New @Vocab.Batch</h5>
+                        <div class="pm-modal-subtitle">Create a new batch to group items for processing</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseForm"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Code</label>
-                        <input class="form-control" @bind="_formCode" />
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-upc-scan"></i> Code</label>
+                        <input class="form-control" @bind="_formCode" placeholder="e.g. BATCH-001" />
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Job</label>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-briefcase"></i> Job</label>
                         <select class="form-select" @bind="_formJobId">
                             <option value="">Select job...</option>
                             @if (_jobs is not null)
@@ -106,21 +111,27 @@ else if (_data is not null)
                             }
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Kind</label>
-                        <select class="form-select" @bind="_formKindId" @bind:after="OnFormKindChanged">
-                            <option value="">Select kind...</option>
-                            @if (_kinds is not null)
-                            {
-                                @foreach (var k in _kinds.Items)
+                    <div class="pm-modal-divider">Material</div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-box-seam"></i> Kind</label>
+                        <div class="d-flex gap-2">
+                            <select class="form-select" @bind="_formKindId" @bind:after="OnFormKindChanged">
+                                <option value="">Select kind...</option>
+                                @if (_kinds is not null)
                                 {
-                                    <option value="@k.Id">@k.Name (@k.Code)</option>
+                                    @foreach (var k in _kinds.Items)
+                                    {
+                                        <option value="@k.Id">@k.Name (@k.Code)</option>
+                                    }
                                 }
-                            }
-                        </select>
+                            </select>
+                            <button type="button" class="pm-browse-btn" title="Browse kinds" @onclick="() => _showKindPicker = true">
+                                <i class="bi bi-grid-3x3-gap"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Grade</label>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-award"></i> Grade</label>
                         <select class="form-select" @bind="_formGradeId">
                             <option value="">Select grade...</option>
                             @if (_formGrades is not null)
@@ -132,14 +143,78 @@ else if (_data is not null)
                             }
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Quantity</label>
-                        <input type="number" class="form-control" @bind="_formQty" min="0" />
+                    <div class="pm-modal-divider">Quantity</div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-hash"></i> Quantity</label>
+                        <input type="number" class="form-control" @bind="_formQty" min="0" placeholder="Number of items in batch" />
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
-                    <button class="btn btn-primary" @onclick="SaveForm">Create</button>
+                    <button class="btn btn-primary" @onclick="SaveForm" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                        <i class="bi bi-plus-lg"></i> Create Batch
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_showKindPicker && _kinds is not null)
+{
+    <div class="modal show d-block pm-modal pm-picker" tabindex="-1" style="background: rgba(0,0,0,.55); z-index: 1060">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-green">
+                        <i class="bi bi-box-seam"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">Select Kind</h5>
+                        <div class="pm-modal-subtitle">Browse and choose a kind for this batch</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showKindPicker = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="pm-picker-search">
+                        <input type="text" placeholder="Search kinds..." @bind="_kindPickerSearch" @bind:event="oninput" />
+                    </div>
+                    <div class="pm-picker-grid">
+                        @{ var filtered = _kinds.Items.Where(k =>
+                            string.IsNullOrEmpty(_kindPickerSearch)
+                            || k.Name.Contains(_kindPickerSearch, StringComparison.OrdinalIgnoreCase)
+                            || k.Code.Contains(_kindPickerSearch, StringComparison.OrdinalIgnoreCase)).ToList(); }
+                        @if (!filtered.Any())
+                        {
+                            <div class="pm-picker-empty">
+                                <i class="bi bi-search d-block mb-2" style="font-size: 1.5rem"></i>
+                                No kinds match your search
+                            </div>
+                        }
+                        @foreach (var k in filtered)
+                        {
+                            <div class="pm-picker-tile" @onclick="() => SelectKindFromPicker(k)">
+                                <div class="pm-picker-tile-code">@k.Code</div>
+                                <div class="pm-picker-tile-name">@k.Name</div>
+                                @if (!string.IsNullOrEmpty(k.Description))
+                                {
+                                    <div class="pm-picker-tile-desc">@k.Description</div>
+                                }
+                                <div class="pm-picker-tile-meta">
+                                    @if (k.IsSerialized)
+                                    {
+                                        <span class="pm-picker-tile-badge" style="background: #dbeafe; color: #1d4ed8">Serialized</span>
+                                    }
+                                    @if (k.IsBatchable)
+                                    {
+                                        <span class="pm-picker-tile-badge" style="background: #fef3c7; color: #92400e">Batchable</span>
+                                    }
+                                    <span class="pm-picker-tile-badge">@k.Grades.Count grade@(k.Grades.Count != 1 ? "s" : "")</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
                 </div>
             </div>
         </div>
@@ -156,6 +231,7 @@ else if (_data is not null)
 
     // Create form
     private bool _showForm;
+    private bool _saving;
     private string _formCode = "";
     private string _formJobId = "";
     private string _formKindId = "";
@@ -164,6 +240,10 @@ else if (_data is not null)
     private PaginatedResponse<JobResponseDto>? _jobs;
     private PaginatedResponse<KindResponseDto>? _kinds;
     private List<GradeResponseDto>? _formGrades;
+
+    // Kind picker
+    private bool _showKindPicker;
+    private string _kindPickerSearch = "";
 
     protected override void OnInitialized() => Vocab.OnChange += OnVocabChanged;
     protected override async Task OnInitializedAsync() => await LoadData();
@@ -218,8 +298,19 @@ else if (_data is not null)
         }
     }
 
+    private async Task SelectKindFromPicker(KindResponseDto k)
+    {
+        _formKindId = k.Id.ToString();
+        _showKindPicker = false;
+        _kindPickerSearch = "";
+        _formGrades = null; _formGradeId = "";
+        var kind = await Api.GetKindAsync(k.Id);
+        _formGrades = kind?.Grades?.ToList();
+    }
+
     private async Task SaveForm()
     {
+        _saving = true;
         try
         {
             if (!Guid.TryParse(_formJobId, out var jobId)) { Toast.ShowError("Select a job."); return; }
@@ -230,6 +321,7 @@ else if (_data is not null)
             await LoadData();
         }
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+        finally { _saving = false; }
     }
 
     private async Task Delete(Guid id)

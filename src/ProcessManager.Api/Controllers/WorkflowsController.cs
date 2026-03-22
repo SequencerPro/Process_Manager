@@ -62,6 +62,7 @@ public class WorkflowsController : ControllerBase
         return MapWorkflowToDto(workflow, includeChildren: true);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost]
     public async Task<ActionResult<WorkflowResponseDto>> Create(CreateWorkflowDto dto)
     {
@@ -81,6 +82,7 @@ public class WorkflowsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = workflow.Id }, MapWorkflowToDto(workflow));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<WorkflowResponseDto>> Update(Guid id, UpdateWorkflowDto dto)
     {
@@ -96,6 +98,7 @@ public class WorkflowsController : ControllerBase
         return MapWorkflowToDto(workflow);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
@@ -223,6 +226,7 @@ public class WorkflowsController : ControllerBase
         return wps.Select(MapWorkflowProcessToDto).ToList();
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{workflowId:guid}/processes")]
     public async Task<ActionResult<WorkflowProcessResponseDto>> AddProcess(
         Guid workflowId, AddWorkflowProcessDto dto)
@@ -279,6 +283,7 @@ public class WorkflowsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = workflowId }, MapWorkflowProcessToDto(wp));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{workflowId:guid}/processes/{wpId:guid}")]
     public async Task<ActionResult<WorkflowProcessResponseDto>> UpdateProcess(
         Guid workflowId, Guid wpId, UpdateWorkflowProcessDto dto)
@@ -315,6 +320,7 @@ public class WorkflowsController : ControllerBase
         return MapWorkflowProcessToDto(wp);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{workflowId:guid}/processes/{wpId:guid}")]
     public async Task<IActionResult> RemoveProcess(Guid workflowId, Guid wpId)
     {
@@ -340,6 +346,7 @@ public class WorkflowsController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{workflowId:guid}/processes/positions")]
     public async Task<IActionResult> UpdatePositions(
         Guid workflowId, UpdateWorkflowProcessPositionsDto dto)
@@ -384,6 +391,7 @@ public class WorkflowsController : ControllerBase
         return links.Select(MapWorkflowLinkToDto).ToList();
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{workflowId:guid}/links")]
     public async Task<ActionResult<WorkflowLinkResponseDto>> CreateLink(
         Guid workflowId, CreateWorkflowLinkDto dto)
@@ -461,6 +469,7 @@ public class WorkflowsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = workflowId }, MapWorkflowLinkToDto(created));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{workflowId:guid}/links/{linkId:guid}")]
     public async Task<ActionResult<WorkflowLinkResponseDto>> UpdateLink(
         Guid workflowId, Guid linkId, UpdateWorkflowLinkDto dto)
@@ -480,6 +489,7 @@ public class WorkflowsController : ControllerBase
         return MapWorkflowLinkToDto(link);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{workflowId:guid}/links/{linkId:guid}")]
     public async Task<IActionResult> DeleteLink(Guid workflowId, Guid linkId)
     {
@@ -494,6 +504,7 @@ public class WorkflowsController : ControllerBase
 
     // ───────────────────── Link Conditions sub-resources ─────────────────────
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{workflowId:guid}/links/{linkId:guid}/conditions")]
     public async Task<ActionResult<WorkflowLinkConditionResponseDto>> AddCondition(
         Guid workflowId, Guid linkId, AddWorkflowLinkConditionDto dto)
@@ -527,6 +538,7 @@ public class WorkflowsController : ControllerBase
                 grade.Id, grade.Code, grade.Name));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{workflowId:guid}/links/{linkId:guid}/conditions/{conditionId:guid}")]
     public async Task<IActionResult> RemoveCondition(
         Guid workflowId, Guid linkId, Guid conditionId)

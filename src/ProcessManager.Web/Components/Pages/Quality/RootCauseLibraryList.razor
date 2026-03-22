@@ -3,7 +3,7 @@
 @inject ApiClient Api
 @inject IJSRuntime JS
 @inject NavigationManager Nav
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin,Engineer")]
 
 <PageTitle>Root Cause Library — Process Manager</PageTitle>
 

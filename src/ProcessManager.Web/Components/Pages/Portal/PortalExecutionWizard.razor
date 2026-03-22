@@ -1,5 +1,7 @@
-@page "/execute/{StepExecutionId:guid}"
+@page "/portal/execute/{StepExecutionId:guid}"
+@layout ParticipantLayout
 @rendermode InteractiveServer
+@attribute [Authorize]
 
 <ExecutionWizardContent StepExecutionId="@StepExecutionId" />
 

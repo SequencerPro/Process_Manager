@@ -58,7 +58,7 @@
                             <td class="align-middle text-muted">@user.Email</td>
                             <td class="align-middle text-muted">@(user.DisplayName ?? "—")</td>
                             <td class="align-middle">
-                                <span class="badge @(user.Role == "Admin" ? "bg-danger" : "bg-primary")">
+                                <span class="badge @(user.Role == "Admin" ? "bg-danger" : user.Role == "Participant" ? "bg-success" : "bg-primary")">
                                     @user.Role
                                 </span>
                             </td>
@@ -131,6 +131,7 @@
                             <InputSelect class="form-select" @bind-Value="NewUser.Role">
                                 <option value="Engineer">Engineer</option>
                                 <option value="Admin">Admin</option>
+                                <option value="Participant">Participant</option>
                             </InputSelect>
                         </div>
                     </div>
@@ -167,6 +168,7 @@
                         <select class="form-select" @bind="EditRole">
                             <option value="Engineer">Engineer</option>
                             <option value="Admin">Admin</option>
+                            <option value="Participant">Participant</option>
                         </select>
                     </div>
                 </div>

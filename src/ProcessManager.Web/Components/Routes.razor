@@ -1,10 +1,14 @@
-﻿<Router AppAssembly="typeof(ProcessManager.Web.Components.Routes).Assembly">
+<Router AppAssembly="typeof(ProcessManager.Web.Components.Routes).Assembly">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
             <NotAuthorized>
                 @if (context.User.Identity?.IsAuthenticated != true)
                 {
                     <RedirectToLogin />
+                }
+                else if (context.User.IsInRole("Participant"))
+                {
+                    <RedirectToPortal />
                 }
                 else
                 {

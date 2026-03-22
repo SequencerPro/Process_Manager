@@ -67,8 +67,8 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<ActionResult<UserResponseDto>> Register(RegisterRequestDto dto)
     {
-        if (dto.Role != "Admin" && dto.Role != "Engineer")
-            return BadRequest("Role must be 'Admin' or 'Engineer'.");
+        if (dto.Role != "Admin" && dto.Role != "Engineer" && dto.Role != "Participant")
+            return BadRequest("Role must be 'Admin', 'Engineer', or 'Participant'.");
 
         var user = new ApplicationUser
         {
@@ -146,7 +146,7 @@ public class AuthController : ControllerBase
         user.DisplayName = string.IsNullOrWhiteSpace(dto.DisplayName) ? null : dto.DisplayName.Trim();
         await _userManager.UpdateAsync(user);
 
-        if (!string.IsNullOrWhiteSpace(dto.Role) && dto.Role is "Admin" or "Engineer")
+        if (!string.IsNullOrWhiteSpace(dto.Role) && dto.Role is "Admin" or "Engineer" or "Participant")
         {
             var currentRoles = await _userManager.GetRolesAsync(user);
             await _userManager.RemoveFromRolesAsync(user, currentRoles);

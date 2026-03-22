@@ -1,6 +1,6 @@
 @page "/maintenance"
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @inject ApiClient Api
 
 <PageTitle>Maintenance Tasks — Process Manager</PageTitle>

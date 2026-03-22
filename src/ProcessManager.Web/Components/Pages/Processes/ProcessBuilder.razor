@@ -1,9 +1,15 @@
 @page "/processes/builder"
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @page "/processes/{Id:guid}/builder"
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @page "/documents/builder"
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @page "/documents/{Id:guid}/builder"
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @page "/training/builder"
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @page "/training/{Id:guid}/builder"
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject NavigationManager Nav

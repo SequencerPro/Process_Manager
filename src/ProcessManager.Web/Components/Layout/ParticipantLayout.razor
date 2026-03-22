@@ -1,0 +1,47 @@
+@inherits LayoutComponentBase
+@using System.Security.Claims
+@inject AuthenticationStateProvider AuthState
+@inject ProcessManager.Web.Services.TokenService TokenSvc
+@inject ProcessManager.Web.Services.VocabularyService Vocab
+@inject ApiClient Api
+
+<div class="d-flex vh-100">
+    <ParticipantNavMenu />
+    <main class="flex-grow-1 overflow-auto bg-light">
+        <div class="container-fluid py-3 px-4">
+            @Body
+        </div>
+    </main>
+</div>
+
+<ToastContainer />
+
+<div id="blazor-error-ui">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <a class="dismiss">🗙</a>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // Re-populate TokenService from AuthenticationState on circuit reconnect
+        if (string.IsNullOrEmpty(TokenSvc.AccessToken))
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            var user = state.User;
+            if (user.Identity?.IsAuthenticated == true)
+            {
+                TokenSvc.AccessToken  = user.FindFirst("access_token")?.Value;
+                TokenSvc.UserName     = user.Identity.Name;
+                TokenSvc.DisplayName  = user.FindFirst("display_name")?.Value;
+                TokenSvc.Role         = user.FindFirst(ClaimTypes.Role)?.Value;
+            }
+        }
+
+        if (!Vocab.IsLoaded)
+        {
+            await Vocab.LoadAsync(Api);
+        }
+    }
+}

@@ -1,6 +1,6 @@
 @page "/production"
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @inject ApiClient Api
 
 <PageTitle>Production Dashboard — Process Manager</PageTitle>

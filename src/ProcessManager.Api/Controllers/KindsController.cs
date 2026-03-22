@@ -50,6 +50,7 @@ public class KindsController : ControllerBase
         return MapToDto(kind);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost]
     public async Task<ActionResult<KindResponseDto>> Create(KindCreateDto dto)
     {
@@ -75,6 +76,7 @@ public class KindsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = kind.Id }, MapToDto(result));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<KindResponseDto>> Update(Guid id, KindUpdateDto dto)
     {
@@ -93,6 +95,7 @@ public class KindsController : ControllerBase
         return MapToDto(kind);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
@@ -110,6 +113,7 @@ public class KindsController : ControllerBase
 
     // ──────────── Grade sub-resource ────────────
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{kindId:guid}/grades")]
     public async Task<ActionResult<GradeResponseDto>> CreateGrade(Guid kindId, GradeCreateDto dto)
     {
@@ -144,6 +148,7 @@ public class KindsController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = kindId }, MapGradeToDto(grade));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{kindId:guid}/grades/{gradeId:guid}")]
     public async Task<ActionResult<GradeResponseDto>> UpdateGrade(Guid kindId, Guid gradeId, GradeUpdateDto dto)
     {
@@ -167,6 +172,7 @@ public class KindsController : ControllerBase
         return MapGradeToDto(grade);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{kindId:guid}/grades/{gradeId:guid}")]
     public async Task<IActionResult> DeleteGrade(Guid kindId, Guid gradeId)
     {

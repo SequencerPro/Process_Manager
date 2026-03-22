@@ -4,7 +4,7 @@
 @inject IJSRuntime JS
 @inject NavigationManager Nav
 @using System.Security.Claims
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin,Engineer")]
 
 <PageTitle>Document Library — Process Manager</PageTitle>
 

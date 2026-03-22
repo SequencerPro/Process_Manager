@@ -77,29 +77,37 @@
 @* ── Add / Edit Modal ──────────────────────────────────────────────────── *@
 @if (_showForm)
 {
-    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
-        <div class="modal-dialog">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "Add") Dashboard</h5>
-                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                    <div class="pm-modal-icon pm-modal-icon-purple">
+                        <i class="bi @(_editId.HasValue ? "bi-pencil-square" : "bi-plus-circle")"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "Add") Dashboard</h5>
+                        <span class="pm-modal-subtitle">@(_editId.HasValue ? "Update dashboard configuration" : "Connect a new Power BI dashboard")</span>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseForm"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Name <span class="text-danger">*</span></label>
                         <input class="form-control" @bind="_formName" placeholder="e.g. Production Overview" />
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Embed URL <span class="text-danger">*</span></label>
+                    <hr class="my-3" />
+                    <small class="text-muted fw-semibold text-uppercase">Configuration</small>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-link-45deg"></i> Embed URL <span class="text-danger">*</span></label>
                         <input class="form-control" @bind="_formEmbedUrl" placeholder="https://app.powerbi.com/view?r=..." />
                         <div class="form-text">Paste the Power BI "Publish to web" embed URL.</div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-card-text"></i> Description</label>
                         <textarea class="form-control" @bind="_formDescription" rows="2" placeholder="Optional description"></textarea>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Sort Order</label>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-sort-numeric-down"></i> Sort Order</label>
                         <input type="number" class="form-control" @bind="_formSortOrder" />
                     </div>
                 </div>

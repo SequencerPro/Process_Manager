@@ -71,19 +71,25 @@ else if (_data is not null)
 
 @if (_showForm)
 {
-    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
-        <div class="modal-dialog">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "New") C&amp;E Matrix</h5>
-                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                    <div class="pm-modal-icon pm-modal-icon-green">
+                        <i class="bi @(_editId.HasValue ? "bi-pencil-square" : "bi-plus-circle")"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "New") C&amp;E Matrix</h5>
+                        <div class="pm-modal-subtitle">@(_editId.HasValue ? "Update matrix details" : "Create a new Cause &amp; Effect matrix")</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseForm"></button>
                 </div>
                 <div class="modal-body">
                     @if (!_editId.HasValue)
                     {
-                        <div class="mb-3">
-                            <label class="form-label">Process Step <span class="text-danger">*</span></label>
-                            <select class="form-select form-select-sm" @bind="_formProcessId" @bind:after="OnProcessSelected">
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-diagram-3"></i> Process Step <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="_formProcessId" @bind:after="OnProcessSelected">
                                 <option value="">— select process first —</option>
                                 @if (_processes is not null)
                                 {
@@ -96,9 +102,9 @@ else if (_data is not null)
                         </div>
                         @if (_selectedSteps.Any())
                         {
-                            <div class="mb-3">
-                                <label class="form-label">Step <span class="text-danger">*</span></label>
-                                <select class="form-select form-select-sm" @bind="_formStepId">
+                            <div class="pm-input-group">
+                                <label><i class="bi bi-list-ol"></i> Step <span class="text-danger">*</span></label>
+                                <select class="form-select" @bind="_formStepId">
                                     <option value="">Select a step...</option>
                                     @foreach (var s in _selectedSteps)
                                     {
@@ -106,15 +112,16 @@ else if (_data is not null)
                                     }
                                 </select>
                             </div>
+                            <div class="pm-modal-divider">Details</div>
                         }
                     }
-                    <div class="mb-3">
-                        <label class="form-label">Name <span class="text-danger">*</span></label>
-                        <input class="form-control form-control-sm" @bind="_formName" />
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Name <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_formName" />
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea class="form-control form-control-sm" rows="2" @bind="_formDescription"></textarea>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-card-text"></i> Description</label>
+                        <textarea class="form-control" rows="2" @bind="_formDescription"></textarea>
                     </div>
                     @if (!string.IsNullOrEmpty(_formError)) { <div class="alert alert-danger py-2 mt-2">@_formError</div> }
                 </div>

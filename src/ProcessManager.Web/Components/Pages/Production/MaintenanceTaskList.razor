@@ -137,18 +137,24 @@ else
 <!-- Create Modal -->
 @if (_showCreate)
 {
-    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-wrench-adjustable me-2"></i>Add Maintenance Task</h5>
-                    <button class="btn-close" @onclick="() => _showCreate = false"></button>
+                    <div class="pm-modal-icon pm-modal-icon-orange">
+                        <i class="bi bi-plus-circle"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title mb-0">Add Maintenance Task</h5>
+                        <span class="pm-modal-subtitle">Schedule a new maintenance task for equipment</span>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showCreate = false"></button>
                 </div>
                 <div class="modal-body">
                     @if (_createError is not null) { <div class="alert alert-danger small py-2">@_createError</div> }
-                    <div class="mb-3">
-                        <label class="form-label small">Equipment <span class="text-danger">*</span></label>
-                        <select class="form-select form-select-sm" @bind="_createEquipmentId">
+                    <div class="pm-input-group">
+                        <label class="form-label"><i class="bi bi-gear-wide me-1"></i>Equipment <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="_createEquipmentId">
                             <option value="">Select equipment…</option>
                             @foreach (var e in _allEquipment)
                             {
@@ -156,33 +162,39 @@ else
                             }
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label small">Title <span class="text-danger">*</span></label>
-                        <input class="form-control form-control-sm" @bind="_createTitle" />
+
+                    <hr class="my-3"><div class="text-muted small fw-semibold mb-2">Details</div>
+
+                    <div class="pm-input-group">
+                        <label class="form-label"><i class="bi bi-type me-1"></i>Title <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_createTitle" />
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label small">Type</label>
-                        <select class="form-select form-select-sm" @bind="_createType">
+                    <div class="pm-input-group mt-3">
+                        <label class="form-label"><i class="bi bi-wrench-adjustable me-1"></i>Type</label>
+                        <select class="form-select" @bind="_createType">
                             <option value="PreventiveMaintenance">Preventive Maintenance</option>
                             <option value="CorrectiveMaintenance">Corrective Maintenance</option>
                             <option value="Inspection">Inspection</option>
                             <option value="Calibration">Calibration</option>
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label small">Due Date <span class="text-danger">*</span></label>
-                        <input type="date" class="form-control form-control-sm"
+
+                    <hr class="my-3"><div class="text-muted small fw-semibold mb-2">Schedule</div>
+
+                    <div class="pm-input-group">
+                        <label class="form-label"><i class="bi bi-calendar-event me-1"></i>Due Date <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control"
                                value="@_createDueDate.ToString("yyyy-MM-dd")"
                                @onchange="e => _createDueDate = e.Value is string s && !string.IsNullOrEmpty(s) ? DateTime.Parse(s) : DateTime.Today.AddDays(7)" />
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label small">Assigned To</label>
-                        <input class="form-control form-control-sm" @bind="_createAssignedTo" />
+                    <div class="pm-input-group mt-3">
+                        <label class="form-label"><i class="bi bi-person me-1"></i>Assigned To</label>
+                        <input class="form-control" @bind="_createAssignedTo" />
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary btn-sm" @onclick="() => _showCreate = false">Cancel</button>
-                    <button class="btn btn-primary btn-sm" @onclick="CreateTask" disabled="@_saving">
+                    <button class="btn btn-secondary" @onclick="() => _showCreate = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="CreateTask" disabled="@_saving">
                         @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> } Save
                     </button>
                 </div>

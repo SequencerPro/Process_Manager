@@ -102,23 +102,29 @@ else if (_data is not null)
 
 @if (_showForm)
 {
-    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
-        <div class="modal-dialog">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(_editId.HasValue ? "Edit PFMEA" : "New PFMEA")</h5>
-                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                    <div class="pm-modal-icon pm-modal-icon-orange">
+                        <i class="bi @(_editId.HasValue ? "bi-pencil-square" : "bi-plus-circle")"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">@(_editId.HasValue ? "Edit PFMEA" : "New PFMEA")</h5>
+                        <div class="pm-modal-subtitle">@(_editId.HasValue ? "Update PFMEA details" : "Create a new Process Failure Mode and Effects Analysis")</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseForm"></button>
                 </div>
                 <div class="modal-body">
                     @if (!_editId.HasValue)
                     {
-                        <div class="mb-3">
-                            <label class="form-label">Code <span class="text-danger">*</span></label>
-                            <input class="form-control form-control-sm" @bind="_formCode" placeholder="e.g. PFMEA-MACH-V1" />
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-upc-scan"></i> Code <span class="text-danger">*</span></label>
+                            <input class="form-control" @bind="_formCode" placeholder="e.g. PFMEA-MACH-V1" />
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Process <span class="text-danger">*</span></label>
-                            <select class="form-select form-select-sm" @bind="_formProcessId">
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-diagram-3"></i> Process <span class="text-danger">*</span></label>
+                            <select class="form-select" @bind="_formProcessId">
                                 <option value="">Select a process...</option>
                                 @if (_processes is not null)
                                 {
@@ -129,14 +135,15 @@ else if (_data is not null)
                                 }
                             </select>
                         </div>
+                        <div class="pm-modal-divider">Details</div>
                     }
-                    <div class="mb-3">
-                        <label class="form-label">Name <span class="text-danger">*</span></label>
-                        <input class="form-control form-control-sm" @bind="_formName" />
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Name <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_formName" />
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea class="form-control form-control-sm" rows="3" @bind="_formDescription"></textarea>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-card-text"></i> Description</label>
+                        <textarea class="form-control" rows="3" @bind="_formDescription"></textarea>
                     </div>
                     @if (_editId.HasValue)
                     {

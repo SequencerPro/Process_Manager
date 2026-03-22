@@ -243,6 +243,8 @@ public class WorkorderTests : IntegrationTestBase
     [Fact]
     public async Task Create_Workorder_CreatesEntryPointJobs()
     {
+        // Merge workflow has 3 non-terminal nodes: A (entry), B (entry), C (non-entry)
+        // All 3 get pre-populated. A and B are Active, C is Pending.
         var scenario = await BuildMergeWorkflowScenario();
 
         var wo = await CreateWorkorder(scenario.Workflow.Id, name: "Test WO");
@@ -250,8 +252,18 @@ public class WorkorderTests : IntegrationTestBase
 
         Assert.Equal("Created", detail.Status);
         Assert.NotNull(detail.Jobs);
-        Assert.Equal(2, detail.Jobs.Count); // Two entry points → two jobs
-        Assert.All(detail.Jobs, j => Assert.Equal("Created", j.JobStatus));
+        // 3 total: A (Active), B (Active), C (Pending)
+        Assert.Equal(3, detail.Jobs.Count);
+
+        // Entry point nodes should be Active with a job
+        var activeJobs = detail.Jobs.Where(j => j.NodeStatus == "Active").ToList();
+        Assert.Equal(2, activeJobs.Count);
+        Assert.All(activeJobs, j => Assert.Equal("Created", j.JobStatus));
+
+        // C should be Pending with no job
+        var pendingJobs = detail.Jobs.Where(j => j.NodeStatus == "Pending").ToList();
+        Assert.Single(pendingJobs);
+        Assert.False(pendingJobs.First().HasJob);
     }
 
     [Fact]
@@ -298,7 +310,14 @@ public class WorkorderTests : IntegrationTestBase
         var detail = await GetWorkorder(wo.Id);
         Assert.Equal("InProgress", detail.Status);
         Assert.NotNull(detail.StartedAt);
-        Assert.All(detail.Jobs!, j => Assert.Equal("InProgress", j.JobStatus));
+
+        // Active jobs (entry points A and B) should be InProgress
+        var activeJobs = detail.Jobs!.Where(j => j.NodeStatus == "Active").ToList();
+        Assert.Equal(2, activeJobs.Count);
+        Assert.All(activeJobs, j => Assert.Equal("InProgress", j.JobStatus));
+
+        // C remains Pending
+        Assert.Single(detail.Jobs!.Where(j => j.NodeStatus == "Pending"));
     }
 
     [Fact]
@@ -315,20 +334,25 @@ public class WorkorderTests : IntegrationTestBase
 
         // Complete only Process A
         var jobA = detail.Jobs!.First(j => j.ProcessName == "Process A");
-        await CompleteJobStepsAndJob(jobA.JobId);
+        await CompleteJobStepsAndJob(jobA.JobId!.Value);
 
-        // Process C should NOT be created yet (B is still in progress)
-        detail = await GetWorkorder(wo.Id);
-        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Process C");
-
-        // Now complete Process B → Process C gets auto-created
-        var jobB = detail.Jobs!.First(j => j.ProcessName == "Process B");
-        await CompleteJobStepsAndJob(jobB.JobId);
-
-        // Reload — Process C job should exist and be startable
+        // Process C should still be Pending (B is not complete)
         detail = await GetWorkorder(wo.Id);
         var jobC = detail.Jobs!.FirstOrDefault(j => j.ProcessName == "Process C");
         Assert.NotNull(jobC);
+        Assert.Equal("Pending", jobC.NodeStatus);
+        Assert.False(jobC.HasJob);
+
+        // Now complete Process B → Process C gets activated
+        var jobB = detail.Jobs!.First(j => j.ProcessName == "Process B");
+        await CompleteJobStepsAndJob(jobB.JobId!.Value);
+
+        // Reload — Process C should now be Active and startable
+        detail = await GetWorkorder(wo.Id);
+        jobC = detail.Jobs!.FirstOrDefault(j => j.ProcessName == "Process C");
+        Assert.NotNull(jobC);
+        Assert.Equal("Active", jobC.NodeStatus);
+        Assert.True(jobC.HasJob);
         Assert.True(jobC.CanStart);
     }
 
@@ -343,17 +367,18 @@ public class WorkorderTests : IntegrationTestBase
         await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
         var detail = await GetWorkorder(wo.Id);
 
-        // Complete Process A → triggers auto-creation of Process B job
-        var jobA = detail.Jobs!.First();
-        await CompleteJobStepsAndJob(jobA.JobId);
+        // Complete Process A → triggers activation of Process B
+        var jobA = detail.Jobs!.First(j => j.ProcessName == "Process A");
+        await CompleteJobStepsAndJob(jobA.JobId!.Value);
 
         // Reload — Process B should be startable
         detail = await GetWorkorder(wo.Id);
         var jobB = detail.Jobs!.First(j => j.ProcessName == "Process B");
+        Assert.Equal("Active", jobB.NodeStatus);
         Assert.True(jobB.CanStart);
 
         // Actually start it — should succeed
-        var started = await StartJob(jobB.JobId);
+        var started = await StartJob(jobB.JobId!.Value);
         Assert.Equal("InProgress", started.Status);
     }
 
@@ -368,17 +393,21 @@ public class WorkorderTests : IntegrationTestBase
         await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
         var detail = await GetWorkorder(wo.Id);
 
-        // Should only have 1 job (entry point)
-        Assert.Single(detail.Jobs!);
+        // Both A (Active) and B (Pending) should exist
+        Assert.Equal(2, detail.Jobs!.Count);
+        Assert.Single(detail.Jobs!, j => j.NodeStatus == "Active");
+        Assert.Single(detail.Jobs!, j => j.NodeStatus == "Pending");
 
-        // Complete the entry point job
-        var jobA = detail.Jobs!.First();
-        await CompleteJobStepsAndJob(jobA.JobId);
+        // Complete the entry point job (A)
+        var jobA = detail.Jobs!.First(j => j.NodeStatus == "Active");
+        await CompleteJobStepsAndJob(jobA.JobId!.Value);
 
-        // Reload — Process B job should be auto-created
+        // Reload — Process B job should be activated (still 2 total rows)
         detail = await GetWorkorder(wo.Id);
         Assert.Equal(2, detail.Jobs!.Count);
         var jobB = detail.Jobs!.First(j => j.ProcessName == "Process B");
+        Assert.Equal("Active", jobB.NodeStatus);
+        Assert.True(jobB.HasJob);
         Assert.Equal("Created", jobB.JobStatus);
     }
 
@@ -393,27 +422,31 @@ public class WorkorderTests : IntegrationTestBase
         await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
         var detail = await GetWorkorder(wo.Id);
 
-        // Both entry-point jobs exist
-        Assert.Equal(2, detail.Jobs!.Count);
+        // All 3 nodes pre-populated: A (Active), B (Active), C (Pending)
+        Assert.Equal(3, detail.Jobs!.Count);
 
         var jobA = detail.Jobs!.First(j => j.ProcessName == "Process A");
         var jobB = detail.Jobs!.First(j => j.ProcessName == "Process B");
 
         // Complete only Process A
-        await CompleteJobStepsAndJob(jobA.JobId);
+        await CompleteJobStepsAndJob(jobA.JobId!.Value);
 
-        // Reload — Process C should NOT be created yet (B is not complete)
+        // Reload — Process C should still be Pending (B is not complete)
         detail = await GetWorkorder(wo.Id);
-        Assert.Equal(2, detail.Jobs!.Count); // Still only 2 jobs
-        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Process C");
+        Assert.Equal(3, detail.Jobs!.Count); // Still 3 rows
+        var jobC = detail.Jobs!.First(j => j.ProcessName == "Process C");
+        Assert.Equal("Pending", jobC.NodeStatus);
+        Assert.False(jobC.HasJob);
 
         // Now complete Process B
-        await CompleteJobStepsAndJob(jobB.JobId);
+        await CompleteJobStepsAndJob(jobB.JobId!.Value);
 
-        // Reload — Process C should now be auto-created
+        // Reload — Process C should now be Active
         detail = await GetWorkorder(wo.Id);
         Assert.Equal(3, detail.Jobs!.Count);
-        var jobC = detail.Jobs!.First(j => j.ProcessName == "Process C");
+        jobC = detail.Jobs!.First(j => j.ProcessName == "Process C");
+        Assert.Equal("Active", jobC.NodeStatus);
+        Assert.True(jobC.HasJob);
         Assert.Equal("Created", jobC.JobStatus);
     }
 
@@ -428,14 +461,14 @@ public class WorkorderTests : IntegrationTestBase
         await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
         var detail = await GetWorkorder(wo.Id);
 
-        // Complete A → triggers auto-creation of B
-        await CompleteJobStepsAndJob(detail.Jobs!.First().JobId);
+        // Complete A → activates B
+        await CompleteJobStepsAndJob(detail.Jobs!.First(j => j.ProcessName == "Process A").JobId!.Value);
 
         // Complete B → triggers workorder completion check
         detail = await GetWorkorder(wo.Id);
         var jobB = detail.Jobs!.First(j => j.ProcessName == "Process B");
-        await StartJob(jobB.JobId);
-        await CompleteJobStepsAndJob(jobB.JobId);
+        await StartJob(jobB.JobId!.Value);
+        await CompleteJobStepsAndJob(jobB.JobId!.Value);
 
         // Workorder should now be Completed
         detail = await GetWorkorder(wo.Id);
@@ -457,7 +490,14 @@ public class WorkorderTests : IntegrationTestBase
 
         var detail = await GetWorkorder(wo.Id);
         Assert.Equal("Cancelled", detail.Status);
-        Assert.All(detail.Jobs!, j => Assert.Equal("Cancelled", j.JobStatus));
+
+        // Active jobs (A and B) should be Cancelled
+        var activeJobs = detail.Jobs!.Where(j => j.HasJob).ToList();
+        Assert.All(activeJobs, j => Assert.Equal("Cancelled", j.JobStatus));
+
+        // C was Pending → should be Skipped
+        var cJob = detail.Jobs!.First(j => j.ProcessName == "Process C");
+        Assert.Equal("Skipped", cJob.NodeStatus);
     }
 
     [Fact]
@@ -469,11 +509,16 @@ public class WorkorderTests : IntegrationTestBase
         var detail = await GetWorkorder(wo.Id);
 
         Assert.NotNull(detail.Jobs);
-        Assert.Single(detail.Jobs);
+        // Linear workflow: A (Active) + B (Pending) = 2 rows
+        Assert.Equal(2, detail.Jobs.Count);
 
-        // Entry point job should have CanStart = true (it's in Created status and is an entry point)
-        var job = detail.Jobs.First();
-        Assert.True(job.CanStart);
+        // Entry point job (A) should have CanStart = true
+        var jobA = detail.Jobs.First(j => j.NodeStatus == "Active");
+        Assert.True(jobA.CanStart);
+
+        // Pending job (B) should have CanStart = false
+        var jobB = detail.Jobs.First(j => j.NodeStatus == "Pending");
+        Assert.False(jobB.CanStart);
     }
 
     [Fact]
@@ -486,10 +531,13 @@ public class WorkorderTests : IntegrationTestBase
 
         Assert.Equal("Created", detail.Status);
         Assert.NotNull(detail.Jobs);
-        Assert.Equal(2, detail.Jobs.Count); // Two entry points → two jobs
+        // 3 nodes: A1 (Active), A2 (Active), B (Pending)
+        Assert.Equal(3, detail.Jobs.Count);
 
-        // Job codes must be distinct despite using the same process
-        var codes = detail.Jobs.Select(j => j.JobCode).ToList();
+        // Two Active entry-point jobs must have distinct codes
+        var activeJobs = detail.Jobs.Where(j => j.NodeStatus == "Active").ToList();
+        Assert.Equal(2, activeJobs.Count);
+        var codes = activeJobs.Select(j => j.JobCode).ToList();
         Assert.Equal(codes.Distinct().Count(), codes.Count);
     }
 
@@ -501,9 +549,12 @@ public class WorkorderTests : IntegrationTestBase
         var wo = await CreateWorkorder(scenario.Workflow.Id, name: "Diff Process EP Test");
         var detail = await GetWorkorder(wo.Id);
 
-        Assert.Equal(2, detail.Jobs!.Count);
+        // A (Active), B (Active), C (Pending)
+        Assert.Equal(3, detail.Jobs!.Count);
 
-        var codes = detail.Jobs.Select(j => j.JobCode).ToList();
+        var activeJobs = detail.Jobs.Where(j => j.NodeStatus == "Active").ToList();
+        Assert.Equal(2, activeJobs.Count);
+        var codes = activeJobs.Select(j => j.JobCode).ToList();
         Assert.Equal(codes.Distinct().Count(), codes.Count);
     }
 
@@ -517,8 +568,11 @@ public class WorkorderTests : IntegrationTestBase
 
         var detail = await GetWorkorder(wo.Id);
         Assert.Equal("InProgress", detail.Status);
-        Assert.Equal(2, detail.Jobs!.Count);
-        Assert.All(detail.Jobs, j => Assert.Equal("InProgress", j.JobStatus));
+
+        // A and B are Active and InProgress
+        var activeJobs = detail.Jobs!.Where(j => j.NodeStatus == "Active").ToList();
+        Assert.Equal(2, activeJobs.Count);
+        Assert.All(activeJobs, j => Assert.Equal("InProgress", j.JobStatus));
     }
 
     [Fact]
@@ -534,19 +588,21 @@ public class WorkorderTests : IntegrationTestBase
         // Complete both entry-point jobs
         var jobA = detail.Jobs!.First(j => j.ProcessName == "Process A");
         var jobB = detail.Jobs!.First(j => j.ProcessName == "Process B");
-        await CompleteJobStepsAndJob(jobA.JobId);
-        await CompleteJobStepsAndJob(jobB.JobId);
+        await CompleteJobStepsAndJob(jobA.JobId!.Value);
+        await CompleteJobStepsAndJob(jobB.JobId!.Value);
 
-        // Merge job (Process C) should be auto-created
+        // Merge node (Process C) should be Active now
         detail = await GetWorkorder(wo.Id);
         Assert.Equal(3, detail.Jobs!.Count);
         var jobC = detail.Jobs!.First(j => j.ProcessName == "Process C");
+        Assert.Equal("Active", jobC.NodeStatus);
+        Assert.True(jobC.HasJob);
         Assert.Equal("Created", jobC.JobStatus);
         Assert.True(jobC.CanStart);
 
         // Start and complete Process C
-        await StartJob(jobC.JobId);
-        await CompleteJobStepsAndJob(jobC.JobId);
+        await StartJob(jobC.JobId!.Value);
+        await CompleteJobStepsAndJob(jobC.JobId!.Value);
 
         // Workorder should auto-complete
         detail = await GetWorkorder(wo.Id);
@@ -648,18 +704,23 @@ public class WorkorderTests : IntegrationTestBase
         await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
 
         var detail = await GetWorkorder(wo.Id);
-        var entryJob = detail.Jobs!.Single();
+        // Entry (Active) + Pass (Pending) + Fail (Pending) = 3 nodes
+        var entryJob = detail.Jobs!.Single(j => j.NodeStatus == "Active");
 
         // Add a PASS item to the entry job
-        await CreateItem(entryJob.JobId, scenario.Kind.Id, scenario.PassGrade.Id);
+        await CreateItem(entryJob.JobId!.Value, scenario.Kind.Id, scenario.PassGrade.Id);
 
         // Complete the entry job
-        await CompleteJobStepsAndJob(entryJob.JobId);
+        await CompleteJobStepsAndJob(entryJob.JobId!.Value);
 
-        // Pass Process job should be auto-created; Fail Process job should not
+        // Pass Process should be Active; Fail Process should be Skipped
         detail = await GetWorkorder(wo.Id);
-        Assert.Contains(detail.Jobs!, j => j.ProcessName == "Pass Process");
-        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Fail Process");
+        var passJob = detail.Jobs!.FirstOrDefault(j => j.ProcessName == "Pass Process");
+        var failJob = detail.Jobs!.FirstOrDefault(j => j.ProcessName == "Fail Process");
+        Assert.NotNull(passJob);
+        Assert.Equal("Active", passJob.NodeStatus);
+        Assert.NotNull(failJob);
+        Assert.Equal("Skipped", failJob.NodeStatus);
     }
 
     [Fact]
@@ -671,16 +732,17 @@ public class WorkorderTests : IntegrationTestBase
         await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
 
         var detail = await GetWorkorder(wo.Id);
-        var entryJob = detail.Jobs!.Single();
+        var entryJob = detail.Jobs!.Single(j => j.NodeStatus == "Active");
 
         // Add an OTHER item — matches neither PASS nor FAIL conditions
-        await CreateItem(entryJob.JobId, scenario.Kind.Id, scenario.OtherGrade.Id);
+        await CreateItem(entryJob.JobId!.Value, scenario.Kind.Id, scenario.OtherGrade.Id);
 
-        await CompleteJobStepsAndJob(entryJob.JobId);
+        await CompleteJobStepsAndJob(entryJob.JobId!.Value);
 
         detail = await GetWorkorder(wo.Id);
-        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Pass Process");
-        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Fail Process");
+        // Both pass and fail nodes should be Skipped (no matching grades)
+        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Pass Process" && j.NodeStatus == "Active");
+        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Fail Process" && j.NodeStatus == "Active");
     }
 
     [Fact]
@@ -692,14 +754,14 @@ public class WorkorderTests : IntegrationTestBase
         await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
 
         var detail = await GetWorkorder(wo.Id);
-        var entryJob = detail.Jobs!.Single();
+        var entryJob = detail.Jobs!.Single(j => j.NodeStatus == "Active");
 
         // No items added — GradeBased links should not fire
-        await CompleteJobStepsAndJob(entryJob.JobId);
+        await CompleteJobStepsAndJob(entryJob.JobId!.Value);
 
         detail = await GetWorkorder(wo.Id);
-        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Pass Process");
-        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Fail Process");
+        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Pass Process" && j.NodeStatus == "Active");
+        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Fail Process" && j.NodeStatus == "Active");
     }
 
     [Fact]
@@ -745,14 +807,14 @@ public class WorkorderTests : IntegrationTestBase
         await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
 
         var detail = await GetWorkorder(wo.Id);
-        var entryJob = detail.Jobs!.Single();
+        var entryJob = detail.Jobs!.Single(j => j.NodeStatus == "Active");
 
         // No items added — Always link fires, GradeBased does not
-        await CompleteJobStepsAndJob(entryJob.JobId);
+        await CompleteJobStepsAndJob(entryJob.JobId!.Value);
 
         detail = await GetWorkorder(wo.Id);
-        Assert.Contains(detail.Jobs!, j => j.ProcessName == "Always Process");
-        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Grade Process");
+        Assert.Contains(detail.Jobs!, j => j.ProcessName == "Always Process" && j.NodeStatus == "Active");
+        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Grade Process" && j.NodeStatus == "Active");
     }
 
     [Fact]
@@ -786,12 +848,15 @@ public class WorkorderTests : IntegrationTestBase
         await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
 
         var detail = await GetWorkorder(wo.Id);
-        var jobA = detail.Jobs!.Single();
-        await CompleteJobStepsAndJob(jobA.JobId);
+        var jobA = detail.Jobs!.Single(j => j.NodeStatus == "Active");
+        await CompleteJobStepsAndJob(jobA.JobId!.Value);
 
-        // Manual link should NOT auto-create Process B job
+        // Manual link should NOT auto-activate Process B job — B should stay Pending
         detail = await GetWorkorder(wo.Id);
-        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Process B");
+        var jobB = detail.Jobs!.FirstOrDefault(j => j.ProcessName == "Process B");
+        Assert.NotNull(jobB);
+        Assert.Equal("Pending", jobB.NodeStatus);
+        Assert.False(jobB.HasJob);
     }
 
     [Fact]
@@ -804,16 +869,176 @@ public class WorkorderTests : IntegrationTestBase
         await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
 
         var detail = await GetWorkorder(wo.Id);
-        var entryJob = detail.Jobs!.Single();
+        var entryJob = detail.Jobs!.Single(j => j.NodeStatus == "Active");
 
         // Add a FAIL item
-        await CreateItem(entryJob.JobId, scenario.Kind.Id, scenario.FailGrade.Id);
+        await CreateItem(entryJob.JobId!.Value, scenario.Kind.Id, scenario.FailGrade.Id);
 
-        await CompleteJobStepsAndJob(entryJob.JobId);
+        await CompleteJobStepsAndJob(entryJob.JobId!.Value);
 
         detail = await GetWorkorder(wo.Id);
-        Assert.Contains(detail.Jobs!, j => j.ProcessName == "Fail Process");
-        Assert.DoesNotContain(detail.Jobs!, j => j.ProcessName == "Pass Process");
+        var failJob = detail.Jobs!.FirstOrDefault(j => j.ProcessName == "Fail Process");
+        var passJob = detail.Jobs!.FirstOrDefault(j => j.ProcessName == "Pass Process");
+        Assert.NotNull(failJob);
+        Assert.Equal("Active", failJob.NodeStatus);
+        Assert.NotNull(passJob);
+        Assert.Equal("Skipped", passJob.NodeStatus);
+    }
+
+    // ──────── Phase 12 Step 4: WorkflowJob Execution Record Tests ────────
+
+    [Fact]
+    public async Task Create_Workorder_PrePopulatesAllNodes_PendingStatus()
+    {
+        // Linear workflow A (entry) → B → End
+        // All non-terminal nodes should be pre-populated at creation
+        var scenario = await BuildLinearWorkflowScenario();
+
+        var wo = await CreateWorkorder(scenario.Workflow.Id, name: "PrePopulate Test");
+        var detail = await GetWorkorder(wo.Id);
+
+        Assert.NotNull(detail.Jobs);
+        // A (Active) + B (Pending) = 2 rows
+        Assert.Equal(2, detail.Jobs.Count);
+
+        // Node A should be Active with a job
+        var nodeA = detail.Jobs.FirstOrDefault(j => j.ProcessName == "Process A");
+        Assert.NotNull(nodeA);
+        Assert.Equal("Active", nodeA.NodeStatus);
+        Assert.True(nodeA.HasJob);
+
+        // Node B should be Pending with no job
+        var nodeB = detail.Jobs.FirstOrDefault(j => j.ProcessName == "Process B");
+        Assert.NotNull(nodeB);
+        Assert.Equal("Pending", nodeB.NodeStatus);
+        Assert.False(nodeB.HasJob);
+    }
+
+    [Fact]
+    public async Task Complete_EntryPointJob_ActivatesNextNode()
+    {
+        // Linear workflow A → B
+        var scenario = await BuildLinearWorkflowScenario();
+
+        var wo = await CreateWorkorder(scenario.Workflow.Id, name: "Activate Next Test");
+        await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
+        var detail = await GetWorkorder(wo.Id);
+
+        // Complete node A's job
+        var nodeA = detail.Jobs!.First(j => j.ProcessName == "Process A");
+        await CompleteJobStepsAndJob(nodeA.JobId!.Value);
+
+        // GET workorder detail
+        detail = await GetWorkorder(wo.Id);
+
+        // Node B should now be Active with a job
+        var nodeB = detail.Jobs!.FirstOrDefault(j => j.ProcessName == "Process B");
+        Assert.NotNull(nodeB);
+        Assert.Equal("Active", nodeB.NodeStatus);
+        Assert.True(nodeB.HasJob);
+        Assert.NotNull(nodeB.JobId);
+    }
+
+    [Fact]
+    public async Task Complete_AllNodes_SetsCompleteStatus()
+    {
+        // Linear workflow A → B: complete both jobs
+        var scenario = await BuildLinearWorkflowScenario();
+
+        var wo = await CreateWorkorder(scenario.Workflow.Id, name: "Complete Status Test");
+        await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
+        var detail = await GetWorkorder(wo.Id);
+
+        // Complete A
+        var nodeA = detail.Jobs!.First(j => j.ProcessName == "Process A");
+        await CompleteJobStepsAndJob(nodeA.JobId!.Value);
+
+        // Complete B
+        detail = await GetWorkorder(wo.Id);
+        var nodeB = detail.Jobs!.First(j => j.ProcessName == "Process B");
+        await StartJob(nodeB.JobId!.Value);
+        await CompleteJobStepsAndJob(nodeB.JobId!.Value);
+
+        // Both nodes should have NodeStatus = "Complete"
+        detail = await GetWorkorder(wo.Id);
+        var finalNodeA = detail.Jobs!.First(j => j.ProcessName == "Process A");
+        var finalNodeB = detail.Jobs!.First(j => j.ProcessName == "Process B");
+        Assert.Equal("Complete", finalNodeA.NodeStatus);
+        Assert.Equal("Complete", finalNodeB.NodeStatus);
+    }
+
+    [Fact]
+    public async Task Cancel_Workorder_PendingNodesMarkedSkipped()
+    {
+        // Linear workflow A → B: start workorder (B is Pending), then cancel
+        var scenario = await BuildLinearWorkflowScenario();
+
+        var wo = await CreateWorkorder(scenario.Workflow.Id, name: "Cancel Pending Test");
+        await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
+
+        // Cancel the workorder — B is still Pending
+        var resp = await Client.PostAsync($"/api/workorders/{wo.Id}/cancel", null);
+        resp.EnsureSuccessStatusCode();
+
+        var detail = await GetWorkorder(wo.Id);
+        Assert.Equal("Cancelled", detail.Status);
+
+        // B was Pending → should be Skipped after cancel
+        var nodeB = detail.Jobs!.FirstOrDefault(j => j.ProcessName == "Process B");
+        Assert.NotNull(nodeB);
+        Assert.Equal("Skipped", nodeB.NodeStatus);
+    }
+
+    [Fact]
+    public async Task WorkorderJob_NodeStatus_ActiveForEntryPoint()
+    {
+        var scenario = await BuildLinearWorkflowScenario();
+
+        var wo = await CreateWorkorder(scenario.Workflow.Id, name: "EntryPoint Active Test");
+        var detail = await GetWorkorder(wo.Id);
+
+        // Entry point node A should be Active
+        var nodeA = detail.Jobs!.FirstOrDefault(j => j.ProcessName == "Process A");
+        Assert.NotNull(nodeA);
+        Assert.Equal("Active", nodeA.NodeStatus);
+    }
+
+    [Fact]
+    public async Task WorkorderJob_HasJob_FalseForPendingNodes()
+    {
+        var scenario = await BuildLinearWorkflowScenario();
+
+        var wo = await CreateWorkorder(scenario.Workflow.Id, name: "HasJob False Test");
+        var detail = await GetWorkorder(wo.Id);
+
+        // Non-entry-point node B should have HasJob = false
+        var nodeB = detail.Jobs!.FirstOrDefault(j => j.ProcessName == "Process B");
+        Assert.NotNull(nodeB);
+        Assert.Equal("Pending", nodeB.NodeStatus);
+        Assert.False(nodeB.HasJob);
+        Assert.Null(nodeB.JobId);
+    }
+
+    [Fact]
+    public async Task WorkorderJob_HasJob_TrueAfterActivation()
+    {
+        var scenario = await BuildLinearWorkflowScenario();
+
+        var wo = await CreateWorkorder(scenario.Workflow.Id, name: "HasJob True Test");
+        await Client.PostAsync($"/api/workorders/{wo.Id}/start", null);
+        var detail = await GetWorkorder(wo.Id);
+
+        // Complete A → activates B
+        var nodeA = detail.Jobs!.First(j => j.ProcessName == "Process A");
+        await CompleteJobStepsAndJob(nodeA.JobId!.Value);
+
+        // B should now have HasJob = true
+        detail = await GetWorkorder(wo.Id);
+        var nodeB = detail.Jobs!.FirstOrDefault(j => j.ProcessName == "Process B");
+        Assert.NotNull(nodeB);
+        Assert.Equal("Active", nodeB.NodeStatus);
+        Assert.True(nodeB.HasJob);
+        Assert.NotNull(nodeB.JobId);
     }
 }
 

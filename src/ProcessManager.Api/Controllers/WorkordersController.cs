@@ -120,8 +120,23 @@ public class WorkordersController : ControllerBase
 
         _db.Workorders.Add(workorder);
 
-        // Create Jobs for each entry-point process
-        var jobIndex = 1;
+        // Pre-populate WorkorderJob rows for ALL non-terminal nodes with Pending status
+        var allNonTerminalNodes = workflow.WorkflowProcesses
+            .Where(wp => !wp.IsTerminalNode && wp.ProcessId.HasValue)
+            .ToList();
+
+        foreach (var wp in allNonTerminalNodes)
+        {
+            _db.WorkorderJobs.Add(new WorkorderJob
+            {
+                WorkorderId = workorder.Id,
+                WorkflowProcessId = wp.Id,
+                JobId = null,
+                NodeStatus = WorkflowNodeStatus.Pending
+            });
+        }
+
+        // Create Jobs for each entry-point process and activate those WorkorderJob rows
         foreach (var ep in entryPoints.OrderBy(e => e.SortOrder))
         {
             var process = ep.Process!;
@@ -162,14 +177,25 @@ public class WorkordersController : ControllerBase
                 });
             }
 
-            _db.WorkorderJobs.Add(new WorkorderJob
-            {
-                WorkorderId = workorder.Id,
-                WorkflowProcessId = ep.Id,
-                JobId = job.Id
-            });
+            // Activate the pre-populated WorkorderJob row for this entry point
+            var existingWj = _db.WorkorderJobs.Local
+                .FirstOrDefault(wj => wj.WorkorderId == workorder.Id && wj.WorkflowProcessId == ep.Id);
 
-            jobIndex++;
+            if (existingWj is not null)
+            {
+                existingWj.JobId = job.Id;
+                existingWj.NodeStatus = WorkflowNodeStatus.Active;
+            }
+            else
+            {
+                _db.WorkorderJobs.Add(new WorkorderJob
+                {
+                    WorkorderId = workorder.Id,
+                    WorkflowProcessId = ep.Id,
+                    JobId = job.Id,
+                    NodeStatus = WorkflowNodeStatus.Active
+                });
+            }
         }
 
         try
@@ -213,13 +239,13 @@ public class WorkordersController : ControllerBase
 
         if (workorder is null) return NotFound();
 
-        if (workorder.WorkorderJobs.Any(wj => wj.Job.Status == JobStatus.InProgress))
+        if (workorder.WorkorderJobs.Any(wj => wj.Job != null && wj.Job.Status == JobStatus.InProgress))
             return BadRequest("Cannot delete a workorder with in-progress jobs. Cancel it first.");
 
         // Remove associated jobs that are still Created
         var jobsToRemove = workorder.WorkorderJobs
-            .Where(wj => wj.Job.Status == JobStatus.Created)
-            .Select(wj => wj.Job)
+            .Where(wj => wj.Job != null && wj.Job.Status == JobStatus.Created)
+            .Select(wj => wj.Job!)
             .ToList();
 
         _db.Jobs.RemoveRange(jobsToRemove);
@@ -249,10 +275,10 @@ public class WorkordersController : ControllerBase
         workorder.Status = WorkorderStatus.InProgress;
         workorder.StartedAt = DateTime.UtcNow;
 
-        // Start all entry-point jobs
-        foreach (var wj in workorder.WorkorderJobs.Where(wj => wj.WorkflowProcess.IsEntryPoint))
+        // Start all Active (entry-point) jobs
+        foreach (var wj in workorder.WorkorderJobs.Where(wj => wj.NodeStatus == WorkflowNodeStatus.Active && wj.Job != null))
         {
-            if (wj.Job.Status == JobStatus.Created)
+            if (wj.Job!.Status == JobStatus.Created)
             {
                 wj.Job.Status = JobStatus.InProgress;
                 wj.Job.StartedAt = DateTime.UtcNow;
@@ -280,10 +306,14 @@ public class WorkordersController : ControllerBase
         workorder.Status = WorkorderStatus.Cancelled;
         workorder.CompletedAt = DateTime.UtcNow;
 
-        // Cancel all non-completed jobs
+        // Cancel all non-completed jobs and mark Pending nodes as Skipped
         foreach (var wj in workorder.WorkorderJobs)
         {
-            if (wj.Job.Status != JobStatus.Completed && wj.Job.Status != JobStatus.Cancelled)
+            if (wj.NodeStatus == WorkflowNodeStatus.Pending)
+            {
+                wj.NodeStatus = WorkflowNodeStatus.Skipped;
+            }
+            else if (wj.Job != null && wj.Job.Status != JobStatus.Completed && wj.Job.Status != JobStatus.Cancelled)
             {
                 wj.Job.Status = JobStatus.Cancelled;
                 wj.Job.CompletedAt = DateTime.UtcNow;
@@ -321,11 +351,12 @@ public class WorkordersController : ControllerBase
         var sourceWj = workorder.WorkorderJobs
             .FirstOrDefault(wj => wj.WorkflowProcessId == link.SourceWorkflowProcessId);
 
-        if (sourceWj is null || sourceWj.Job.Status != JobStatus.Completed)
+        if (sourceWj is null || sourceWj.Job?.Status != JobStatus.Completed)
             return BadRequest("The source job for this link has not been completed.");
 
-        // Check if a job already exists for the target
-        if (workorder.WorkorderJobs.Any(wj => wj.WorkflowProcessId == link.TargetWorkflowProcessId))
+        // Check if a job already exists for the target (Active or Complete)
+        if (workorder.WorkorderJobs.Any(wj => wj.WorkflowProcessId == link.TargetWorkflowProcessId
+                && wj.NodeStatus != WorkflowNodeStatus.Pending))
             return BadRequest("A job already exists for the target workflow process.");
 
         if (link.TargetWorkflowProcess.IsTerminalNode)
@@ -336,7 +367,7 @@ public class WorkordersController : ControllerBase
             return await GetByIdInternal(workorder.Id);
         }
 
-        // Create job for target process
+        // Activate job for target process
         var targetProcess = link.TargetWorkflowProcess.Process!;
         await CreateJobForWorkflowProcess(workorder, link.TargetWorkflowProcess, targetProcess);
 
@@ -363,6 +394,9 @@ public class WorkordersController : ControllerBase
         // Find which WorkflowProcess the completed job fulfills
         var completedWj = workorder.WorkorderJobs.FirstOrDefault(wj => wj.JobId == completedJobId);
         if (completedWj is null) return;
+
+        // Mark the completed node as Complete
+        completedWj.NodeStatus = WorkflowNodeStatus.Complete;
 
         // Get all outgoing links that can auto-fire: Always and GradeBased (Manual links are never auto-fired)
         var outgoingLinks = await _db.WorkflowLinks
@@ -399,8 +433,9 @@ public class WorkordersController : ControllerBase
 
             var targetWpId = link.TargetWorkflowProcessId;
 
-            // Skip if a job already exists for this target
-            if (workorder.WorkorderJobs.Any(wj => wj.WorkflowProcessId == targetWpId))
+            // Skip if a job already exists (Active or Complete) for this target
+            if (workorder.WorkorderJobs.Any(wj => wj.WorkflowProcessId == targetWpId
+                    && wj.NodeStatus != WorkflowNodeStatus.Pending))
                 continue;
 
             if (link.TargetWorkflowProcess.IsTerminalNode)
@@ -420,15 +455,18 @@ public class WorkordersController : ControllerBase
             {
                 var sourceWj = workorder.WorkorderJobs
                     .FirstOrDefault(wj => wj.WorkflowProcessId == inLink.SourceWorkflowProcessId);
-                return sourceWj is not null && sourceWj.Job.Status == JobStatus.Completed;
+                return sourceWj is not null && sourceWj.Job?.Status == JobStatus.Completed;
             });
 
             if (!allPredecessorsComplete) continue;
 
-            // All predecessors complete — create the next job
+            // All predecessors complete — activate the next job
             var targetProcess = link.TargetWorkflowProcess.Process!;
             await CreateJobForWorkflowProcess(workorder, link.TargetWorkflowProcess, targetProcess);
         }
+
+        // Mark definitively-skipped nodes: Pending nodes whose ALL predecessor source WJs are Complete
+        await MarkSkippedNodes(workorder);
 
         // Check if the workorder should auto-complete
         await CheckWorkorderCompletion(workorder);
@@ -474,12 +512,67 @@ public class WorkordersController : ControllerBase
             });
         }
 
-        _db.WorkorderJobs.Add(new WorkorderJob
+        // Find the existing Pending WorkorderJob row for this node and activate it
+        var existingWj = workorder.WorkorderJobs
+            .FirstOrDefault(wj => wj.WorkflowProcessId == wp.Id
+                               && wj.NodeStatus == WorkflowNodeStatus.Pending);
+
+        if (existingWj is not null)
         {
-            WorkorderId = workorder.Id,
-            WorkflowProcessId = wp.Id,
-            JobId = job.Id
-        });
+            existingWj.JobId = job.Id;
+            existingWj.NodeStatus = WorkflowNodeStatus.Active;
+        }
+        else
+        {
+            // Edge case: no pre-populated row exists, create one
+            _db.WorkorderJobs.Add(new WorkorderJob
+            {
+                WorkorderId = workorder.Id,
+                WorkflowProcessId = wp.Id,
+                JobId = job.Id,
+                NodeStatus = WorkflowNodeStatus.Active
+            });
+        }
+    }
+
+    private async Task MarkSkippedNodes(Workorder workorder)
+    {
+        // Load all workflow links for this workflow
+        var allLinks = await _db.WorkflowLinks
+            .Where(l => l.WorkflowId == workorder.WorkflowId)
+            .ToListAsync();
+
+        // For each Pending node, check if ALL predecessors are Complete/Skipped
+        // and no remaining path (Manual link) could still activate it
+        foreach (var pendingWj in workorder.WorkorderJobs
+            .Where(wj => wj.NodeStatus == WorkflowNodeStatus.Pending).ToList())
+        {
+            var incomingLinks = allLinks
+                .Where(l => l.TargetWorkflowProcessId == pendingWj.WorkflowProcessId)
+                .ToList();
+
+            if (incomingLinks.Count == 0) continue;
+
+            // If any incoming link is Manual, the user might still manually advance to this node
+            // — do not mark it Skipped automatically
+            if (incomingLinks.Any(l => l.RoutingType == RoutingType.Manual)) continue;
+
+            // All predecessors must have Complete or Skipped status
+            var allPredecessorsResolved = incomingLinks.All(link =>
+            {
+                var predWj = workorder.WorkorderJobs
+                    .FirstOrDefault(wj => wj.WorkflowProcessId == link.SourceWorkflowProcessId);
+                return predWj is not null
+                    && (predWj.NodeStatus == WorkflowNodeStatus.Complete
+                        || predWj.NodeStatus == WorkflowNodeStatus.Skipped);
+            });
+
+            if (allPredecessorsResolved)
+            {
+                // All predecessors are done and no manual path remains — mark as Skipped
+                pendingWj.NodeStatus = WorkflowNodeStatus.Skipped;
+            }
+        }
     }
 
     private async Task CheckWorkorderCompletion(Workorder workorder)
@@ -505,7 +598,7 @@ public class WorkordersController : ControllerBase
                 var sourceWj = workorder.WorkorderJobs
                     .FirstOrDefault(wj => wj.WorkflowProcessId == link.SourceWorkflowProcessId);
 
-                if (sourceWj is null || sourceWj.Job.Status != JobStatus.Completed)
+                if (sourceWj is null || sourceWj.Job?.Status != JobStatus.Completed)
                 {
                     allTerminalsSatisfied = false;
                     break;
@@ -517,6 +610,12 @@ public class WorkordersController : ControllerBase
 
         if (allTerminalsSatisfied)
         {
+            // Mark any remaining Pending nodes as Skipped
+            foreach (var wj in workorder.WorkorderJobs.Where(wj => wj.NodeStatus == WorkflowNodeStatus.Pending))
+            {
+                wj.NodeStatus = WorkflowNodeStatus.Skipped;
+            }
+
             workorder.Status = WorkorderStatus.Completed;
             workorder.CompletedAt = DateTime.UtcNow;
         }
@@ -524,26 +623,12 @@ public class WorkordersController : ControllerBase
 
     private bool ComputeCanStart(WorkorderJob wj, List<WorkflowLink> workflowLinks, Workorder workorder)
     {
-        // If the job is already started/completed/cancelled, CanStart is false
+        // Only Active nodes with a job in Created status can start
+        if (wj.NodeStatus != WorkflowNodeStatus.Active) return false;
+        if (wj.Job == null) return false;
         if (wj.Job.Status != JobStatus.Created) return false;
 
-        // Entry points can always start (no incoming links)
-        if (wj.WorkflowProcess.IsEntryPoint) return true;
-
-        // Find all incoming links to this workflow process
-        var incomingLinks = workflowLinks
-            .Where(l => l.TargetWorkflowProcessId == wj.WorkflowProcessId)
-            .ToList();
-
-        if (incomingLinks.Count == 0) return true;
-
-        // All predecessors must have completed jobs
-        return incomingLinks.All(link =>
-        {
-            var sourceWj = workorder.WorkorderJobs
-                .FirstOrDefault(w => w.WorkflowProcessId == link.SourceWorkflowProcessId);
-            return sourceWj is not null && sourceWj.Job.Status == JobStatus.Completed;
-        });
+        return true;
     }
 
     private async Task<WorkorderResponseDto> GetByIdInternal(Guid id)
@@ -583,18 +668,24 @@ public class WorkordersController : ControllerBase
             w.CreatedAt,
             w.UpdatedAt,
             includeJobs && workflowLinks is not null
-                ? w.WorkorderJobs.Select(wj => new WorkorderJobResponseDto(
-                    wj.Id,
-                    wj.WorkorderId,
-                    wj.WorkflowProcessId,
-                    wj.WorkflowProcess?.Process?.Name ?? "(Terminal)",
-                    wj.WorkflowProcess?.Process?.Code ?? "",
-                    wj.JobId,
-                    wj.Job.Code,
-                    wj.Job.Name,
-                    wj.Job.Status.ToString(),
-                    ComputeCanStart(wj, workflowLinks, w)
-                )).ToList()
+                ? w.WorkorderJobs.Select(wj => MapWorkorderJobToDto(wj, workflowLinks, w)).ToList()
                 : null);
+    }
+
+    private WorkorderJobResponseDto MapWorkorderJobToDto(WorkorderJob wj, List<WorkflowLink> workflowLinks, Workorder workorder)
+    {
+        return new WorkorderJobResponseDto(
+            wj.Id,
+            wj.WorkorderId,
+            wj.WorkflowProcessId,
+            wj.WorkflowProcess?.Process?.Name ?? "(Terminal)",
+            wj.WorkflowProcess?.Process?.Code ?? "",
+            wj.JobId,
+            wj.Job?.Code,
+            wj.Job?.Name,
+            wj.Job?.Status.ToString(),
+            ComputeCanStart(wj, workflowLinks, workorder),
+            wj.NodeStatus.ToString(),
+            wj.JobId.HasValue);
     }
 }

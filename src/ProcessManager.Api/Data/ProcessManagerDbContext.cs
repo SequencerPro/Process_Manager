@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Domain.Entities;
+using ProcessManager.Domain.Enums;
 
 namespace ProcessManager.Api.Data;
 
@@ -1187,8 +1188,14 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<WorkorderJob>(e =>
         {
             e.HasKey(wj => wj.Id);
-            e.HasIndex(wj => new { wj.WorkorderId, wj.JobId }).IsUnique();
-            e.HasIndex(wj => new { wj.WorkorderId, wj.WorkflowProcessId });
+            e.HasIndex(wj => new { wj.WorkorderId, wj.JobId }).IsUnique()
+                .HasFilter("\"JobId\" IS NOT NULL");
+            e.HasIndex(wj => new { wj.WorkorderId, wj.WorkflowProcessId }).IsUnique();
+
+            e.Property(wj => wj.NodeStatus)
+                .HasConversion<string>()
+                .HasMaxLength(20)
+                .HasDefaultValue(WorkflowNodeStatus.Active);
 
             e.HasOne(wj => wj.Workorder)
                 .WithMany(w => w.WorkorderJobs)
@@ -1203,7 +1210,8 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne(wj => wj.Job)
                 .WithMany()
                 .HasForeignKey(wj => wj.JobId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ── Phase 11: Production Management ─────────────────────────────────

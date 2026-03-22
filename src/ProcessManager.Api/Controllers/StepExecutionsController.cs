@@ -52,11 +52,13 @@ public class StepExecutionsController : ControllerBase
                     .ToListAsync();
 
                 var orgUnitJobIds = orgUnitIds.Count > 0
-                    ? await _db.WorkorderJobs
+                    ? (await _db.WorkorderJobs
                         .Where(wj => wj.WorkflowProcess.AssigneeId.HasValue
-                                  && orgUnitIds.Contains(wj.WorkflowProcess.AssigneeId.Value))
+                                  && orgUnitIds.Contains(wj.WorkflowProcess.AssigneeId.Value)
+                                  && wj.JobId.HasValue)
                         .Select(wj => wj.JobId)
-                        .ToListAsync()
+                        .ToListAsync())
+                        .Where(id => id.HasValue).Select(id => id!.Value).ToList()
                     : new List<Guid>();
 
                 // Directly assigned OR OrgUnit-assigned

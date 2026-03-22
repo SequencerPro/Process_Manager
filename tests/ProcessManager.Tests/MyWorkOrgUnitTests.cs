@@ -243,8 +243,8 @@ public class MyWorkOrgUnitTests : IntegrationTestBase
 
         var wo1Detail = await GetWorkorder(wo1.Id);
         var wo2Detail = await GetWorkorder(wo2.Id);
-        var job1Id = wo1Detail.Jobs!.First().JobId;
-        var job2Id = wo2Detail.Jobs!.First().JobId;
+        var job1Id = wo1Detail.Jobs!.First(j => j.HasJob).JobId!.Value;
+        var job2Id = wo2Detail.Jobs!.First(j => j.HasJob).JobId!.Value;
 
         using var userClient = _factory.CreateAuthenticatedClient(userId);
         var result = await GetMyWork(userClient);

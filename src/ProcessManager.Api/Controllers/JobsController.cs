@@ -222,8 +222,8 @@ public class JobsController : ControllerBase
                 foreach (var link in incomingLinks)
                 {
                     var sourceWj = workorderJobs.FirstOrDefault(w => w.WorkflowProcessId == link.SourceWorkflowProcessId);
-                    if (sourceWj is null || sourceWj.Job.Status != JobStatus.Completed)
-                        blockers.Add(sourceWj?.Job.Code ?? $"(missing job for workflow node {link.SourceWorkflowProcessId})");
+                    if (sourceWj is null || sourceWj.Job?.Status != JobStatus.Completed)
+                        blockers.Add(sourceWj?.Job?.Code ?? $"(missing job for workflow node {link.SourceWorkflowProcessId})");
                 }
 
                 if (blockers.Count > 0)

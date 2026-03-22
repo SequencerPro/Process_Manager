@@ -41,11 +41,13 @@ public record WorkorderJobResponseDto(
     Guid WorkflowProcessId,
     string ProcessName,
     string ProcessCode,
-    Guid JobId,
-    string JobCode,
-    string JobName,
-    string JobStatus,
-    bool CanStart);
+    Guid? JobId,
+    string? JobCode,
+    string? JobName,
+    string? JobStatus,
+    bool CanStart,
+    string NodeStatus = "Active",
+    bool HasJob = false);
 
 // ──────────── Advance (Manual/GradeBased routing) ────────────
 

@@ -1280,7 +1280,7 @@ Null for ad-hoc runs; set when the job was created by the scheduler. Allows filt
 | Sequencing service (job completion hook) | Medium |
 | Scheduler background service | Medium |
 
-**Status:** Designed, not yet built.
+**Status:** Implemented 2026-03-21 (version 3.11). See changelog for full details.
 
 ---
 

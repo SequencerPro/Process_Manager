@@ -1194,8 +1194,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
 
             e.Property(wj => wj.NodeStatus)
                 .HasConversion<string>()
-                .HasMaxLength(20)
-                .HasDefaultValue(WorkflowNodeStatus.Active);
+                .HasMaxLength(20);
 
             e.HasOne(wj => wj.Workorder)
                 .WithMany(w => w.WorkorderJobs)

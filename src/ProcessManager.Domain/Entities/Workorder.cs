@@ -36,7 +36,11 @@ public class Workorder : BaseEntity
     /// <summary>When workorder finished (completed or cancelled).</summary>
     public DateTime? CompletedAt { get; set; }
 
+    /// <summary>Optional: the WorkflowSchedule that auto-created this workorder. Null for manually created workorders.</summary>
+    public Guid? ScheduleId { get; set; }
+
     // Navigation properties
     public Workflow Workflow { get; set; } = null!;
     public ICollection<WorkorderJob> WorkorderJobs { get; set; } = new List<WorkorderJob>();
+    public WorkflowSchedule? Schedule { get; set; }
 }

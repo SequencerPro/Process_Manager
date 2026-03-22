@@ -19,4 +19,8 @@
     <ProjectReference Include="..\ProcessManager.Domain\ProcessManager.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="ProcessManager.Tests" />
+  </ItemGroup>
+
 </Project>

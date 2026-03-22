@@ -84,6 +84,10 @@ builder.Services.AddControllers()
 // ── Image storage ─────────────────────────────────────────────────────────────
 builder.Services.AddScoped<IImageStorageService, LocalImageStorageService>();
 
+// ── Background scheduler (skipped in Testing environment) ─────────────────────
+if (!builder.Environment.IsEnvironment("Testing"))
+    builder.Services.AddHostedService<WorkflowSchedulerService>();
+
 // ── Swagger ───────────────────────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>

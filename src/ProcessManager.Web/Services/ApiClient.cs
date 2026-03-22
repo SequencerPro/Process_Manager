@@ -2021,6 +2021,69 @@ public class ApiClient
     public Task<List<UserOrgUnitResponseDto>?> GetUserOrgUnitsAsync(string userId)
         => _http.GetFromJsonAsync<List<UserOrgUnitResponseDto>>($"api/users/{userId}/orgunits", _json);
 
+    // ═══════════════════ WorkflowSchedules ═══════════════════
+
+    public Task<List<WorkflowScheduleResponseDto>?> GetWorkflowSchedulesAsync(Guid? workflowId = null)
+        => _http.GetFromJsonAsync<List<WorkflowScheduleResponseDto>>(
+            $"api/workflowschedules{(workflowId.HasValue ? $"?workflowId={workflowId}" : "")}", _json);
+
+    public Task<WorkflowScheduleResponseDto?> GetWorkflowScheduleAsync(Guid id)
+        => _http.GetFromJsonAsync<WorkflowScheduleResponseDto>($"api/workflowschedules/{id}", _json);
+
+    public async Task<WorkflowScheduleResponseDto?> CreateWorkflowScheduleAsync(CreateWorkflowScheduleDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/workflowschedules", dto, _json);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to create schedule ({resp.StatusCode})");
+        }
+        return await resp.Content.ReadFromJsonAsync<WorkflowScheduleResponseDto>(_json);
+    }
+
+    public async Task<WorkflowScheduleResponseDto?> UpdateWorkflowScheduleAsync(Guid id, UpdateWorkflowScheduleDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/workflowschedules/{id}", dto, _json);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to update schedule ({resp.StatusCode})");
+        }
+        return await resp.Content.ReadFromJsonAsync<WorkflowScheduleResponseDto>(_json);
+    }
+
+    public async Task DeleteWorkflowScheduleAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/workflowschedules/{id}");
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to delete schedule ({resp.StatusCode})");
+        }
+    }
+
+    public async Task<WorkflowScheduleResponseDto?> ActivateWorkflowScheduleAsync(Guid id)
+    {
+        var resp = await _http.PostAsync($"api/workflowschedules/{id}/activate", null);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to activate schedule ({resp.StatusCode})");
+        }
+        return await resp.Content.ReadFromJsonAsync<WorkflowScheduleResponseDto>(_json);
+    }
+
+    public async Task<WorkflowScheduleResponseDto?> DeactivateWorkflowScheduleAsync(Guid id)
+    {
+        var resp = await _http.PostAsync($"api/workflowschedules/{id}/deactivate", null);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to deactivate schedule ({resp.StatusCode})");
+        }
+        return await resp.Content.ReadFromJsonAsync<WorkflowScheduleResponseDto>(_json);
+    }
+
     // ═══════════════════ Helpers ═══════════════════
 
     /// <summary>

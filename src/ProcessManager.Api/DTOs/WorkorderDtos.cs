@@ -30,7 +30,8 @@ public record WorkorderResponseDto(
     DateTime? CompletedAt,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    List<WorkorderJobResponseDto>? Jobs = null);
+    List<WorkorderJobResponseDto>? Jobs = null,
+    Guid? ScheduleId = null);
 
 // ──────────── WorkorderJob ────────────
 

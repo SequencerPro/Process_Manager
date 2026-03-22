@@ -183,6 +183,32 @@ else
         }
     </div>
 
+    <!-- Schedules summary -->
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-clock me-1"></i> Schedules
+                <span class="badge bg-secondary ms-1">@(_schedules?.Count ?? 0)</span>
+            </span>
+            <a href="workflows/@Id/schedules" class="btn btn-outline-primary btn-sm">Manage Schedules →</a>
+        </div>
+        @if (_schedules?.Any() == true)
+        {
+            <ul class="list-group list-group-flush">
+                @foreach (var s in _schedules.Where(x => x.IsActive).Take(5))
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+                        <span>@s.Name</span>
+                        <span class="text-muted small">@FormatNextRunShort(s.NextRunAt)</span>
+                    </li>
+                }
+            </ul>
+        }
+        else
+        {
+            <div class="card-body text-muted small">No schedules configured.</div>
+        }
+    </div>
+
     <!-- Add Process Modal -->
     @if (_showProcessForm)
     {
@@ -451,6 +477,7 @@ else
     private WorkflowResponseDto? _wf;
     private bool _loading = true;
     private WorkflowValidationResultDto? _validation;
+    private List<WorkflowScheduleResponseDto>? _schedules;
 
     // Add Process form
     private bool _showProcessForm;
@@ -500,6 +527,7 @@ else
         try
         {
             _wf = await Api.GetWorkflowAsync(Id);
+            _schedules = await Api.GetWorkflowSchedulesAsync(Id);
         }
         catch (Exception ex)
         {
@@ -509,6 +537,23 @@ else
         {
             _loading = false;
         }
+    }
+
+    private static string FormatNextRunShort(DateTime? nextRunAt)
+    {
+        if (!nextRunAt.HasValue) return "—";
+        var local = nextRunAt.Value.ToLocalTime();
+        var diff = local - DateTime.Now;
+        if (diff < TimeSpan.Zero) return local.ToString("yyyy-MM-dd");
+        if (diff < TimeSpan.FromHours(24))
+        {
+            var h = (int)diff.TotalHours;
+            var m = diff.Minutes;
+            return h > 0 ? $"in {h}h {m}m" : $"in {m}m";
+        }
+        if (diff < TimeSpan.FromDays(7))
+            return $"in {(int)diff.TotalDays}d";
+        return local.ToString("yyyy-MM-dd");
     }
 
     // --- Validate ---

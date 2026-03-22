@@ -1,0 +1,429 @@
+@page "/workflows/{WorkflowId:guid}/schedules"
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Workflow Schedules</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="workflows">Workflows</a></li>
+            <li class="breadcrumb-item"><a href="workflows/@WorkflowId">@_workflowName</a></li>
+            <li class="breadcrumb-item active">Schedules</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="mb-0">Schedules — @_workflowName</h4>
+        <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
+            <i class="bi bi-plus-lg me-1"></i>New Schedule
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger alert-dismissible">
+            @_error
+            <button type="button" class="btn-close" @onclick="() => _error = null"></button>
+        </div>
+    }
+
+    @if (_schedules is null || !_schedules.Any())
+    {
+        <div class="alert alert-info">No schedules yet. Create one to auto-generate workorders on a recurring basis.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover table-sm align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Name</th>
+                        <th>Recurrence</th>
+                        <th>Next Run</th>
+                        <th>Last Run</th>
+                        <th>Workorders</th>
+                        <th>Active</th>
+                        <th style="width:160px">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in _schedules)
+                    {
+                        <tr>
+                            <td>@s.Name</td>
+                            <td><span class="badge bg-secondary">@FormatRecurrence(s)</span></td>
+                            <td>@FormatNextRun(s.NextRunAt)</td>
+                            <td>@(s.LastRunAt.HasValue ? s.LastRunAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "—")</td>
+                            <td><span class="badge bg-dark">@s.WorkorderCount</span></td>
+                            <td>
+                                @if (s.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Inactive</span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEdit(s)" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                @if (s.IsActive)
+                                {
+                                    <button class="btn btn-outline-warning btn-sm me-1" @onclick="() => Deactivate(s.Id)" title="Deactivate">
+                                        <i class="bi bi-pause-circle"></i>
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-outline-success btn-sm me-1" @onclick="() => Activate(s.Id)" title="Activate">
+                                        <i class="bi bi-play-circle"></i>
+                                    </button>
+                                }
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(s.Id)" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@* ── Create/Edit Modal ── *@
+@if (_showModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header pm-modal-header">
+                    <h5 class="modal-title">@(_editId.HasValue ? "Edit Schedule" : "New Schedule")</h5>
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(_modalError))
+                    {
+                        <div class="alert alert-danger py-2">@_modalError</div>
+                    }
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Name</label>
+                        <input class="form-control" @bind="_form.Name" maxlength="200" placeholder="e.g., Monthly Safety Review" />
+                    </div>
+
+                    @* Recurrence Type — 6-tile picker *@
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Recurrence Type</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var rt in _recurrenceTypes)
+                            {
+                                <button type="button"
+                                        class="btn btn-sm @(_form.RecurrenceType == rt ? "btn-primary" : "btn-outline-secondary")"
+                                        style="min-width:90px"
+                                        @onclick="() => SelectRecurrenceType(rt)">
+                                    @rt
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    @* Interval *@
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">@GetIntervalLabel()</label>
+                        <input type="number" class="form-control" style="width:120px" @bind="_form.RecurrenceInterval" min="1" />
+                        <div class="form-text text-muted">@GetIntervalHint()</div>
+                    </div>
+
+                    @* Weekly: Day of Week *@
+                    @if (_form.RecurrenceType == "Weekly")
+                    {
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Day of Week</label>
+                            <select class="form-select" style="width:180px" @bind="_form.DayOfWeek">
+                                <option value="0">Sunday</option>
+                                <option value="1">Monday</option>
+                                <option value="2">Tuesday</option>
+                                <option value="3">Wednesday</option>
+                                <option value="4">Thursday</option>
+                                <option value="5">Friday</option>
+                                <option value="6">Saturday</option>
+                            </select>
+                        </div>
+                    }
+
+                    @* Monthly/Quarterly/Annually: Day of Month *@
+                    @if (_form.RecurrenceType == "Monthly" || _form.RecurrenceType == "Quarterly" || _form.RecurrenceType == "Annually")
+                    {
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Day of Month <span class="text-muted fw-normal">(1–31, clamped to last day)</span></label>
+                            <input type="number" class="form-control" style="width:120px" @bind="_form.DayOfMonth" min="1" max="31" />
+                        </div>
+                    }
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Start Date</label>
+                            <input type="datetime-local" class="form-control" @bind="_form.StartDate" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">End Date <span class="text-muted fw-normal">(optional)</span></label>
+                            <input type="datetime-local" class="form-control" @bind="_form.EndDate" />
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Subject Template</label>
+                        <input class="form-control" @bind="_form.SubjectTemplate" maxlength="500"
+                               placeholder="e.g., Monthly Review – {Month} {Year}" />
+                        <div class="form-text text-muted">Tokens: <code>{Month}</code> <code>{Year}</code> <code>{Date}</code></div>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="isActive" @bind="_form.IsActive" />
+                        <label class="form-check-label" for="isActive">Active</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="Save" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid WorkflowId { get; set; }
+
+    private bool _loading = true;
+    private string? _workflowName;
+    private List<WorkflowScheduleResponseDto>? _schedules;
+    private string? _error;
+
+    // Modal state
+    private bool _showModal;
+    private bool _saving;
+    private string? _modalError;
+    private Guid? _editId;
+    private ScheduleForm _form = new();
+
+    private readonly string[] _recurrenceTypes = ["Hourly", "Daily", "Weekly", "Monthly", "Quarterly", "Annually"];
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            _schedules = await Api.GetWorkflowSchedulesAsync(WorkflowId) ?? new();
+            if (_workflowName is null && _schedules.Any())
+                _workflowName = _schedules[0].WorkflowName;
+            if (_workflowName is null)
+            {
+                // try to get it from the workflow endpoint
+                var wf = await Api.GetWorkflowAsync(WorkflowId);
+                _workflowName = wf?.Name ?? WorkflowId.ToString();
+            }
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+
+    // ── Create/Edit ──
+
+    private void ShowCreate()
+    {
+        _editId = null;
+        _form = new ScheduleForm { StartDate = DateTime.Now, IsActive = true, RecurrenceType = "Daily", RecurrenceInterval = 1, DayOfWeek = 1, DayOfMonth = 1 };
+        _modalError = null;
+        _showModal = true;
+    }
+
+    private void ShowEdit(WorkflowScheduleResponseDto s)
+    {
+        _editId = s.Id;
+        _form = new ScheduleForm
+        {
+            Name = s.Name,
+            RecurrenceType = s.RecurrenceType,
+            RecurrenceInterval = s.RecurrenceInterval,
+            DayOfWeek = s.DayOfWeek ?? 1,
+            DayOfMonth = s.DayOfMonth ?? 1,
+            StartDate = s.StartDate.ToLocalTime(),
+            EndDate = s.EndDate?.ToLocalTime(),
+            SubjectTemplate = s.SubjectTemplate,
+            IsActive = s.IsActive
+        };
+        _modalError = null;
+        _showModal = true;
+    }
+
+    private void CloseModal() => _showModal = false;
+
+    private void SelectRecurrenceType(string rt) { _form.RecurrenceType = rt; }
+
+    private async Task Save()
+    {
+        _saving = true;
+        _modalError = null;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(_form.Name))
+            {
+                _modalError = "Name is required.";
+                return;
+            }
+
+            if (!Enum.TryParse<ProcessManager.Domain.Enums.ScheduleRecurrenceType>(_form.RecurrenceType, out var rt))
+            {
+                _modalError = "Invalid recurrence type.";
+                return;
+            }
+
+            int? dayOfWeek = rt == ProcessManager.Domain.Enums.ScheduleRecurrenceType.Weekly ? _form.DayOfWeek : null;
+            int? dayOfMonth = (rt == ProcessManager.Domain.Enums.ScheduleRecurrenceType.Monthly
+                || rt == ProcessManager.Domain.Enums.ScheduleRecurrenceType.Quarterly
+                || rt == ProcessManager.Domain.Enums.ScheduleRecurrenceType.Annually)
+                ? _form.DayOfMonth : null;
+
+            if (_editId.HasValue)
+            {
+                var updateDto = new UpdateWorkflowScheduleDto(
+                    _form.Name,
+                    rt,
+                    _form.RecurrenceInterval,
+                    dayOfWeek,
+                    dayOfMonth,
+                    _form.StartDate.ToUniversalTime(),
+                    _form.EndDate?.ToUniversalTime(),
+                    _form.SubjectTemplate,
+                    _form.IsActive);
+                await Api.UpdateWorkflowScheduleAsync(_editId.Value, updateDto);
+            }
+            else
+            {
+                var createDto = new CreateWorkflowScheduleDto(
+                    WorkflowId,
+                    _form.Name,
+                    rt,
+                    _form.RecurrenceInterval,
+                    dayOfWeek,
+                    dayOfMonth,
+                    _form.StartDate.ToUniversalTime(),
+                    _form.EndDate?.ToUniversalTime(),
+                    _form.SubjectTemplate,
+                    _form.IsActive);
+                await Api.CreateWorkflowScheduleAsync(createDto);
+            }
+
+            _showModal = false;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { _modalError = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    // ── Actions ──
+
+    private async Task Activate(Guid id)
+    {
+        try { await Api.ActivateWorkflowScheduleAsync(id); await LoadData(); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private async Task Deactivate(Guid id)
+    {
+        try { await Api.DeactivateWorkflowScheduleAsync(id); await LoadData(); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    private async Task Delete(Guid id)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Delete this schedule?")) return;
+        try { await Api.DeleteWorkflowScheduleAsync(id); await LoadData(); }
+        catch (HttpRequestException ex) { _error = ex.Message; }
+    }
+
+    // ── Formatters ──
+
+    private static string FormatRecurrence(WorkflowScheduleResponseDto s)
+    {
+        var interval = s.RecurrenceInterval == 1 ? "" : $" ×{s.RecurrenceInterval}";
+        var suffix = s.RecurrenceType switch
+        {
+            "Weekly" when s.DayOfWeek.HasValue => $" ({(DayOfWeek)s.DayOfWeek.Value})",
+            "Monthly" or "Quarterly" or "Annually" when s.DayOfMonth.HasValue => $" (day {s.DayOfMonth})",
+            _ => ""
+        };
+        return $"{s.RecurrenceType}{interval}{suffix}";
+    }
+
+    private static string FormatNextRun(DateTime? nextRunAt)
+    {
+        if (!nextRunAt.HasValue) return "—";
+        var local = nextRunAt.Value.ToLocalTime();
+        var diff = local - DateTime.Now;
+        if (diff < TimeSpan.Zero) return local.ToString("yyyy-MM-dd HH:mm");
+        if (diff < TimeSpan.FromHours(24))
+        {
+            var h = (int)diff.TotalHours;
+            var m = diff.Minutes;
+            return h > 0 ? $"in {h}h {m}m" : $"in {m}m";
+        }
+        if (diff < TimeSpan.FromDays(7))
+            return $"in {(int)diff.TotalDays}d";
+        return local.ToString("yyyy-MM-dd");
+    }
+
+    private string GetIntervalLabel() => _form.RecurrenceType switch
+    {
+        "Hourly" => "Every N hours",
+        "Daily" => "Every N days",
+        "Weekly" => "Every N weeks",
+        "Monthly" => "Every N months",
+        "Quarterly" => "Every N quarters",
+        "Annually" => "Every N years",
+        _ => "Interval"
+    };
+
+    private string GetIntervalHint() => _form.RecurrenceType switch
+    {
+        "Hourly" => "1–168 (1 hour to 1 week)",
+        "Daily" => "1–365",
+        "Weekly" => "1–52",
+        "Monthly" => "1–24",
+        "Quarterly" => "1–8",
+        "Annually" => "1–10",
+        _ => ""
+    };
+
+    // ── Form model ──
+
+    private class ScheduleForm
+    {
+        public string Name { get; set; } = string.Empty;
+        public string RecurrenceType { get; set; } = "Daily";
+        public int RecurrenceInterval { get; set; } = 1;
+        public int DayOfWeek { get; set; } = 1;
+        public int DayOfMonth { get; set; } = 1;
+        public DateTime StartDate { get; set; } = DateTime.Now;
+        public DateTime? EndDate { get; set; }
+        public string? SubjectTemplate { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

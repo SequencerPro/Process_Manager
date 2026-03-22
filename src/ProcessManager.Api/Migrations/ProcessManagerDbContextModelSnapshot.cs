@@ -1641,6 +1641,13 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<decimal?>("Cost")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("CountryOfOrigin")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1656,8 +1663,113 @@ namespace ProcessManager.Api.Migrations
                     b.Property<bool>("IsSerialized")
                         .HasColumnType("boolean");
 
+                    b.Property<int?>("LeadTimeDays")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ModelFileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ModelMimeType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ModelOriginalFileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<decimal?>("Price")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Revision")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("RohsStatus")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("UnitOfMeasure")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("VendorName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("VendorPartNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal?>("Weight")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("WeightUnit")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Kinds");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.KindDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("KindId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MimeType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
@@ -1669,10 +1781,9 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Code")
-                        .IsUnique();
+                    b.HasIndex("KindId");
 
-                    b.ToTable("Kinds");
+                    b.ToTable("KindDocuments");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.MaintenanceTask", b =>
@@ -4113,6 +4224,17 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Workorder");
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.KindDocument", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.Kind", "Kind")
+                        .WithMany("Documents")
+                        .HasForeignKey("KindId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Kind");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.MaintenanceTask", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.Equipment", "Equipment")
@@ -4713,6 +4835,8 @@ namespace ProcessManager.Api.Migrations
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Kind", b =>
                 {
+                    b.Navigation("Documents");
+
                     b.Navigation("Grades");
                 });
 

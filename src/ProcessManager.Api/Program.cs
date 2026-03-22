@@ -73,6 +73,19 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
 
+// ── CORS (allow Blazor frontend to fetch files directly, e.g. 3D model viewer) ──
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+            ?? new[] { "http://localhost:5097", "https://localhost:5097" };
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 // ── Controllers ───────────────────────────────────────────────────────────────
 builder.Services.AddControllers()
     .AddJsonOptions(opts =>
@@ -177,6 +190,7 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 app.UseStaticFiles();
+app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

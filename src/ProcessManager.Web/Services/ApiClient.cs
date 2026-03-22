@@ -55,6 +55,48 @@ public class ApiClient
         resp.EnsureSuccessStatusCode();
     }
 
+    // Kind Documents
+    public async Task<KindDocumentResponseDto?> UploadKindDocumentAsync(Guid kindId, IBrowserFile file, string? title = null)
+    {
+        using var content = new MultipartFormDataContent();
+        using var stream = file.OpenReadStream(maxAllowedSize: 30 * 1024 * 1024); // 30 MB
+        var fileContent = new StreamContent(stream);
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
+            string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType);
+        content.Add(fileContent, "File", file.Name);
+        if (!string.IsNullOrWhiteSpace(title))
+            content.Add(new StringContent(title), "title");
+        var resp = await _http.PostAsync($"api/kinds/{kindId}/documents", content);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<KindDocumentResponseDto>(_json);
+    }
+
+    public async Task DeleteKindDocumentAsync(Guid kindId, Guid docId)
+    {
+        var resp = await _http.DeleteAsync($"api/kinds/{kindId}/documents/{docId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    // Kind 3D Model
+    public async Task<KindResponseDto?> UploadKindModelAsync(Guid kindId, IBrowserFile file)
+    {
+        using var content = new MultipartFormDataContent();
+        using var stream = file.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024); // 100 MB for 3D models
+        var fileContent = new StreamContent(stream);
+        var mimeType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType;
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(mimeType);
+        content.Add(fileContent, "File", file.Name);
+        var resp = await _http.PostAsync($"api/kinds/{kindId}/model", content);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<KindResponseDto>(_json);
+    }
+
+    public async Task DeleteKindModelAsync(Guid kindId)
+    {
+        var resp = await _http.DeleteAsync($"api/kinds/{kindId}/model");
+        resp.EnsureSuccessStatusCode();
+    }
+
     // ═══════════════════ Grades ═══════════════════
 
     public async Task<GradeResponseDto?> CreateGradeAsync(Guid kindId, GradeCreateDto dto)
@@ -126,7 +168,8 @@ public class ApiClient
 
         using var content = new MultipartFormDataContent();
         var sc = new StreamContent(ms);
-        sc.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
+        sc.Headers.ContentType = new MediaTypeHeaderValue(
+            string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType);
         content.Add(sc, "file", file.Name);
 
         var resp = await _http.PostAsync($"api/steptemplates/{stepTemplateId}/images", content);
@@ -165,7 +208,8 @@ public class ApiClient
 
         using var content = new MultipartFormDataContent();
         var sc = new StreamContent(ms);
-        sc.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
+        sc.Headers.ContentType = new MediaTypeHeaderValue(
+            string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType);
         content.Add(sc, "file", file.Name);
 
         var resp = await _http.PostAsync($"api/steptemplates/{stepTemplateId}/content/image", content);
@@ -390,7 +434,8 @@ public class ApiClient
 
         using var content = new MultipartFormDataContent();
         var sc = new StreamContent(ms);
-        sc.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
+        sc.Headers.ContentType = new MediaTypeHeaderValue(
+            string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType);
         content.Add(sc, "file", file.Name);
 
         var resp = await _http.PostAsync(

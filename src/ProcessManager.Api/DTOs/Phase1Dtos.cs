@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using ProcessManager.Domain.Enums;
 
 namespace ProcessManager.Api.DTOs;
 
@@ -9,14 +10,42 @@ public record KindCreateDto(
     [Required, StringLength(200, MinimumLength = 1)] string Name,
     [StringLength(2000)] string? Description,
     bool IsSerialized,
-    bool IsBatchable
+    bool IsBatchable,
+    // Extended properties
+    KindSourceType SourceType = KindSourceType.Make,
+    [StringLength(50)] string? UnitOfMeasure = null,
+    decimal? Cost = null,
+    decimal? Price = null,
+    [StringLength(200)] string? VendorName = null,
+    [StringLength(100)] string? VendorPartNumber = null,
+    int? LeadTimeDays = null,
+    decimal? Weight = null,
+    [StringLength(20)] string? WeightUnit = null,
+    [StringLength(50)] string? RohsStatus = null,
+    [StringLength(100)] string? CountryOfOrigin = null,
+    [StringLength(50)] string? Revision = null,
+    [StringLength(2000)] string? Notes = null
 );
 
 public record KindUpdateDto(
     [Required, StringLength(200, MinimumLength = 1)] string Name,
     [StringLength(2000)] string? Description,
     bool IsSerialized,
-    bool IsBatchable
+    bool IsBatchable,
+    // Extended properties
+    KindSourceType SourceType = KindSourceType.Make,
+    [StringLength(50)] string? UnitOfMeasure = null,
+    decimal? Cost = null,
+    decimal? Price = null,
+    [StringLength(200)] string? VendorName = null,
+    [StringLength(100)] string? VendorPartNumber = null,
+    int? LeadTimeDays = null,
+    decimal? Weight = null,
+    [StringLength(20)] string? WeightUnit = null,
+    [StringLength(50)] string? RohsStatus = null,
+    [StringLength(100)] string? CountryOfOrigin = null,
+    [StringLength(50)] string? Revision = null,
+    [StringLength(2000)] string? Notes = null
 );
 
 public record KindResponseDto(
@@ -26,9 +55,40 @@ public record KindResponseDto(
     string? Description,
     bool IsSerialized,
     bool IsBatchable,
+    // Extended properties
+    string SourceType,
+    string? UnitOfMeasure,
+    decimal? Cost,
+    decimal? Price,
+    string? VendorName,
+    string? VendorPartNumber,
+    int? LeadTimeDays,
+    decimal? Weight,
+    string? WeightUnit,
+    string? RohsStatus,
+    string? CountryOfOrigin,
+    string? Revision,
+    string? Notes,
+    // 3D Model
+    string? ModelFileName,
+    string? ModelOriginalFileName,
+    string? ModelMimeType,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    List<GradeResponseDto> Grades
+    List<GradeResponseDto> Grades,
+    List<KindDocumentResponseDto> Documents
+);
+
+public record KindDocumentResponseDto(
+    Guid Id,
+    Guid KindId,
+    string FileName,
+    string OriginalFileName,
+    string MimeType,
+    string? Title,
+    int SortOrder,
+    DateTime CreatedAt,
+    DateTime UpdatedAt
 );
 
 // ──────────────────── Grade ────────────────────

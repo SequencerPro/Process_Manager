@@ -52,6 +52,7 @@
 | 3.6     | 2026-03-16 | Process Timing report: `ProcessTimingReport.razor` at `/reports/process-timing` — per-process cards with min/avg/median/P95/max job duration stats, proportional stacked colour bar (one segment per step), collapsible per-step detail table, role filter dropdown, expand/collapse all; `GET /api/reports/process-timing?processRole=` endpoint in `ReportsController`; `ProcessTimingDto`/`StepTimingDto` records in `ReportDtos.cs`; `GetProcessTimingAsync` in `ApiClient`; "Process Timing" nav link added to Reports section |
 | 3.7     | 2026-03-16 | Document Library filter and navigation: `Training` added to `documentRolesOnly` filter in `ProcessesController`; "Training" option added to type-filter dropdown in `DocumentList.razor`; Document Library replaced with a collapsible nav section in `NavMenu.razor` with 4 sub-links (All Documents / QMS Documents / Work Instructions / Training); `DocumentList.razor` gains `[SupplyParameterFromQuery(Name = "type")] TypeParam` with `OnParametersSetAsync` for query-parameter deep-linking; `_sectionPaths` updated to include `["documents"] = ["documents"]` |
 | 3.9     | 2026-03-20 | Phase 12a+12b+12b½ implemented: `OrgUnit` entity (Code, Name, Type enum, ParentId self-ref FK, IsActive), `OrgUnitType` enum (Department/WorkArea/Role/Person), `OrgUnitMember` join entity (UserId FK → ApplicationUser, OrgUnitId FK → OrgUnit, unique composite index), `AssigneeId` FK on `WorkflowProcess` → OrgUnit; `OrgUnitsController` (full CRUD, hierarchy filtering, circular reference prevention, member count, children endpoint, membership endpoints: GET/POST `/{id}/members`, DELETE `/{id}/members/{memberId}`, GET `/api/users/{userId}/orgunits`); `OrgUnitList.razor` (table with search/type/active/top-level filters, create/edit modals, Members modal with user picker dropdown, add/remove members); `WorkflowBuilder.razor` updated with assignee dropdown on workflow nodes (sidebar + slide-out editor); `AddOrgUnit` + `AddWorkflowProcessAssignee` + `AddOrgUnitMember` EF migrations; `OrgUnitTests` (20 tests) + `OrgUnitMemberTests` (12 tests); ApiClient OrgUnit CRUD + membership methods |
+| 3.10    | 2026-03-20 | Phase 17 design: Standards Conformance Management — `StandardsClause` seed table (ISO 9001:2015 + AS9100 Rev D), `AuditProgram`/`Audit`/`AuditFinding` entities with `ActionItem` link for CA tracking, `ClauseEvidenceLink` many-to-many between clauses and system entities, auto-linking of seeded QMS documents to their governing clauses, Conformance Dashboard with clause-coverage heatmap, Audit Program and Audit Finding pages, MCP `get_conformance_status` tool |
 | 3.8     | 2026-03-16 | Phase 11 implemented (Production Management): `DowntimeType`/`MaintenanceTriggerType`/`MaintenanceTaskType`/`MaintenanceTaskStatus` enums; `EquipmentCategory`/`Equipment`/`DowntimeRecord`/`MaintenanceTrigger`/`MaintenanceTask` entities; `StepTemplate` extended with `ExpectedDurationMinutes`/`RequiredEquipmentCategoryId`; `Job` extended with `DueDate`/`PlannedStartDate`; `StepExecution` extended with `EquipmentId`; `Phase11_ProductionManagement` EF migration; `Phase11Dtos` (full Equipment, Category, Downtime, Trigger, Task, WipJobDto, BottleneckStepDto, ProductionDashboardDto); `EquipmentController` (full CRUD for categories, equipment, downtime start/close, triggers CRUD, tasks lifecycle: create/start/complete/cancel, paginated all-tasks); `ProductionController` (`/api/production/wip` WIP board + dashboard, `/api/production/bottlenecks`); `JobsController` updated (DueDate/PlannedStartDate on Create/Update/MapToDto, EquipmentId/EquipmentCode on MapStepExecutionToDto); `Phase11` ApiClient section (30 methods: categories, equipment, downtime, triggers, tasks, dashboard, bottlenecks); `ProductionDashboard.razor` (/production — KPI cards, late jobs table, WIP board, bottlenecks, maintenance due); `EquipmentList.razor` (/equipment — paginated table, search/category/active filters, create modal); `EquipmentDetail.razor` (/equipment/{id} — downtime log/resolve/history, triggers CRUD, tasks lifecycle); `MaintenanceTaskList.razor` (/maintenance — paginated all tasks, status/type filter, create modal, task actions); Production NavMenu section (Production Dashboard / Equipment / Maintenance Tasks, overdue+due badge); MCP tools `get_production_status`, `list_equipment_downtime`, `list_overdue_maintenance`; MCP server version 2.1 |
 
 ---
@@ -1721,7 +1722,194 @@ Seeded training process templates (Safety Induction, Quality System Orientation,
 
 ---
 
-### Phase 17+ — Integrations (future)
+### Phase 17 — Standards Conformance Management
+
+**Goal:** Organise the evidence the system already produces — documents, approved processes, training records, non-conformances, MRB reviews, management reviews, action items — against the specific clause requirements of ISO 9001:2015 and AS9100 Rev D, giving a quality manager an auditable coverage map and giving an auditor a single place to find objective evidence.
+
+**Design premise:** The system already generates most of the objective evidence required for a standards audit. What is missing is a *conformance layer* that ties those records to specific clause numbers and gives the organisation a picture of where evidence is present, where it is thin, and where audit findings remain open. This phase adds four new entities; everything else flows through infrastructure that already exists.
+
+---
+
+#### 17a — Standards Clause Register
+
+A pre-seeded, read-only catalogue of addressable clauses from both standards. No UI for editing — these are fixed reference data, analogous to how the QMS document seeds work.
+
+**Key entity: `StandardsClause`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `Standard` | enum | `Iso9001_2015` / `As9100RevD` |
+| `ClauseNumber` | string | e.g. `"8.5.2"` |
+| `Title` | string | e.g. `"Identification and Traceability"` |
+| `RequirementSummary` | string | One-paragraph plain-language summary of what the clause requires |
+| `IsAs9100Addition` | bool | True for clauses that are AS9100-only and not present in base ISO 9001 |
+
+**Seeded content:** All ~80 addressable clauses across ISO 9001:2015 (clauses 4–10) and AS9100 Rev D additions. Delivered as a `SeedStandardsClausesAsync` method in `DataSeeder.cs`, idempotent on re-run, guarded on `StandardsClause` for ISO 9001 clause `"4.1"`.
+
+---
+
+#### 17b — Clause Evidence Map
+
+A many-to-many between clauses and existing system records that serve as objective evidence of conformance. Most links are **auto-generated** by known mappings; engineers can also add manual links with a free-text note.
+
+**Key entity: `ClauseEvidenceLink`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `ClauseId` | Guid | FK → `StandardsClause` |
+| `EntityType` | enum | `Process` / `QmsDocument` / `TrainingRecord` / `ControlPlan` / `Pfmea` / `ManagementReview` / `NonConformance` |
+| `EntityId` | Guid | FK into the respective table |
+| `EvidenceNote` | string? | Optional context note on how this record evidences the clause |
+| `IsAutoLinked` | bool | True when created by the seeder or auto-link logic; false for manually added links |
+
+**Auto-linking rules (applied on startup by the seeder):**
+
+| Clause | Auto-linked entities |
+|---|---|
+| 4.1 / 4.2 | QMS-001 (Scope), QMS-004 (Quality Manual) |
+| 5.2 | QMS-002 (Quality Policy) |
+| 6.1 | QMS-005 (Risk Management) |
+| 6.2 | QMS-003 (Quality Objectives) |
+| 7.1.5 | QMS-008 (Calibration), all `MaintenanceTask` records of type `Calibration` |
+| 7.2 / 7.3 | QMS-007 (Competence & Training), all `CompetencyRecord` rows |
+| 7.5 | QMS-006 (Document Control), all Released `Process` rows with `ProcessRole = QmsDocument` |
+| 8.2 | QMS-009 / QMS-010 (Customer Communication + Requirements Review) |
+| 8.3 | QMS-011 (Design & Development) |
+| 8.4 | QMS-012 (Supplier Control) |
+| 8.5 | QMS-013 (Production Planning), all Released manufacturing processes |
+| 8.6 | QMS-014 (Inspection & Testing), all `ControlPlan` rows |
+| 8.7 | QMS-016 (Nonconformance Control), all `NonConformance` rows, all `MrbReview` rows |
+| 9.1.2 | QMS-017 (Customer Satisfaction) |
+| 9.2 | QMS-018 (Internal Audit) — and all `Audit` records (17c) once created |
+| 9.3 | QMS-019 (Management Review), all `ManagementReview` rows |
+| 10.2 | QMS-020 (Corrective Action), all `ActionItem` rows with `SourceEntityType ≠ Manual` |
+
+**Coverage status** is derived at query time from `ClauseEvidenceLink` counts and the status of linked `AuditFinding` records:
+
+| Status | Definition |
+|---|---|
+| `Covered` | At least one released / active evidence link, no open Major findings |
+| `PartialCoverage` | Evidence present but at least one open Minor finding or Observation |
+| `Gap` | No evidence links at all |
+| `OpenMajorFinding` | At least one open Major nonconformance finding against this clause |
+
+---
+
+#### 17c — Audit Program & Findings
+
+The formal audit record: who audited, what was in scope, and what they found.
+
+**Key entity: `AuditProgram`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `Name` | string | e.g. "2026 Internal Audit Programme" |
+| `Standard` | enum | `Iso9001_2015` / `As9100RevD` / `Both` |
+| `Year` | int | Calendar year this programme covers |
+| `LeadAuditor` | string | Display name |
+| `Status` | enum | `Planning` / `Active` / `Closed` |
+
+**Key entity: `Audit`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `ProgramId` | Guid | FK → `AuditProgram` |
+| `AuditType` | enum | `Internal` / `Surveillance` / `Recertification` / `SecondParty` |
+| `Scope` | string | Free-text description of processes and areas covered |
+| `PlannedDate` | DateTime | |
+| `ActualDate` | DateTime? | Null until the audit has been conducted |
+| `LeadAuditor` | string | |
+| `Status` | enum | `Planned` / `InProgress` / `Complete` |
+
+**Key entity: `AuditFinding`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `AuditId` | Guid | FK → `Audit` |
+| `ClauseId` | Guid | FK → `StandardsClause` — the clause this finding is raised against |
+| `FindingType` | enum | `MajorNonconformance` / `MinorNonconformance` / `Observation` / `OpportunityForImprovement` |
+| `Description` | string | Finding statement |
+| `ObjectiveEvidence` | string | Evidence seen that supports the finding |
+| `Status` | enum | `Open` / `CorrectiveActionRaised` / `Closed` |
+| `ActionItemId` | Guid? | FK → `ActionItem` — null for Observations/OFIs that don't require a CA |
+| `ClosedAt` | DateTime? | |
+| `ClosureNotes` | string? | |
+
+**`ActionItem` integration:** Findings of type `MajorNonconformance` or `MinorNonconformance` create an `ActionItem` (via the standard Phase 15 mechanism, `SourceEntityType = AuditFinding`) and link `ActionItemId` back on the finding. The finding's `Status` advances to `Closed` automatically when the linked action item reaches `Verified`. This means audit CARs flow through the same tiered accountability system as all other quality actions — no separate CAR tracking table is needed.
+
+**`ClauseEvidenceLink` integration:** On `Audit` completion, a `ClauseEvidenceLink` of `EntityType = Process` (the audit record itself) is auto-created for clause 9.2 (Internal Audit), with `IsAutoLinked = true`.
+
+**`ManagementReview` integration:** The Management Review auto-populated inputs (Phase 15c) include a count of open audit findings per type (Major / Minor / OFI), with the finding source standard shown. This satisfies ISO 9001 clause 9.3.2(f) (results of monitoring and measurement, including audit results).
+
+---
+
+#### 17d — Conformance Dashboard
+
+The primary surface for this module. A quality manager can see the state of their conformance programme at a glance.
+
+**`/conformance` — Conformance Dashboard:**
+- Standard selector (ISO 9001 / AS9100 / Both)
+- Clause coverage heatmap — a grid of all clauses coloured by coverage status (`Covered` / `PartialCoverage` / `Gap` / `OpenMajorFinding`); click any cell to expand to that clause's evidence links and open findings
+- Summary KPI bar: total clauses covered / partial / gap; open Major findings; open Minor findings; next audit date
+- Open findings table — all findings not yet `Closed`, sorted by type (Major first) then age; each row links to the audit detail page
+
+**`/conformance/clauses` — Clause Browser:**
+- Filterable list of all seeded clauses (filter by standard, coverage status)
+- Expand any clause: evidence links panel (entity type, linked record name, status, note), open findings panel
+
+**`/audit-programs` — Audit Program List:**
+- All programmes with status badge, year, standard, lead; create modal
+
+**`/audit-programs/{id}` — Program Detail:**
+- Programme header; list of audits with status badges; aggregate finding counts by type; create audit modal
+
+**`/audits/{id}` — Audit Detail:**
+- Audit header (edit scope/dates/status); findings table with type badges and status; "Add Finding" modal (clause picker with typeahead on title/number, finding type, description, evidence); "Raise Corrective Action" button on each Major/Minor finding (creates an `ActionItem` and links it); finding close modal
+
+---
+
+#### Integration with existing features
+
+| Existing Feature | Integration |
+|---|---|
+| `ActionItem` (Phase 15) | Audit findings that require CA create an `ActionItem` (`SourceEntityType = AuditFinding`); finding auto-closes when action is `Verified`; overdue CA on an audit finding appears in `TeamActions` and `QualityScorecard` exactly like any other overdue action |
+| `ManagementReview` (Phase 15) | Auto-populated inputs extended with count of open Major / Minor findings per standard, and whether last audit cycle is complete |
+| QMS documents (Phase 13/14 seeds) | Auto-linked to their governing clauses on seeder run — zero manual configuration required for a new deployment |
+| `CompetencyRecord` (Phase 16) | Each current competency record contributes an evidence link for clause 7.2; expiring or expired records are reflected in coverage status |
+| `ControlPlan` rows | Auto-linked to clause 8.6 as evidence of inspection and testing controls |
+| `MrbReview` rows | Auto-linked to clause 8.7 (Nonconformance Control) |
+| MCP server | New tool `get_conformance_status` — returns clause coverage summary and open finding counts per standard; optionally filtered to a specific clause number |
+
+---
+
+#### Key design decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Clause data as seed, not user-configurable | Fixed seed table | Standard clause numbers and titles do not change between audits; allowing user edits would create divergence from the published standard and undermine traceability |
+| Auto-linking vs. manual | Primarily auto-linked, manual supplement | Manual linking of every evidence record is operationally unsustainable; auto-linking by known patterns covers 90% of the common clauses with zero user effort |
+| Single `AuditFinding.ActionItemId` FK | One action item per finding | Audit findings are addressed by one corrective action; multiple tasks arising from a CA are sub-tasks of that action item, not separate findings |
+| No separate CAR entity | Reuse `ActionItem` with `SourceEntityType = AuditFinding` | Every other quality event already generates `ActionItem` records; a separate CAR table would duplicate tracking and fragment the tiered accountability view |
+| Coverage status computed at query time | Not persisted | Coverage status is a function of live evidence links and live finding statuses — persisting it would require invalidation logic on every related write; computing it on read is simpler and always current |
+
+**New entities:** `StandardsClause`, `AuditProgram`, `Audit`, `AuditFinding`, `ClauseEvidenceLink`
+
+**New enum values:** `Standard` (`Iso9001_2015` / `As9100RevD`), `AuditType` (`Internal` / `Surveillance` / `Recertification` / `SecondParty`), `FindingType` (`MajorNonconformance` / `MinorNonconformance` / `Observation` / `OpportunityForImprovement`), `AuditStatus` (`Planned` / `InProgress` / `Complete`), `AuditProgramStatus` (`Planning` / `Active` / `Closed`), `ClauseEvidenceEntityType`, `ClauseCoverageStatus`
+
+**Existing entities extended:** `ActionItem.SourceEntityType` gains `AuditFinding`; `ManagementReview` auto-populated snapshot gains open-finding counts
+
+**MCP tool:** `get_conformance_status` — returns per-standard clause coverage summary (covered / partial / gap counts), list of open Major findings with clause reference, and next planned audit date
+
+**Status:** Designed — depends on Phase 15 (`ActionItem`) and Phase 14 (QMS document seeding) being complete. Both are built. ✅
+
+---
+
+### Phase 18+ — Integrations (future)
 
 **Goal:** Connect the process system to peripheral business functions.
 
@@ -1820,6 +2008,7 @@ Additional capability added post-Phase 6:
 - **Phase 12f — Participant Portal** — `Participant` role with access scoped to My Work + ExecutionWizard only; all design, admin, and quality engineering routes hidden and route-guarded; stripped `ParticipantLayout` with minimal navigation; optional `/portal` URL entry point
 - **Phase 13 (remaining) — System content flag + "Copy to My Library"** — `IsSystemContent` flag on Process and StepTemplate to distinguish seeded content from user-created records; "Copy to My Library" action that clones a system process under the user's own code prefix; protects system records from accidental deletion or edit
 - **Phase 2 enhancement — `UserPicker` stores user Id** — current implementation stores display name as a plain string; a future enhancement would store the ASP.NET Identity user Id as the value and resolve the display name at render time, enabling joins to competency and accountability records
+- **Phase 17 — Standards Conformance Management** — `StandardsClause` seed table (ISO 9001:2015 + AS9100 Rev D clauses), `ClauseEvidenceLink` many-to-many join with auto-linking rules for all seeded QMS documents and quality records, `AuditProgram`/`Audit`/`AuditFinding` entities with `ActionItem` FK for CA tracking, Conformance Dashboard (`/conformance`) with clause-coverage heatmap, Clause Browser, Audit Program list and detail pages, Audit detail with finding management, `get_conformance_status` MCP tool
 
 #### Ongoing limitations
 

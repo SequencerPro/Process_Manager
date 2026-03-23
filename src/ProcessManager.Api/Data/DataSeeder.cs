@@ -124,6 +124,206 @@ public static class DataSeeder
             Description = "Clean, bag, label, and pack units for shipment.",
             Pattern = StepPattern.General, IsActive = true, Version = 1
         };
+        // ── Step Template Content (using SeederStepBuilder) ──────────────────
+        // INSP-01 — Incoming Inspection
+        {
+            stIncomingInsp.Contents.Add(SeederStepBuilder.Setup(stIncomingInsp, 0,
+                "1.  Retrieve the delivery paperwork (packing slip, certificate of conformance) from the goods-received area.\n" +
+                "2.  Locate the corresponding purchase order in the system and confirm part numbers and quantities match.\n" +
+                "3.  Place the received items in the incoming inspection hold area before beginning physical checks."));
+            stIncomingInsp.Contents.Add(SeederStepBuilder.Safety(stIncomingInsp, 20,
+                "CAUTION: Do not move items from the inspection hold area to WIP storage until this step is marked Complete. " +
+                "Using unverified incoming material is a nonconformance under QMS-012."));
+            stIncomingInsp.Contents.Add(SeederStepBuilder.Reference(stIncomingInsp, 30,
+                "[Refer to the applicable incoming inspection checklist for this part number. " +
+                "Drawing tolerances and acceptance criteria are defined in the part drawing package.]"));
+
+            var dimPrompt = SeederStepBuilder.Numeric(stIncomingInsp, 40,
+                "Measured dimension vs. nominal (record deviation in mm)", units: "mm",
+                min: -0.5m, max: 0.5m, nominal: 0m, hardLimit: true);
+            stIncomingInsp.Contents.Add(dimPrompt);
+
+            stIncomingInsp.Contents.Add(SeederStepBuilder.PassFail(stIncomingInsp, 41,
+                "Surface finish acceptable (no scratches, corrosion, or contamination)", hardLimit: false));
+            stIncomingInsp.Contents.Add(SeederStepBuilder.PassFail(stIncomingInsp, 42,
+                "Certificate of conformance present and matches delivery", hardLimit: true));
+            stIncomingInsp.Contents.Add(SeederStepBuilder.Checkbox(stIncomingInsp, 43,
+                "Quantity counted and confirmed against purchase order",
+                ContentCategory.Inspection));
+            stIncomingInsp.Contents.Add(SeederStepBuilder.Note(stIncomingInsp, 80,
+                "Record any deviations on the Non-Conformance Log. Items failing hard-limit checks " +
+                "must be quarantined and escalated to the Quality Engineer before any disposition decision."));
+
+            stIncomingInsp.RunChartWidgets.Add(SeederStepBuilder.Chart(
+                stIncomingInsp, dimPrompt, "Incoming dimension deviation trend"));
+        }
+
+        // MACH-01 — CNC Machining
+        {
+            stCncMach.Contents.Add(SeederStepBuilder.Setup(stCncMach, 0,
+                "1.  Retrieve the job traveller and confirm the correct program number is loaded on the CNC controller.\n" +
+                "2.  Select and mount tooling per the tool list on the job traveller. Verify tool offsets are set.\n" +
+                "3.  Load the workpiece into the fixture; confirm the datum face seats flush against all three locating pins.\n" +
+                "4.  Zero the part using the edge-finder or touch probe per the setup sheet.\n" +
+                "5.  Run a dry cycle (feedrate override 0%) before the first production cut to verify clearances."));
+            stCncMach.Contents.Add(SeederStepBuilder.Safety(stCncMach, 20,
+                "Do not reach into the machining envelope while the spindle is energised or the program is active. " +
+                "Confirm E-stop is accessible before starting. PPE required: safety glasses, steel-cap footwear. " +
+                "Do not leave the machine unattended during the first article cut."));
+            stCncMach.Contents.Add(SeederStepBuilder.Reference(stCncMach, 30,
+                "[Figure 1 — Fixture loading diagram: datum faces A, B, C and clamping sequence]\n" +
+                "[Refer to drawing WDG-100-DIM for dimensional tolerance zones and surface finish callouts]"));
+
+            var depthPrompt = SeederStepBuilder.Numeric(stCncMach, 40,
+                "Bored depth (measured with depth micrometer)", units: "mm",
+                min: 24.8m, max: 25.2m, nominal: 25.0m, hardLimit: true);
+            stCncMach.Contents.Add(depthPrompt);
+
+            var diamPrompt = SeederStepBuilder.Numeric(stCncMach, 41,
+                "Outer diameter (measured with digital calliper)", units: "mm",
+                min: 49.95m, max: 50.05m, nominal: 50.0m, hardLimit: true);
+            stCncMach.Contents.Add(diamPrompt);
+
+            stCncMach.Contents.Add(SeederStepBuilder.PassFail(stCncMach, 42,
+                "Surface finish Ra ≤ 1.6 µm — confirm with surface comparator", hardLimit: false));
+            stCncMach.Contents.Add(SeederStepBuilder.Checkbox(stCncMach, 43,
+                "Burrs removed and chamfers applied per drawing callout",
+                ContentCategory.Inspection));
+            stCncMach.Contents.Add(SeederStepBuilder.Note(stCncMach, 80,
+                "First-article checks (first unit of each job) require a full balloon inspection against the drawing. " +
+                "Record the inspection results in the job traveller."));
+
+            stCncMach.RunChartWidgets.Add(SeederStepBuilder.Chart(stCncMach, depthPrompt, "Bored depth trend"));
+            stCncMach.RunChartWidgets.Add(SeederStepBuilder.Chart(stCncMach, diamPrompt, "Outer diameter trend"));
+        }
+
+        // ASSY-01 — Sub-Assembly
+        {
+            stSubAssembly.Contents.Add(SeederStepBuilder.Setup(stSubAssembly, 0,
+                "1.  Pull all components listed on the BOM from the WIP store and verify quantities and revision levels.\n" +
+                "2.  Confirm all required torque tools and fixtures are calibrated and available at the workstation.\n" +
+                "3.  Stage the base assembly in the assembly fixture; verify the assembly is secure before beginning."));
+            stSubAssembly.Contents.Add(SeederStepBuilder.Safety(stSubAssembly, 20,
+                "When applying torque to fasteners, ensure the opposite face of the assembly is supported to prevent loading the PCB or housing. " +
+                "Report any cracked housings or stripped threads to the Engineer immediately — do not ship."));
+            stSubAssembly.Contents.Add(SeederStepBuilder.Reference(stSubAssembly, 30,
+                "[Figure 1 — Exploded assembly diagram: component identification and fastener locations]\n" +
+                "[Refer to the assembly BOM for part numbers and revision-controlled quantities]"));
+
+            var torquePrompt = SeederStepBuilder.Numeric(stSubAssembly, 40,
+                "Fastener torque (all locations)", units: "Nm",
+                min: 2.2m, max: 2.8m, nominal: 2.5m, hardLimit: true);
+            stSubAssembly.Contents.Add(torquePrompt);
+
+            stSubAssembly.Contents.Add(SeederStepBuilder.Checkbox(stSubAssembly, 41,
+                "All fastener locations populated — none missing or cross-threaded",
+                ContentCategory.Inspection));
+            stSubAssembly.Contents.Add(SeederStepBuilder.PassFail(stSubAssembly, 42,
+                "Connector seating confirmed — all connectors fully latched and retention tabs engaged", hardLimit: false));
+            stSubAssembly.Contents.Add(SeederStepBuilder.PassFail(stSubAssembly, 43,
+                "Component orientations visually verified against assembly diagram", hardLimit: false));
+            stSubAssembly.Contents.Add(SeederStepBuilder.Note(stSubAssembly, 80,
+                "Any BOM discrepancy (wrong revision, unexpected substitute) must be raised as a non-conformance " +
+                "before assembly proceeds. Do not substitute components without engineer approval."));
+
+            stSubAssembly.RunChartWidgets.Add(SeederStepBuilder.Chart(stSubAssembly, torquePrompt, "Assembly torque trend"));
+        }
+
+        // TEST-01 — Functional Test
+        {
+            stFuncTest.Contents.Add(SeederStepBuilder.Setup(stFuncTest, 0,
+                "1.  Connect the assembly to the functional test fixture using the correct cable harness for this product variant.\n" +
+                "2.  Confirm the test software version matches the variant code on the job traveller.\n" +
+                "3.  Set the power supply to the required test voltage before applying power to the UUT."));
+            stFuncTest.Contents.Add(SeederStepBuilder.Safety(stFuncTest, 20,
+                "ESD precautions required: wrist strap connected, ESD mat in place, no bare-hand contact with PCB surfaces. " +
+                "Do not connect the UUT to the test fixture until the power supply output is verified at 0 V."));
+            stFuncTest.Contents.Add(SeederStepBuilder.Reference(stFuncTest, 30,
+                "[Refer to the Functional Test Specification document for pass/fail limits for each test point]\n" +
+                "[Figure 1 — Test fixture connection diagram and cable harness routing]"));
+
+            var supplyPrompt = SeederStepBuilder.Numeric(stFuncTest, 40,
+                "Supply current at nominal voltage (Vcc = 5 V)", units: "mA",
+                min: 180m, max: 240m, nominal: 210m, hardLimit: true);
+            stFuncTest.Contents.Add(supplyPrompt);
+
+            var outputPrompt = SeederStepBuilder.Numeric(stFuncTest, 41,
+                "Output voltage at full load", units: "V",
+                min: 4.85m, max: 5.15m, nominal: 5.0m, hardLimit: true);
+            stFuncTest.Contents.Add(outputPrompt);
+
+            stFuncTest.Contents.Add(SeederStepBuilder.PassFail(stFuncTest, 42,
+                "All self-test LEDs illuminate in correct sequence at power-on", hardLimit: false));
+            stFuncTest.Contents.Add(SeederStepBuilder.PassFail(stFuncTest, 43,
+                "Communication interface responds to loopback test command", hardLimit: true));
+            stFuncTest.Contents.Add(SeederStepBuilder.Choice(stFuncTest, 44,
+                "Overall functional test result",
+                new[] { "Pass — all limits met", "Fail — one or more limits exceeded", "Inconclusive — test aborted" }));
+            stFuncTest.Contents.Add(SeederStepBuilder.Note(stFuncTest, 80,
+                "A Fail result on any hard-limit prompt automatically generates a non-conformance record. " +
+                "Do not retest without first investigating and documenting the failure mode."));
+
+            stFuncTest.RunChartWidgets.Add(SeederStepBuilder.Chart(stFuncTest, supplyPrompt, "Supply current trend"));
+            stFuncTest.RunChartWidgets.Add(SeederStepBuilder.Chart(stFuncTest, outputPrompt, "Output voltage trend"));
+        }
+
+        // INSP-02 — Visual Inspection
+        {
+            stVisualInsp.Contents.Add(SeederStepBuilder.Setup(stVisualInsp, 0,
+                "1.  Place the item on the inspection bench under the overhead inspection lamp (minimum 1000 lux).\n" +
+                "2.  Rotate the item through 360° to inspect all exterior faces before beginning the formal checklist.\n" +
+                "3.  Use a 5× loupe for any area where fine-detail workmanship must be assessed."));
+            stVisualInsp.Contents.Add(SeederStepBuilder.Reference(stVisualInsp, 30,
+                "[Refer to the visual workmanship standard (IPC-A-610 or company equivalent) for defect classification]\n" +
+                "[Figure 1 — Defect reference chart: acceptable vs. rejectable conditions for this product class]"));
+
+            stVisualInsp.Contents.Add(SeederStepBuilder.PassFail(stVisualInsp, 40,
+                "No scratches, dents, or gouges exceeding the workmanship standard", hardLimit: false));
+            stVisualInsp.Contents.Add(SeederStepBuilder.PassFail(stVisualInsp, 41,
+                "Marking and labelling correct, legible, and properly positioned", hardLimit: true));
+            stVisualInsp.Contents.Add(SeederStepBuilder.PassFail(stVisualInsp, 42,
+                "No contamination (grease, flux residue, metal swarf, moisture)", hardLimit: false));
+            stVisualInsp.Contents.Add(SeederStepBuilder.PassFail(stVisualInsp, 43,
+                "No visible cracks in housing, moulding, or weld zone", hardLimit: true));
+            stVisualInsp.Contents.Add(SeederStepBuilder.Choice(stVisualInsp, 44,
+                "Overall cosmetic grade",
+                new[] { "Grade A — no visible defects", "Grade B — minor cosmetic only, fully functional", "Reject — functional or safety concern" }));
+            stVisualInsp.Contents.Add(SeederStepBuilder.Note(stVisualInsp, 80,
+                "Grade B items must be recorded on the traveller and are subject to customer notification rules " +
+                "defined in QMS-009. Grade B does not require a non-conformance record unless the customer's " +
+                "contract specifies Grade A only."));
+        }
+
+        // PACK-01 — Packaging
+        {
+            stPackaging.Contents.Add(SeederStepBuilder.Setup(stPackaging, 0,
+                "1.  Retrieve the correct packaging materials from stores per the packaging specification for this part.\n" +
+                "2.  Check that the bag size and anti-static type (if required) match the part number's packaging BOM.\n" +
+                "3.  Print the product label and serialised shipping label from the system before beginning."));
+            stPackaging.Contents.Add(SeederStepBuilder.Safety(stPackaging, 20,
+                "Handle completed assemblies only with clean gloves. Cosmetic defects introduced during packaging " +
+                "that were not present at visual inspection are a workmanship nonconformance."));
+            stPackaging.Contents.Add(SeederStepBuilder.Reference(stPackaging, 30,
+                "[Refer to the packaging specification drawing for this part number: bag type, cushioning type, " +
+                "label positions, and carton arrangement]"));
+
+            stPackaging.Contents.Add(SeederStepBuilder.Checkbox(stPackaging, 40,
+                "Item cleaned (lint-free cloth) and free of fingerprints before bagging",
+                ContentCategory.Inspection));
+            stPackaging.Contents.Add(SeederStepBuilder.PassFail(stPackaging, 41,
+                "Product label applied: correct part number, revision, serial number, and barcode", hardLimit: true));
+            stPackaging.Contents.Add(SeederStepBuilder.PassFail(stPackaging, 42,
+                "Bag sealed and desiccant included (if required by spec)", hardLimit: false));
+            stPackaging.Contents.Add(SeederStepBuilder.PassFail(stPackaging, 43,
+                "Shipping label applied to outer carton: correct address, tracking number, and hazmat markings if applicable",
+                hardLimit: true));
+            stPackaging.Contents.Add(SeederStepBuilder.Scan(stPackaging, 44,
+                "Scan or enter shipping tracking number"));
+            stPackaging.Contents.Add(SeederStepBuilder.Note(stPackaging, 80,
+                "Do not release cartons to the shipping area until all items in the job have completed this step. " +
+                "The job must be marked Complete before the dispatch note is printed."));
+        }
+
         db.StepTemplates.AddRange(stIncomingInsp, stCncMach, stSubAssembly, stFuncTest, stVisualInsp, stPackaging);
 
         // ── Processes ─────────────────────────────────────────────────────────
@@ -2509,6 +2709,20 @@ public static class DataSeeder
             "per-process to match the organisation's own language.",
             expiryDays: 730, "A", 1, 55);
 
+        // ── Module 9 — Process Authoring Walkthrough ──────────────────────────────
+        var trnDsn001 = Course(
+            "TRN-DSN-001",
+            "How to Create a Process",
+            "Process Authoring — Foundation",
+            "A practical hands-on walkthrough for any Engineer or Admin who is creating a process " +
+            "in Process Manager for the first time. Covers the complete authoring lifecycle: " +
+            "creating the process record (code, name, description, role), adding and arranging " +
+            "steps from the shared step template library, writing rich instructional content for " +
+            "each step in the Slide view, reviewing the finished process in Document view, and " +
+            "submitting for approval to publish it. Ends with a self-check. Recommended before " +
+            "authoring any live process that will be used in production or compliance activities.",
+            expiryDays: 365, "A", 1, 25);
+
         // ── Shared step template for all training course modules ─────────────
         var stTrnMod = db.StepTemplates.FirstOrDefault(t => t.Code == "TRN-MOD-01")
             ?? new StepTemplate
@@ -2660,15 +2874,333 @@ public static class DataSeeder
         AddTrnStep(trn012, stTrnMod, 4, "Best Practices for Role Assignment",
             "The principle of least privilege applied to Process Manager roles; guidance on Engineer vs Admin delegation; and when to use admin-release versus the standard document approval workflow.");
 
+        // TRN-DSN-001 — How to Create a Process (rich content walkthrough)
+        {
+            static ProcessStepContent Blk(ProcessStep ps, int order, string body) => new()
+            {
+                Id = Guid.NewGuid(), CreatedAt = ps.CreatedAt, UpdatedAt = ps.CreatedAt,
+                ProcessStepId = ps.Id,
+                ContentType = StepContentType.Text,
+                ContentCategory = ContentCategory.Reference,
+                SortOrder = order, Body = body
+            };
+
+            // Step 1 — What is a Process?
+            var dsnPs1 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = trnDsn001.CreatedAt, UpdatedAt = trnDsn001.CreatedAt,
+                ProcessId = trnDsn001.Id, StepTemplateId = stTrnMod.Id, Sequence = 1,
+                NameOverride = "What is a Process?",
+                DescriptionOverride = "Understanding the core concept before you start building."
+            };
+            dsnPs1.Contents.Add(Blk(dsnPs1, 0,
+                "In Process Manager, a process is the reusable template that defines a sequence of " +
+                "work. Every time that work is actually performed — a production run, a training event, " +
+                "a service delivery — the system creates a Job that references the process. The process " +
+                "stays unchanged; the job captures what actually happened, who did it, and when.\n\n" +
+                "Think of a process as the recipe and the job as the batch record. You write the recipe " +
+                "once; you run it as many times as you need, and each run produces its own history."));
+            dsnPs1.Contents.Add(Blk(dsnPs1, 1,
+                "Every process record has four core header fields:\n\n" +
+                "  Code — A short unique identifier for this process (e.g. WDG-MFG-01, QMS-018, TRN-SYS-003). " +
+                "Once set, this code should not change — it is used in cross-references, audit trails, and " +
+                "document-control numbering.\n\n" +
+                "  Name — A clear human-readable title describing what the process covers. " +
+                "Aim for 3–7 words that are meaningful to someone who has never seen it before.\n\n" +
+                "  Description — One or two sentences explaining the purpose and scope of the process. " +
+                "This text appears in search results, the Document Library, and the Training Catalogue, " +
+                "so it should help a user decide whether this is the process they are looking for.\n\n" +
+                "  Process Role — The classification that controls where the process appears in the " +
+                "application (see the next block)."));
+            dsnPs1.Contents.Add(Blk(dsnPs1, 2,
+                "Process Roles and where they appear:\n\n" +
+                "  Manufacturing Process — Shown in the Create Job UI so operators and engineers can " +
+                "select it when starting a production run, inspection, or service delivery.\n\n" +
+                "  QMS Document — Appears in the Document Library under the QMS Documents filter. " +
+                "Subject to the full controlled-document approval workflow (Draft → Pending Approval " +
+                "→ Released → Superseded). Used for procedures, policies, and work instructions that " +
+                "form part of the ISO 9001 quality system.\n\n" +
+                "  Work Instruction — Also in the Document Library. Version-controlled and approval-routed, " +
+                "but used for operational instructions rather than formal QMS procedures.\n\n" +
+                "  Training — Appears in the Training Catalogue. Completing the training job generates " +
+                "a Competency Record for the learner.\n\n" +
+                "  Approval Process — Defines an approval routing template used internally by the " +
+                "document approval system. Not selectable in the Create Job UI."));
+            trnDsn001.ProcessSteps.Add(dsnPs1);
+
+            // Step 2 — Prerequisites
+            var dsnPs2 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = trnDsn001.CreatedAt, UpdatedAt = trnDsn001.CreatedAt,
+                ProcessId = trnDsn001.Id, StepTemplateId = stTrnMod.Id, Sequence = 2,
+                NameOverride = "Before You Start",
+                DescriptionOverride = "What you need to have ready before opening the Process Builder."
+            };
+            dsnPs2.Contents.Add(Blk(dsnPs2, 0,
+                "Role requirement\n\n" +
+                "Creating and editing processes requires the Engineer or Admin role. Standard users " +
+                "can view and execute processes but cannot author them. If you do not see the Design " +
+                "section in the navigation sidebar, or cannot see a 'New Process' button on the " +
+                "Processes list page, ask your system administrator to check your role assignment."));
+            dsnPs2.Contents.Add(Blk(dsnPs2, 1,
+                "Identify the steps you need\n\n" +
+                "Processes are built from step templates — reusable building blocks that live in the " +
+                "shared step library. Before opening the builder, list the steps your process requires " +
+                "and check whether suitable templates already exist (Design → Step Templates). " +
+                "Using existing shared templates is almost always preferable to creating new ones, " +
+                "because content improvements made to a shared template benefit every process that " +
+                "uses it.\n\n" +
+                "If no suitable template exists, you will need to create one first (see TRN-SYS-004 — " +
+                "Managing Step Templates). You cannot add a step to a process without a template."));
+            dsnPs2.Contents.Add(Blk(dsnPs2, 2,
+                "Draft the process on paper first\n\n" +
+                "Before touching the keyboard, write down:\n" +
+                "  1.  The process code (check it does not already exist in the system)\n" +
+                "  2.  The process name and a one-sentence description\n" +
+                "  3.  The ordered list of steps and which template each one uses\n" +
+                "  4.  For each step: any content you plan to add (instructions, safety notes, images, prompts)\n\n" +
+                "Having this prepared reduces the risk of forgetting a step or entering a description " +
+                "that has to be corrected later under formal change control."));
+            trnDsn001.ProcessSteps.Add(dsnPs2);
+
+            // Step 3 — Create the Process Record
+            var dsnPs3 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = trnDsn001.CreatedAt, UpdatedAt = trnDsn001.CreatedAt,
+                ProcessId = trnDsn001.Id, StepTemplateId = stTrnMod.Id, Sequence = 3,
+                NameOverride = "Create the Process Record",
+                DescriptionOverride = "Opening the Process Builder and filling in the header fields."
+            };
+            dsnPs3.Contents.Add(Blk(dsnPs3, 0,
+                "Navigate to the Process Builder\n\n" +
+                "1.  In the left navigation sidebar, expand Design and click Processes.\n" +
+                "2.  On the Processes list page, click New Process (top-right of the page).\n" +
+                "3.  The New Process form opens. Fill in the fields as described below.\n\n" +
+                "If you are creating a QMS Document or Work Instruction you can also reach New Process " +
+                "from the Document Library page — the form is identical."));
+            dsnPs3.Contents.Add(Blk(dsnPs3, 1,
+                "Fill in the header fields\n\n" +
+                "Code — Enter the unique code for this process. Follow your organisation's numbering " +
+                "convention (e.g. QMS-025 or TRN-DSN-001). The code must not already exist in the " +
+                "system — the form will warn you if it does.\n\n" +
+                "Name — Enter a clear title. Users search for processes by name, so make it specific " +
+                "enough to distinguish it from related processes in the same family.\n\n" +
+                "Description — One or two sentences stating what the process covers, who carries it " +
+                "out, and any important scope boundary (e.g. 'Covers Widget Mk2 variants only; " +
+                "Mk3 and above use WDG-MFG-02').\n\n" +
+                "Process Role — Select the appropriate role from the dropdown. This cannot easily be " +
+                "changed after the process has been released, so choose carefully."));
+            dsnPs3.Contents.Add(Blk(dsnPs3, 2,
+                "Save the draft\n\n" +
+                "Click Save (or Create). The process is saved in Draft status and you are taken to " +
+                "the Process Builder canvas.\n\n" +
+                "No one else can see a Draft process in the job creation UI, the Document Library, " +
+                "or the Training Catalogue until it is Released — so there is no risk of operators " +
+                "encountering an unfinished process."));
+            trnDsn001.ProcessSteps.Add(dsnPs3);
+
+            // Step 4 — Add and Arrange Steps
+            var dsnPs4 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = trnDsn001.CreatedAt, UpdatedAt = trnDsn001.CreatedAt,
+                ProcessId = trnDsn001.Id, StepTemplateId = stTrnMod.Id, Sequence = 4,
+                NameOverride = "Add and Arrange Steps",
+                DescriptionOverride = "Populating the process with steps from the shared step template library."
+            };
+            dsnPs4.Contents.Add(Blk(dsnPs4, 0,
+                "Adding a step\n\n" +
+                "In the Process Builder, click the Add Step button. A panel opens showing the " +
+                "step template library — a searchable list of all available templates. " +
+                "Filter by name, code, or step pattern. Select the template you want and click Add " +
+                "(or double-click the row). The step appears as a node in the Diagram view and " +
+                "is added to the end of the process sequence. Repeat for each step.\n\n" +
+                "You can add the same template more than once — for example, two separate inspection " +
+                "steps at different points in the process."));
+            dsnPs4.Contents.Add(Blk(dsnPs4, 1,
+                "Reordering steps\n\n" +
+                "In the Diagram view, drag and drop step nodes on the canvas to reorder them. " +
+                "The sequence numbers update automatically.\n\n" +
+                "Alternatively, the Step List view (accessible from the Builder toolbar) lets you " +
+                "change sequence numbers by typing or drag rows to reorder. Both views show the " +
+                "same data — a change in one immediately appears in the other.\n\n" +
+                "To remove a step, select it and click Remove. This removes it from the process " +
+                "but does not delete the underlying template from the library."));
+            dsnPs4.Contents.Add(Blk(dsnPs4, 2,
+                "Name and description overrides\n\n" +
+                "Each step can carry a Name Override and a Description Override to personalise a " +
+                "shared template for this specific process context. For example, the template might " +
+                "be named 'Incoming Inspection' and the override might read " +
+                "'Incoming Inspection — Widget Mk2 raw materials only'.\n\n" +
+                "Overrides appear instead of the template defaults in the Diagram view, Slide view, " +
+                "and in the operator-facing execution wizard. They do not affect the underlying " +
+                "template or any other process that references it."));
+            trnDsn001.ProcessSteps.Add(dsnPs4);
+
+            // Step 5 — Author Step Content
+            var dsnPs5 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = trnDsn001.CreatedAt, UpdatedAt = trnDsn001.CreatedAt,
+                ProcessId = trnDsn001.Id, StepTemplateId = stTrnMod.Id, Sequence = 5,
+                NameOverride = "Author Step Content",
+                DescriptionOverride = "Writing instructions, warnings, and prompts for each step using the Slide view."
+            };
+            dsnPs5.Contents.Add(Blk(dsnPs5, 0,
+                "Two content systems — template-level vs. step-level\n\n" +
+                "Process Manager has two places where content can be attached to a step:\n\n" +
+                "  Template-level content lives on the step template and is shown every time that " +
+                "template is used in any process. This is the right place for universal instructions " +
+                "that apply regardless of context — standard safety warnings, measurement methods, " +
+                "reference images that never change.\n\n" +
+                "  Step-level content lives on the individual process step within this specific " +
+                "process only and is shown only when this process is executed. This is the right " +
+                "place for context-specific content: which part number to use, process-specific " +
+                "acceptance criteria, or supplementary notes that do not apply to every use of the " +
+                "template.\n\n" +
+                "When building a new process, you author step-level content in the Slide view. " +
+                "Template-level content is managed separately under Design → Step Templates."));
+            dsnPs5.Contents.Add(Blk(dsnPs5, 1,
+                "Using the Slide view\n\n" +
+                "Switch to Slide view by clicking the Slide button in the Process Builder toolbar. " +
+                "The Slide view shows one step at a time as a full editing panel — like a " +
+                "PowerPoint slide for each step.\n\n" +
+                "To add a content block to the current step:\n" +
+                "  1.  Click Add Block inside the step panel.\n" +
+                "  2.  Select the block type: Text (instructions, cautions, notes), " +
+                "Image (diagrams and reference photos), or Prompt (operator inputs).\n" +
+                "  3.  For Text blocks, type directly into the editor. Use the toolbar for bold, " +
+                "italic, and lists.\n" +
+                "  4.  For Image blocks, upload the file or choose from the media library.\n" +
+                "  5.  For Prompt blocks, select the prompt type (Pass/Fail, Numeric Entry, " +
+                "Multiple Choice, Checkbox, Scan, or User Picker) and fill in the label plus " +
+                "any validation values.\n" +
+                "  6.  Set the Sort Order if block sequence matters (lower numbers appear first).\n" +
+                "  7.  Save the block."));
+            dsnPs5.Contents.Add(Blk(dsnPs5, 2,
+                "Content categories and sort order conventions\n\n" +
+                "Each content block can be assigned a category. The category controls the visual " +
+                "treatment in the execution wizard so operators can quickly orient themselves:\n\n" +
+                "  Setup (0–19) — Preparation: retrieving materials, configuring the workstation, " +
+                "loading fixtures.\n\n" +
+                "  Safety (20–29) — Hazard warnings. Always enable 'Acknowledgment Required' so " +
+                "the operator must explicitly confirm they have read the warning before the wizard " +
+                "advances.\n\n" +
+                "  Reference (30–39) — Diagrams, drawings, and specification documents. If an " +
+                "image is not yet available, use the placeholder format: " +
+                "[Figure 1 — description of diagram].\n\n" +
+                "  Inspection (40–79) — Active prompts the operator must respond to: numeric " +
+                "measurements, pass/fail checks, multiple-choice selections.\n\n" +
+                "  Note (80+) — Post-step information, escalation rules, or supplementary " +
+                "content that does not block progress."));
+            trnDsn001.ProcessSteps.Add(dsnPs5);
+
+            // Step 6 — Review and Submit
+            var dsnPs6 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = trnDsn001.CreatedAt, UpdatedAt = trnDsn001.CreatedAt,
+                ProcessId = trnDsn001.Id, StepTemplateId = stTrnMod.Id, Sequence = 6,
+                NameOverride = "Review and Submit for Approval",
+                DescriptionOverride = "Checking the finished process in Document view and publishing through the approval workflow."
+            };
+            dsnPs6.Contents.Add(Blk(dsnPs6, 0,
+                "Self-review in Document view\n\n" +
+                "Before submitting for formal approval, switch to Document view (click the Document " +
+                "button in the Process Builder toolbar). Document view renders a typeset, read-only " +
+                "version of the process — the same layout shown in the Document Library and available " +
+                "for printing or PDF export.\n\n" +
+                "Use Document view to verify:\n" +
+                "  •  All steps appear in the correct sequence\n" +
+                "  •  Step names and descriptions are clear and unambiguous\n" +
+                "  •  Content blocks appear under the correct steps with no obvious gaps\n" +
+                "  •  Safety warnings are present where expected\n" +
+                "  •  No obvious spelling or grammar issues\n\n" +
+                "You cannot edit in Document view — switch back to Slide or Diagram view to make " +
+                "corrections, then return to verify."));
+            dsnPs6.Contents.Add(Blk(dsnPs6, 1,
+                "Submitting for approval\n\n" +
+                "When satisfied, click Submit for Approval (available from the process detail page " +
+                "or Process Builder toolbar). A dialogue asks for:\n\n" +
+                "  Change Description — Write a specific statement of what has been created or " +
+                "changed and why. Good: 'New incoming inspection process for Widget Mk2 raw " +
+                "material; no prior process existed.' Poor: 'Updated.'\n\n" +
+                "  Approval Process Template — Select the routing template defining who must " +
+                "approve this document (e.g. 'Engineering Document — 2 Approvers' or " +
+                "'QMS Procedure — QM + Director').\n\n" +
+                "  Reviewers — Assign a named reviewer to each approval step.\n\n" +
+                "Click Submit. The process status changes to Pending Approval and each reviewer " +
+                "receives a notification in their My Work queue."));
+            dsnPs6.Contents.Add(Blk(dsnPs6, 2,
+                "After approval — what happens\n\n" +
+                "When all reviewers have approved, the process automatically transitions to Released:\n\n" +
+                "  •  A Manufacturing Process becomes available in the Create Job UI\n" +
+                "  •  A QMS Document or Work Instruction appears in the Document Library as " +
+                "the current released version\n" +
+                "  •  A Training course appears in the Training Catalogue\n\n" +
+                "If any reviewer rejects the submission, the process returns to Draft and you receive " +
+                "a notification with their comments. Address the feedback and re-submit when ready.\n\n" +
+                "You can monitor approval progress at any time from the process detail page, where " +
+                "the full approval chain and each reviewer's current status are shown."));
+            trnDsn001.ProcessSteps.Add(dsnPs6);
+
+            // Step 7 — Knowledge Check
+            var dsnPs7 = new ProcessStep
+            {
+                Id = Guid.NewGuid(), CreatedAt = trnDsn001.CreatedAt, UpdatedAt = trnDsn001.CreatedAt,
+                ProcessId = trnDsn001.Id, StepTemplateId = stTrnMod.Id, Sequence = 7,
+                NameOverride = "Knowledge Check",
+                DescriptionOverride = "Confirm your understanding before completing this training module."
+            };
+            dsnPs7.Contents.Add(new ProcessStepContent
+            {
+                Id = Guid.NewGuid(), CreatedAt = dsnPs7.CreatedAt, UpdatedAt = dsnPs7.CreatedAt,
+                ProcessStepId = dsnPs7.Id,
+                ContentType = StepContentType.Prompt, PromptType = PromptType.PassFail,
+                ContentCategory = ContentCategory.Inspection, SortOrder = 0, IsRequired = true,
+                Label = "I can explain the difference between a Process (the reusable template) and a Job (the execution record for a specific run)."
+            });
+            dsnPs7.Contents.Add(new ProcessStepContent
+            {
+                Id = Guid.NewGuid(), CreatedAt = dsnPs7.CreatedAt, UpdatedAt = dsnPs7.CreatedAt,
+                ProcessStepId = dsnPs7.Id,
+                ContentType = StepContentType.Prompt, PromptType = PromptType.PassFail,
+                ContentCategory = ContentCategory.Inspection, SortOrder = 1, IsRequired = true,
+                Label = "I know which Process Role to choose when creating a manufacturing work instruction versus a training course."
+            });
+            dsnPs7.Contents.Add(new ProcessStepContent
+            {
+                Id = Guid.NewGuid(), CreatedAt = dsnPs7.CreatedAt, UpdatedAt = dsnPs7.CreatedAt,
+                ProcessStepId = dsnPs7.Id,
+                ContentType = StepContentType.Prompt, PromptType = PromptType.PassFail,
+                ContentCategory = ContentCategory.Inspection, SortOrder = 2, IsRequired = true,
+                Label = "I understand the difference between template-level content (shown every time that template is used) and step-level content (shown only in this specific process)."
+            });
+            dsnPs7.Contents.Add(new ProcessStepContent
+            {
+                Id = Guid.NewGuid(), CreatedAt = dsnPs7.CreatedAt, UpdatedAt = dsnPs7.CreatedAt,
+                ProcessStepId = dsnPs7.Id,
+                ContentType = StepContentType.Prompt, PromptType = PromptType.MultipleChoice,
+                ContentCategory = ContentCategory.Inspection, SortOrder = 3, IsRequired = true,
+                Label = "Which view in the Process Builder is designed for authoring detailed operator instructions, content blocks, and prompts for each step?",
+                Choices = System.Text.Json.JsonSerializer.Serialize(new[]
+                {
+                    "Diagram view — the flowchart canvas",
+                    "Slide view — the panel-per-step content editor",
+                    "Document view — the typeset read-only output",
+                    "List view — the sequence number editor"
+                })
+            });
+            trnDsn001.ProcessSteps.Add(dsnPs7);
+        }
+
         // Per-record upsert — only insert courses whose code is not already in the database.
         var existingTrnCodes = db.Processes
-            .Where(p => p.Code.StartsWith("TRN-SYS-"))
+            .Where(p => p.Code.StartsWith("TRN-SYS-") || p.Code.StartsWith("TRN-DSN-"))
             .Select(p => p.Code)
             .ToHashSet();
         var allCourses = new[]
         {
             trn001, trn002, trn003, trn004, trn005, trn006,
-            trn007, trn008, trn009, trn010, trn011, trn012
+            trn007, trn008, trn009, trn010, trn011, trn012,
+            trnDsn001
         };
         db.Processes.AddRange(allCourses.Where(c => !existingTrnCodes.Contains(c.Code)));
 
@@ -2711,4 +3243,197 @@ public static class DataSeeder
                 StepExecutionStatus.Completed, stepStart, stepEnd));
         }
     }
+}
+
+// =============================================================================
+// SeederStepBuilder — typed helpers for authoring StepTemplate content blocks.
+//
+// USAGE RULES (enforced by convention, not compiler):
+//   1. Manufacturing step instructions → StepTemplate.Contents  (StepTemplateContent)
+//      QMS / training document steps  → ProcessStep.Contents    (ProcessStepContent)
+//      Use the Blk() local helper pattern (already in SeedQmsDocumentsAsync) for
+//      the latter; use SeederStepBuilder for the former.
+//
+//   2. Sort-order conventions:
+//        0–19   Setup blocks
+//       20–29   Safety blocks  (always set acknowledgmentRequired: true)
+//       30–39   Reference blocks
+//       40–79   Inspection prompts (NumericEntry, PassFail, MultipleChoice)
+//       80+     Note blocks
+//
+//   3. Any NumericEntry Inspection prompt with min/max values MUST be followed
+//      by a RunChartWidget call on the same StepTemplate.
+//
+//   4. Safety blocks always set acknowledgmentRequired: true — never omit this.
+//
+//   5. Images are not seeded as real files.  Represent image references as a
+//      Reference-category Text block:  "[Figure 1 — Fixture loading diagram]"
+// =============================================================================
+public static class SeederStepBuilder
+{
+    // ── Text blocks ──────────────────────────────────────────────────────────
+
+    /// <summary>Setup instruction text block (sort order 0–19).</summary>
+    public static StepTemplateContent Setup(StepTemplate st, int order, string body) =>
+        TextBlock(st, order, ContentCategory.Setup, body, false);
+
+    /// <summary>
+    /// Safety instruction text block (sort order 20–29).
+    /// Always sets AcknowledgmentRequired = true.
+    /// </summary>
+    public static StepTemplateContent Safety(StepTemplate st, int order, string body) =>
+        TextBlock(st, order, ContentCategory.Safety, body, acknowledgmentRequired: true);
+
+    /// <summary>Reference/diagram placeholder text block (sort order 30–39).</summary>
+    public static StepTemplateContent Reference(StepTemplate st, int order, string body) =>
+        TextBlock(st, order, ContentCategory.Reference, body, false);
+
+    /// <summary>Note text block (sort order 80+).</summary>
+    public static StepTemplateContent Note(StepTemplate st, int order, string body) =>
+        TextBlock(st, order, ContentCategory.Note, body, false);
+
+    private static StepTemplateContent TextBlock(
+        StepTemplate st, int order, ContentCategory category, string body, bool acknowledgmentRequired) => new()
+    {
+        Id = Guid.NewGuid(), CreatedAt = st.CreatedAt, UpdatedAt = st.CreatedAt,
+        StepTemplateId = st.Id,
+        ContentType = StepContentType.Text,
+        SortOrder = order,
+        ContentCategory = category,
+        Body = body,
+        AcknowledgmentRequired = acknowledgmentRequired,
+        IntroducedInVersion = st.Version
+    };
+
+    // ── Prompt blocks ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Numeric measurement prompt (sort order 40–79).
+    /// Pass hardLimit: true for characteristics that must trigger NC disposition on breach.
+    /// A RunChart MUST be added for any numeric prompt that has min/max values.
+    /// </summary>
+    public static StepTemplateContent Numeric(
+        StepTemplate st, int order, string label,
+        string? units = null,
+        decimal? min = null, decimal? max = null, decimal? nominal = null,
+        bool required = true, bool hardLimit = false) => new()
+    {
+        Id = Guid.NewGuid(), CreatedAt = st.CreatedAt, UpdatedAt = st.CreatedAt,
+        StepTemplateId = st.Id,
+        ContentType = StepContentType.Prompt,
+        PromptType = PromptType.NumericEntry,
+        SortOrder = order,
+        ContentCategory = ContentCategory.Inspection,
+        Label = label,
+        Units = units,
+        MinValue = min, MaxValue = max, NominalValue = nominal,
+        IsRequired = required,
+        IsHardLimit = hardLimit,
+        IntroducedInVersion = st.Version
+    };
+
+    /// <summary>
+    /// Pass / Fail prompt (sort order 40–79).
+    /// Pass hardLimit: true for characteristics where Fail must trigger NC disposition.
+    /// </summary>
+    public static StepTemplateContent PassFail(
+        StepTemplate st, int order, string label,
+        bool required = true, bool hardLimit = false) => new()
+    {
+        Id = Guid.NewGuid(), CreatedAt = st.CreatedAt, UpdatedAt = st.CreatedAt,
+        StepTemplateId = st.Id,
+        ContentType = StepContentType.Prompt,
+        PromptType = PromptType.PassFail,
+        SortOrder = order,
+        ContentCategory = ContentCategory.Inspection,
+        Label = label,
+        IsRequired = required,
+        IsHardLimit = hardLimit,
+        IntroducedInVersion = st.Version
+    };
+
+    /// <summary>Multiple-choice prompt (sort order 40–79).</summary>
+    public static StepTemplateContent Choice(
+        StepTemplate st, int order, string label,
+        string[] options, bool required = true) => new()
+    {
+        Id = Guid.NewGuid(), CreatedAt = st.CreatedAt, UpdatedAt = st.CreatedAt,
+        StepTemplateId = st.Id,
+        ContentType = StepContentType.Prompt,
+        PromptType = PromptType.MultipleChoice,
+        SortOrder = order,
+        ContentCategory = ContentCategory.Inspection,
+        Label = label,
+        Choices = System.Text.Json.JsonSerializer.Serialize(options),
+        IsRequired = required,
+        IntroducedInVersion = st.Version
+    };
+
+    /// <summary>Single-line text / scan entry prompt.</summary>
+    public static StepTemplateContent Scan(
+        StepTemplate st, int order, string label, bool required = true) => new()
+    {
+        Id = Guid.NewGuid(), CreatedAt = st.CreatedAt, UpdatedAt = st.CreatedAt,
+        StepTemplateId = st.Id,
+        ContentType = StepContentType.Prompt,
+        PromptType = PromptType.Scan,
+        SortOrder = order,
+        ContentCategory = ContentCategory.Setup,
+        Label = label,
+        IsRequired = required,
+        IntroducedInVersion = st.Version
+    };
+
+    /// <summary>Checkbox acknowledgment prompt.</summary>
+    public static StepTemplateContent Checkbox(
+        StepTemplate st, int order, string label,
+        ContentCategory category = ContentCategory.Setup, bool required = true) => new()
+    {
+        Id = Guid.NewGuid(), CreatedAt = st.CreatedAt, UpdatedAt = st.CreatedAt,
+        StepTemplateId = st.Id,
+        ContentType = StepContentType.Prompt,
+        PromptType = PromptType.Checkbox,
+        SortOrder = order,
+        ContentCategory = category,
+        Label = label,
+        IsRequired = required,
+        IntroducedInVersion = st.Version
+    };
+
+    /// <summary>UserPicker prompt — captures a named user (instructor, witness, signatory).</summary>
+    public static StepTemplateContent UserPicker(
+        StepTemplate st, int order, string label,
+        ContentCategory category = ContentCategory.Inspection, bool required = true) => new()
+    {
+        Id = Guid.NewGuid(), CreatedAt = st.CreatedAt, UpdatedAt = st.CreatedAt,
+        StepTemplateId = st.Id,
+        ContentType = StepContentType.Prompt,
+        PromptType = PromptType.UserPicker,
+        SortOrder = order,
+        ContentCategory = category,
+        Label = label,
+        IsRequired = required,
+        IntroducedInVersion = st.Version
+    };
+
+    // ── Run chart ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Attach a run chart to a StepTemplate, sourcing data from the given Numeric prompt block.
+    /// Call this AFTER adding the source prompt to st.Contents.
+    /// SpecMin/SpecMax default to the prompt's MinValue/MaxValue when null.
+    /// </summary>
+    public static RunChartWidget Chart(
+        StepTemplate st, StepTemplateContent sourcePrompt, string label,
+        int window = 30, decimal? specMin = null, decimal? specMax = null) => new()
+    {
+        Id = Guid.NewGuid(), CreatedAt = st.CreatedAt, UpdatedAt = st.CreatedAt,
+        StepTemplateId = st.Id,
+        SourceContentId = sourcePrompt.Id,
+        Label = label,
+        ChartWindowSize = window,
+        SpecMin = specMin ?? sourcePrompt.MinValue,
+        SpecMax = specMax ?? sourcePrompt.MaxValue,
+        DisplayOrder = st.RunChartWidgets.Count
+    };
 }

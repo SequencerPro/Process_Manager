@@ -73,6 +73,19 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
 
+// ── CORS (allow Blazor frontend to fetch files directly, e.g. 3D model viewer) ──
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+            ?? new[] { "http://localhost:5097", "https://localhost:5097" };
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 // ── Controllers ───────────────────────────────────────────────────────────────
 builder.Services.AddControllers()
     .AddJsonOptions(opts =>
@@ -83,6 +96,10 @@ builder.Services.AddControllers()
 
 // ── Image storage ─────────────────────────────────────────────────────────────
 builder.Services.AddScoped<IImageStorageService, LocalImageStorageService>();
+
+// ── Background scheduler (skipped in Testing environment) ─────────────────────
+if (!builder.Environment.IsEnvironment("Testing"))
+    builder.Services.AddHostedService<WorkflowSchedulerService>();
 
 // ── Swagger ───────────────────────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
@@ -126,7 +143,7 @@ using (var scope = app.Services.CreateScope())
 
     // Seed roles
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    foreach (var role in new[] { "Admin", "Engineer" })
+    foreach (var role in new[] { "Admin", "Engineer", "Participant" })
     {
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));
@@ -173,6 +190,7 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
 if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 app.UseStaticFiles();
+app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

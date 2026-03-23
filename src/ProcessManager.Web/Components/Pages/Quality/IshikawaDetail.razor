@@ -3,7 +3,7 @@
 @inject ApiClient Api
 @inject NavigationManager Nav
 @inject IJSRuntime JS
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin,Engineer")]
 
 <PageTitle>Ishikawa Diagram — Process Manager</PageTitle>
 

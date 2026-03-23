@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Domain.Entities;
+using ProcessManager.Domain.Enums;
 
 namespace ProcessManager.Api.Data;
 
@@ -20,6 +21,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     // Phase 1: Type System
     public DbSet<Kind> Kinds => Set<Kind>();
     public DbSet<Grade> Grades => Set<Grade>();
+    public DbSet<KindDocument> KindDocuments => Set<KindDocument>();
     public DbSet<DomainVocabulary> DomainVocabularies => Set<DomainVocabulary>();
 
     // Phase 2: Step Design
@@ -96,6 +98,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     // Workorders
     public DbSet<Workorder> Workorders => Set<Workorder>();
     public DbSet<WorkorderJob> WorkorderJobs => Set<WorkorderJob>();
+    public DbSet<WorkflowSchedule> WorkflowSchedules => Set<WorkflowSchedule>();
 
     // Phase 12: Workflow Execution & Department Assignment
     public DbSet<OrgUnit> OrgUnits => Set<OrgUnit>();
@@ -119,6 +122,35 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(k => k.Code).IsUnique();
             e.Property(k => k.Code).HasMaxLength(50).IsRequired();
             e.Property(k => k.Name).HasMaxLength(200).IsRequired();
+            e.Property(k => k.SourceType).HasConversion<string>().HasMaxLength(30);
+            e.Property(k => k.UnitOfMeasure).HasMaxLength(50);
+            e.Property(k => k.Cost).HasColumnType("decimal(18,4)");
+            e.Property(k => k.Price).HasColumnType("decimal(18,4)");
+            e.Property(k => k.VendorName).HasMaxLength(200);
+            e.Property(k => k.VendorPartNumber).HasMaxLength(100);
+            e.Property(k => k.WeightUnit).HasMaxLength(20);
+            e.Property(k => k.Weight).HasColumnType("decimal(18,4)");
+            e.Property(k => k.RohsStatus).HasMaxLength(50);
+            e.Property(k => k.CountryOfOrigin).HasMaxLength(100);
+            e.Property(k => k.Revision).HasMaxLength(50);
+            e.Property(k => k.Notes).HasMaxLength(2000);
+            e.Property(k => k.ModelFileName).HasMaxLength(500);
+            e.Property(k => k.ModelOriginalFileName).HasMaxLength(500);
+            e.Property(k => k.ModelMimeType).HasMaxLength(100);
+        });
+
+        // --- KindDocument ---
+        modelBuilder.Entity<KindDocument>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.Property(d => d.FileName).HasMaxLength(500).IsRequired();
+            e.Property(d => d.OriginalFileName).HasMaxLength(500).IsRequired();
+            e.Property(d => d.MimeType).HasMaxLength(100).IsRequired();
+            e.Property(d => d.Title).HasMaxLength(200);
+            e.HasOne(d => d.Kind)
+                .WithMany(k => k.Documents)
+                .HasForeignKey(d => d.KindId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // --- Grade ---
@@ -1142,6 +1174,23 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // --- WorkflowSchedule ---
+        modelBuilder.Entity<WorkflowSchedule>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.Property(s => s.Name).HasMaxLength(200).IsRequired();
+            e.Property(s => s.RecurrenceType).HasConversion<string>().HasMaxLength(20);
+            e.Property(s => s.SubjectTemplate).HasMaxLength(500);
+
+            e.HasIndex(s => s.WorkflowId);
+            e.HasIndex(s => new { s.IsActive, s.NextRunAt });
+
+            e.HasOne(s => s.Workflow)
+                .WithMany()
+                .HasForeignKey(s => s.WorkflowId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         // --- Workorder ---
         modelBuilder.Entity<Workorder>(e =>
         {
@@ -1155,14 +1204,27 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(w => w.WorkflowId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(w => w.Schedule)
+                .WithMany(s => s.Workorders)
+                .HasForeignKey(w => w.ScheduleId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasIndex(w => w.ScheduleId);
         });
 
         // --- WorkorderJob ---
         modelBuilder.Entity<WorkorderJob>(e =>
         {
             e.HasKey(wj => wj.Id);
-            e.HasIndex(wj => new { wj.WorkorderId, wj.JobId }).IsUnique();
-            e.HasIndex(wj => new { wj.WorkorderId, wj.WorkflowProcessId });
+            e.HasIndex(wj => new { wj.WorkorderId, wj.JobId }).IsUnique()
+                .HasFilter("\"JobId\" IS NOT NULL");
+            e.HasIndex(wj => new { wj.WorkorderId, wj.WorkflowProcessId }).IsUnique();
+
+            e.Property(wj => wj.NodeStatus)
+                .HasConversion<string>()
+                .HasMaxLength(20);
 
             e.HasOne(wj => wj.Workorder)
                 .WithMany(w => w.WorkorderJobs)
@@ -1177,7 +1239,8 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne(wj => wj.Job)
                 .WithMany()
                 .HasForeignKey(wj => wj.JobId)
-                .OnDelete(DeleteBehavior.Restrict);
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ── Phase 11: Production Management ─────────────────────────────────

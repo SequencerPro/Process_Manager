@@ -95,6 +95,7 @@ public class ProcessesController : ControllerBase
         return MapToDto(process);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost]
     public async Task<ActionResult<ProcessResponseDto>> Create(ProcessCreateDto dto)
     {
@@ -120,6 +121,7 @@ public class ProcessesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = process.Id }, MapToDto(result!));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ProcessResponseDto>> Update(Guid id, ProcessUpdateDto dto)
     {
@@ -138,6 +140,7 @@ public class ProcessesController : ControllerBase
         return MapToDto(process);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
@@ -151,6 +154,7 @@ public class ProcessesController : ControllerBase
 
     // ──────────── ProcessStep sub-resources ────────────
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{processId:guid}/steps")]
     public async Task<ActionResult<ProcessStepResponseDto>> AddStep(Guid processId, ProcessStepCreateDto dto)
     {
@@ -217,6 +221,7 @@ public class ProcessesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = processId }, MapProcessStepToDto(result));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{processId:guid}/steps/{stepId:guid}")]
     public async Task<ActionResult<ProcessStepResponseDto>> UpdateStep(
         Guid processId, Guid stepId, ProcessStepUpdateDto dto)
@@ -270,6 +275,7 @@ public class ProcessesController : ControllerBase
         return MapProcessStepToDto(result);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{processId:guid}/steps/{stepId:guid}")]
     public async Task<IActionResult> DeleteStep(Guid processId, Guid stepId)
     {
@@ -304,6 +310,7 @@ public class ProcessesController : ControllerBase
 
     // ──────────── Flow sub-resources ────────────
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{processId:guid}/flows")]
     public async Task<ActionResult<FlowResponseDto>> AddFlow(Guid processId, FlowCreateDto dto)
     {
@@ -380,6 +387,7 @@ public class ProcessesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = processId }, MapFlowToDto(result));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{processId:guid}/flows/{flowId:guid}")]
     public async Task<IActionResult> DeleteFlow(Guid processId, Guid flowId)
     {
@@ -412,6 +420,7 @@ public class ProcessesController : ControllerBase
             .ToList();
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{processId:guid}/steps/{stepId:guid}/content/text")]
     public async Task<ActionResult<ProcessStepContentResponseDto>> AddTextBlock(
         Guid processId, Guid stepId, AddTextBlockDto dto)
@@ -435,6 +444,7 @@ public class ProcessesController : ControllerBase
         return CreatedAtAction(nameof(GetStepContent), new { processId, stepId }, MapContentToDto(block));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{processId:guid}/steps/{stepId:guid}/content/image")]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<ProcessStepContentResponseDto>> AddImageBlock(
@@ -468,6 +478,7 @@ public class ProcessesController : ControllerBase
         return CreatedAtAction(nameof(GetStepContent), new { processId, stepId }, MapContentToDto(block));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{processId:guid}/steps/{stepId:guid}/content/{contentId:guid}")]
     public async Task<ActionResult<ProcessStepContentResponseDto>> UpdateTextBlock(
         Guid processId, Guid stepId, Guid contentId, UpdateTextBlockDto dto)
@@ -487,6 +498,7 @@ public class ProcessesController : ControllerBase
         return MapContentToDto(block);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{processId:guid}/steps/{stepId:guid}/content/prompt")]
     public async Task<ActionResult<ProcessStepContentResponseDto>> AddPromptBlock(
         Guid processId, Guid stepId, AddPromptBlockDto dto)
@@ -519,6 +531,7 @@ public class ProcessesController : ControllerBase
         return CreatedAtAction(nameof(GetStepContent), new { processId, stepId }, MapContentToDto(block));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{processId:guid}/steps/{stepId:guid}/content/{contentId:guid}/prompt")]
     public async Task<ActionResult<ProcessStepContentResponseDto>> UpdatePromptBlock(
         Guid processId, Guid stepId, Guid contentId, UpdatePromptBlockDto dto)
@@ -543,6 +556,7 @@ public class ProcessesController : ControllerBase
         return MapContentToDto(block);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{processId:guid}/steps/{stepId:guid}/content/reorder")]
     public async Task<IActionResult> ReorderContent(
         Guid processId, Guid stepId, ReorderContentBlocksDto dto)
@@ -565,6 +579,7 @@ public class ProcessesController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{processId:guid}/steps/{stepId:guid}/content/{contentId:guid}")]
     public async Task<IActionResult> DeleteContentBlock(
         Guid processId, Guid stepId, Guid contentId,
@@ -652,6 +667,7 @@ public class ProcessesController : ControllerBase
     // ──────────── Lifecycle ────────────
 
     /// <summary>Submit a Draft for approval. Status → PendingApproval.</summary>
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{id:guid}/submit")]
     public async Task<ActionResult<ProcessResponseDto>> Submit(Guid id, SubmitForApprovalDto dto)
     {
@@ -677,6 +693,7 @@ public class ProcessesController : ControllerBase
     }
 
     /// <summary>Approve a PendingApproval process. Status → Released; supersedes prior Released.</summary>
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{id:guid}/approve")]
     public async Task<ActionResult<ProcessResponseDto>> Approve(Guid id, ApproveDto dto)
     {
@@ -731,6 +748,7 @@ public class ProcessesController : ControllerBase
     }
 
     /// <summary>Reject a PendingApproval process. Status → Draft with rejection reason.</summary>
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{id:guid}/reject")]
     public async Task<ActionResult<ProcessResponseDto>> Reject(Guid id, RejectDto dto)
     {
@@ -756,6 +774,7 @@ public class ProcessesController : ControllerBase
     }
 
     /// <summary>Create a new Draft revision from a Released process. Steps are copied; flows are not.</summary>
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{id:guid}/new-revision")]
     public async Task<ActionResult<ProcessResponseDto>> NewRevision(Guid id, NewRevisionDto dto)
     {
@@ -795,6 +814,7 @@ public class ProcessesController : ControllerBase
     }
 
     /// <summary>Retire a Released or Superseded process.</summary>
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{id:guid}/retire")]
     public async Task<ActionResult<ProcessResponseDto>> Retire(Guid id)
     {

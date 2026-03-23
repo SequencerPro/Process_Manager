@@ -1,6 +1,6 @@
 @page "/reports/process-timing"
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @inject ApiClient Api
 @inject ToastService Toast
 

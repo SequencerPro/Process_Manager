@@ -73,6 +73,7 @@ public class StepTemplatesController : ControllerBase
         return MapToDto(step);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost]
     public async Task<ActionResult<StepTemplateResponseDto>> Create(StepTemplateCreateDto dto)
     {
@@ -135,6 +136,7 @@ public class StepTemplatesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = step.Id }, MapToDto(result));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<StepTemplateResponseDto>> Update(Guid id, StepTemplateUpdateDto dto)
     {
@@ -160,6 +162,7 @@ public class StepTemplatesController : ControllerBase
         return MapToDto(step);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
@@ -176,6 +179,7 @@ public class StepTemplatesController : ControllerBase
 
     // ──────────── Port sub-resources ────────────
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{stepTemplateId:guid}/ports")]
     public async Task<ActionResult<PortResponseDto>> AddPort(Guid stepTemplateId, PortCreateDto dto)
     {
@@ -219,6 +223,7 @@ public class StepTemplatesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = stepTemplateId }, MapPortToDto(result));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{stepTemplateId:guid}/ports/{portId:guid}")]
     public async Task<ActionResult<PortResponseDto>> UpdatePort(Guid stepTemplateId, Guid portId, PortUpdateDto dto)
     {
@@ -297,6 +302,7 @@ public class StepTemplatesController : ControllerBase
         return MapPortToDto(port);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{stepTemplateId:guid}/ports/{portId:guid}")]
     public async Task<IActionResult> DeletePort(Guid stepTemplateId, Guid portId)
     {
@@ -318,6 +324,7 @@ public class StepTemplatesController : ControllerBase
 
     // ──────────── Image sub-resources ────────────
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{id:guid}/images")]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<StepTemplateImageResponseDto>> UploadImage(
@@ -349,6 +356,7 @@ public class StepTemplatesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id }, MapImageToDto(image));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{id:guid}/images/{imageId:guid}")]
     public async Task<IActionResult> DeleteImage(
         Guid id,
@@ -382,6 +390,7 @@ public class StepTemplatesController : ControllerBase
             .ToList();
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{id:guid}/content/text")]
     public async Task<ActionResult<StepTemplateContentResponseDto>> AddTextBlock(
         Guid id, AddStepTemplateTextBlockDto dto)
@@ -414,6 +423,7 @@ public class StepTemplatesController : ControllerBase
         return CreatedAtAction(nameof(GetContent), new { id }, MapStepTemplateContentToDto(block));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{id:guid}/content/image")]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<StepTemplateContentResponseDto>> AddImageBlock(
@@ -447,6 +457,7 @@ public class StepTemplatesController : ControllerBase
         return CreatedAtAction(nameof(GetContent), new { id }, MapStepTemplateContentToDto(block));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{id:guid}/content/{contentId:guid}")]
     public async Task<ActionResult<StepTemplateContentResponseDto>> UpdateTextBlock(
         Guid id, Guid contentId, UpdateStepTemplateTextBlockDto dto)
@@ -473,6 +484,7 @@ public class StepTemplatesController : ControllerBase
         return MapStepTemplateContentToDto(block);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{id:guid}/content/prompt")]
     public async Task<ActionResult<StepTemplateContentResponseDto>> AddPromptBlock(
         Guid id, AddStepTemplatePromptBlockDto dto)
@@ -515,6 +527,7 @@ public class StepTemplatesController : ControllerBase
         return CreatedAtAction(nameof(GetContent), new { id }, MapStepTemplateContentToDto(block));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{id:guid}/content/{contentId:guid}/prompt")]
     public async Task<ActionResult<StepTemplateContentResponseDto>> UpdatePromptBlock(
         Guid id, Guid contentId, UpdateStepTemplatePromptBlockDto dto)
@@ -550,6 +563,7 @@ public class StepTemplatesController : ControllerBase
     }
 
     // PATCH: update ContentCategory (and optionally AcknowledgmentRequired) on any block type
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPatch("{id:guid}/content/{contentId:guid}/category")]
     public async Task<ActionResult<StepTemplateContentResponseDto>> PatchContentCategory(
         Guid id, Guid contentId, PatchContentCategoryDto dto)
@@ -580,6 +594,7 @@ public class StepTemplatesController : ControllerBase
         return MapStepTemplateContentToDto(block);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{id:guid}/content/reorder")]
     public async Task<IActionResult> ReorderContent(
         Guid id, ReorderStepTemplateContentBlocksDto dto)
@@ -601,6 +616,7 @@ public class StepTemplatesController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{id:guid}/content/{contentId:guid}")]
     public async Task<IActionResult> DeleteContentBlock(
         Guid id, Guid contentId,
@@ -638,6 +654,7 @@ public class StepTemplatesController : ControllerBase
         return widgets.Select(MapRunChartWidgetToDto).ToList();
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{id:guid}/runcharts")]
     public async Task<ActionResult<RunChartWidgetResponseDto>> AddRunChartWidget(
         Guid id, RunChartWidgetCreateDto dto)
@@ -671,6 +688,7 @@ public class StepTemplatesController : ControllerBase
         return CreatedAtAction(nameof(GetRunChartWidgets), new { id }, MapRunChartWidgetToDto(widget));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{id:guid}/runcharts/{widgetId:guid}")]
     public async Task<ActionResult<RunChartWidgetResponseDto>> UpdateRunChartWidget(
         Guid id, Guid widgetId, RunChartWidgetUpdateDto dto)
@@ -690,6 +708,7 @@ public class StepTemplatesController : ControllerBase
         return MapRunChartWidgetToDto(widget);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{id:guid}/runcharts/{widgetId:guid}")]
     public async Task<IActionResult> DeleteRunChartWidget(Guid id, Guid widgetId)
     {
@@ -828,6 +847,7 @@ public class StepTemplatesController : ControllerBase
     // ──────────── Lifecycle ────────────
 
     /// <summary>Submit a Draft step template for approval. Status → PendingApproval.</summary>
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{id:guid}/submit")]
     public async Task<ActionResult<StepTemplateResponseDto>> Submit(Guid id, SubmitForApprovalDto dto)
     {
@@ -854,6 +874,7 @@ public class StepTemplatesController : ControllerBase
     }
 
     /// <summary>Approve a PendingApproval step template. Status → Released.</summary>
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{id:guid}/approve")]
     public async Task<ActionResult<StepTemplateResponseDto>> Approve(Guid id, ApproveDto dto)
     {
@@ -886,6 +907,7 @@ public class StepTemplatesController : ControllerBase
     }
 
     /// <summary>Reject a PendingApproval step template. Status → Draft.</summary>
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{id:guid}/reject")]
     public async Task<ActionResult<StepTemplateResponseDto>> Reject(Guid id, RejectDto dto)
     {
@@ -911,6 +933,7 @@ public class StepTemplatesController : ControllerBase
     }
 
     /// <summary>Create a new Draft revision from a Released step template, copying all contents.</summary>
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost("{id:guid}/new-revision")]
     public async Task<ActionResult<StepTemplateResponseDto>> NewRevision(Guid id, NewRevisionDto dto)
     {

@@ -1,4 +1,5 @@
 @page "/workorders"
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject IJSRuntime JS
@@ -81,53 +82,122 @@ else if (_data is not null)
 
 @if (_showForm)
 {
-    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
-        <div class="modal-dialog">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "New") Workorder</h5>
-                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                    <div class="pm-modal-icon pm-modal-icon-orange">
+                        <i class="bi @(_editId.HasValue ? "bi-pencil-square" : "bi-plus-circle")"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "New") @Vocab.Workorder</h5>
+                        <div class="pm-modal-subtitle">@(_editId.HasValue ? "Update workorder details" : "Select a workflow and configure your workorder")</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseForm"></button>
                 </div>
                 <div class="modal-body">
                     @if (!_editId.HasValue)
                     {
-                        <div class="mb-3">
-                            <label class="form-label">Workflow</label>
-                            <select class="form-select" value="@_formWorkflowId" @onchange="OnWorkflowChanged">
-                                <option value="">Select a workflow...</option>
-                                @if (_workflows is not null)
-                                {
-                                    @foreach (var wf in _workflows.Items)
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-diagram-3"></i> Workflow</label>
+                            <div class="d-flex gap-2">
+                                <select class="form-select" value="@_formWorkflowId" @onchange="OnWorkflowChanged">
+                                    <option value="">Select a workflow...</option>
+                                    @if (_workflows is not null)
                                     {
-                                        <option value="@wf.Id">@wf.Name (@wf.Code)</option>
+                                        @foreach (var wf in _workflows.Items)
+                                        {
+                                            <option value="@wf.Id">@wf.Name (@wf.Code)</option>
+                                        }
                                     }
-                                }
-                            </select>
+                                </select>
+                                <button type="button" class="pm-browse-btn" title="Browse workflows" @onclick="() => _showPicker = true">
+                                    <i class="bi bi-grid-3x3-gap"></i>
+                                </button>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Code</label>
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-upc-scan"></i> Code</label>
                             <input class="form-control" @bind="_formCode" />
                         </div>
+                        <div class="pm-modal-divider">Details</div>
                     }
-                    <div class="mb-3">
-                        <label class="form-label">Name</label>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Name</label>
                         <input class="form-control" @bind="_formName" />
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-card-text"></i> Description</label>
                         <textarea class="form-control" rows="2" @bind="_formDesc"></textarea>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Priority</label>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-flag"></i> Priority</label>
                         <input type="number" class="form-control" @bind="_formPriority" />
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
                     <button class="btn btn-primary" @onclick="Save" disabled="@_saving">
-                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                        Save
+                        @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                        <i class="bi @(_editId.HasValue ? "bi-check-lg" : "bi-plus-lg")"></i>
+                        @(_editId.HasValue ? "Save Changes" : "Create Workorder")
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_showPicker && _workflows is not null)
+{
+    <div class="modal show d-block pm-modal pm-picker" tabindex="-1" style="background: rgba(0,0,0,.55); z-index: 1060">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-orange">
+                        <i class="bi bi-diagram-3"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">Select Workflow</h5>
+                        <div class="pm-modal-subtitle">Browse and choose a workflow for your workorder</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showPicker = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="pm-picker-search">
+                        <input type="text" placeholder="Search workflows..." @bind="_pickerSearch" @bind:event="oninput" />
+                    </div>
+                    <div class="pm-picker-grid">
+                        @{ var filtered = _workflows.Items.Where(wf =>
+                            string.IsNullOrEmpty(_pickerSearch)
+                            || wf.Name.Contains(_pickerSearch, StringComparison.OrdinalIgnoreCase)
+                            || wf.Code.Contains(_pickerSearch, StringComparison.OrdinalIgnoreCase)).ToList(); }
+                        @if (!filtered.Any())
+                        {
+                            <div class="pm-picker-empty">
+                                <i class="bi bi-search d-block mb-2" style="font-size: 1.5rem"></i>
+                                No workflows match your search
+                            </div>
+                        }
+                        @foreach (var wf in filtered)
+                        {
+                            <div class="pm-picker-tile" @onclick="() => SelectWorkflowFromPicker(wf)">
+                                <div class="pm-picker-tile-code">@wf.Code</div>
+                                <div class="pm-picker-tile-name">@wf.Name</div>
+                                @if (!string.IsNullOrEmpty(wf.Description))
+                                {
+                                    <div class="pm-picker-tile-desc">@wf.Description</div>
+                                }
+                                <div class="pm-picker-tile-meta">
+                                    <span class="pm-picker-tile-badge">v@(wf.Version)</span>
+                                    @if (wf.IsActive)
+                                    {
+                                        <span class="pm-picker-tile-badge" style="background: #d1e7dd; color: #0f5132">Active</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
                 </div>
             </div>
         </div>
@@ -154,6 +224,10 @@ else if (_data is not null)
     private string _formWorkflowId = "";
     private int _formPriority;
     private PaginatedResponse<WorkflowResponseDto>? _workflows;
+
+    // Tile picker
+    private bool _showPicker;
+    private string _pickerSearch = "";
 
     protected override void OnInitialized() => Vocab.OnChange += OnVocabChanged;
 
@@ -211,6 +285,14 @@ else if (_data is not null)
             if (wf is not null)
                 _formName = wf.Name;
         }
+    }
+
+    private void SelectWorkflowFromPicker(WorkflowResponseDto wf)
+    {
+        _formWorkflowId = wf.Id.ToString();
+        _formName = wf.Name;
+        _showPicker = false;
+        _pickerSearch = "";
     }
 
     private void ShowEdit(WorkorderResponseDto w)

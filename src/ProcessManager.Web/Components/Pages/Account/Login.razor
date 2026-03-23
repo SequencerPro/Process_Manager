@@ -99,7 +99,8 @@
             CookieAuthenticationDefaults.AuthenticationScheme,
             new ClaimsPrincipal(identity));
 
-        Nav.NavigateTo("/", forceLoad: true);
+        var destination = token.Role == "Participant" ? "/portal" : "/";
+        Nav.NavigateTo(destination, forceLoad: true);
     }
 
     private record TokenResponse(

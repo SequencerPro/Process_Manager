@@ -17,6 +17,20 @@
     <Routes />
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="_content/Z.Blazor.Diagrams/script.min.js"></script>
+
+    <!-- Three.js for 3D model viewer -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+    }
+    </script>
+    <!-- OpenCascade WASM for STEP/IGES parsing (lazy-loaded by model-viewer.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/occt-import-js.js" defer></script>
+    <script type="module" src="js/model-viewer.js?v=8"></script>
+
     <script src="_framework/blazor.web.js"></script>
 </body>
 

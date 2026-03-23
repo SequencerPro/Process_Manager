@@ -1,0 +1,52 @@
+@rendermode InteractiveServer
+@inject TokenService TokenService
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Nav
+@using System.Security.Claims
+
+<nav class="d-flex flex-column flex-shrink-0 p-3 pm-sidebar sidebar" style="width: 250px; height: 100vh; overflow: hidden; background: #141414; color: #c0c0c0;">
+    <a href="/portal" class="pm-sidebar-brand d-flex align-items-center mb-3 text-decoration-none">
+        <i class="bi bi-gear-wide-connected me-2 fs-4"></i>
+        <span class="fs-5 fw-semibold">Process Manager</span>
+    </a>
+    <hr />
+    <ul class="nav nav-pills flex-column mb-auto" style="overflow-y: auto; flex: 1 1 0; min-height: 0;">
+        <li class="nav-item">
+            <NavLink class="nav-link text-white" href="/portal/my-work">
+                <i class="bi bi-person-workspace me-2"></i> My Work
+            </NavLink>
+        </li>
+    </ul>
+
+    <hr class="mt-auto" />
+    <div class="d-flex align-items-center text-white-50 small">
+        <i class="bi bi-person-circle me-2 fs-5 text-white"></i>
+        <div class="flex-grow-1 overflow-hidden">
+            <div class="text-white fw-medium text-truncate">@(_displayName)</div>
+            <div class="text-white-50 small text-truncate">@(_role)</div>
+        </div>
+        <a href="/account/profile" class="btn btn-sm btn-outline-light ms-1" title="Edit profile">
+            <i class="bi bi-person-gear"></i>
+        </a>
+        <a href="/account/change-password" class="btn btn-sm btn-outline-light ms-1" title="Change password">
+            <i class="bi bi-key"></i>
+        </a>
+        <a href="/account/logout" class="btn btn-sm btn-outline-light ms-1" title="Sign out">
+            <i class="bi bi-box-arrow-right"></i>
+        </a>
+    </div>
+</nav>
+
+@code {
+    private string? _displayName;
+    private string? _role;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var user  = state.User;
+        _displayName = user.FindFirst("display_name")?.Value
+                       ?? user.Identity?.Name;
+        _role        = user.FindFirst(ClaimTypes.Role)?.Value;
+    }
+}

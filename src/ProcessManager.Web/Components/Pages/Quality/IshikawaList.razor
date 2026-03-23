@@ -3,7 +3,7 @@
 @inject ApiClient Api
 @inject NavigationManager Nav
 @inject IJSRuntime JS
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin,Engineer")]
 
 <PageTitle>Ishikawa Diagrams — Process Manager</PageTitle>
 
@@ -143,25 +143,34 @@ else
 <!-- Create Modal -->
 @if (_showCreate)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
-        <div class="modal-dialog">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">New Ishikawa Diagram</h5>
-                    <button type="button" class="btn-close" @onclick="() => _showCreate = false"></button>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="pm-modal-icon pm-modal-icon-green">
+                            <i class="bi bi-plus-circle"></i>
+                        </div>
+                        <div>
+                            <h5 class="modal-title mb-0">New Ishikawa Diagram</h5>
+                            <small class="pm-modal-subtitle">Create a fishbone diagram for root cause analysis</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showCreate = false"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Title <span class="text-danger">*</span></label>
+                    <div class="pm-input-group">
+                        <label class="form-label"><i class="bi bi-type"></i> Title <span class="text-danger">*</span></label>
                         <input class="form-control" @bind="_newTitle" placeholder="e.g. Dimension out-of-spec on Part XYZ" />
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Problem Statement <span class="text-danger">*</span></label>
+                    <div class="pm-modal-divider">Investigation</div>
+                    <div class="pm-input-group">
+                        <label class="form-label"><i class="bi bi-exclamation-triangle"></i> Problem Statement <span class="text-danger">*</span></label>
                         <textarea class="form-control" rows="3" @bind="_newProblem"
                                   placeholder="Describe the effect or failure being investigated"></textarea>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Trigger Type</label>
+                    <div class="pm-input-group">
+                        <label class="form-label"><i class="bi bi-lightning"></i> Trigger Type</label>
                         <select class="form-select" @bind="_newLinkedType">
                             <option value="Manual">Manual (ad-hoc)</option>
                             <option value="NonConformance">Non-Conformance</option>

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,7 @@ public class StepExecutionsController : ControllerBase
     public async Task<ActionResult<PaginatedResponse<StepExecutionResponseDto>>> GetAll(
         [FromQuery] Guid? jobId = null,
         [FromQuery] string? status = null,
+        [FromQuery] string? myWork = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
@@ -37,6 +39,34 @@ public class StepExecutionsController : ControllerBase
 
         if (!string.IsNullOrEmpty(status) && Enum.TryParse<StepExecutionStatus>(status, true, out var s))
             query = query.Where(se => se.Status == s);
+
+        if (myWork == "true")
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrEmpty(userId))
+            {
+                // Jobs reachable via OrgUnit membership
+                var orgUnitIds = await _db.OrgUnitMembers
+                    .Where(m => m.UserId == userId)
+                    .Select(m => m.OrgUnitId)
+                    .ToListAsync();
+
+                var orgUnitJobIds = orgUnitIds.Count > 0
+                    ? (await _db.WorkorderJobs
+                        .Where(wj => wj.WorkflowProcess.AssigneeId.HasValue
+                                  && orgUnitIds.Contains(wj.WorkflowProcess.AssigneeId.Value)
+                                  && wj.JobId.HasValue)
+                        .Select(wj => wj.JobId)
+                        .ToListAsync())
+                        .Where(id => id.HasValue).Select(id => id!.Value).ToList()
+                    : new List<Guid>();
+
+                // Directly assigned OR OrgUnit-assigned
+                query = query.Where(se =>
+                    se.AssignedToUserId == userId ||
+                    orgUnitJobIds.Contains(se.JobId));
+            }
+        }
 
         var totalCount = await query.CountAsync();
 
@@ -86,6 +116,9 @@ public class StepExecutionsController : ControllerBase
 
         if (se.Status != StepExecutionStatus.Pending)
             return BadRequest($"Cannot start a step execution with status '{se.Status}'. Must be Pending.");
+
+        if (se.Job is null)
+            return BadRequest("Step execution has no associated job.");
 
         if (se.Job.Status != JobStatus.InProgress)
             return BadRequest("Cannot start a step execution when the job is not InProgress.");
@@ -305,6 +338,9 @@ public class StepExecutionsController : ControllerBase
 
         if (se.Status != StepExecutionStatus.InProgress)
             return BadRequest("Can only record port transactions on an InProgress step execution.");
+
+        if (se.ProcessStep is null)
+            return BadRequest("Step execution has no associated process step.");
 
         // Validate port belongs to this step's template
         var port = await _db.Ports

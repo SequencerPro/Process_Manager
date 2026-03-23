@@ -55,6 +55,7 @@ public class DomainVocabulariesController : ControllerBase
         return MapToDto(vocab);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPost]
     public async Task<ActionResult<DomainVocabularyResponseDto>> Create(DomainVocabularyCreateDto dto)
     {
@@ -84,6 +85,7 @@ public class DomainVocabulariesController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = vocab.Id }, MapToDto(vocab));
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<DomainVocabularyResponseDto>> Update(Guid id, DomainVocabularyUpdateDto dto)
     {
@@ -108,6 +110,7 @@ public class DomainVocabulariesController : ControllerBase
         return MapToDto(vocab);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{id:guid}/activate")]
     public async Task<ActionResult<DomainVocabularyResponseDto>> Activate(Guid id)
     {
@@ -126,6 +129,7 @@ public class DomainVocabulariesController : ControllerBase
         return MapToDto(vocab);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{id:guid}/deactivate")]
     public async Task<ActionResult<DomainVocabularyResponseDto>> Deactivate(Guid id)
     {
@@ -137,6 +141,7 @@ public class DomainVocabulariesController : ControllerBase
         return MapToDto(vocab);
     }
 
+    [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {

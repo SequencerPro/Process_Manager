@@ -13,7 +13,7 @@ public record RegisterRequestDto(
     [Required][StringLength(50)] string UserName,
     [Required][EmailAddress] string Email,
     [Required][StringLength(100, MinimumLength = 8)] string Password,
-    [Required] string Role,         // "Admin" or "Engineer"
+    [Required] string Role,         // "Admin", "Engineer", or "Participant"
     [StringLength(100)] string? DisplayName = null
 );
 

@@ -23,6 +23,7 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
     public const string TestJwtKey = "TestJwtKey_AtLeast32Characters_ForIntegrationTests!!";
     public const string TestIssuer = "ProcessManager.Api";
     public const string TestAudience = "ProcessManager";
+    public const string DefaultTestUserId = "test-user-id";
 
     private readonly string _dbName = Guid.NewGuid().ToString();
 
@@ -79,7 +80,7 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>
-    /// Creates an HttpClient pre-configured with a valid Admin JWT bearer token.
+    /// Creates an HttpClient pre-configured with a valid Admin JWT bearer token for the default test user.
     /// </summary>
     public HttpClient CreateAuthenticatedClient()
     {
@@ -89,17 +90,30 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
         return client;
     }
 
-    public static string GenerateAdminJwt()
+    /// <summary>
+    /// Creates an HttpClient authenticated as the specified user ID.
+    /// </summary>
+    public HttpClient CreateAuthenticatedClient(string userId, string role = "Admin")
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", GenerateJwt(userId, role));
+        return client;
+    }
+
+    public static string GenerateAdminJwt() => GenerateJwt(DefaultTestUserId, "Admin");
+
+    public static string GenerateJwt(string userId, string role = "Admin")
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(TestJwtKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var claims = new[]
         {
-            new Claim(ClaimTypes.Name, "testuser"),
-            new Claim(ClaimTypes.Email, "testuser@test.local"),
-            new Claim(ClaimTypes.Role, "Admin"),
-            new Claim(JwtRegisteredClaimNames.Sub, "test-user-id"),
+            new Claim(ClaimTypes.Name, userId),
+            new Claim(ClaimTypes.Email, $"{userId}@test.local"),
+            new Claim(ClaimTypes.Role, role),
+            new Claim(JwtRegisteredClaimNames.Sub, userId),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 

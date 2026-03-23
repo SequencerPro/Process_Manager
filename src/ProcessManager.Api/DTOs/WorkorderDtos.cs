@@ -30,7 +30,8 @@ public record WorkorderResponseDto(
     DateTime? CompletedAt,
     DateTime CreatedAt,
     DateTime UpdatedAt,
-    List<WorkorderJobResponseDto>? Jobs = null);
+    List<WorkorderJobResponseDto>? Jobs = null,
+    Guid? ScheduleId = null);
 
 // ──────────── WorkorderJob ────────────
 
@@ -40,11 +41,13 @@ public record WorkorderJobResponseDto(
     Guid WorkflowProcessId,
     string ProcessName,
     string ProcessCode,
-    Guid JobId,
-    string JobCode,
-    string JobName,
-    string JobStatus,
-    bool CanStart);
+    Guid? JobId,
+    string? JobCode,
+    string? JobName,
+    string? JobStatus,
+    bool CanStart,
+    string NodeStatus = "Active",
+    bool HasJob = false);
 
 // ──────────── Advance (Manual/GradeBased routing) ────────────
 

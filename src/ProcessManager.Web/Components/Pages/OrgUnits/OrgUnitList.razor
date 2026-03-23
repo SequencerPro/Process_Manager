@@ -1,4 +1,5 @@
 @page "/orgunits"
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject IJSRuntime JS
@@ -113,27 +114,34 @@ else if (_data is not null)
 @* ───── Create / Edit OrgUnit Modal ───── *@
 @if (_showForm)
 {
-    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
-        <div class="modal-dialog">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "New") Org Unit</h5>
-                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                    <div class="pm-modal-icon pm-modal-icon-blue">
+                        <i class="bi @(_editId.HasValue ? "bi-pencil-square" : "bi-plus-circle")"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "New") Org Unit</h5>
+                        <div class="pm-modal-subtitle">@(_editId.HasValue ? "Update org unit details" : "Create a new organizational unit")</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseForm"></button>
                 </div>
                 <div class="modal-body">
                     @if (!_editId.HasValue)
                     {
-                        <div class="mb-3">
-                            <label class="form-label">Code</label>
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-upc-scan"></i> Code</label>
                             <input class="form-control" @bind="_formCode" />
                         </div>
+                        <div class="pm-modal-divider">Details</div>
                     }
-                    <div class="mb-3">
-                        <label class="form-label">Name</label>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Name</label>
                         <input class="form-control" @bind="_formName" />
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Type</label>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-diagram-2"></i> Type</label>
                         <select class="form-select" @bind="_formType">
                             <option value="Department">Department</option>
                             <option value="WorkArea">Work Area</option>
@@ -141,8 +149,8 @@ else if (_data is not null)
                             <option value="Person">Person</option>
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Parent</label>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-arrow-up-circle"></i> Parent</label>
                         <select class="form-select" @bind="_formParentId">
                             <option value="">None (top-level)</option>
                             @if (_parentOptions is not null)
@@ -156,9 +164,11 @@ else if (_data is not null)
                     </div>
                     @if (_editId.HasValue)
                     {
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" id="isActive" @bind="_formIsActive" />
-                            <label class="form-check-label" for="isActive">Active</label>
+                        <div class="pm-input-group">
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="isActive" @bind="_formIsActive" />
+                                <label class="form-check-label" for="isActive">Active</label>
+                            </div>
                         </div>
                     }
                 </div>
@@ -177,12 +187,18 @@ else if (_data is not null)
 @* ───── Members Modal ───── *@
 @if (_showMembers)
 {
-    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
-        <div class="modal-dialog modal-lg">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Members of @_membersOrgUnitName</h5>
-                    <button type="button" class="btn-close" @onclick="CloseMembers"></button>
+                    <div class="pm-modal-icon pm-modal-icon-blue">
+                        <i class="bi bi-people"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">Members of @_membersOrgUnitName</h5>
+                        <div class="pm-modal-subtitle">Manage team members for this org unit</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseMembers"></button>
                 </div>
                 <div class="modal-body">
                     @* Add member *@

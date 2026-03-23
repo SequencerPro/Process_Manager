@@ -1641,6 +1641,13 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<decimal?>("Cost")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("CountryOfOrigin")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1656,8 +1663,113 @@ namespace ProcessManager.Api.Migrations
                     b.Property<bool>("IsSerialized")
                         .HasColumnType("boolean");
 
+                    b.Property<int?>("LeadTimeDays")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ModelFileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ModelMimeType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ModelOriginalFileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<string>("Name")
                         .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<decimal?>("Price")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Revision")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("RohsStatus")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("UnitOfMeasure")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("VendorName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("VendorPartNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal?>("Weight")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("WeightUnit")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Kinds");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.KindDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("KindId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MimeType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
@@ -1669,10 +1781,9 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Code")
-                        .IsUnique();
+                    b.HasIndex("KindId");
 
-                    b.ToTable("Kinds");
+                    b.ToTable("KindDocuments");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.MaintenanceTask", b =>
@@ -3482,6 +3593,75 @@ namespace ProcessManager.Api.Migrations
                     b.ToTable("WorkflowProcesses");
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.WorkflowSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("DayOfMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("DayOfWeek")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastRunAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("NextRunAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RecurrenceInterval")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RecurrenceType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SubjectTemplate")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("WorkflowId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkflowId");
+
+                    b.HasIndex("IsActive", "NextRunAt");
+
+                    b.ToTable("WorkflowSchedules");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.Workorder", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3513,6 +3693,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<int>("Priority")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("ScheduleId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime?>("StartedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -3538,6 +3721,8 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
+                    b.HasIndex("ScheduleId");
+
                     b.HasIndex("WorkflowId");
 
                     b.ToTable("Workorders");
@@ -3555,8 +3740,13 @@ namespace ProcessManager.Api.Migrations
                     b.Property<string>("CreatedBy")
                         .HasColumnType("text");
 
-                    b.Property<Guid>("JobId")
+                    b.Property<Guid?>("JobId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("NodeStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -3577,9 +3767,11 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("WorkflowProcessId");
 
                     b.HasIndex("WorkorderId", "JobId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"JobId\" IS NOT NULL");
 
-                    b.HasIndex("WorkorderId", "WorkflowProcessId");
+                    b.HasIndex("WorkorderId", "WorkflowProcessId")
+                        .IsUnique();
 
                     b.ToTable("WorkorderJobs");
                 });
@@ -4030,6 +4222,17 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Process");
 
                     b.Navigation("Workorder");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.KindDocument", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.Kind", "Kind")
+                        .WithMany("Documents")
+                        .HasForeignKey("KindId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Kind");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.MaintenanceTask", b =>
@@ -4492,7 +4695,7 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Workflow");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.Workorder", b =>
+            modelBuilder.Entity("ProcessManager.Domain.Entities.WorkflowSchedule", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.Workflow", "Workflow")
                         .WithMany()
@@ -4503,13 +4706,30 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Workflow");
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.Workorder", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.WorkflowSchedule", "Schedule")
+                        .WithMany("Workorders")
+                        .HasForeignKey("ScheduleId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ProcessManager.Domain.Entities.Workflow", "Workflow")
+                        .WithMany()
+                        .HasForeignKey("WorkflowId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Schedule");
+
+                    b.Navigation("Workflow");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.WorkorderJob", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.Job", "Job")
                         .WithMany()
                         .HasForeignKey("JobId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("ProcessManager.Domain.Entities.WorkflowProcess", "WorkflowProcess")
                         .WithMany()
@@ -4615,6 +4835,8 @@ namespace ProcessManager.Api.Migrations
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Kind", b =>
                 {
+                    b.Navigation("Documents");
+
                     b.Navigation("Grades");
                 });
 
@@ -4699,6 +4921,11 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("IncomingLinks");
 
                     b.Navigation("OutgoingLinks");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.WorkflowSchedule", b =>
+                {
+                    b.Navigation("Workorders");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Workorder", b =>

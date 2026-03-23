@@ -58,7 +58,7 @@
                             <td class="align-middle text-muted">@user.Email</td>
                             <td class="align-middle text-muted">@(user.DisplayName ?? "—")</td>
                             <td class="align-middle">
-                                <span class="badge @(user.Role == "Admin" ? "bg-danger" : "bg-primary")">
+                                <span class="badge @(user.Role == "Admin" ? "bg-danger" : user.Role == "Participant" ? "bg-success" : "bg-primary")">
                                     @user.Role
                                 </span>
                             </td>
@@ -86,43 +86,54 @@
 @* ── Add User Modal ─────────────────────────────────────────────────────── *@
 @if (ShowAddModal)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
-        <div class="modal-dialog">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Add User</h5>
-                    <button type="button" class="btn-close" @onclick="CloseAddModal"></button>
+                    <div class="pm-modal-icon pm-modal-icon-blue">
+                        <i class="bi bi-person-plus"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">Add User</h5>
+                        <span class="pm-modal-subtitle">Create a new user account</span>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseAddModal"></button>
                 </div>
                 <EditForm Model="NewUser" OnValidSubmit="HandleAddUser">
                     <DataAnnotationsValidator />
                     <div class="modal-body">
-                        <div class="mb-3">
-                        <label class="form-label fw-medium">Username <span class="text-danger">*</span></label>
-                        <InputText class="form-control" @bind-Value="NewUser.UserName" />
-                        <ValidationMessage For="() => NewUser.UserName" />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-medium">Email <span class="text-danger">*</span></label>
-                        <InputText type="email" class="form-control" @bind-Value="NewUser.Email" />
-                        <ValidationMessage For="() => NewUser.Email" />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-medium">Password <span class="text-danger">*</span></label>
-                        <InputText type="password" class="form-control" @bind-Value="NewUser.Password" />
-                        <ValidationMessage For="() => NewUser.Password" />
-                        <div class="form-text">Minimum 8 characters.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-medium">Display Name</label>
-                        <InputText class="form-control" @bind-Value="NewUser.DisplayName" placeholder="Optional" />
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-medium">Role <span class="text-danger">*</span></label>
-                        <InputSelect class="form-select" @bind-Value="NewUser.Role">
-                            <option value="Engineer">Engineer</option>
-                            <option value="Admin">Admin</option>
-                        </InputSelect>
-                    </div>
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-person"></i> Username <span class="text-danger">*</span></label>
+                            <InputText class="form-control" @bind-Value="NewUser.UserName" />
+                            <ValidationMessage For="() => NewUser.UserName" />
+                        </div>
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-envelope"></i> Email <span class="text-danger">*</span></label>
+                            <InputText type="email" class="form-control" @bind-Value="NewUser.Email" />
+                            <ValidationMessage For="() => NewUser.Email" />
+                        </div>
+                        <hr class="my-3" />
+                        <small class="text-muted fw-semibold text-uppercase">Credentials</small>
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-lock"></i> Password <span class="text-danger">*</span></label>
+                            <InputText type="password" class="form-control" @bind-Value="NewUser.Password" />
+                            <ValidationMessage For="() => NewUser.Password" />
+                            <div class="form-text">Minimum 8 characters.</div>
+                        </div>
+                        <hr class="my-3" />
+                        <small class="text-muted fw-semibold text-uppercase">Profile</small>
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-person-badge"></i> Display Name</label>
+                            <InputText class="form-control" @bind-Value="NewUser.DisplayName" placeholder="Optional" />
+                        </div>
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-shield-lock"></i> Role <span class="text-danger">*</span></label>
+                            <InputSelect class="form-select" @bind-Value="NewUser.Role">
+                                <option value="Engineer">Engineer</option>
+                                <option value="Admin">Admin</option>
+                                <option value="Participant">Participant</option>
+                            </InputSelect>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" @onclick="CloseAddModal">Cancel</button>
@@ -157,6 +168,7 @@
                         <select class="form-select" @bind="EditRole">
                             <option value="Engineer">Engineer</option>
                             <option value="Admin">Admin</option>
+                            <option value="Participant">Participant</option>
                         </select>
                     </div>
                 </div>

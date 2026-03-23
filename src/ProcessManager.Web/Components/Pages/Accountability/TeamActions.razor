@@ -161,55 +161,81 @@ else
 @* ─── Create Modal ─────────────────────────────────────────────────────── *@
 @if (_showCreate)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">New Action Item</h5>
-                    <button type="button" class="btn-close" @onclick="CloseCreate"></button>
+                    <div class="pm-modal-icon pm-modal-icon-blue">
+                        <i class="bi bi-plus-circle"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title mb-0">New Action Item</h5>
+                        <span class="pm-modal-subtitle">Assign a new action to a team member</span>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseCreate"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row g-3">
                         <div class="col-12">
-                            <label class="form-label">Title <span class="text-danger">*</span></label>
-                            <input class="form-control" @bind="_createTitle" placeholder="Describe the required action…" />
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-type me-1"></i>Title <span class="text-danger">*</span></label>
+                                <input class="form-control" @bind="_createTitle" placeholder="Describe the required action…" />
+                            </div>
                         </div>
                         <div class="col-12">
-                            <label class="form-label">Description</label>
-                            <textarea class="form-control" rows="2" @bind="_createDesc"></textarea>
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-card-text me-1"></i>Description</label>
+                                <textarea class="form-control" rows="2" @bind="_createDesc"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="col-12"><hr class="my-1"><div class="text-muted small fw-semibold mb-1">Assignment</div></div>
+
+                        <div class="col-md-6">
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-person me-1"></i>Assign To (User ID) <span class="text-danger">*</span></label>
+                                <input class="form-control" @bind="_createAssignedToId" placeholder="User ID" />
+                            </div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Assign To (User ID) <span class="text-danger">*</span></label>
-                            <input class="form-control" @bind="_createAssignedToId" placeholder="User ID" />
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-person-badge me-1"></i>Assignee Display Name <span class="text-danger">*</span></label>
+                                <input class="form-control" @bind="_createAssignedToName" placeholder="Full name" />
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Assignee Display Name <span class="text-danger">*</span></label>
-                            <input class="form-control" @bind="_createAssignedToName" placeholder="Full name" />
+
+                        <div class="col-12"><hr class="my-1"><div class="text-muted small fw-semibold mb-1">Details</div></div>
+
+                        <div class="col-md-4">
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-calendar-event me-1"></i>Due Date <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" @bind="_createDue" />
+                            </div>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Due Date <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" @bind="_createDue" />
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-flag me-1"></i>Priority</label>
+                                <select class="form-select" @bind="_createPriority">
+                                    <option>Critical</option>
+                                    <option>High</option>
+                                    <option selected>Medium</option>
+                                    <option>Low</option>
+                                </select>
+                            </div>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label">Priority</label>
-                            <select class="form-select" @bind="_createPriority">
-                                <option>Critical</option>
-                                <option>High</option>
-                                <option selected>Medium</option>
-                                <option>Low</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Source Type</label>
-                            <select class="form-select" @bind="_createSource">
-                                <option selected>Manual</option>
-                                <option value="NonConformance">Non-Conformance</option>
-                                <option value="MrbReview">MRB Review</option>
-                                <option value="RcaAnalysis">RCA Analysis</option>
-                                <option value="ManagementReview">Management Review</option>
-                                <option value="AuditFinding">Audit Finding</option>
-                                <option value="PfmeaAction">PFMEA</option>
-                            </select>
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-link-45deg me-1"></i>Source Type</label>
+                                <select class="form-select" @bind="_createSource">
+                                    <option selected>Manual</option>
+                                    <option value="NonConformance">Non-Conformance</option>
+                                    <option value="MrbReview">MRB Review</option>
+                                    <option value="RcaAnalysis">RCA Analysis</option>
+                                    <option value="ManagementReview">Management Review</option>
+                                    <option value="AuditFinding">Audit Finding</option>
+                                    <option value="PfmeaAction">PFMEA</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     @if (_saveError is not null)

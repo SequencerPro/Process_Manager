@@ -1,5 +1,5 @@
 @page "/alerts"
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @inject ApiClient Api
 
 <PageTitle>Out-of-Range Alerts</PageTitle>

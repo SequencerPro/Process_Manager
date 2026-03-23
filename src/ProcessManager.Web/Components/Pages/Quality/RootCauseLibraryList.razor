@@ -3,7 +3,7 @@
 @inject ApiClient Api
 @inject IJSRuntime JS
 @inject NavigationManager Nav
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin,Engineer")]
 
 <PageTitle>Root Cause Library — Process Manager</PageTitle>
 
@@ -320,22 +320,29 @@ else
 <!-- Create / Edit Modal -->
 @if (_showModal)
 {
-    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
-        <div class="modal-dialog">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">
-                        @(_editId is null ? "New Root Cause Entry" : "Edit Root Cause Entry")
-                    </h5>
-                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="pm-modal-icon pm-modal-icon-purple">
+                            <i class="bi @(_editId is null ? "bi-plus-circle" : "bi-pencil-square")"></i>
+                        </div>
+                        <div>
+                            <h5 class="modal-title mb-0">@(_editId is null ? "New Root Cause Entry" : "Edit Root Cause Entry")</h5>
+                            <small class="pm-modal-subtitle">@(_editId is null ? "Add a cause to the institutional knowledge base" : "Update root cause entry details")</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseModal"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Title <span class="text-danger">*</span></label>
+                    <div class="pm-input-group">
+                        <label class="form-label"><i class="bi bi-type"></i> Title <span class="text-danger">*</span></label>
                         <input class="form-control" @bind="_form.Title" placeholder="e.g. Fixture wear" />
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Category <span class="text-danger">*</span></label>
+                    <div class="pm-modal-divider">Classification</div>
+                    <div class="pm-input-group">
+                        <label class="form-label"><i class="bi bi-tag"></i> Category <span class="text-danger">*</span></label>
                         <select class="form-select" @bind="_form.Category">
                             <option value="">— Select category —</option>
                             @foreach (var cat in _categories)
@@ -344,19 +351,20 @@ else
                             }
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
+                    <div class="pm-input-group">
+                        <label class="form-label"><i class="bi bi-card-text"></i> Description</label>
                         <textarea class="form-control" rows="3" @bind="_form.Description"
                                   placeholder="How this cause manifests and how to detect it"></textarea>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Tags</label>
+                    <div class="pm-input-group">
+                        <label class="form-label"><i class="bi bi-tags"></i> Tags</label>
                         <input class="form-control" @bind="_form.Tags"
                                placeholder="Comma-separated, e.g. tooling, setup, wear" />
                         <div class="form-text">Used for cross-cutting retrieval in analysis tools.</div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Corrective Action Template</label>
+                    <div class="pm-modal-divider">Remediation</div>
+                    <div class="pm-input-group">
+                        <label class="form-label"><i class="bi bi-wrench"></i> Corrective Action Template</label>
                         <textarea class="form-control" rows="3" @bind="_form.CorrectiveActionTemplate"
                                   placeholder="Suggested corrective action — pre-populated into investigations"></textarea>
                     </div>

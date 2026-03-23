@@ -1,4 +1,5 @@
 @page "/workflows"
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject IJSRuntime JS
@@ -91,33 +92,44 @@ else if (_data is not null)
 
 @if (_showForm)
 {
-    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
-        <div class="modal-dialog">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "New") Workflow</h5>
-                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                    <div class="pm-modal-icon pm-modal-icon-orange">
+                        <i class="bi @(_editId.HasValue ? "bi-pencil-square" : "bi-plus-circle")"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "New") @Vocab.Workflow</h5>
+                        <div class="pm-modal-subtitle">@(_editId.HasValue ? "Update workflow details" : "Create a new workflow to orchestrate processes")</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseForm"></button>
                 </div>
                 <div class="modal-body">
                     @if (!_editId.HasValue)
                     {
-                        <div class="mb-3">
-                            <label class="form-label">Code</label>
-                            <input class="form-control" @bind="_formCode" />
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-upc-scan"></i> Code</label>
+                            <input class="form-control" @bind="_formCode" placeholder="e.g. WRKFLW-001" />
                         </div>
+                        <div class="pm-modal-divider">Details</div>
                     }
-                    <div class="mb-3">
-                        <label class="form-label">Name</label>
-                        <input class="form-control" @bind="_formName" />
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Name</label>
+                        <input class="form-control" @bind="_formName" placeholder="e.g. PC Build Workflow" />
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea class="form-control" rows="3" @bind="_formDesc"></textarea>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-card-text"></i> Description</label>
+                        <textarea class="form-control" rows="3" @bind="_formDesc" placeholder="Optional description..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
-                    <button class="btn btn-primary" @onclick="Save">Save</button>
+                    <button class="btn btn-primary" @onclick="Save" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                        <i class="bi @(_editId.HasValue ? "bi-check-lg" : "bi-plus-lg")"></i>
+                        @(_editId.HasValue ? "Save Changes" : "Create Workflow")
+                    </button>
                 </div>
             </div>
         </div>
@@ -133,6 +145,7 @@ else if (_data is not null)
     private int _pageSize = 25;
 
     private bool _showForm;
+    private bool _saving;
     private Guid? _editId;
     private string _formCode = "";
     private string _formName = "";
@@ -180,6 +193,7 @@ else if (_data is not null)
 
     private async Task Save()
     {
+        _saving = true;
         try
         {
             if (_editId.HasValue)
@@ -190,6 +204,7 @@ else if (_data is not null)
             await LoadData();
         }
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+        finally { _saving = false; }
     }
 
     private async Task Delete(Guid id)

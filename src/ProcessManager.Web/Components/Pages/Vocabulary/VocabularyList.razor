@@ -1,4 +1,5 @@
 @page "/vocabulary"
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject IJSRuntime JS
@@ -100,72 +101,82 @@ else if (_data is not null)
 
 @if (_showForm)
 {
-    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
-        <div class="modal-dialog modal-lg">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "New") Vocabulary</h5>
-                    <button type="button" class="btn-close" @onclick="CloseForm"></button>
+                    <div class="pm-modal-icon pm-modal-icon-purple">
+                        <i class="bi bi-translate"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">@(_editId.HasValue ? "Edit" : "New") Vocabulary</h5>
+                        <div class="pm-modal-subtitle">@(_editId.HasValue ? "Update vocabulary term definitions" : "Define terminology mappings for your organization")</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseForm"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Name</label>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Name</label>
                         <input class="form-control" @bind="_formName" />
                     </div>
+                    <div class="pm-modal-divider">Terms</div>
                     <div class="row g-3">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Term: Kind</label>
+                        <div class="col-md-4 pm-input-group">
+                            <label><i class="bi bi-tag"></i> Kind</label>
                             <input class="form-control" @bind="_formTermKind" />
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Term: Kind Code</label>
+                        <div class="col-md-4 pm-input-group">
+                            <label><i class="bi bi-tag"></i> Kind Code</label>
                             <input class="form-control" @bind="_formTermKindCode" />
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Term: Grade</label>
+                        <div class="col-md-4 pm-input-group">
+                            <label><i class="bi bi-tag"></i> Grade</label>
                             <input class="form-control" @bind="_formTermGrade" />
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Term: Item</label>
+                        <div class="col-md-4 pm-input-group">
+                            <label><i class="bi bi-tag"></i> Item</label>
                             <input class="form-control" @bind="_formTermItem" />
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Term: Item ID</label>
+                        <div class="col-md-4 pm-input-group">
+                            <label><i class="bi bi-tag"></i> Item ID</label>
                             <input class="form-control" @bind="_formTermItemId" />
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Term: Batch</label>
+                        <div class="col-md-4 pm-input-group">
+                            <label><i class="bi bi-tag"></i> Batch</label>
                             <input class="form-control" @bind="_formTermBatch" />
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Term: Batch ID</label>
+                        <div class="col-md-4 pm-input-group">
+                            <label><i class="bi bi-tag"></i> Batch ID</label>
                             <input class="form-control" @bind="_formTermBatchId" />
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Term: Job</label>
+                        <div class="col-md-4 pm-input-group">
+                            <label><i class="bi bi-tag"></i> Job</label>
                             <input class="form-control" @bind="_formTermJob" />
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Term: Workorder</label>
+                        <div class="col-md-4 pm-input-group">
+                            <label><i class="bi bi-tag"></i> Workorder</label>
                             <input class="form-control" @bind="_formTermWorkorder" />
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Term: Workflow</label>
+                        <div class="col-md-4 pm-input-group">
+                            <label><i class="bi bi-tag"></i> Workflow</label>
                             <input class="form-control" @bind="_formTermWorkflow" />
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Term: Process</label>
+                        <div class="col-md-4 pm-input-group">
+                            <label><i class="bi bi-tag"></i> Process</label>
                             <input class="form-control" @bind="_formTermProcess" />
                         </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Term: Step</label>
+                        <div class="col-md-4 pm-input-group">
+                            <label><i class="bi bi-tag"></i> Step</label>
                             <input class="form-control" @bind="_formTermStep" />
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
-                    <button class="btn btn-primary" @onclick="Save">Save</button>
+                    <button class="btn btn-primary" @onclick="Save" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Save
+                    </button>
                 </div>
             </div>
         </div>
@@ -181,6 +192,7 @@ else if (_data is not null)
 
     // Form
     private bool _showForm;
+    private bool _saving;
     private Guid? _editId;
     private string _formName = "";
     private string _formTermKind = "Kind";
@@ -248,6 +260,7 @@ else if (_data is not null)
 
     private async Task Save()
     {
+        _saving = true;
         try
         {
             if (_editId.HasValue)
@@ -264,6 +277,7 @@ else if (_data is not null)
             await LoadData();
         }
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+        finally { _saving = false; }
     }
 
     private async Task ToggleActive(DomainVocabularyResponseDto v)

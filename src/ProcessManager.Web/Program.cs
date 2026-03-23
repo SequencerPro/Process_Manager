@@ -11,7 +11,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 // ── Blazor ────────────────────────────────────────────────────────────────────
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents()
+    .AddHubOptions(options =>
+    {
+        // Default is 32 KB — far too small for CAD file uploads (STEP files can be 10+ MB).
+        // InputFile streams through the SignalR hub, so this limit must cover the largest
+        // file the user might select.  100 MB matches the OpenReadStream limit in ApiClient.
+        options.MaximumReceiveMessageSize = 100 * 1024 * 1024; // 100 MB
+    });
 
 builder.Services.AddCascadingAuthenticationState();
 

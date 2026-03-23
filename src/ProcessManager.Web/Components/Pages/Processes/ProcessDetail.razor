@@ -1,5 +1,7 @@
 @page "/processes/{Id:guid}"
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @page "/documents/{Id:guid}"
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject NavigationManager Nav

@@ -1,6 +1,6 @@
 @page "/training"
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @inject ApiClient Api
 @inject NavigationManager Nav
 

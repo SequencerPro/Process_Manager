@@ -1,6 +1,6 @@
 @page "/equipment"
 @rendermode InteractiveServer
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @inject ApiClient Api
 @inject NavigationManager Nav
 
@@ -133,64 +133,94 @@ else
 <!-- Create Modal -->
 @if (_showCreate)
 {
-    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content shadow-lg">
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title"><i class="bi bi-gear-wide me-2"></i>Add Equipment</h5>
-                    <button class="btn-close" @onclick="CloseCreateModal"></button>
+                    <div class="pm-modal-icon pm-modal-icon-green">
+                        <i class="bi bi-plus-circle"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title mb-0">Add Equipment</h5>
+                        <span class="pm-modal-subtitle">Register a new piece of equipment</span>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseCreateModal"></button>
                 </div>
                 <div class="modal-body">
-                    @if (_createError is not null)
-                    {
-                        <div class="alert alert-danger small py-2">@_createError</div>
-                    }
                     <div class="row g-3">
+                        <div class="col-12"><div class="text-muted small fw-semibold mb-1">Identification</div></div>
+
                         <div class="col-md-4">
-                            <label class="form-label small">Code <span class="text-danger">*</span></label>
-                            <input class="form-control form-control-sm" @bind="_createForm.Code" placeholder="e.g. CNC-001" />
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-upc-scan me-1"></i>Code <span class="text-danger">*</span></label>
+                                <input class="form-control" @bind="_createForm.Code" placeholder="e.g. CNC-001" />
+                            </div>
                         </div>
                         <div class="col-md-8">
-                            <label class="form-label small">Name <span class="text-danger">*</span></label>
-                            <input class="form-control form-control-sm" @bind="_createForm.Name" />
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-type me-1"></i>Name <span class="text-danger">*</span></label>
+                                <input class="form-control" @bind="_createForm.Name" />
+                            </div>
+                        </div>
+
+                        <div class="col-12"><hr class="my-1"><div class="text-muted small fw-semibold mb-1">Details</div></div>
+
+                        <div class="col-md-6">
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-tag me-1"></i>Category <span class="text-danger">*</span></label>
+                                <select class="form-select" @bind="_createForm.CategoryId">
+                                    <option value="">Select category…</option>
+                                    @foreach (var c in _categories)
+                                    {
+                                        <option value="@c.Id">@c.Name</option>
+                                    }
+                                </select>
+                            </div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small">Category <span class="text-danger">*</span></label>
-                            <select class="form-select form-select-sm" @bind="_createForm.CategoryId">
-                                <option value="">Select category…</option>
-                                @foreach (var c in _categories)
-                                {
-                                    <option value="@c.Id">@c.Name</option>
-                                }
-                            </select>
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-geo-alt me-1"></i>Location</label>
+                                <input class="form-control" @bind="_createForm.Location" />
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label small">Location</label>
-                            <input class="form-control form-control-sm" @bind="_createForm.Location" />
+
+                        <div class="col-12"><hr class="my-1"><div class="text-muted small fw-semibold mb-1">Manufacturer Info</div></div>
+
+                        <div class="col-md-4">
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-building me-1"></i>Manufacturer</label>
+                                <input class="form-control" @bind="_createForm.Manufacturer" />
+                            </div>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small">Manufacturer</label>
-                            <input class="form-control form-control-sm" @bind="_createForm.Manufacturer" />
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-cpu me-1"></i>Model</label>
+                                <input class="form-control" @bind="_createForm.Model" />
+                            </div>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small">Model</label>
-                            <input class="form-control form-control-sm" @bind="_createForm.Model" />
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-hash me-1"></i>Serial Number</label>
+                                <input class="form-control" @bind="_createForm.SerialNumber" />
+                            </div>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small">Serial Number</label>
-                            <input class="form-control form-control-sm" @bind="_createForm.SerialNumber" />
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small">Install Date</label>
-                            <input type="date" class="form-control form-control-sm"
-                                   value="@_createForm.InstallDate?.ToString("yyyy-MM-dd")"
-                                   @onchange="e => _createForm.InstallDate = e.Value is string s && !string.IsNullOrEmpty(s) ? DateTime.Parse(s) : null" />
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-calendar-event me-1"></i>Install Date</label>
+                                <input type="date" class="form-control"
+                                       value="@_createForm.InstallDate?.ToString("yyyy-MM-dd")"
+                                       @onchange="e => _createForm.InstallDate = e.Value is string s && !string.IsNullOrEmpty(s) ? DateTime.Parse(s) : null" />
+                            </div>
                         </div>
                     </div>
+                    @if (_createError is not null)
+                    {
+                        <div class="alert alert-danger small py-2 mt-3">@_createError</div>
+                    }
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary btn-sm" @onclick="CloseCreateModal">Cancel</button>
-                    <button class="btn btn-primary btn-sm" @onclick="CreateEquipment" disabled="@_saving">
+                    <button class="btn btn-secondary" @onclick="CloseCreateModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="CreateEquipment" disabled="@_saving">
                         @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> } Save
                     </button>
                 </div>

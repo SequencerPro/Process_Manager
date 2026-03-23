@@ -1,4 +1,5 @@
 @page "/kinds"
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject IJSRuntime JS
@@ -16,159 +17,340 @@
 
 <div class="d-flex gap-3 mb-3">
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="@($"Search {Vocab.Kinds.ToLower()}...")" />
+    <select class="form-select form-select-sm" style="width:160px" @onchange="OnSourceTypeFilter">
+        <option value="">All Sources</option>
+        <option value="Make">Make</option>
+        <option value="Buy">Buy</option>
+        <option value="ReferenceDocument">Reference Doc</option>
+        <option value="Phantom">Phantom</option>
+        <option value="Consumable">Consumable</option>
+    </select>
 </div>
 
-<div class="d-flex" style="gap: 0;">
-    @* ── Main Table ── *@
-    <div class="flex-grow-1" style="min-width: 0;">
-        @if (_loading)
-        {
-            <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
-        }
-        else if (_data is not null)
-        {
-            <div class="table-responsive">
-                <table class="table table-hover table-sm align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Code</th>
-                            <th>Name</th>
-                            <th>Serialized</th>
-                            <th>Batchable</th>
-                            <th>Grades</th>
-                            <th style="width:120px">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (!_data.Items.Any())
-                        {
-                            <tr><td colspan="6" class="text-center text-muted py-3">No kinds found.</td></tr>
-                        }
-                        else
-                        {
-                        @foreach (var kind in _data.Items)
-                        {
-                            <tr class="@(_editingId == kind.Id ? "table-active" : "")">
-                                <td><code>@kind.Code</code></td>
-                                <td>
-                                    <a href="kinds/@kind.Id">@kind.Name</a>
-                                </td>
-                                <td>@(kind.IsSerialized ? "Yes" : "No")</td>
-                                <td>@(kind.IsBatchable ? "Yes" : "No")</td>
-                                <td>
-                                    @foreach (var g in kind.Grades)
-                                    {
-                                        <span class="badge bg-light text-dark border me-1">@g.Code</span>
-                                    }
-                                </td>
-                                <td>
-                                    <button class="btn btn-outline-secondary btn-sm me-1" title="Edit"
-                                            @onclick="() => ShowEditForm(kind)">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <button class="btn btn-outline-danger btn-sm" title="Delete"
-                                            @onclick="() => DeleteKind(kind)">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        }
-                        }
-                    </tbody>
-                </table>
-            </div>
-
-            <Pager Page="_page" PageSize="_pageSize" TotalCount="_data.TotalCount"
-                   OnPageChanged="OnPageChanged" />
-        }
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else if (_data is not null)
+{
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Source</th>
+                    <th>Serialized</th>
+                    <th>Batchable</th>
+                    <th>Grades</th>
+                    <th style="width:120px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (!_data.Items.Any())
+                {
+                    <tr><td colspan="7" class="text-center text-muted py-3">No kinds found.</td></tr>
+                }
+                else
+                {
+                @foreach (var kind in _data.Items)
+                {
+                    <tr>
+                        <td><code>@kind.Code</code></td>
+                        <td>
+                            <a href="kinds/@kind.Id">@kind.Name</a>
+                        </td>
+                        <td><span class="badge @SourceBadgeClass(kind.SourceType)">@FormatSourceType(kind.SourceType)</span></td>
+                        <td>@(kind.IsSerialized ? "Yes" : "No")</td>
+                        <td>@(kind.IsBatchable ? "Yes" : "No")</td>
+                        <td>
+                            @foreach (var g in kind.Grades)
+                            {
+                                <span class="badge bg-light text-dark border me-1">@g.Code</span>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn btn-outline-secondary btn-sm me-1" title="Edit"
+                                    @onclick="() => ShowEditForm(kind)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" title="Delete"
+                                    @onclick="() => DeleteKind(kind)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+                }
+            </tbody>
+        </table>
     </div>
 
-    @* ── Side Panel ── *@
-    @if (_showForm)
-    {
-        <div class="kind-side-panel">
-            <div class="kind-side-panel-header">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="bi @(_editingId.HasValue ? "bi-pencil-square" : "bi-plus-circle") text-primary"></i>
-                    <h6 class="mb-0 fw-semibold">@(_editingId.HasValue ? "Edit Kind" : "New Kind")</h6>
-                </div>
-                <button type="button" class="btn-close btn-close-sm" @onclick="CloseForm"></button>
-            </div>
+    <Pager Page="_page" PageSize="_pageSize" TotalCount="_data.TotalCount"
+           OnPageChanged="OnPageChanged" />
+}
 
-            <EditForm Model="_form" OnValidSubmit="SaveKind">
-                <DataAnnotationsValidator />
-                <div class="kind-side-panel-body">
-                    <div class="kind-side-panel-section">
-                        <label class="kind-side-panel-section-label">
-                            <i class="bi bi-tag me-1"></i>Identification
-                        </label>
-                        <div class="mb-3">
-                            <label class="form-label small mb-1">Code</label>
-                            <InputText class="form-control form-control-sm" @bind-Value="_form.Code"
-                                       disabled="@_editingId.HasValue" placeholder="e.g. WDG-100" />
-                            <ValidationMessage For="() => _form.Code" />
+@if (_showForm)
+{
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-green">
+                        <i class="bi @(_editingId.HasValue ? "bi-pencil-square" : "bi-plus-circle")"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">@(_editingId.HasValue ? "Edit" : "New") @Vocab.Kind</h5>
+                        <div class="pm-modal-subtitle">@(_editingId.HasValue ? "Update kind details" : "Define a new kind or clone from an existing one")</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseForm"></button>
+                </div>
+                <div class="modal-body" style="max-height:70vh; overflow-y:auto">
+                    @if (!_editingId.HasValue)
+                    {
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-copy"></i> Clone from existing</label>
+                            <div class="d-flex gap-2">
+                                <input class="form-control" readonly placeholder="Browse kinds to clone..." value="@_cloneSourceName" />
+                                <button type="button" class="pm-browse-btn" title="Browse kinds" @onclick="() => _showPicker = true">
+                                    <i class="bi bi-grid-3x3-gap"></i>
+                                </button>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label small mb-1">Name</label>
-                            <InputText class="form-control form-control-sm" @bind-Value="_form.Name"
-                                       placeholder="e.g. Widget" />
-                            <ValidationMessage For="() => _form.Name" />
+                        <div class="pm-modal-divider">Identification</div>
+                    }
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-upc-scan"></i> Code</label>
+                        <input class="form-control" @bind="_form.Code" disabled="@_editingId.HasValue" placeholder="e.g. WDG-100" />
+                    </div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Name</label>
+                        <input class="form-control" @bind="_form.Name" placeholder="e.g. Widget" />
+                    </div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-card-text"></i> Description</label>
+                        <textarea class="form-control" rows="2" @bind="_form.Description" placeholder="Optional description..."></textarea>
+                    </div>
+
+                    <div class="pm-modal-divider">Source Type</div>
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        @foreach (var st in _sourceTypes)
+                        {
+                            var isActive = _form.SourceType == st.Value;
+                            <button type="button"
+                                    class="btn btn-sm @(isActive ? "btn-primary" : "btn-outline-secondary")"
+                                    @onclick="() => _form.SourceType = st.Value">
+                                <i class="bi @st.Icon me-1"></i> @st.Label
+                            </button>
+                        }
+                    </div>
+
+                    <div class="pm-modal-divider">Properties</div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="small fw-semibold">Serialized</div>
+                                    <div class="text-muted" style="font-size:.7rem">Track individual items by serial number</div>
+                                </div>
+                                <div class="form-check form-switch mb-0">
+                                    <input type="checkbox" class="form-check-input" @bind="_form.IsSerialized" />
+                                </div>
+                            </div>
                         </div>
-                        <div class="mb-0">
-                            <label class="form-label small mb-1">Description</label>
-                            <InputTextArea class="form-control form-control-sm" @bind-Value="_form.Description"
-                                           rows="2" placeholder="Optional description..." />
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="small fw-semibold">Batchable</div>
+                                    <div class="text-muted" style="font-size:.7rem">Group items into batches for processing</div>
+                                </div>
+                                <div class="form-check form-switch mb-0">
+                                    <input type="checkbox" class="form-check-input" @bind="_form.IsBatchable" />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="kind-side-panel-section">
-                        <label class="kind-side-panel-section-label">
-                            <i class="bi bi-toggles me-1"></i>Properties
-                        </label>
-                        <div class="d-flex align-items-center justify-content-between mb-2">
-                            <div>
-                                <div class="small fw-semibold">Serialized</div>
-                                <div class="text-muted" style="font-size:.7rem">Track individual items by serial number</div>
-                            </div>
-                            <div class="form-check form-switch mb-0">
-                                <InputCheckbox class="form-check-input" @bind-Value="_form.IsSerialized" />
-                            </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Unit of Measure</label>
+                            <input class="form-control form-control-sm" @bind="_form.UnitOfMeasure" placeholder="e.g. Each, Kg" />
                         </div>
-                        <div class="d-flex align-items-center justify-content-between">
-                            <div>
-                                <div class="small fw-semibold">Batchable</div>
-                                <div class="text-muted" style="font-size:.7rem">Group items into batches for processing</div>
-                            </div>
-                            <div class="form-check form-switch mb-0">
-                                <InputCheckbox class="form-check-input" @bind-Value="_form.IsBatchable" />
-                            </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Revision</label>
+                            <input class="form-control form-control-sm" @bind="_form.Revision" placeholder="e.g. A, Rev 2" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Lead Time (days)</label>
+                            <input type="number" class="form-control form-control-sm" @bind="_form.LeadTimeDays" placeholder="e.g. 14" />
                         </div>
                     </div>
-                </div>
 
-                <div class="kind-side-panel-footer">
-                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="CloseForm">Cancel</button>
-                    <button type="submit" class="btn btn-primary btn-sm">
-                        <i class="bi @(_editingId.HasValue ? "bi-check-lg" : "bi-plus-lg") me-1"></i>
-                        @(_editingId.HasValue ? "Update" : "Create")
+                    <div class="pm-modal-divider">Cost &amp; Pricing</div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Cost (production)</label>
+                            <input type="number" step="0.01" class="form-control form-control-sm" @bind="_form.Cost" placeholder="0.00" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Price (selling)</label>
+                            <input type="number" step="0.01" class="form-control form-control-sm" @bind="_form.Price" placeholder="0.00" />
+                        </div>
+                    </div>
+
+                    @if (_form.SourceType == "Buy")
+                    {
+                        <div class="pm-modal-divider">Vendor Information</div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Vendor Name</label>
+                                <input class="form-control form-control-sm" @bind="_form.VendorName" placeholder="e.g. Acme Corp" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Vendor Part Number</label>
+                                <input class="form-control form-control-sm" @bind="_form.VendorPartNumber" placeholder="e.g. ACM-12345" />
+                            </div>
+                        </div>
+                    }
+
+                    <div class="pm-modal-divider">Physical &amp; Compliance</div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Weight</label>
+                            <div class="input-group input-group-sm">
+                                <input type="number" step="0.01" class="form-control" @bind="_form.Weight" placeholder="0.00" />
+                                <select class="form-select" style="max-width:70px" @bind="_form.WeightUnit">
+                                    <option value="">--</option>
+                                    <option value="g">g</option>
+                                    <option value="kg">kg</option>
+                                    <option value="lb">lb</option>
+                                    <option value="oz">oz</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">RoHS Status</label>
+                            <select class="form-select form-select-sm" @bind="_form.RohsStatus">
+                                <option value="">-- Select --</option>
+                                <option value="Compliant">Compliant</option>
+                                <option value="Non-Compliant">Non-Compliant</option>
+                                <option value="Exempt">Exempt</option>
+                                <option value="Unknown">Unknown</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Country of Origin</label>
+                            <input class="form-control form-control-sm" @bind="_form.CountryOfOrigin" placeholder="e.g. USA" />
+                        </div>
+                    </div>
+
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-journal-text"></i> Notes</label>
+                        <textarea class="form-control" rows="2" @bind="_form.Notes" placeholder="Free-form notes..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseForm">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveKind" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                        <i class="bi @(_editingId.HasValue ? "bi-check-lg" : "bi-plus-lg")"></i>
+                        @(_editingId.HasValue ? "Save Changes" : "Create Kind")
                     </button>
                 </div>
-            </EditForm>
+            </div>
         </div>
-    }
-</div>
+    </div>
+}
+
+@if (_showPicker && _allKinds is not null)
+{
+    <div class="modal show d-block pm-modal pm-picker" tabindex="-1" style="background: rgba(0,0,0,.55); z-index: 1060">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-green">
+                        <i class="bi bi-copy"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">Clone from Existing Kind</h5>
+                        <div class="pm-modal-subtitle">Select a kind to copy its settings into the form</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showPicker = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="pm-picker-search">
+                        <input type="text" placeholder="Search kinds..." @bind="_pickerSearch" @bind:event="oninput" />
+                    </div>
+                    <div class="pm-picker-grid">
+                        @{ var filtered = _allKinds.Items.Where(k =>
+                            string.IsNullOrEmpty(_pickerSearch)
+                            || k.Name.Contains(_pickerSearch, StringComparison.OrdinalIgnoreCase)
+                            || k.Code.Contains(_pickerSearch, StringComparison.OrdinalIgnoreCase)).ToList(); }
+                        @if (!filtered.Any())
+                        {
+                            <div class="pm-picker-empty">
+                                <i class="bi bi-search d-block mb-2" style="font-size: 1.5rem"></i>
+                                No kinds match your search
+                            </div>
+                        }
+                        @foreach (var k in filtered)
+                        {
+                            <div class="pm-picker-tile" @onclick="() => SelectKindFromPicker(k)">
+                                <div class="pm-picker-tile-code">@k.Code</div>
+                                <div class="pm-picker-tile-name">@k.Name</div>
+                                @if (!string.IsNullOrEmpty(k.Description))
+                                {
+                                    <div class="pm-picker-tile-desc">@k.Description</div>
+                                }
+                                <div class="pm-picker-tile-meta">
+                                    <span class="pm-picker-tile-badge" style="background: #f0fdf4; color: #166534">@FormatSourceType(k.SourceType)</span>
+                                    @if (k.IsSerialized)
+                                    {
+                                        <span class="pm-picker-tile-badge" style="background: #dbeafe; color: #1d4ed8">Serialized</span>
+                                    }
+                                    @if (k.IsBatchable)
+                                    {
+                                        <span class="pm-picker-tile-badge" style="background: #fef3c7; color: #92400e">Batchable</span>
+                                    }
+                                    <span class="pm-picker-tile-badge">@k.Grades.Count grade@(k.Grades.Count != 1 ? "s" : "")</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private PaginatedResponse<KindResponseDto>? _data;
     private bool _loading = true;
     private string _search = "";
+    private string _sourceTypeFilter = "";
     private int _page = 1;
     private int _pageSize = 25;
 
     // Form state
     private bool _showForm;
+    private bool _saving;
     private Guid? _editingId;
     private KindFormModel _form = new();
+    private string _cloneSourceName = "";
+
+    // Tile picker
+    private bool _showPicker;
+    private string _pickerSearch = "";
+    private PaginatedResponse<KindResponseDto>? _allKinds;
+
+    private static readonly (string Value, string Label, string Icon)[] _sourceTypes = new[]
+    {
+        ("Make", "Make", "bi-gear"),
+        ("Buy", "Buy", "bi-cart"),
+        ("ReferenceDocument", "Reference Doc", "bi-file-earmark-text"),
+        ("Phantom", "Phantom", "bi-box"),
+        ("Consumable", "Consumable", "bi-droplet")
+    };
 
     protected override void OnInitialized() => Vocab.OnChange += OnVocabChanged;
     protected override async Task OnInitializedAsync() => await LoadData();
@@ -180,6 +362,9 @@
         _loading = true;
         try
         {
+            var url = $"api/kinds?search={Uri.EscapeDataString(_search)}&page={_page}&pageSize={_pageSize}";
+            if (!string.IsNullOrEmpty(_sourceTypeFilter))
+                url += $"&sourceType={Uri.EscapeDataString(_sourceTypeFilter)}";
             _data = await Api.GetKindsAsync(_search, _page, _pageSize);
         }
         catch (Exception ex)
@@ -194,19 +379,58 @@
 
     private async Task OnSearch(string value) { _search = value; _page = 1; await LoadData(); }
     private async Task OnPageChanged(int page) { _page = page; await LoadData(); }
+    private async Task OnSourceTypeFilter(ChangeEventArgs e) { _sourceTypeFilter = e.Value?.ToString() ?? ""; _page = 1; await LoadData(); }
 
-    private void ShowCreateForm()
+    private async Task ShowCreateForm()
     {
         _editingId = null;
         _form = new();
+        _cloneSourceName = "";
         _showForm = true;
+        _allKinds = await Api.GetKindsAsync(pageSize: 100);
+        StateHasChanged();
+    }
+
+    private void SelectKindFromPicker(KindResponseDto k)
+    {
+        _form.Name = k.Name;
+        _form.Description = k.Description;
+        _form.IsSerialized = k.IsSerialized;
+        _form.IsBatchable = k.IsBatchable;
+        _form.SourceType = k.SourceType;
+        _form.UnitOfMeasure = k.UnitOfMeasure;
+        _form.Cost = k.Cost;
+        _form.Price = k.Price;
+        _form.VendorName = k.VendorName;
+        _form.VendorPartNumber = k.VendorPartNumber;
+        _form.LeadTimeDays = k.LeadTimeDays;
+        _form.Weight = k.Weight;
+        _form.WeightUnit = k.WeightUnit;
+        _form.RohsStatus = k.RohsStatus;
+        _form.CountryOfOrigin = k.CountryOfOrigin;
+        _form.Revision = k.Revision;
+        _form.Notes = k.Notes;
+        _cloneSourceName = $"{k.Name} ({k.Code})";
+        _showPicker = false;
+        _pickerSearch = "";
     }
 
     private void ShowEditForm(KindResponseDto kind)
     {
         _editingId = kind.Id;
-        _form = new() { Code = kind.Code, Name = kind.Name, Description = kind.Description ?? "",
-                         IsSerialized = kind.IsSerialized, IsBatchable = kind.IsBatchable };
+        _form = new()
+        {
+            Code = kind.Code, Name = kind.Name, Description = kind.Description ?? "",
+            IsSerialized = kind.IsSerialized, IsBatchable = kind.IsBatchable,
+            SourceType = kind.SourceType,
+            UnitOfMeasure = kind.UnitOfMeasure,
+            Cost = kind.Cost, Price = kind.Price,
+            VendorName = kind.VendorName, VendorPartNumber = kind.VendorPartNumber,
+            LeadTimeDays = kind.LeadTimeDays,
+            Weight = kind.Weight, WeightUnit = kind.WeightUnit,
+            RohsStatus = kind.RohsStatus, CountryOfOrigin = kind.CountryOfOrigin,
+            Revision = kind.Revision, Notes = kind.Notes
+        };
         _showForm = true;
     }
 
@@ -214,14 +438,26 @@
 
     private async Task SaveKind()
     {
+        _saving = true;
         try
         {
+            // Parse SourceType string back to enum
+            Enum.TryParse<ProcessManager.Domain.Enums.KindSourceType>(_form.SourceType, out var sourceType);
+
             if (_editingId.HasValue)
                 await Api.UpdateKindAsync(_editingId.Value,
-                    new KindUpdateDto(_form.Name, _form.Description, _form.IsSerialized, _form.IsBatchable));
+                    new KindUpdateDto(_form.Name, _form.Description, _form.IsSerialized, _form.IsBatchable,
+                        sourceType, _form.UnitOfMeasure, _form.Cost, _form.Price,
+                        _form.VendorName, _form.VendorPartNumber, _form.LeadTimeDays,
+                        _form.Weight, _form.WeightUnit, _form.RohsStatus,
+                        _form.CountryOfOrigin, _form.Revision, _form.Notes));
             else
                 await Api.CreateKindAsync(
-                    new KindCreateDto(_form.Code, _form.Name, _form.Description, _form.IsSerialized, _form.IsBatchable));
+                    new KindCreateDto(_form.Code, _form.Name, _form.Description, _form.IsSerialized, _form.IsBatchable,
+                        sourceType, _form.UnitOfMeasure, _form.Cost, _form.Price,
+                        _form.VendorName, _form.VendorPartNumber, _form.LeadTimeDays,
+                        _form.Weight, _form.WeightUnit, _form.RohsStatus,
+                        _form.CountryOfOrigin, _form.Revision, _form.Notes));
 
             _showForm = false;
             await LoadData();
@@ -230,6 +466,7 @@
         {
             Toast.ShowError(ex.Message);
         }
+        finally { _saving = false; }
     }
 
     private async Task DeleteKind(KindResponseDto kind)
@@ -246,6 +483,22 @@
         }
     }
 
+    private static string FormatSourceType(string st) => st switch
+    {
+        "ReferenceDocument" => "Ref Doc",
+        _ => st
+    };
+
+    private static string SourceBadgeClass(string st) => st switch
+    {
+        "Make" => "bg-success-subtle text-success",
+        "Buy" => "bg-primary-subtle text-primary",
+        "ReferenceDocument" => "bg-info-subtle text-info",
+        "Phantom" => "bg-warning-subtle text-warning",
+        "Consumable" => "bg-secondary-subtle text-secondary",
+        _ => "bg-light text-dark"
+    };
+
     private class KindFormModel
     {
         public string Code { get; set; } = "";
@@ -253,5 +506,18 @@
         public string? Description { get; set; }
         public bool IsSerialized { get; set; }
         public bool IsBatchable { get; set; }
+        public string SourceType { get; set; } = "Make";
+        public string? UnitOfMeasure { get; set; }
+        public decimal? Cost { get; set; }
+        public decimal? Price { get; set; }
+        public string? VendorName { get; set; }
+        public string? VendorPartNumber { get; set; }
+        public int? LeadTimeDays { get; set; }
+        public decimal? Weight { get; set; }
+        public string? WeightUnit { get; set; }
+        public string? RohsStatus { get; set; }
+        public string? CountryOfOrigin { get; set; }
+        public string? Revision { get; set; }
+        public string? Notes { get; set; }
     }
 }

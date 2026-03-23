@@ -1,5 +1,5 @@
 @page "/dashboard"
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin,Engineer")]
 @inject ApiClient Api
 @using System.Net
 

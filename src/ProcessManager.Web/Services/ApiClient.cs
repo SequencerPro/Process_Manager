@@ -34,21 +34,21 @@ public class ApiClient
     public async Task<KindResponseDto?> CreateKindAsync(KindCreateDto dto)
     {
         var resp = await _http.PostAsJsonAsync("api/kinds", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<KindResponseDto>(_json);
     }
 
     public async Task<KindResponseDto?> UpdateKindAsync(Guid id, KindUpdateDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/kinds/{id}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<KindResponseDto>(_json);
     }
 
     public async Task DeleteKindAsync(Guid id)
     {
         var resp = await _http.DeleteAsync($"api/kinds/{id}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     // ═══════════════════ Grades ═══════════════════
@@ -56,21 +56,21 @@ public class ApiClient
     public async Task<GradeResponseDto?> CreateGradeAsync(Guid kindId, GradeCreateDto dto)
     {
         var resp = await _http.PostAsJsonAsync($"api/kinds/{kindId}/grades", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<GradeResponseDto>(_json);
     }
 
     public async Task<GradeResponseDto?> UpdateGradeAsync(Guid kindId, Guid gradeId, GradeUpdateDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/kinds/{kindId}/grades/{gradeId}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<GradeResponseDto>(_json);
     }
 
     public async Task DeleteGradeAsync(Guid kindId, Guid gradeId)
     {
         var resp = await _http.DeleteAsync($"api/kinds/{kindId}/grades/{gradeId}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     // ═══════════════════ Step Templates ═══════════════════
@@ -86,21 +86,21 @@ public class ApiClient
     public async Task<StepTemplateResponseDto?> CreateStepTemplateAsync(StepTemplateCreateDto dto)
     {
         var resp = await _http.PostAsJsonAsync("api/steptemplates", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<StepTemplateResponseDto>(_json);
     }
 
     public async Task<StepTemplateResponseDto?> UpdateStepTemplateAsync(Guid id, StepTemplateUpdateDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/steptemplates/{id}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<StepTemplateResponseDto>(_json);
     }
 
     public async Task DeleteStepTemplateAsync(Guid id)
     {
         var resp = await _http.DeleteAsync($"api/steptemplates/{id}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public async Task<StepTemplateImageResponseDto?> UploadStepTemplateImageAsync(Guid stepTemplateId, IBrowserFile file)
@@ -116,14 +116,14 @@ public class ApiClient
         content.Add(sc, "file", file.Name);
 
         var resp = await _http.PostAsync($"api/steptemplates/{stepTemplateId}/images", content);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<StepTemplateImageResponseDto>(_json);
     }
 
     public async Task DeleteStepTemplateImageAsync(Guid stepTemplateId, Guid imageId)
     {
         var resp = await _http.DeleteAsync($"api/steptemplates/{stepTemplateId}/images/{imageId}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     // ─── StepTemplate content blocks ───
@@ -138,7 +138,7 @@ public class ApiClient
         Guid stepTemplateId, AddStepTemplateTextBlockDto dto)
     {
         var resp = await _http.PostAsJsonAsync($"api/steptemplates/{stepTemplateId}/content/text", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<StepTemplateContentResponseDto>(_json);
     }
 
@@ -155,7 +155,7 @@ public class ApiClient
         content.Add(sc, "file", file.Name);
 
         var resp = await _http.PostAsync($"api/steptemplates/{stepTemplateId}/content/image", content);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<StepTemplateContentResponseDto>(_json);
     }
 
@@ -164,7 +164,7 @@ public class ApiClient
     {
         var resp = await _http.PutAsJsonAsync(
             $"api/steptemplates/{stepTemplateId}/content/{contentId}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<StepTemplateContentResponseDto>(_json);
     }
 
@@ -173,13 +173,13 @@ public class ApiClient
     {
         var resp = await _http.PutAsJsonAsync(
             $"api/steptemplates/{stepTemplateId}/content/reorder", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public async Task DeleteStepTemplateContentBlockAsync(Guid stepTemplateId, Guid contentId)
     {
         var resp = await _http.DeleteAsync($"api/steptemplates/{stepTemplateId}/content/{contentId}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public async Task<StepTemplateContentResponseDto?> AddStepTemplatePromptBlockAsync(
@@ -187,7 +187,7 @@ public class ApiClient
     {
         var resp = await _http.PostAsJsonAsync(
             $"api/steptemplates/{stepTemplateId}/content/prompt", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<StepTemplateContentResponseDto>(_json);
     }
 
@@ -196,7 +196,7 @@ public class ApiClient
     {
         var resp = await _http.PutAsJsonAsync(
             $"api/steptemplates/{stepTemplateId}/content/{contentId}/prompt", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<StepTemplateContentResponseDto>(_json);
     }
 
@@ -209,21 +209,21 @@ public class ApiClient
     public async Task<PortResponseDto?> CreatePortAsync(Guid stepTemplateId, PortCreateDto dto)
     {
         var resp = await _http.PostAsJsonAsync($"api/steptemplates/{stepTemplateId}/ports", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<PortResponseDto>(_json);
     }
 
     public async Task<PortResponseDto?> UpdatePortAsync(Guid stepTemplateId, Guid portId, PortUpdateDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/steptemplates/{stepTemplateId}/ports/{portId}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<PortResponseDto>(_json);
     }
 
     public async Task DeletePortAsync(Guid stepTemplateId, Guid portId)
     {
         var resp = await _http.DeleteAsync($"api/steptemplates/{stepTemplateId}/ports/{portId}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     // ═══════════════════ Processes ═══════════════════
@@ -239,54 +239,54 @@ public class ApiClient
     public async Task<ProcessResponseDto?> CreateProcessAsync(ProcessCreateDto dto)
     {
         var resp = await _http.PostAsJsonAsync("api/processes", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<ProcessResponseDto>(_json);
     }
 
     public async Task<ProcessResponseDto?> UpdateProcessAsync(Guid id, ProcessUpdateDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/processes/{id}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<ProcessResponseDto>(_json);
     }
 
     public async Task DeleteProcessAsync(Guid id)
     {
         var resp = await _http.DeleteAsync($"api/processes/{id}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public async Task<ProcessStepResponseDto?> AddProcessStepAsync(Guid processId, ProcessStepCreateDto dto)
     {
         var resp = await _http.PostAsJsonAsync($"api/processes/{processId}/steps", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<ProcessStepResponseDto>(_json);
     }
 
     public async Task<ProcessStepResponseDto?> UpdateProcessStepAsync(Guid processId, Guid stepId, ProcessStepUpdateDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/processes/{processId}/steps/{stepId}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<ProcessStepResponseDto>(_json);
     }
 
     public async Task DeleteProcessStepAsync(Guid processId, Guid stepId)
     {
         var resp = await _http.DeleteAsync($"api/processes/{processId}/steps/{stepId}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public async Task<FlowResponseDto?> AddFlowAsync(Guid processId, FlowCreateDto dto)
     {
         var resp = await _http.PostAsJsonAsync($"api/processes/{processId}/flows", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<FlowResponseDto>(_json);
     }
 
     public async Task DeleteFlowAsync(Guid processId, Guid flowId)
     {
         var resp = await _http.DeleteAsync($"api/processes/{processId}/flows/{flowId}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public Task<ProcessValidationResultDto?> ValidateProcessAsync(Guid processId)
@@ -303,7 +303,7 @@ public class ApiClient
     {
         var resp = await _http.PostAsJsonAsync(
             $"api/processes/{processId}/steps/{stepId}/content/text", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<ProcessStepContentResponseDto>(_json);
     }
 
@@ -321,7 +321,7 @@ public class ApiClient
 
         var resp = await _http.PostAsync(
             $"api/processes/{processId}/steps/{stepId}/content/image", content);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<ProcessStepContentResponseDto>(_json);
     }
 
@@ -330,7 +330,7 @@ public class ApiClient
     {
         var resp = await _http.PutAsJsonAsync(
             $"api/processes/{processId}/steps/{stepId}/content/{contentId}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<ProcessStepContentResponseDto>(_json);
     }
 
@@ -339,14 +339,14 @@ public class ApiClient
     {
         var resp = await _http.PutAsJsonAsync(
             $"api/processes/{processId}/steps/{stepId}/content/reorder", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public async Task DeleteStepContentBlockAsync(Guid processId, Guid stepId, Guid contentId)
     {
         var resp = await _http.DeleteAsync(
             $"api/processes/{processId}/steps/{stepId}/content/{contentId}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public async Task<ProcessStepContentResponseDto?> AddPromptBlockAsync(
@@ -354,7 +354,7 @@ public class ApiClient
     {
         var resp = await _http.PostAsJsonAsync(
             $"api/processes/{processId}/steps/{stepId}/content/prompt", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<ProcessStepContentResponseDto>(_json);
     }
 
@@ -363,7 +363,7 @@ public class ApiClient
     {
         var resp = await _http.PutAsJsonAsync(
             $"api/processes/{processId}/steps/{stepId}/content/{contentId}/prompt", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<ProcessStepContentResponseDto>(_json);
     }
 
@@ -377,7 +377,7 @@ public class ApiClient
     {
         var resp = await _http.PostAsJsonAsync(
             $"api/step-executions/{stepExecutionId}/prompt-responses", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     // ═══════════════════ Jobs ═══════════════════
@@ -394,27 +394,27 @@ public class ApiClient
     public async Task<JobResponseDto?> CreateJobAsync(CreateJobDto dto)
     {
         var resp = await _http.PostAsJsonAsync("api/jobs", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<JobResponseDto>(_json);
     }
 
     public async Task<JobResponseDto?> UpdateJobAsync(Guid id, UpdateJobDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/jobs/{id}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<JobResponseDto>(_json);
     }
 
     public async Task DeleteJobAsync(Guid id)
     {
         var resp = await _http.DeleteAsync($"api/jobs/{id}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public async Task<JobResponseDto?> JobTransitionAsync(Guid id, string action)
     {
         var resp = await _http.PostAsync($"api/jobs/{id}/{action}", null);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<JobResponseDto>(_json);
     }
 
@@ -432,20 +432,20 @@ public class ApiClient
     public async Task<ItemResponseDto?> CreateItemAsync(CreateItemDto dto)
     {
         var resp = await _http.PostAsJsonAsync("api/items", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<ItemResponseDto>(_json);
     }
 
     public async Task DeleteItemAsync(Guid id)
     {
         var resp = await _http.DeleteAsync($"api/items/{id}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public async Task<ItemResponseDto?> UpdateItemAsync(Guid id, UpdateItemDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/items/{id}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<ItemResponseDto>(_json);
     }
 
@@ -455,7 +455,7 @@ public class ApiClient
     public async Task<ExecutionDataResponseDto?> AddItemDataAsync(Guid id, CreateExecutionDataDto dto)
     {
         var resp = await _http.PostAsJsonAsync($"api/items/{id}/data", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<ExecutionDataResponseDto>(_json);
     }
 
@@ -473,27 +473,27 @@ public class ApiClient
     public async Task<BatchResponseDto?> CreateBatchAsync(CreateBatchDto dto)
     {
         var resp = await _http.PostAsJsonAsync("api/batches", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<BatchResponseDto>(_json);
     }
 
     public async Task DeleteBatchAsync(Guid id)
     {
         var resp = await _http.DeleteAsync($"api/batches/{id}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public async Task<BatchResponseDto?> UpdateBatchAsync(Guid id, UpdateBatchDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/batches/{id}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<BatchResponseDto>(_json);
     }
 
     public async Task<BatchResponseDto?> CloseBatchAsync(Guid id)
     {
         var resp = await _http.PostAsync($"api/batches/{id}/close", null);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<BatchResponseDto>(_json);
     }
 
@@ -503,14 +503,14 @@ public class ApiClient
     public async Task<ItemResponseDto?> AddBatchItemAsync(Guid batchId, Guid itemId)
     {
         var resp = await _http.PostAsync($"api/batches/{batchId}/items/{itemId}", null);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<ItemResponseDto>(_json);
     }
 
     public async Task RemoveBatchItemAsync(Guid batchId, Guid itemId)
     {
         var resp = await _http.DeleteAsync($"api/batches/{batchId}/items/{itemId}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public Task<List<ExecutionDataResponseDto>?> GetBatchDataAsync(Guid id)
@@ -519,7 +519,7 @@ public class ApiClient
     public async Task<ExecutionDataResponseDto?> AddBatchDataAsync(Guid id, CreateExecutionDataDto dto)
     {
         var resp = await _http.PostAsJsonAsync($"api/batches/{id}/data", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<ExecutionDataResponseDto>(_json);
     }
 
@@ -536,14 +536,14 @@ public class ApiClient
     public async Task<StepExecutionResponseDto?> StepExecutionTransitionAsync(Guid id, string action)
     {
         var resp = await _http.PostAsync($"api/step-executions/{id}/{action}", null);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<StepExecutionResponseDto>(_json);
     }
 
     public async Task<StepExecutionResponseDto?> UpdateStepExecutionNotesAsync(Guid id, UpdateStepExecutionNotesDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/step-executions/{id}/notes", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<StepExecutionResponseDto>(_json);
     }
 
@@ -553,7 +553,7 @@ public class ApiClient
     public async Task<PortTransactionResponseDto?> AddStepExecutionPortTransactionAsync(Guid id, CreatePortTransactionDto dto)
     {
         var resp = await _http.PostAsJsonAsync($"api/step-executions/{id}/port-transactions", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<PortTransactionResponseDto>(_json);
     }
 
@@ -563,7 +563,7 @@ public class ApiClient
     public async Task<ExecutionDataResponseDto?> AddStepExecutionDataAsync(Guid id, CreateExecutionDataDto dto)
     {
         var resp = await _http.PostAsJsonAsync($"api/step-executions/{id}/data", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<ExecutionDataResponseDto>(_json);
     }
 
@@ -580,21 +580,21 @@ public class ApiClient
     public async Task<WorkflowResponseDto?> CreateWorkflowAsync(CreateWorkflowDto dto)
     {
         var resp = await _http.PostAsJsonAsync("api/workflows", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<WorkflowResponseDto>(_json);
     }
 
     public async Task<WorkflowResponseDto?> UpdateWorkflowAsync(Guid id, UpdateWorkflowDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/workflows/{id}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<WorkflowResponseDto>(_json);
     }
 
     public async Task DeleteWorkflowAsync(Guid id)
     {
         var resp = await _http.DeleteAsync($"api/workflows/{id}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public Task<WorkflowValidationResultDto?> ValidateWorkflowAsync(Guid id)
@@ -605,7 +605,7 @@ public class ApiClient
     private async Task<T?> PostAndReadAsync<T>(string url)
     {
         var resp = await _http.PostAsync(url, null);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<T>(_json);
     }
 
@@ -616,21 +616,21 @@ public class ApiClient
     public async Task<WorkflowProcessResponseDto?> AddWorkflowProcessAsync(Guid workflowId, AddWorkflowProcessDto dto)
     {
         var resp = await _http.PostAsJsonAsync($"api/workflows/{workflowId}/processes", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<WorkflowProcessResponseDto>(_json);
     }
 
     public async Task<WorkflowProcessResponseDto?> UpdateWorkflowProcessAsync(Guid workflowId, Guid wpId, UpdateWorkflowProcessDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/workflows/{workflowId}/processes/{wpId}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<WorkflowProcessResponseDto>(_json);
     }
 
     public async Task DeleteWorkflowProcessAsync(Guid workflowId, Guid wpId)
     {
         var resp = await _http.DeleteAsync($"api/workflows/{workflowId}/processes/{wpId}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public Task<List<WorkflowLinkResponseDto>?> GetWorkflowLinksAsync(Guid workflowId)
@@ -640,34 +640,34 @@ public class ApiClient
     public async Task<WorkflowLinkResponseDto?> AddWorkflowLinkAsync(Guid workflowId, CreateWorkflowLinkDto dto)
     {
         var resp = await _http.PostAsJsonAsync($"api/workflows/{workflowId}/links", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<WorkflowLinkResponseDto>(_json);
     }
 
     public async Task<WorkflowLinkResponseDto?> UpdateWorkflowLinkAsync(Guid workflowId, Guid linkId, UpdateWorkflowLinkDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/workflows/{workflowId}/links/{linkId}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<WorkflowLinkResponseDto>(_json);
     }
 
     public async Task DeleteWorkflowLinkAsync(Guid workflowId, Guid linkId)
     {
         var resp = await _http.DeleteAsync($"api/workflows/{workflowId}/links/{linkId}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public async Task<WorkflowLinkConditionResponseDto?> AddWorkflowLinkConditionAsync(Guid workflowId, Guid linkId, AddWorkflowLinkConditionDto dto)
     {
         var resp = await _http.PostAsJsonAsync($"api/workflows/{workflowId}/links/{linkId}/conditions", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<WorkflowLinkConditionResponseDto>(_json);
     }
 
     public async Task DeleteWorkflowLinkConditionAsync(Guid workflowId, Guid linkId, Guid conditionId)
     {
         var resp = await _http.DeleteAsync($"api/workflows/{workflowId}/links/{linkId}/conditions/{conditionId}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     // ═══════════════════ Domain Vocabularies ═══════════════════
@@ -683,21 +683,21 @@ public class ApiClient
     public async Task<DomainVocabularyResponseDto?> CreateVocabularyAsync(DomainVocabularyCreateDto dto)
     {
         var resp = await _http.PostAsJsonAsync("api/domainvocabularies", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<DomainVocabularyResponseDto>(_json);
     }
 
     public async Task<DomainVocabularyResponseDto?> UpdateVocabularyAsync(Guid id, DomainVocabularyUpdateDto dto)
     {
         var resp = await _http.PutAsJsonAsync($"api/domainvocabularies/{id}", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<DomainVocabularyResponseDto>(_json);
     }
 
     public async Task DeleteVocabularyAsync(Guid id)
     {
         var resp = await _http.DeleteAsync($"api/domainvocabularies/{id}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     // ══════════════════ Users (Admin) ═══════════════════════════════════════
@@ -708,20 +708,20 @@ public class ApiClient
     public async Task<UserResponseDto?> RegisterUserAsync(RegisterRequestDto dto)
     {
         var resp = await _http.PostAsJsonAsync("api/auth/register", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
         return await resp.Content.ReadFromJsonAsync<UserResponseDto>(_json);
     }
 
     public async Task DeleteUserAsync(string id)
     {
         var resp = await _http.DeleteAsync($"api/auth/users/{id}");
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     public async Task ChangePasswordAsync(ChangePasswordRequestDto dto)
     {
         var resp = await _http.PostAsJsonAsync("api/auth/change-password", dto, _json);
-        resp.EnsureSuccessStatusCode();
+        await EnsureSuccessAsync(resp);
     }
 
     // ══════════════════ Reports ══════════════════════════════════════════════
@@ -740,4 +740,34 @@ public class ApiClient
 
     public Task<List<ThroughputPointDto>?> GetThroughputAsync(int days = 30)
         => _http.GetFromJsonAsync<List<ThroughputPointDto>>($"api/reports/throughput?days={days}", _json);
+
+    // ─── Helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Throws an <see cref="HttpRequestException"/> whose message contains the
+    /// actual error text returned by the API, rather than the generic
+    /// "Response status code does not indicate success: NNN" message produced
+    /// by <see cref="HttpResponseMessage.EnsureSuccessStatusCode"/>.
+    /// </summary>
+    private static async Task EnsureSuccessAsync(HttpResponseMessage resp)
+    {
+        if (resp.IsSuccessStatusCode) return;
+
+        var body = await resp.Content.ReadAsStringAsync();
+
+        // The API serialises string error messages as JSON strings (quoted).
+        // Unwrap them so the toast shows plain text instead of a quoted value.
+        var contentType = resp.Content.Headers.ContentType?.MediaType;
+        if (contentType is "application/json" or "text/json")
+        {
+            try { body = JsonSerializer.Deserialize<string>(body) ?? body; }
+            catch (JsonException) { /* fall through – use raw body */ }
+        }
+
+        var message = string.IsNullOrWhiteSpace(body)
+            ? $"Request failed with status {(int)resp.StatusCode} ({resp.ReasonPhrase})."
+            : body;
+
+        throw new HttpRequestException(message, null, resp.StatusCode);
+    }
 }

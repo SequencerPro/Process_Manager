@@ -129,50 +129,6 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// ── Schema + seed on startup ──────────────────────────────────────────────────
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<ProcessManagerDbContext>();
-    // Migrate() creates the DB if needed and applies any pending migrations.
-    // This replaces EnsureCreated() so that the migrations history is respected.
-    // Skip Migrate() for non-relational providers (e.g. InMemory used in tests).
-    if (db.Database.IsRelational())
-        db.Database.Migrate();
-    else
-        db.Database.EnsureCreated();
-
-    // Seed roles
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    foreach (var role in new[] { "Admin", "Engineer", "Participant" })
-    {
-        if (!await roleManager.RoleExistsAsync(role))
-            await roleManager.CreateAsync(new IdentityRole(role));
-    }
-
-    // Seed default admin (only if no users exist)
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-    if (!userManager.Users.Any())
-    {
-        var adminUser = new ApplicationUser
-        {
-            UserName = "admin",
-            Email = "admin@processmanager.local",
-            DisplayName = "Administrator"
-        };
-        var adminPassword = app.Configuration["SeedAdminPassword"] ?? "Admin1234!";
-        var result = await userManager.CreateAsync(adminUser, adminPassword);
-        if (result.Succeeded)
-            await userManager.AddToRoleAsync(adminUser, "Admin");
-    }
-
-    // Seed example domain data (skips automatically if data already exists)
-    await DataSeeder.SeedAsync(db);
-    // Seed ISO 9001 QMS documents (own idempotency guard — safe on existing DBs)
-    await DataSeeder.SeedQmsDocumentsAsync(db);
-    // Seed system onboarding training courses (own idempotency guard)
-    await DataSeeder.SeedTrainingDocumentsAsync(db);
-}
-
 // ── HTTP pipeline ─────────────────────────────────────────────────────────────
 // Basic-auth gate on /swagger — set Swagger__Password in Render dashboard
 app.UseMiddleware<ProcessManager.Api.Middleware.SwaggerBasicAuthMiddleware>();
@@ -198,7 +154,48 @@ app.MapControllers();
 // Health check — Render probes this to determine service readiness
 app.MapGet("/health", () => Results.Ok(new { status = "ok", utc = DateTime.UtcNow }));
 
-app.Run();
+// Start listening on the port FIRST so Render's port scan succeeds,
+// then run migrations and seeding. This prevents timeout on cold deploys
+// where migration + seeding can exceed Render's port-scan window.
+await app.StartAsync();
+
+// ── Schema + seed (after port is open) ───────────────────────────────────────
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ProcessManagerDbContext>();
+    if (db.Database.IsRelational())
+        db.Database.Migrate();
+    else
+        db.Database.EnsureCreated();
+
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    foreach (var role in new[] { "Admin", "Engineer", "Participant" })
+    {
+        if (!await roleManager.RoleExistsAsync(role))
+            await roleManager.CreateAsync(new IdentityRole(role));
+    }
+
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+    if (!userManager.Users.Any())
+    {
+        var adminUser = new ApplicationUser
+        {
+            UserName = "admin",
+            Email = "admin@processmanager.local",
+            DisplayName = "Administrator"
+        };
+        var adminPassword = app.Configuration["SeedAdminPassword"] ?? "Admin1234!";
+        var result = await userManager.CreateAsync(adminUser, adminPassword);
+        if (result.Succeeded)
+            await userManager.AddToRoleAsync(adminUser, "Admin");
+    }
+
+    await DataSeeder.SeedAsync(db);
+    await DataSeeder.SeedQmsDocumentsAsync(db);
+    await DataSeeder.SeedTrainingDocumentsAsync(db);
+}
+
+await app.WaitForShutdownAsync();
 
 // Marker class for WebApplicationFactory<T> in integration tests
 public partial class Program { }

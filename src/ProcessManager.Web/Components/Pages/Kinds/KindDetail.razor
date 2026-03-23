@@ -428,6 +428,10 @@ else
     private async Task LoadData()
     {
         _loading = true;
+        // Reset viewer state so it re-initialises after data loads
+        // (covers navigating away and back, enhanced navigation, etc.)
+        _modelViewerInitialized = false;
+        _modelViewerInitializing = false;
         try
         {
             _kind = await Api.GetKindAsync(Id);

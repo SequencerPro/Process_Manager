@@ -219,15 +219,6 @@ function createViewer(containerId, modelUrl, fileExtension) {
         // Remove loading indicator
         if (loadingDiv.parentNode) loadingDiv.parentNode.removeChild(loadingDiv);
 
-        // Compute bounding box and centre/scale the model
-        const box = new THREE.Box3().setFromObject(object);
-        const centre = box.getCenter(new THREE.Vector3());
-        const size = box.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const scale = maxDim > 0 ? 20 / maxDim : 1;
-
-        object.position.sub(centre);
-        object.scale.setScalar(scale);
         object.traverse((child) => {
             if (child.isMesh) {
                 child.castShadow = true;
@@ -237,8 +228,26 @@ function createViewer(containerId, modelUrl, fileExtension) {
 
         scene.add(object);
 
-        // Position camera
-        camera.position.set(25, 20, 25);
+        // Compute bounding box and normalize scale
+        const box = new THREE.Box3().setFromObject(object);
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+
+        if (maxDim > 0) {
+            const scale = 20 / maxDim;
+            object.scale.setScalar(scale);
+
+            // Recompute bounding box after scaling so centering is accurate
+            object.updateMatrixWorld(true);
+            const scaledBox = new THREE.Box3().setFromObject(object);
+            const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+
+            // Offset position so model center sits at the origin
+            object.position.sub(scaledCenter);
+        }
+
+        // Frame the camera on the model
+        camera.position.set(25, 18, 25);
         controls.target.set(0, 0, 0);
         controls.update();
     };

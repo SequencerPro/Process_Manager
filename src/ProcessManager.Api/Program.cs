@@ -160,8 +160,9 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok", utc = DateTime.UtcNo
 await app.StartAsync();
 
 // ── Schema + seed (after port is open) ───────────────────────────────────────
-using (var scope = app.Services.CreateScope())
+try
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<ProcessManagerDbContext>();
     if (db.Database.IsRelational())
         db.Database.Migrate();
@@ -193,6 +194,10 @@ using (var scope = app.Services.CreateScope())
     await DataSeeder.SeedAsync(db);
     await DataSeeder.SeedQmsDocumentsAsync(db);
     await DataSeeder.SeedTrainingDocumentsAsync(db);
+}
+catch (Exception ex)
+{
+    app.Logger.LogError(ex, "Migration/seeding failed — the API is running but the database may not be ready");
 }
 
 await app.WaitForShutdownAsync();

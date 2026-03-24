@@ -71,7 +71,8 @@ public class ProcessesController : ControllerBase
                 p.CreatedAt, p.UpdatedAt,
                 p.ProcessRole, p.ApprovalProcessId,
                 p.RevisionCode, p.ChangeDescription, p.EffectiveDate,
-                p.CompetencyTitle, p.CompetencyExpiryDays
+                p.CompetencyTitle, p.CompetencyExpiryDays,
+                p.IsSystemContent
             })
             .ToListAsync();
 
@@ -81,7 +82,8 @@ public class ProcessesController : ControllerBase
                 p.StepCount, p.CreatedAt, p.UpdatedAt,
                 p.ProcessRole.ToString(), p.ApprovalProcessId,
                 p.RevisionCode, p.ChangeDescription, p.EffectiveDate,
-                p.CompetencyTitle, p.CompetencyExpiryDays)).ToList();
+                p.CompetencyTitle, p.CompetencyExpiryDays,
+                p.IsSystemContent)).ToList();
 
         return new PaginatedResponse<ProcessSummaryResponseDto>(
             processes, totalCount, page, pageSize);
@@ -128,6 +130,9 @@ public class ProcessesController : ControllerBase
         var process = await LoadProcess(id);
         if (process is null) return NotFound();
 
+        if (process.IsSystemContent)
+            return BadRequest("System content cannot be edited. Use 'Copy to My Library' to create an editable copy.");
+
         if (process.Status == ProcessStatus.Released || process.Status == ProcessStatus.PendingApproval)
             return BadRequest($"A {process.Status} process cannot be edited directly. Create a new revision instead.");
 
@@ -147,9 +152,141 @@ public class ProcessesController : ControllerBase
         var process = await _db.Processes.FindAsync(id);
         if (process is null) return NotFound();
 
+        if (process.IsSystemContent)
+            return BadRequest("System content cannot be deleted. Use 'Copy to My Library' to create your own version.");
+
         _db.Processes.Remove(process); // Cascade deletes ProcessSteps and Flows
         await _db.SaveChangesAsync();
         return NoContent();
+    }
+
+    // ──────────── Copy to My Library ────────────
+
+    [Authorize(Roles = "Admin,Engineer")]
+    [HttpPost("{id:guid}/copy")]
+    public async Task<ActionResult<ProcessResponseDto>> CopyToMyLibrary(Guid id, [FromBody] ProcessCopyDto dto)
+    {
+        if (await _db.Processes.AnyAsync(p => p.Code == dto.NewCode))
+            return Conflict($"A Process with code '{dto.NewCode}' already exists.");
+
+        var source = await _db.Processes
+            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.StepTemplate)
+                .ThenInclude(st => st.Ports).ThenInclude(p => p.Kind)
+            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.StepTemplate)
+                .ThenInclude(st => st.Ports).ThenInclude(p => p.Grade)
+            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.StepTemplate)
+                .ThenInclude(st => st.Images)
+            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.PortOverrides)
+            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.Contents)
+            .Include(p => p.Flows)
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (source is null) return NotFound();
+
+        // Map old step IDs → new step IDs for flow rewiring
+        var stepIdMap = new Dictionary<Guid, Guid>();
+        var portIdMap = new Dictionary<Guid, Guid>();
+
+        var copy = new Process
+        {
+            Code = dto.NewCode,
+            Name = dto.NewName ?? $"{source.Name} (Copy)",
+            Description = source.Description,
+            ProcessRole = source.ProcessRole,
+            Status = ProcessStatus.Draft,
+            IsActive = true,
+            Version = 1,
+            CompetencyTitle = source.CompetencyTitle,
+            CompetencyExpiryDays = source.CompetencyExpiryDays,
+            IsSystemContent = false
+        };
+
+        // Clone steps (reuse the same StepTemplates — they're shared)
+        foreach (var srcStep in source.ProcessSteps.OrderBy(ps => ps.Sequence))
+        {
+            var newStep = new ProcessStep
+            {
+                Id = Guid.NewGuid(),
+                ProcessId = copy.Id,
+                StepTemplateId = srcStep.StepTemplateId,
+                Sequence = srcStep.Sequence,
+                NameOverride = srcStep.NameOverride,
+                DescriptionOverride = srcStep.DescriptionOverride,
+                PatternOverride = srcStep.PatternOverride
+            };
+            stepIdMap[srcStep.Id] = newStep.Id;
+
+            // Clone port overrides
+            foreach (var po in srcStep.PortOverrides)
+            {
+                newStep.PortOverrides.Add(new ProcessStepPortOverride
+                {
+                    Id = Guid.NewGuid(),
+                    ProcessStepId = newStep.Id,
+                    PortId = po.PortId,
+                    NameOverride = po.NameOverride,
+                    DirectionOverride = po.DirectionOverride,
+                    KindIdOverride = po.KindIdOverride,
+                    GradeIdOverride = po.GradeIdOverride,
+                    QtyRuleModeOverride = po.QtyRuleModeOverride,
+                    QtyRuleNOverride = po.QtyRuleNOverride,
+                    SortOrderOverride = po.SortOrderOverride
+                });
+            }
+
+            // Clone step-level content blocks
+            foreach (var c in srcStep.Contents)
+            {
+                newStep.Contents.Add(new ProcessStepContent
+                {
+                    Id = Guid.NewGuid(),
+                    ProcessStepId = newStep.Id,
+                    ContentType = c.ContentType,
+                    SortOrder = c.SortOrder,
+                    Body = c.Body,
+                    FileName = c.FileName,
+                    OriginalFileName = c.OriginalFileName,
+                    MimeType = c.MimeType,
+                    PromptType = c.PromptType,
+                    Label = c.Label,
+                    IsRequired = c.IsRequired,
+                    Units = c.Units,
+                    MinValue = c.MinValue,
+                    MaxValue = c.MaxValue,
+                    Choices = c.Choices,
+                    ContentCategory = c.ContentCategory,
+                    AcknowledgmentRequired = c.AcknowledgmentRequired,
+                    NominalValue = c.NominalValue,
+                    IsHardLimit = c.IsHardLimit
+                });
+            }
+
+            copy.ProcessSteps.Add(newStep);
+        }
+
+        // Clone flows, remapping step IDs
+        foreach (var srcFlow in source.Flows)
+        {
+            if (stepIdMap.TryGetValue(srcFlow.SourceProcessStepId, out var newSrcId) &&
+                stepIdMap.TryGetValue(srcFlow.TargetProcessStepId, out var newTgtId))
+            {
+                copy.Flows.Add(new Flow
+                {
+                    Id = Guid.NewGuid(),
+                    ProcessId = copy.Id,
+                    SourceProcessStepId = newSrcId,
+                    SourcePortId = srcFlow.SourcePortId,
+                    TargetProcessStepId = newTgtId,
+                    TargetPortId = srcFlow.TargetPortId
+                });
+            }
+        }
+
+        _db.Processes.Add(copy);
+        await _db.SaveChangesAsync();
+
+        var result = await LoadProcess(copy.Id);
+        return CreatedAtAction(nameof(GetById), new { id = copy.Id }, MapToDto(result!));
     }
 
     // ──────────── ProcessStep sub-resources ────────────
@@ -914,7 +1051,8 @@ public class ProcessesController : ControllerBase
         process.ApprovalProcessId,
         process.RevisionCode,
         process.ChangeDescription,
-        process.EffectiveDate
+        process.EffectiveDate,
+        process.IsSystemContent
     );
 
     private static ProcessStepResponseDto MapProcessStepToDto(ProcessStep ps) => new(

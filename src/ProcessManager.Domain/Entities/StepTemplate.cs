@@ -40,6 +40,11 @@ public class StepTemplate : BaseEntity
     /// <summary>Declares that this step must be performed on a machine of this category (Phase 11b).</summary>
     public Guid? RequiredEquipmentCategoryId { get; set; }
 
+    // ── System Content (Phase 13) ─────────────────────────────────────────────
+
+    /// <summary>True for seeded library content. System content cannot be edited or deleted — only copied.</summary>
+    public bool IsSystemContent { get; set; }
+
     // Navigation properties
     public EquipmentCategory? RequiredEquipmentCategory { get; set; }
     public ICollection<Port> Ports { get; set; } = new List<Port>();

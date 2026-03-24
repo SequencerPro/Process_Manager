@@ -64,7 +64,13 @@ else if (_data is not null)
                 {
                     <tr>
                         <td><code>@st.Code</code></td>
-                        <td><a href="step-templates/@st.Id">@st.Name</a></td>
+                        <td>
+                            <a href="step-templates/@st.Id">@st.Name</a>
+                            @if (st.IsSystemContent)
+                            {
+                                <span class="badge bg-info text-dark ms-1" title="System content — read only">Library</span>
+                            }
+                        </td>
                         <td><span class="badge bg-info text-dark">@st.Pattern</span></td>
                         <td>
                             <span class="text-success small">@st.Ports?.Count(p => p.Direction == PortDirection.Input) in</span>
@@ -96,12 +102,21 @@ else if (_data is not null)
                             }
                         </td>
                         <td>
-                            <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEditForm(st)" title="Edit">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(st)">
-                                <i class="bi bi-trash"></i>
-                            </button>
+                            @if (st.IsSystemContent)
+                            {
+                                <span class="badge bg-secondary" title="System content — managed by the platform">
+                                    <i class="bi bi-lock-fill"></i>
+                                </span>
+                            }
+                            else
+                            {
+                                <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEditForm(st)" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(st)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            }
                         </td>
                     </tr>
                 }

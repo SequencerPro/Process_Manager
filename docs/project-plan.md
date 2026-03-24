@@ -51,6 +51,11 @@
 | 3.5     | 2026-03-16 | `SeedTrainingDocumentsAsync` added to `DataSeeder.cs` — 12 system onboarding training courses seeded (TRN-SYS-001–TRN-SYS-012); descriptions serve as live user-facing module documentation; expiry: Never (awareness courses), 1 year (operational), 2 years (admin/approver); all Released; idempotency guard on TRN-SYS-001; called from `Program.cs` |
 | 3.6     | 2026-03-16 | Process Timing report: `ProcessTimingReport.razor` at `/reports/process-timing` — per-process cards with min/avg/median/P95/max job duration stats, proportional stacked colour bar (one segment per step), collapsible per-step detail table, role filter dropdown, expand/collapse all; `GET /api/reports/process-timing?processRole=` endpoint in `ReportsController`; `ProcessTimingDto`/`StepTimingDto` records in `ReportDtos.cs`; `GetProcessTimingAsync` in `ApiClient`; "Process Timing" nav link added to Reports section |
 | 3.7     | 2026-03-16 | Document Library filter and navigation: `Training` added to `documentRolesOnly` filter in `ProcessesController`; "Training" option added to type-filter dropdown in `DocumentList.razor`; Document Library replaced with a collapsible nav section in `NavMenu.razor` with 4 sub-links (All Documents / QMS Documents / Work Instructions / Training); `DocumentList.razor` gains `[SupplyParameterFromQuery(Name = "type")] TypeParam` with `OnParametersSetAsync` for query-parameter deep-linking; `_sectionPaths` updated to include `["documents"] = ["documents"]` |
+| 3.18    | 2026-03-23 | Phase 2 enhancement implemented: `UserPicker` now stores ASP.NET Identity user Id (not display name) as `ResponseValue`; `ResolvedDisplayName` nullable field added to `PromptResponseDto`; `GetPromptResponses` in `StepExecutionsController` batch-resolves user Ids to display names via `_db.Users` lookup; `ExecutionWizardContent.razor` option value changed from `user.DisplayName` to `user.Id`; `StepExecutionDetail.razor` gains `_userPickerList` + dropdown (replaces text input), with legacy display-name fallback for pre-existing data; `PromptType.UserPicker` XML docs updated |
+| 3.17    | 2026-03-23 | Phase 13 (remaining) implemented: `IsSystemContent` bool on `Process` and `StepTemplate`; `Phase13_SystemContent` EF migration; DataSeeder marks QMS docs, training courses, DOC-SECT-01, TRN-MOD-01 as system content; ProcessesController + StepTemplatesController Update/Delete guarded (400 for system content); `POST /api/processes/{id}/copy` deep-clone endpoint (steps, port overrides, content blocks, flows with ID remapping; target is Draft, not system content); `ProcessCopyDto`; `CopyProcessToMyLibraryAsync` in ApiClient; response DTOs extended with `IsSystemContent`; ProcessList "Library" badge + "Copy to My Library" modal; ProcessDetail "System Content" badge hiding edit/lifecycle/delete; StepTemplateList "Library" badge + lock icon |
+| 3.16    | 2026-03-23 | Phase 12f implemented: Participant Portal — `Participant` role (existing in AuthController); `ParticipantLayout.razor` + `ParticipantNavMenu.razor` (minimal sidebar, My Work only); `Portal.razor` (/portal redirect), `PortalMyWork.razor` (/portal/my-work), `PortalExecutionWizard.razor` (/portal/execute/{id}); `RedirectToPortal.razor`; Routes.razor NotAuthorized block redirects Participant role to `/portal/my-work` instead of showing 403; all design/admin pages carry `[Authorize(Roles = "Admin,Engineer")]`; NavMenu design/admin sections wrapped in `<AuthorizeView Roles="Admin,Engineer">`; UserList Edit modal extended with OrgUnit Memberships section — loads current memberships via `GET /api/users/{id}/orgunits`, add via `POST /api/orgunits/{id}/members`, remove via `DELETE /api/orgunits/{id}/members/{memberId}` |
+| 3.15    | 2026-03-23 | Phase 19 design: Warehouse Management — `StorageLocation` entity (zone/aisle/bay/bin hierarchy), `InventoryTransaction` entity (Receipt/Issue/Transfer/Adjustment/Picklist types), `PickList` + `PickListLine` entities, inventory-on-hand view, job-creation picklist generation from BOM/process inputs, ExecutionWizard consumption hook, `WarehouseManagement` nav tab, MCP `get_inventory_status` tool |
+| 3.14    | 2026-03-23 | Phase 18 design: 3D Model Viewer in Step Templates — `StepModel` entity (reuse existing upload pipeline: STL/OBJ/GLB/GLTF/STEP/IGES), `model-viewer.js` component embedded in ProcessBuilder slide view and ExecutionWizard step prompt phase, `StepTemplateDetail` 3D model upload/preview panel, `KindModelRef` optional FK linking a step model directly to a Kind's uploaded model |
 | 3.13    | 2026-03-22 | Kind Enhancement: Extended Properties + Document Attachments + 3D Model Viewer — `KindSourceType` enum (Make/Buy/ReferenceDocument/Phantom/Consumable); `KindDocument` entity (file attachments with GUID-based storage); Kind entity extended with 13 new properties (SourceType, UnitOfMeasure, Cost, Price, VendorName, VendorPartNumber, LeadTimeDays, Weight, WeightUnit, RohsStatus, CountryOfOrigin, Revision, Notes) + 3 model fields (ModelFileName, ModelOriginalFileName, ModelMimeType); vendor fields server-side nulled when SourceType != Buy; `KindsController` gains sourceType filter, document upload/download/delete endpoints, 3D model upload/download/delete endpoints (STL/OBJ/GLB/GLTF); Three.js ES module integration via CDN importmap (`model-viewer.js` with STLLoader/OBJLoader/GLTFLoader + OrbitControls); `KindList.razor` extended with Source Type tile picker, cost/pricing section, conditional vendor fields, physical/compliance section, source type column + filter; `KindDetail.razor` gains Extended Properties card, Vendor Information section, side-by-side 3D Model Viewer (orbit/zoom/pan) + Documents panel with upload/download/delete; `KindEnhancement_ExtendedProperties` EF migration; 24 new tests (34 total Kind tests) |
 | 3.12    | 2026-03-21 | Phase 12 Step 4: WorkflowJob execution record — WorkflowNodeStatus enum (Pending/Active/Complete/Skipped), WorkorderJob enriched with NodeStatus + nullable JobId, all non-terminal nodes pre-populated at workorder creation, GradeBased skipped-node detection, Cancel/Complete marks Pending→Skipped, WorkorderDetail.razor NodeStatus-driven display, 7 new tests, EF migration Phase12f_WorkflowJobExecutionRecord |
 | 3.11    | 2026-03-21 | Phase 12 Step 3 implemented: `WorkflowSchedule` entity + background scheduler service — `ScheduleRecurrenceType` enum (Hourly/Daily/Weekly/Monthly/Quarterly/Annually); `WorkflowSchedule` entity (WorkflowId, Name, RecurrenceType, RecurrenceInterval 1–168h/365d/52w/24m/8q/10y, DayOfWeek, DayOfMonth, StartDate, EndDate, SubjectTemplate {Month}/{Year}/{Date} tokens, IsActive, NextRunAt, LastRunAt); `Workorder.ScheduleId` FK (SetNull on delete); `Phase12e_WorkflowSchedule` EF migration; `WorkflowSchedulesController` (GET list+filter by workflowId, GET by id, POST create, PUT update, DELETE block if workorders exist, POST activate/deactivate, static `ComputeNextRunAt` + `ComputeInitialNextRunAt`); `WorkflowSchedulerService` (BackgroundService, polls every 60s configurable via `Scheduler:IntervalSeconds`, fires due schedules, creates Workorder + Jobs + StepExecutions, resolves subject template tokens, advances NextRunAt from now not old NextRunAt, deactivates after EndDate, skipped in Testing environment, `ProcessDueSchedulesAsync` internal for tests); `InternalsVisibleTo` in Api csproj; `WorkflowScheduleList.razor` at `/workflows/{id}/schedules` (table with recurrence/NextRunAt/LastRunAt/workorder count/active badge, create/edit modal with 6-tile recurrence picker, interval with context label+hint, conditional DayOfWeek/DayOfMonth fields, SubjectTemplate with token hint, activate/deactivate/delete actions); `WorkflowDetail.razor` gains Schedules summary card (count badge, up to 5 active schedules with NextRunAt, "Manage Schedules →" link); `ApiClient` gains 7 schedule methods; `WorkflowScheduleDtos` + `WorkorderResponseDto.ScheduleId`; `appsettings.json` Scheduler section; 37 tests in `WorkflowScheduleTests` (CRUD, interval validation, DayOfWeek/Month null enforcement, ComputeNextRunAt unit tests, scheduler integration tests via direct ProcessDueSchedulesAsync invocation) |
@@ -1913,7 +1918,227 @@ The primary surface for this module. A quality manager can see the state of thei
 
 ---
 
-### Phase 18+ — Integrations (future)
+### Phase 18 — 3D Model Viewer in Process Builder & Execution
+
+**Goal:** Embed the interactive CAD viewer — already proven on the Kind detail page — directly into the process design and operator execution surfaces so that spatial context is available at every step.
+
+**Status:** Designed — not yet built.
+
+#### 18a — StepTemplate Model Attachment
+
+Re-use the upload pipeline and `model-viewer.js` Three.js component from the Kind 3D viewer (`KindDetail.razor`) without modification. Only the storage association changes: instead of a model being attached to a Kind, it is attached to a StepTemplate.
+
+**Key entity: `StepModel`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `StepTemplateId` | Guid | FK → `StepTemplate` |
+| `FileName` | string | GUID-based storage filename (same scheme as `KindDocument`) |
+| `OriginalFileName` | string | Display name shown to the user |
+| `MimeType` | string | e.g. `model/stl`, `model/gltf+json`, `application/octet-stream` |
+| `UploadedAt` | DateTime | |
+| `UploadedByUserId` | string? | FK → `ApplicationUser` |
+
+**`KindModelRef` (optional FK):** A step may optionally point at a Kind's already-uploaded model instead of uploading a separate file. When `KindModelRef` is set, the viewer streams the file from the Kind's model endpoint — no duplicate storage. Only one of `StepModel` or `KindModelRef` should be active per step at a time.
+
+**Supported formats:** STL, OBJ, GLB, GLTF, STEP, IGES — the same set already handled by `model-viewer.js` (STLLoader, OBJLoader, GLTFLoader + OrbitControls).
+
+**API changes:**
+- `StepTemplatesController` gains `/api/step-templates/{id}/model` (GET stream, POST upload, DELETE) — mirrors `KindsController` 3D model endpoints exactly.
+
+**`StepTemplateDetail.razor` changes:**
+- New "3D Model" card below the content blocks section.
+- Upload button (accept `.stl,.obj,.glb,.gltf,.step,.igs,.iges`), filename display, inline preview using `model-viewer.js`, delete button.
+- If `KindModelRef` is set, the card shows "Using model from Kind: *{KindName}*" with a link to `KindDetail`.
+
+---
+
+#### 18b — ProcessBuilder Slide View Integration
+
+When the ProcessBuilder is in slide view and the selected step has an attached `StepModel`, render the interactive viewer in the right-hand editor panel below the content blocks — same orbit/zoom/pan behaviour as `KindDetail`.
+
+- Viewer is read-only in the builder (uploading/deleting is done via `StepTemplateDetail`, not the builder).
+- A "No model attached" placeholder is shown when no model exists, with a link to the step template detail page.
+- No new Razor components required — the existing `model-viewer.js` JS interop is reused; only a Blazor host element and an `@inject IJSRuntime` call are needed in `ProcessBuilder.razor`.
+
+---
+
+#### 18c — ExecutionWizard Step Prompt Phase
+
+During job execution, the ExecutionWizard renders the interactive viewer in the prompts phase (Phase 3 of 5) when the active step has an attached model.
+
+- Viewer renders in a collapsible side panel to the right of the prompt inputs so it does not obscure form fields on smaller screens.
+- Collapse/expand state is persisted in component state for the session (not server-persisted).
+- On mobile viewports the panel renders below the prompt inputs instead of beside them.
+- The viewer is read-only — no upload/delete controls are shown to operators.
+
+---
+
+#### Key design decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Reuse `model-viewer.js` unchanged | Yes | The Three.js component already handles all required formats and OrbitControls; duplicating it would create a maintenance burden |
+| `StepModel` as a separate entity rather than extending `StepTemplate` directly | Separate entity | Keeps the nullable file-storage fields out of the core step schema; mirrors the `KindDocument` pattern already in use |
+| `KindModelRef` optional FK | Opt-in | Avoids requiring two uploads when the part model is already on the Kind; falls back to per-step upload when no Kind model exists |
+| Upload/delete in `StepTemplateDetail`, not `ProcessBuilder` | Design-time only | Keeps the builder focused on layout; file management belongs in the detail page |
+
+**New entities:** `StepModel`
+
+**Existing entities extended:** `StepTemplate` gains optional `StepModelId` FK and optional `KindModelRefId` FK
+
+**EF migration:** `Phase18_StepModel`
+
+**Status:** Designed — not yet built. Depends on Phase 1 (`Kind` + `KindDetail` 3D viewer, v3.13) being complete. ✅
+
+---
+
+### Phase 19 — Warehouse Management
+
+**Goal:** Track where physical stock (Items) lives, automate material-pull picklists when jobs are created, and record consumption during execution — closing the loop between process design and inventory reality.
+
+**Status:** Designed — not yet built.
+
+**Core principle:** Only **Items** occupy inventory locations — never Kinds. A Kind is the *blueprint* (part definition, material specification); an Item is the *physical instance* of a Kind. Every Item references the Kind it was created from (via `Item.KindId`). When the system reports "10 units of WDG-001 in Raw Materials zone A1," that means 10 Items whose Kind is WDG-001 are stored there. This mirrors real-world warehousing: you store physical parts, not their drawings.
+
+#### 19a — Storage Locations
+
+A hierarchical location structure (Zone → Aisle → Bay → Bin) gives operators an unambiguous address for every stock item.
+
+**Key entity: `StorageLocation`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `Code` | string | Short unique code, e.g. "A1-B3-S2" |
+| `Name` | string | Display name |
+| `Zone` | string? | Highest-level grouping (e.g. "Raw Materials", "Finished Goods", "Quarantine") |
+| `Aisle` | string? | |
+| `Bay` | string? | |
+| `Bin` | string? | Lowest-level position |
+| `ParentId` | Guid? | FK → `StorageLocation` (self-referencing hierarchy) |
+| `Description` | string? | |
+| `IsActive` | bool | Soft-delete |
+
+---
+
+#### 19b — Inventory Transactions
+
+All stock movements are recorded as immutable transaction events. On-hand quantities are computed by aggregating transactions — no mutable "stock level" field is stored. Every transaction references an **Item** (the physical thing moving) — the Kind is derived from `Item.KindId` at query time.
+
+**Key entity: `InventoryTransaction`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `TransactionType` | enum | `Receipt` / `Issue` / `Transfer` / `Adjustment` / `PicklistConsumption` |
+| `ItemId` | Guid | FK → `Item` — the physical item being moved (required; Kind is resolved via `Item.KindId`) |
+| `FromLocationId` | Guid? | FK → `StorageLocation` — null for receipts |
+| `ToLocationId` | Guid? | FK → `StorageLocation` — null for issues/consumption |
+| `Quantity` | decimal | Signed positive value; direction determined by `TransactionType` |
+| `ReferenceType` | enum? | `Job` / `PickList` / `ManualAdjustment` |
+| `ReferenceId` | Guid? | FK to the referencing entity (JobId, PickListId) |
+| `Notes` | string? | |
+| `TransactedAt` | DateTime | Server UTC |
+| `TransactedByUserId` | string | FK → `ApplicationUser` |
+
+**On-hand view:** `GET /api/warehouse/on-hand?kindId=&locationId=` — joins `InventoryTransaction` → `Item` → `Kind` and aggregates `Quantity` grouped by `Item.KindId` + `ToLocationId` minus outbound transactions. Returned as `OnHandDto` (KindId, KindCode, KindName, LocationCode, LocationName, QuantityOnHand, UnitOfMeasure). The Kind's `UnitOfMeasure` is resolved from the Kind entity at query time, not stored on the transaction.
+
+---
+
+#### 19c — PickLists
+
+When a Job is created from a Process whose steps have input ports referencing specific Kinds, the system auto-generates a `PickList` that identifies the required Items (by Kind) and their available source locations.
+
+**Key entity: `PickList`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `JobId` | Guid | FK → `Job` |
+| `Status` | enum | `Open` / `PartiallyPicked` / `Picked` / `Consumed` |
+| `GeneratedAt` | DateTime | |
+| `GeneratedByUserId` | string | |
+
+**Key entity: `PickListLine`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `PickListId` | Guid | FK → `PickList` |
+| `KindId` | Guid | FK → `Kind` — the type of Item required (blueprint reference for matching available Items) |
+| `ItemId` | Guid? | FK → `Item` — assigned when operator picks a specific Item from stock; null until picked |
+| `SourceLocationId` | Guid? | FK → `StorageLocation` — suggested location with available stock; null if no stock found |
+| `RequiredQuantity` | decimal | From process input definition |
+| `PickedQuantity` | decimal | Updated when operator confirms pick |
+| `ConsumedQuantity` | decimal | Updated by ExecutionWizard close-out |
+| `Status` | enum | `Pending` / `Picked` / `ShortShipped` / `Consumed` |
+| `Notes` | string? | |
+
+**PickList generation logic (on `POST /api/jobs`):**
+1. Resolve all input Kinds declared by the Job's Process steps (via input port `KindId`).
+2. For each Kind, query on-hand view to find Items of that Kind in locations with sufficient stock (best-fit: smallest sufficient quantity first).
+3. Create `PickListLine` records with the Kind, suggested `SourceLocationId`, and `RequiredQuantity`. The specific `ItemId` is assigned when the operator confirms the pick (since the operator may select a different Item of the same Kind at the shelf).
+4. Lines with no available Items are created with `SourceLocationId = null` and flagged `ShortShipped` for planner review.
+
+---
+
+#### 19d — ExecutionWizard Consumption Hook
+
+During the ExecutionWizard close-out phase (Phase 5 of 5), if the Job has an associated `PickList`, the wizard presents the pick lines for the current step and asks the operator to confirm consumed quantities.
+
+- Operator can adjust `ConsumedQuantity` (default = `PickedQuantity`) before confirming.
+- On confirmation, the system fires `PicklistConsumption` `InventoryTransaction` records for each line's assigned Item (From = `SourceLocationId`, To = null, Quantity = ConsumedQuantity).
+- `PickListLine.Status` → `Consumed`; when all lines are consumed, `PickList.Status` → `Consumed`.
+- Short-shipped lines (quantity < required) remain open for manual reconciliation.
+
+---
+
+#### 19e — Warehouse Management UI
+
+**New "Warehouse Management" nav tab** (visible to Admin and Engineer roles):
+
+| Page | Route | Description |
+|---|---|---|
+| `InventoryDashboard.razor` | `/warehouse` | KPI cards (total locations, total Items on hand, low-stock alerts, recent transactions); on-hand grid by Zone (grouped by Kind); low-stock table (Items below reorder threshold — threshold stored on `Kind`); recent transactions feed |
+| `LocationList.razor` | `/warehouse/locations` | Filterable table of all locations with Zone/Aisle/Bay/Bin columns and on-hand Item count badge; create/edit/deactivate modals |
+| `LocationDetail.razor` | `/warehouse/locations/{id}` | Header (code, name, hierarchy breadcrumb); on-hand Item grid for this location (grouped by Kind); transaction history table; Manual Adjustment modal; Transfer Out modal |
+| `PickListList.razor` | `/picklists` | All picklists with status filter and job link; shortshipped badge |
+| `PickListDetail.razor` | `/picklists/{id}` | Header with job link; per-line table (Kind, assigned Item, source location, required/picked/consumed qty, status badge); "Confirm Pick" action per line (assigns specific Item); short-ship override |
+
+**Inventory access from Job pages:**
+- `JobDetail.razor` gains a "Picklist" summary card (status badge + line count + "View Picklist →" link) when a picklist exists for the job.
+
+---
+
+#### Key design decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Items in locations, not Kinds | Items only | A Kind is a definition (blueprint); an Item is the physical thing. You store physical parts, not drawings. Every Item already has a `KindId` FK, so the Kind is always derivable without redundant storage. |
+| Append-only transactions, computed on-hand | Event-sourced | Mutable stock levels are difficult to audit and reconcile; an immutable transaction log gives a full history at no extra cost |
+| PickList generated on Job creation | Eagerly | Operators and planners need to know what to pull before execution starts; lazy generation at step time would create picking delays mid-job |
+| PickListLine stores KindId + deferred ItemId | Late binding | The line knows *what kind* of material is needed (KindId) at generation time, but the specific Item is assigned at pick time — the operator at the shelf decides which physical unit to pull |
+| PickListConsumption fires in ExecutionWizard close-out | Step close-out | Material is consumed when the step is completed — the most accurate timing signal available without custom consumption entry per sub-task |
+| Reorder threshold on `Kind` | Extend Phase 1 entity | `Kind` already carries cost and lead-time fields (v3.13); a `ReorderThreshold` and `ReorderQuantity` field fits naturally |
+| Transfer transactions independent of jobs | Yes | Item movements between locations (e.g. put-away after goods receipt) must be recordable without a job context |
+
+**New entities:** `StorageLocation`, `InventoryTransaction`, `PickList`, `PickListLine`
+
+**Existing entities extended:** `Kind` gains `ReorderThreshold` (decimal?) and `ReorderQuantity` (decimal?); `Item` gains `StorageLocationId` (Guid? FK — current location, denormalised from latest transaction for quick lookup); `Job` gains `PickListId` FK; `StepExecution` gains optional `PickListLineId` FK
+
+**New enum values:** `InventoryTransactionType` (`Receipt`/`Issue`/`Transfer`/`Adjustment`/`PicklistConsumption`), `PickListStatus` (`Open`/`PartiallyPicked`/`Picked`/`Consumed`), `PickListLineStatus` (`Pending`/`Picked`/`ShortShipped`/`Consumed`), `InventoryReferenceType` (`Job`/`PickList`/`ManualAdjustment`)
+
+**EF migration:** `Phase19_WarehouseManagement`
+
+**MCP tool:** `get_inventory_status` — returns on-hand Item counts grouped by Kind (optional `locationId` filter and `lowStockOnly` flag); includes Kinds below their `ReorderThreshold`
+
+**Status:** Designed — not yet built. Depends on Phase 1 (`Kind` with UnitOfMeasure, v3.13) being complete. ✅
+
+---
+
+### Phase 20+ — Integrations (future)
 
 **Goal:** Connect the process system to peripheral business functions.
 
@@ -2000,18 +2225,20 @@ Additional capability added post-Phase 6:
 - **Phase 14 — Document Control & QMS** ✅ ProcessRole enum (5 values), DocumentApprovalRequest entity, revision metadata on Process (RevisionCode, ChangeDescription, EffectiveDate, ParentProcessId, ApprovalProcessId), approval-as-process architecture, DocumentList page with submit-for-approval + admin-release modals, Document Library nav section, MCP `list_qms_documents` tool
 - **Phase 15 — Tiered Accountability & Action Tracking** ✅ ActionItem entity (two-step close/verify, anti-self-certification), ManagementReview entity (ISO 9001 clause 9.3, auto-populated snapshot inputs), MyActions/TeamActions/QualityScorecard pages, ManagementReviewList/Detail pages, Accountability nav section with overdue badge, MCP `get_management_review_status` tool
 - **Phase 16 — Training & Competency Management** ✅ ProcessRole.Training, CompetencyRecord + ProcessTrainingRequirement entities, CompetencyExpiryDays/CompetencyTitle on Process, job-creation enforcement hook, competency matrix view, TrainingList page (launch modal), CompetencyMatrix page, training compliance in QualityScorecard and ManagementReview snapshot, MCP `get_competency_status` tool
-- **Phase 2 enhancement — `LongText` and `UserPicker` prompt types** ✅ Both added to PromptType enum; UserPicker renders as Identity-backed user dropdown in ExecutionWizard (stores display name), used for instructor capture, witness, and handoff signatory; LongText renders as textarea for multi-line instructions
+- **Phase 2 enhancement — `LongText` and `UserPicker` prompt types** ✅ Both added to PromptType enum; UserPicker renders as Identity-backed user dropdown in ExecutionWizard (originally stored display name, later upgraded to store user Id — see separate entry), used for instructor capture, witness, and handoff signatory; LongText renders as textarea for multi-line instructions
 - **Phase 13 (partial) — Seeded content library** ✅ 21 ISO 9001:2015 QMS documents (QMS-001–QMS-021) and 12 system onboarding training courses (TRN-SYS-001–TRN-SYS-012) seeded with full step content; all served as live user documentation via the Document Library and Training Catalogue
 - **Phase 11 — Production Management** ✅ EquipmentCategory + Equipment entities (catalog with location, manufacturer, model, serial); DowntimeRecord (Planned/Unplanned, open/close with resolver); MaintenanceTrigger (time/usage-based, advance notice, auto-advance NextDueAt on task completion); MaintenanceTask (lifecycle: Upcoming→Due→Overdue→InProgress→Completed/Cancelled, 4 task types); StepTemplate.ExpectedDurationMinutes + RequiredEquipmentCategoryId; Job.DueDate + PlannedStartDate; StepExecution.EquipmentId; Phase11_ProductionManagement migration; EquipmentController + ProductionController (WIP board, bottlenecks); 4 Blazor pages (ProductionDashboard, EquipmentList, EquipmentDetail, MaintenanceTaskList); Production NavMenu section; 3 MCP tools (get_production_status, list_equipment_downtime, list_overdue_maintenance); MCP v2.1
+- **Phase 12 — Workflow Execution & Department Assignment (incl. 12f Participant Portal)** ✅ OrgUnit entity + membership management; AssigneeId on WorkflowProcess with workflow builder UI; GradeBased link routing in ProgressWorkorder; MyWork OrgUnit-based job filtering; WorkflowSchedule background scheduler (6 recurrence types, interval validation, token resolution, EndDate expiry); WorkflowJob execution record (WorkflowNodeStatus enum, NodeStatus-driven WorkorderDetail display); Participant Portal: `ParticipantLayout` + `ParticipantNavMenu` (minimal sidebar), Portal pages (`/portal` redirect, `/portal/my-work`, `/portal/execute/{id}`), `RedirectToPortal` on unauthorized Participant access, OrgUnit membership picker on user edit form in UserList (load memberships, add, remove)
+- **Phase 13 — System Content Flag + Copy to My Library** ✅ `IsSystemContent` bool on Process and StepTemplate; Phase13_SystemContent migration; DataSeeder marks all QMS documents, training courses, and shared step templates (DOC-SECT-01, TRN-MOD-01) as system content; ProcessesController + StepTemplatesController Update/Delete return 400 for system content; `POST /api/processes/{id}/copy` deep-clone endpoint (steps, port overrides, content blocks, flows with ID remapping; copy is Draft, not system content); ProcessCopyDto + CopyProcessToMyLibraryAsync ApiClient method; response DTOs extended with IsSystemContent; ProcessList "Library" badge + "Copy to My Library" modal replacing Edit/Delete; ProcessDetail "System Content" badge hiding edit/lifecycle/delete buttons; StepTemplateList "Library" badge + lock icon
+- **Phase 2 enhancement — `UserPicker` stores user Id** ✅ UserPicker now stores ASP.NET Identity user Id (not display name) in `ResponseValue`; `ResolvedDisplayName` nullable field added to `PromptResponseDto` for render-time resolution; `StepExecutionsController.GetPromptResponses` batch-resolves user Ids via `_db.Users`; ExecutionWizardContent option value changed to `user.Id`; StepExecutionDetail upgraded from text input to dropdown with legacy display-name fallback
 
 #### Partially built
-- **Phase 12 — Workflow Execution & Department Assignment** — ✅ OrgUnit entity with full CRUD, hierarchy, membership management; ✅ OrgUnitMember join entity (user ↔ OrgUnit many-to-many); ✅ AssigneeId on WorkflowProcess nodes with workflow builder UI; ✅ GradeBased link routing in ProgressWorkorder (2026-03-21); ✅ MyWork OrgUnit-based job filtering (2026-03-21); ✅ WorkflowSchedule periodic execution with background scheduler (2026-03-21): Hourly/Daily/Weekly/Monthly/Quarterly/Annually recurrence, configurable interval, DayOfWeek/DayOfMonth snapping, SubjectTemplate token resolution, EndDate expiry, no-backfill missed-window policy, Testing-environment guard; **remaining:** WorkflowJob execution record
+*(none at this time)*
 
 #### Not yet built
-- **Phase 12f — Participant Portal** — `Participant` role with access scoped to My Work + ExecutionWizard only; all design, admin, and quality engineering routes hidden and route-guarded; stripped `ParticipantLayout` with minimal navigation; optional `/portal` URL entry point
-- **Phase 13 (remaining) — System content flag + "Copy to My Library"** — `IsSystemContent` flag on Process and StepTemplate to distinguish seeded content from user-created records; "Copy to My Library" action that clones a system process under the user's own code prefix; protects system records from accidental deletion or edit
-- **Phase 2 enhancement — `UserPicker` stores user Id** — current implementation stores display name as a plain string; a future enhancement would store the ASP.NET Identity user Id as the value and resolve the display name at render time, enabling joins to competency and accountability records
 - **Phase 17 — Standards Conformance Management** — `StandardsClause` seed table (ISO 9001:2015 + AS9100 Rev D clauses), `ClauseEvidenceLink` many-to-many join with auto-linking rules for all seeded QMS documents and quality records, `AuditProgram`/`Audit`/`AuditFinding` entities with `ActionItem` FK for CA tracking, Conformance Dashboard (`/conformance`) with clause-coverage heatmap, Clause Browser, Audit Program list and detail pages, Audit detail with finding management, `get_conformance_status` MCP tool
+- **Phase 18 — 3D Model Viewer in Process Builder & Execution** — Embed the existing Three.js `model-viewer.js` CAD viewer (already powering KindDetail) into the Process Builder slide view and the ExecutionWizard step-prompt phase. Supports STL, OBJ, GLB, GLTF, STEP, IGES via the same upload/serve pipeline used on Kind. `StepModel` entity stores per-step model files (GUID-based storage, same pattern as `KindDocument`); optional `KindModelRef` FK allows a step to inherit the Kind's already-uploaded model without a duplicate upload. `StepTemplateDetail.razor` gains a 3D Model panel (upload/preview/delete). ProcessBuilder slide view renders the viewer inline in the content block editor when a model is attached. ExecutionWizard renders the interactive viewer during the prompts phase so the operator can orbit/zoom/pan the CAD model while completing the step.
+- **Phase 19 — Warehouse Management** — New "Warehouse Management" top-level nav tab. `StorageLocation` entity with a zone/aisle/bay/bin hierarchy, `IsActive` flag, and optional `Description`. `InventoryTransaction` entity records movements of `Item` or raw-material `Kind` quantities to/from a location (`TransactionType` enum: `Receipt`/`Issue`/`Transfer`/`Adjustment`/`PicklistConsumption`). On-hand view aggregates transactions per Kind + Location. `PickList` + `PickListLine` entities: when a Job is created from a Process that declares input Kinds, the system auto-generates a PickList pulling from available inventory locations and adds lines to a pick queue. During ExecutionWizard close-out the operator confirms consumption, firing `PicklistConsumption` transactions that decrement on-hand quantities. Transfer transactions allow moving stock between locations independently of any job. `WarehouseManagement` controller (location CRUD, transaction endpoints, on-hand aggregation, picklist generation + confirmation). `LocationList.razor` and `LocationDetail.razor` (transaction history, on-hand grid). `PickListList.razor` and `PickListDetail.razor` (line-level confirm/short-ship). `InventoryDashboard.razor` (on-hand by zone, low-stock alerts, recent transactions feed). MCP `get_inventory_status` tool (on-hand quantities by Kind, optional location filter).
 
 #### Ongoing limitations
 

@@ -38,7 +38,8 @@ public record StepTemplateResponseDto(
     MaturitySummaryDto? Maturity = null,
     int? ExpectedDurationMinutes = null,
     Guid? RequiredEquipmentCategoryId = null,
-    string? RequiredEquipmentCategoryName = null
+    string? RequiredEquipmentCategoryName = null,
+    bool IsSystemContent = false
 );
 
 public record StepTemplateImageResponseDto(

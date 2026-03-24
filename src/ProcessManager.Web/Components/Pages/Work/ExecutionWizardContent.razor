@@ -369,8 +369,8 @@ else
                                         <option value="">Select a person…</option>
                                         @foreach (var user in _userPickerList)
                                         {
-                                            <option value="@user.DisplayName"
-                                                    selected="@(GetPromptValue(block.Id) == user.DisplayName)">
+                                            <option value="@user.Id"
+                                                    selected="@(GetPromptValue(block.Id) == user.Id)">
                                                 @user.DisplayName
                                             </option>
                                         }

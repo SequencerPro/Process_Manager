@@ -374,6 +374,17 @@ public class ApiClient
         resp.EnsureSuccessStatusCode();
     }
 
+    public async Task<ProcessResponseDto?> CopyProcessToMyLibraryAsync(Guid id, ProcessCopyDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/processes/{id}/copy", dto, _json);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Copy failed ({resp.StatusCode})");
+        }
+        return await resp.Content.ReadFromJsonAsync<ProcessResponseDto>(_json);
+    }
+
     public async Task<ProcessStepResponseDto?> AddProcessStepAsync(Guid processId, ProcessStepCreateDto dto)
     {
         var resp = await _http.PostAsJsonAsync($"api/processes/{processId}/steps", dto, _json);

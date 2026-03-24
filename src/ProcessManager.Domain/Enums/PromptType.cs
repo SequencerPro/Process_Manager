@@ -28,7 +28,8 @@ public enum PromptType
 
     /// <summary>
     /// Identity-backed user selection. Renders as a searchable dropdown of system users.
-    /// Stores the selected user's display name in the response value.
+    /// Stores the selected user's ASP.NET Identity Id in the response value; the display
+    /// name is resolved at render time via the ResolvedDisplayName field on PromptResponseDto.
     /// Use for capturing a named third party involved in the step — instructor, witness,
     /// signatory, or customer/supplier representative.
     /// The executing operator's identity is captured automatically from the session.

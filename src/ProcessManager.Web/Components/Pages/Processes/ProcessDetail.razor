@@ -58,39 +58,46 @@ else
                     <a href="@(IsDocumentContext ? $"documents/{Id}/builder" : $"processes/{Id}/builder")" class="btn btn-outline-primary btn-sm me-1">
                         <i class="bi bi-diagram-3 me-1"></i>Builder
                     </a>
-                    <button class="btn btn-outline-secondary btn-sm me-1" @onclick="ShowEditForm">
-                        <i class="bi bi-pencil me-1"></i>Edit
-                    </button>
-                    <button class="btn btn-outline-info btn-sm me-1" @onclick="Validate">
-                        <i class="bi bi-check2-all me-1"></i>Validate
-                    </button>
-                    @if (_proc.Status == "Draft")
+                    @if (_proc.IsSystemContent)
                     {
-                        <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => _showSubmitModal = true">
-                            <i class="bi bi-send me-1"></i>Submit
+                        <span class="badge bg-info text-dark me-2"><i class="bi bi-lock-fill me-1"></i>System Content</span>
+                    }
+                    else
+                    {
+                        <button class="btn btn-outline-secondary btn-sm me-1" @onclick="ShowEditForm">
+                            <i class="bi bi-pencil me-1"></i>Edit
+                        </button>
+                        <button class="btn btn-outline-info btn-sm me-1" @onclick="Validate">
+                            <i class="bi bi-check2-all me-1"></i>Validate
+                        </button>
+                        @if (_proc.Status == "Draft")
+                        {
+                            <button class="btn btn-outline-primary btn-sm me-1" @onclick="() => _showSubmitModal = true">
+                                <i class="bi bi-send me-1"></i>Submit
+                            </button>
+                        }
+                        else if (_proc.Status == "PendingApproval")
+                        {
+                            <button class="btn btn-success btn-sm me-1" @onclick="() => _showApproveModal = true">
+                                <i class="bi bi-check-circle me-1"></i>Approve
+                            </button>
+                            <button class="btn btn-warning btn-sm me-1" @onclick="() => _showRejectModal = true">
+                                <i class="bi bi-x-circle me-1"></i>Reject
+                            </button>
+                        }
+                        else if (_proc.Status == "Released")
+                        {
+                            <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => _showNewRevisionModal = true">
+                                <i class="bi bi-arrow-clockwise me-1"></i>New Revision
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm me-1" @onclick="RetireProcess">
+                                <i class="bi bi-archive me-1"></i>Retire
+                            </button>
+                        }
+                        <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
+                            <i class="bi bi-trash me-1"></i>Delete
                         </button>
                     }
-                    else if (_proc.Status == "PendingApproval")
-                    {
-                        <button class="btn btn-success btn-sm me-1" @onclick="() => _showApproveModal = true">
-                            <i class="bi bi-check-circle me-1"></i>Approve
-                        </button>
-                        <button class="btn btn-warning btn-sm me-1" @onclick="() => _showRejectModal = true">
-                            <i class="bi bi-x-circle me-1"></i>Reject
-                        </button>
-                    }
-                    else if (_proc.Status == "Released")
-                    {
-                        <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => _showNewRevisionModal = true">
-                            <i class="bi bi-arrow-clockwise me-1"></i>New Revision
-                        </button>
-                        <button class="btn btn-outline-danger btn-sm me-1" @onclick="RetireProcess">
-                            <i class="bi bi-archive me-1"></i>Retire
-                        </button>
-                    }
-                    <button class="btn btn-outline-danger btn-sm" @onclick="Delete">
-                        <i class="bi bi-trash me-1"></i>Delete
-                    </button>
                 </div>
             </div>
             @if (!string.IsNullOrEmpty(_proc.Description))

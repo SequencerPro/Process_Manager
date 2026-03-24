@@ -68,7 +68,13 @@ else if (_data is not null)
                 {
                     <tr>
                         <td><code>@p.Code</code></td>
-                        <td><a href="processes/@p.Id">@p.Name</a></td>
+                        <td>
+                            <a href="processes/@p.Id">@p.Name</a>
+                            @if (p.IsSystemContent)
+                            {
+                                <span class="badge bg-info text-dark ms-1" title="System content — read only">Library</span>
+                            }
+                        </td>
                         <td><span class="badge bg-secondary">@p.StepCount</span></td>
                         <td>v@p.Version</td>
                         <td><span class="badge @StatusBadgeClass(p.Status)">@p.Status</span></td>
@@ -86,12 +92,21 @@ else if (_data is not null)
                             <a href="processes/@p.Id/builder" class="btn btn-outline-primary btn-sm me-1" title="Open in Builder">
                                 <i class="bi bi-diagram-3"></i>
                             </a>
-                            <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEdit(p)" title="Quick Edit">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(p.Id)">
-                                <i class="bi bi-trash"></i>
-                            </button>
+                            @if (p.IsSystemContent)
+                            {
+                                <button class="btn btn-outline-success btn-sm" @onclick="() => ShowCopyModal(p)" title="Copy to My Library">
+                                    <i class="bi bi-copy"></i>
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEdit(p)" title="Quick Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm" @onclick="() => Delete(p.Id)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            }
                         </td>
                     </tr>
                 }
@@ -139,6 +154,40 @@ else if (_data is not null)
     </div>
 }
 
+@* ── Copy to My Library Modal ─────────────────────────────────────────── *@
+@if (_copySource is not null)
+{
+    <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-copy me-2"></i>Copy to My Library</h5>
+                    <button type="button" class="btn-close" @onclick="() => _copySource = null"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted">Create an editable copy of <strong>@_copySource.Name</strong> (@_copySource.Code).</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">New Code <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_copyCode" placeholder="e.g. MY-PROC-001" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-medium">New Name</label>
+                        <input class="form-control" @bind="_copyName" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _copySource = null">Cancel</button>
+                    <button class="btn btn-primary" @onclick="HandleCopy"
+                            disabled="@(string.IsNullOrWhiteSpace(_copyCode) || _copySaving)">
+                        @if (_copySaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        <i class="bi bi-copy me-1"></i> Copy
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private PaginatedResponse<ProcessSummaryResponseDto>? _data;
     private bool _loading = true;
@@ -155,6 +204,12 @@ else if (_data is not null)
     private string _formCode = "";
     private string _formName = "";
     private string _formDesc = "";
+
+    // Copy modal
+    private ProcessSummaryResponseDto? _copySource;
+    private string _copyCode = "";
+    private string _copyName = "";
+    private bool _copySaving;
 
     protected override void OnInitialized() => Vocab.OnChange += OnVocabChanged;
     protected override async Task OnInitializedAsync() => await LoadData();
@@ -233,6 +288,29 @@ else if (_data is not null)
         if (!await JS.InvokeAsync<bool>("confirm", "Delete this process?")) return;
         try { await Api.DeleteProcessAsync(id); await LoadData(); }
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private void ShowCopyModal(ProcessSummaryResponseDto p)
+    {
+        _copySource = p;
+        _copyCode = "";
+        _copyName = $"{p.Name} (Copy)";
+    }
+
+    private async Task HandleCopy()
+    {
+        if (_copySource is null) return;
+        _copySaving = true;
+        try
+        {
+            await Api.CopyProcessToMyLibraryAsync(_copySource.Id,
+                new ProcessCopyDto(_copyCode, _copyName));
+            Toast.ShowSuccess($"Copied '{_copySource.Name}' as '{_copyCode}'.");
+            _copySource = null;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+        finally { _copySaving = false; }
     }
 
     private static string StatusBadgeClass(string? status) => status switch

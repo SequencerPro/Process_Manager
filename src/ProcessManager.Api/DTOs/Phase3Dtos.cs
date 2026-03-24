@@ -23,6 +23,11 @@ public record ProcessUpdateDto(
     bool? IsActive = null
 );
 
+public record ProcessCopyDto(
+    [Required, StringLength(50, MinimumLength = 1)] string NewCode,
+    [StringLength(200)] string? NewName = null
+);
+
 public record ProcessResponseDto(
     Guid Id,
     string Code,
@@ -39,7 +44,8 @@ public record ProcessResponseDto(
     Guid? ApprovalProcessId = null,
     string? RevisionCode = null,
     string? ChangeDescription = null,
-    DateTime? EffectiveDate = null
+    DateTime? EffectiveDate = null,
+    bool IsSystemContent = false
 );
 
 /// <summary>
@@ -62,7 +68,8 @@ public record ProcessSummaryResponseDto(
     string? ChangeDescription = null,
     DateTime? EffectiveDate = null,
     string? CompetencyTitle = null,
-    int? CompetencyExpiryDays = null
+    int? CompetencyExpiryDays = null,
+    bool IsSystemContent = false
 );
 
 // ──────────────────── ProcessStep ────────────────────
@@ -198,7 +205,8 @@ public record PromptResponseDto(
     string ResponseValue,
     bool IsOutOfRange,
     string? OverrideNote,
-    DateTime RespondedAt
+    DateTime RespondedAt,
+    string? ResolvedDisplayName = null
 );
 
 public record SavePromptResponsesDto(

@@ -434,7 +434,21 @@ public class StepExecutionsController : ControllerBase
             .OrderBy(r => r.RespondedAt)
             .ToListAsync();
 
-        return responses.Select(MapPromptResponseToDto).ToList();
+        // Collect user Ids from UserPicker responses to resolve display names in a single query
+        var userPickerValues = responses
+            .Where(r => (r.ProcessStepContent?.PromptType ?? r.StepTemplateContent?.PromptType) == PromptType.UserPicker
+                        && !string.IsNullOrEmpty(r.ResponseValue))
+            .Select(r => r.ResponseValue)
+            .Distinct()
+            .ToList();
+
+        var userDisplayNames = userPickerValues.Count > 0
+            ? await _db.Users
+                .Where(u => userPickerValues.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.DisplayName ?? u.UserName ?? u.Email ?? u.Id)
+            : new Dictionary<string, string>();
+
+        return responses.Select(r => MapPromptResponseToDto(r, userDisplayNames)).ToList();
     }
 
     [HttpPost("{id:guid}/prompt-responses")]
@@ -504,17 +518,29 @@ public class StepExecutionsController : ControllerBase
         return NoContent();
     }
 
-    private static PromptResponseDto MapPromptResponseToDto(PromptResponse r)
+    private static PromptResponseDto MapPromptResponseToDto(PromptResponse r, Dictionary<string, string>? userDisplayNames = null)
     {
         var label = r.ProcessStepContent?.Label ?? r.StepTemplateContent?.Label ?? "(deleted prompt)";
         var promptType = r.ProcessStepContent?.PromptType?.ToString()
                       ?? r.StepTemplateContent?.PromptType?.ToString()
                       ?? "Unknown";
+
+        // Resolve display name for UserPicker responses (value stores user Id)
+        string? resolvedDisplayName = null;
+        if (promptType == "UserPicker" && !string.IsNullOrEmpty(r.ResponseValue) && userDisplayNames is not null)
+        {
+            // Try to resolve as a user Id; if not found, the value may be a legacy display name — return it as-is
+            resolvedDisplayName = userDisplayNames.TryGetValue(r.ResponseValue, out var name)
+                ? name
+                : r.ResponseValue;
+        }
+
         return new PromptResponseDto(
             r.Id, r.StepExecutionId,
             r.ProcessStepContentId, r.StepTemplateContentId,
             label, promptType,
-            r.ResponseValue, r.IsOutOfRange, r.OverrideNote, r.RespondedAt);
+            r.ResponseValue, r.IsOutOfRange, r.OverrideNote, r.RespondedAt,
+            resolvedDisplayName);
     }
 
     // ───── Execution Data ─────

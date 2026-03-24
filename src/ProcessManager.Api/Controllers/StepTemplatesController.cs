@@ -149,6 +149,9 @@ public class StepTemplatesController : ControllerBase
 
         if (step is null) return NotFound();
 
+        if (step.IsSystemContent)
+            return BadRequest("System content cannot be edited. Use 'Copy to My Library' to create an editable copy.");
+
         if (step.Status == ProcessStatus.Released || step.Status == ProcessStatus.PendingApproval)
             return BadRequest($"A {step.Status} step template cannot be edited directly. Create a new revision instead.");
 
@@ -168,6 +171,9 @@ public class StepTemplatesController : ControllerBase
     {
         var step = await _db.StepTemplates.FindAsync(id);
         if (step is null) return NotFound();
+
+        if (step.IsSystemContent)
+            return BadRequest("System content cannot be deleted. Use 'Copy to My Library' to create your own version.");
 
         if (await _db.ProcessSteps.AnyAsync(ps => ps.StepTemplateId == id))
             return Conflict("Cannot delete a StepTemplate that is used in one or more Processes.");
@@ -1043,7 +1049,11 @@ public class StepTemplatesController : ControllerBase
         step.CreatedAt, step.UpdatedAt,
         step.Ports.OrderBy(p => p.Direction).ThenBy(p => p.SortOrder).Select(MapPortToDto).ToList(),
         step.Images.OrderBy(i => i.SortOrder).Select(MapImageToDto).ToList(),
-        MaturityScoringService.Summarise(step)
+        MaturityScoringService.Summarise(step),
+        step.ExpectedDurationMinutes,
+        step.RequiredEquipmentCategoryId,
+        step.RequiredEquipmentCategory?.Name,
+        step.IsSystemContent
     );
 
     private static PortResponseDto MapPortToDto(Port port) => new(

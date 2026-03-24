@@ -519,7 +519,8 @@ public static class DataSeeder
                 IsActive    = true,
                 Version     = version,
                 RevisionCode = revision,
-                EffectiveDate = effectiveDaysAgo.HasValue ? Utc(-effectiveDaysAgo.Value) : null
+                EffectiveDate = effectiveDaysAgo.HasValue ? Utc(-effectiveDaysAgo.Value) : null,
+                IsSystemContent = true
             };
 
         // ── 1. QMS Framework ─────────────────────────────────────────────────
@@ -659,7 +660,8 @@ public static class DataSeeder
                 Code = "DOC-SECT-01", Name = "Document Section",
                 Description = "A numbered section within a controlled QMS procedure document.",
                 Pattern = StepPattern.General, IsActive = true, IsShared = true,
-                Status = ProcessStatus.Released, Version = 1
+                Status = ProcessStatus.Released, Version = 1,
+                IsSystemContent = true
             };
         if (db.Entry(stDocSect).State == Microsoft.EntityFrameworkCore.EntityState.Detached)
             db.StepTemplates.Add(stDocSect);
@@ -2538,7 +2540,8 @@ public static class DataSeeder
                 IsActive             = true,
                 Version              = version,
                 RevisionCode         = revision,
-                EffectiveDate        = Utc(-createdDaysAgo)
+                EffectiveDate        = Utc(-createdDaysAgo),
+                IsSystemContent      = true
             };
 
         // ── Module 1 — Orientation ────────────────────────────────────────────
@@ -2731,7 +2734,8 @@ public static class DataSeeder
                 Code = "TRN-MOD-01", Name = "Training Module",
                 Description = "A learning module or topic within a training course.",
                 Pattern = StepPattern.General, IsActive = true, IsShared = true,
-                Status = ProcessStatus.Released, Version = 1
+                Status = ProcessStatus.Released, Version = 1,
+                IsSystemContent = true
             };
         if (db.Entry(stTrnMod).State == Microsoft.EntityFrameworkCore.EntityState.Detached)
             db.StepTemplates.Add(stTrnMod);

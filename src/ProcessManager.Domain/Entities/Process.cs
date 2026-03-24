@@ -51,6 +51,11 @@ public class Process : BaseEntity
     /// <summary>Days before a competency record expires and re-training is required. Null = never expires.</summary>
     public int? CompetencyExpiryDays { get; set; }
 
+    // ── System Content (Phase 13) ─────────────────────────────────────────────
+
+    /// <summary>True for seeded library content. System content cannot be edited or deleted — only copied.</summary>
+    public bool IsSystemContent { get; set; }
+
     // Navigation properties
     public Process? ParentProcess { get; set; }
     public Process? ApprovalProcess { get; set; }

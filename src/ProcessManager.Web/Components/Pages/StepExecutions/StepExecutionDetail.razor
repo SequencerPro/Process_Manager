@@ -237,11 +237,25 @@ else
                             }
                             @if (block.PromptType == "UserPicker")
                             {
-                                <input type="text" class="form-control"
-                                       placeholder="Type a name…"
-                                       value="@pval"
-                                       @oninput="e => SetPromptValue(key, e.Value?.ToString())" />
-                                <div class="form-text">Enter the display name of the person involved in this step.</div>
+                                <select class="form-select"
+                                        @onchange="e => SetPromptValue(key, e.Value?.ToString())">
+                                    <option value="">Select a person…</option>
+                                    @foreach (var user in _userPickerList)
+                                    {
+                                        <option value="@user.Id"
+                                                selected="@(pval == user.Id)">
+                                            @user.DisplayName
+                                        </option>
+                                    }
+                                    @{
+                                        // Show legacy display-name value if it doesn't match any user Id
+                                        var isLegacyValue = !string.IsNullOrEmpty(pval) && !_userPickerList.Any(u => u.Id == pval);
+                                    }
+                                    @if (isLegacyValue)
+                                    {
+                                        <option value="@pval" selected>@pval (legacy)</option>
+                                    }
+                                </select>
                             }
                         </div>
                     </div>
@@ -538,6 +552,9 @@ else
     private bool _promptsSaved;
     private string? _promptError;
 
+    // UserPicker support
+    private List<UserPickerDto> _userPickerList = new();
+
     // Run Charts
     private bool _chartsLoading;
     private Guid? _stepTemplateId;
@@ -632,6 +649,10 @@ else
                 if (blockId is not null)
                     _promptValues[blockId] = r.ResponseValue;
             }
+
+            // Load user picker list if any prompts are UserPicker type
+            if (_allContentBlocks.Any(b => b.PromptType == "UserPicker"))
+                _userPickerList = await Api.GetUserPickerListAsync() ?? new();
 
             // Load run chart widgets (non-blocking)
             if (_stepTemplateId.HasValue)

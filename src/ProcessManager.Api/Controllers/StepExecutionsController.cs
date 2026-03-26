@@ -31,6 +31,10 @@ public class StepExecutionsController : ControllerBase
         var query = _db.StepExecutions
             .Include(se => se.ProcessStep)
                 .ThenInclude(ps => ps.StepTemplate)
+                    .ThenInclude(st => st.StepModel)
+            .Include(se => se.ProcessStep)
+                .ThenInclude(ps => ps.StepTemplate)
+                    .ThenInclude(st => st.KindModelRef)
             .Include(se => se.Job)
             .AsQueryable();
 
@@ -89,6 +93,10 @@ public class StepExecutionsController : ControllerBase
         var se = await _db.StepExecutions
             .Include(s => s.ProcessStep)
                 .ThenInclude(ps => ps.StepTemplate)
+                    .ThenInclude(st => st.StepModel)
+            .Include(s => s.ProcessStep)
+                .ThenInclude(ps => ps.StepTemplate)
+                    .ThenInclude(st => st.KindModelRef)
             .Include(s => s.Job)
             .Include(s => s.PortTransactions)
                 .ThenInclude(pt => pt.Port)
@@ -109,6 +117,9 @@ public class StepExecutionsController : ControllerBase
     {
         var se = await _db.StepExecutions
             .Include(s => s.ProcessStep).ThenInclude(ps => ps.StepTemplate)
+                .ThenInclude(st => st.StepModel)
+            .Include(s => s.ProcessStep).ThenInclude(ps => ps.StepTemplate)
+                .ThenInclude(st => st.KindModelRef)
             .Include(s => s.Job)
             .FirstOrDefaultAsync(s => s.Id == id);
 
@@ -149,6 +160,9 @@ public class StepExecutionsController : ControllerBase
     {
         var se = await _db.StepExecutions
             .Include(s => s.ProcessStep).ThenInclude(ps => ps.StepTemplate)
+                .ThenInclude(st => st.StepModel)
+            .Include(s => s.ProcessStep).ThenInclude(ps => ps.StepTemplate)
+                .ThenInclude(st => st.KindModelRef)
             .FirstOrDefaultAsync(s => s.Id == id);
 
         if (se is null) return NotFound();
@@ -263,6 +277,9 @@ public class StepExecutionsController : ControllerBase
     {
         var se = await _db.StepExecutions
             .Include(s => s.ProcessStep).ThenInclude(ps => ps.StepTemplate)
+                .ThenInclude(st => st.StepModel)
+            .Include(s => s.ProcessStep).ThenInclude(ps => ps.StepTemplate)
+                .ThenInclude(st => st.KindModelRef)
             .FirstOrDefaultAsync(s => s.Id == id);
 
         if (se is null) return NotFound();
@@ -281,6 +298,9 @@ public class StepExecutionsController : ControllerBase
     {
         var se = await _db.StepExecutions
             .Include(s => s.ProcessStep).ThenInclude(ps => ps.StepTemplate)
+                .ThenInclude(st => st.StepModel)
+            .Include(s => s.ProcessStep).ThenInclude(ps => ps.StepTemplate)
+                .ThenInclude(st => st.KindModelRef)
             .FirstOrDefaultAsync(s => s.Id == id);
 
         if (se is null) return NotFound();
@@ -300,6 +320,9 @@ public class StepExecutionsController : ControllerBase
     {
         var se = await _db.StepExecutions
             .Include(s => s.ProcessStep).ThenInclude(ps => ps.StepTemplate)
+                .ThenInclude(st => st.StepModel)
+            .Include(s => s.ProcessStep).ThenInclude(ps => ps.StepTemplate)
+                .ThenInclude(st => st.KindModelRef)
             .FirstOrDefaultAsync(s => s.Id == id);
 
         if (se is null) return NotFound();

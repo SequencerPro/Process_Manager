@@ -1032,6 +1032,8 @@ public class ProcessesController : ControllerBase
     {
         return await _db.Processes
             .Include(p => p.ProcessSteps).ThenInclude(ps => ps.StepTemplate).ThenInclude(st => st.Contents)
+            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.StepTemplate).ThenInclude(st => st.StepModel)
+            .Include(p => p.ProcessSteps).ThenInclude(ps => ps.StepTemplate).ThenInclude(st => st.KindModelRef)
             .Include(p => p.ProcessSteps).ThenInclude(ps => ps.PortOverrides).ThenInclude(po => po.KindOverride)
             .Include(p => p.ProcessSteps).ThenInclude(ps => ps.PortOverrides).ThenInclude(po => po.GradeOverride)
             .Include(p => p.Flows).ThenInclude(f => f.SourcePort)
@@ -1068,7 +1070,12 @@ public class ProcessesController : ControllerBase
             po.KindIdOverride, po.KindOverride?.Name,
             po.GradeIdOverride, po.GradeOverride?.Name,
             po.QtyRuleModeOverride, po.QtyRuleNOverride,
-            po.SortOrderOverride)).ToList()
+            po.SortOrderOverride)).ToList(),
+        // Phase 18
+        ps.StepTemplate.StepModel is not null,
+        ps.StepTemplate.KindModelRefId,
+        ps.StepTemplate.StepModel?.MimeType,
+        ps.StepTemplate.KindModelRef?.ModelMimeType
     );
 
     private static FlowResponseDto MapFlowToDto(Flow f) => new(

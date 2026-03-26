@@ -117,7 +117,13 @@ public record StepExecutionResponseDto(
     int ParallelGroup = 0,
     string? AssignedToUserId = null,
     Guid? EquipmentId = null,
-    string? EquipmentCode = null);
+    string? EquipmentCode = null,
+    // Phase 18: Step 3D Model
+    Guid? StepTemplateId = null,
+    bool HasStepModel = false,
+    string? StepModelMimeType = null,
+    Guid? KindModelRefId = null,
+    string? KindModelRefMimeType = null);
 
 public record UpdateStepExecutionNotesDto(
     string? Notes);

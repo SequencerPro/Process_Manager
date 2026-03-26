@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +33,8 @@ public class StepTemplatesController : ControllerBase
             .Include(s => s.Ports).ThenInclude(p => p.Grade)
             .Include(s => s.Images)
             .Include(s => s.Contents)
+            .Include(s => s.StepModel)
+            .Include(s => s.KindModelRef)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -67,6 +70,8 @@ public class StepTemplatesController : ControllerBase
             .Include(s => s.Ports).ThenInclude(p => p.Grade)
             .Include(s => s.Images)
             .Include(s => s.Contents)
+            .Include(s => s.StepModel)
+            .Include(s => s.KindModelRef)
             .FirstOrDefaultAsync(s => s.Id == id);
 
         if (step is null) return NotFound();
@@ -131,6 +136,8 @@ public class StepTemplatesController : ControllerBase
             .Include(s => s.Ports).ThenInclude(p => p.Grade)
             .Include(s => s.Images)
             .Include(s => s.Contents)
+            .Include(s => s.StepModel)
+            .Include(s => s.KindModelRef)
             .FirstAsync(s => s.Id == step.Id);
 
         return CreatedAtAction(nameof(GetById), new { id = step.Id }, MapToDto(result));
@@ -145,6 +152,8 @@ public class StepTemplatesController : ControllerBase
             .Include(s => s.Ports).ThenInclude(p => p.Grade)
             .Include(s => s.Images)
             .Include(s => s.Contents)
+            .Include(s => s.StepModel)
+            .Include(s => s.KindModelRef)
             .FirstOrDefaultAsync(s => s.Id == id);
 
         if (step is null) return NotFound();
@@ -167,9 +176,11 @@ public class StepTemplatesController : ControllerBase
 
     [Authorize(Roles = "Admin,Engineer")]
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id)
+    public async Task<IActionResult> Delete(Guid id, [FromServices] IImageStorageService storage)
     {
-        var step = await _db.StepTemplates.FindAsync(id);
+        var step = await _db.StepTemplates
+            .Include(s => s.StepModel)
+            .FirstOrDefaultAsync(s => s.Id == id);
         if (step is null) return NotFound();
 
         if (step.IsSystemContent)
@@ -177,6 +188,9 @@ public class StepTemplatesController : ControllerBase
 
         if (await _db.ProcessSteps.AnyAsync(ps => ps.StepTemplateId == id))
             return Conflict("Cannot delete a StepTemplate that is used in one or more Processes.");
+
+        if (step.StepModel is not null)
+            await storage.DeleteAsync($"uploads/step-models/{step.StepModel.FileName}");
 
         _db.StepTemplates.Remove(step);
         await _db.SaveChangesAsync();
@@ -857,7 +871,9 @@ public class StepTemplatesController : ControllerBase
     [HttpPost("{id:guid}/submit")]
     public async Task<ActionResult<StepTemplateResponseDto>> Submit(Guid id, SubmitForApprovalDto dto)
     {
-        var step = await _db.StepTemplates.Include(s => s.Ports).Include(s => s.Images).Include(s => s.Contents)
+        var step = await _db.StepTemplates
+            .Include(s => s.Ports).Include(s => s.Images).Include(s => s.Contents)
+            .Include(s => s.StepModel).Include(s => s.KindModelRef)
             .FirstOrDefaultAsync(s => s.Id == id);
         if (step is null) return NotFound();
         if (step.Status != ProcessStatus.Draft)
@@ -884,7 +900,9 @@ public class StepTemplatesController : ControllerBase
     [HttpPost("{id:guid}/approve")]
     public async Task<ActionResult<StepTemplateResponseDto>> Approve(Guid id, ApproveDto dto)
     {
-        var step = await _db.StepTemplates.Include(s => s.Ports).Include(s => s.Images).Include(s => s.Contents)
+        var step = await _db.StepTemplates
+            .Include(s => s.Ports).Include(s => s.Images).Include(s => s.Contents)
+            .Include(s => s.StepModel).Include(s => s.KindModelRef)
             .FirstOrDefaultAsync(s => s.Id == id);
         if (step is null) return NotFound();
         if (step.Status != ProcessStatus.PendingApproval)
@@ -917,7 +935,9 @@ public class StepTemplatesController : ControllerBase
     [HttpPost("{id:guid}/reject")]
     public async Task<ActionResult<StepTemplateResponseDto>> Reject(Guid id, RejectDto dto)
     {
-        var step = await _db.StepTemplates.Include(s => s.Ports).Include(s => s.Images).Include(s => s.Contents)
+        var step = await _db.StepTemplates
+            .Include(s => s.Ports).Include(s => s.Images).Include(s => s.Contents)
+            .Include(s => s.StepModel).Include(s => s.KindModelRef)
             .FirstOrDefaultAsync(s => s.Id == id);
         if (step is null) return NotFound();
         if (step.Status != ProcessStatus.PendingApproval)
@@ -1023,8 +1043,170 @@ public class StepTemplatesController : ControllerBase
             .Include(s => s.Ports).ThenInclude(p => p.Grade)
             .Include(s => s.Images)
             .Include(s => s.Contents)
+            .Include(s => s.StepModel)
+            .Include(s => s.KindModelRef)
             .FirstOrDefaultAsync(s => s.Id == newStep.Id);
         return CreatedAtAction(nameof(GetById), new { id = newStep.Id }, MapToDto(result!));
+    }
+
+    // ──────────── Phase 18: Step 3D Model ────────────
+
+    private static readonly string[] AllowedModelExtensions =
+        [".stl", ".obj", ".glb", ".gltf", ".step", ".stp", ".iges", ".igs"];
+
+    [Authorize(Roles = "Admin,Engineer")]
+    [HttpPost("{id:guid}/model")]
+    public async Task<ActionResult<StepModelResponseDto>> UploadModel(
+        Guid id,
+        [FromForm] IFormFile? file,
+        [FromServices] IImageStorageService storage)
+    {
+        var step = await _db.StepTemplates
+            .Include(s => s.StepModel)
+            .FirstOrDefaultAsync(s => s.Id == id);
+        if (step is null) return NotFound();
+
+        if (step.IsSystemContent)
+            return BadRequest("System content cannot be modified.");
+
+        if (file is null || file.Length == 0)
+            return BadRequest("No file was provided.");
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!AllowedModelExtensions.Contains(ext))
+            return BadRequest($"Invalid file extension '{ext}'. Allowed: {string.Join(", ", AllowedModelExtensions)}");
+
+        const long maxSize = 100L * 1024 * 1024;
+        if (file.Length > maxSize)
+            return BadRequest("File exceeds the 100 MB size limit.");
+
+        if (step.StepModel is not null)
+        {
+            await storage.DeleteAsync($"uploads/step-models/{step.StepModel.FileName}");
+            _db.StepModels.Remove(step.StepModel);
+        }
+
+        if (step.KindModelRefId is not null)
+            step.KindModelRefId = null;
+
+        var mimeType = ext switch
+        {
+            ".stl"  => "model/stl",
+            ".obj"  => "model/obj",
+            ".glb"  => "model/gltf-binary",
+            ".gltf" => "model/gltf+json",
+            _       => "application/octet-stream"
+        };
+
+        var (fileName, _) = await storage.SaveAsync(file, "step-models");
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        var model = new StepModel
+        {
+            StepTemplateId   = id,
+            FileName         = fileName,
+            OriginalFileName = file.FileName,
+            MimeType         = mimeType,
+            UploadedAt       = DateTime.UtcNow,
+            UploadedByUserId = userId
+        };
+
+        _db.StepModels.Add(model);
+        await _db.SaveChangesAsync();
+
+        return Ok(new StepModelResponseDto(
+            model.Id, model.StepTemplateId, model.FileName, model.OriginalFileName,
+            model.MimeType, model.UploadedAt, model.UploadedByUserId));
+    }
+
+    [AllowAnonymous]
+    [HttpGet("{id:guid}/model/download")]
+    public async Task<IActionResult> DownloadModel(Guid id)
+    {
+        var step = await _db.StepTemplates
+            .Include(s => s.StepModel)
+            .Include(s => s.KindModelRef)
+            .FirstOrDefaultAsync(s => s.Id == id);
+        if (step is null) return NotFound();
+
+        if (step.StepModel is not null)
+        {
+            var filePath = Path.Combine(
+                Directory.GetCurrentDirectory(), "wwwroot", "uploads", "step-models",
+                step.StepModel.FileName);
+            if (!System.IO.File.Exists(filePath))
+                return NotFound("Model file not found on disk.");
+            var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
+            return File(bytes, step.StepModel.MimeType, step.StepModel.OriginalFileName);
+        }
+
+        if (step.KindModelRefId is not null)
+            return Redirect($"/api/kinds/{step.KindModelRefId}/model/download");
+
+        return NotFound("No model attached.");
+    }
+
+    [Authorize(Roles = "Admin,Engineer")]
+    [HttpDelete("{id:guid}/model")]
+    public async Task<IActionResult> DeleteModel(
+        Guid id,
+        [FromServices] IImageStorageService storage)
+    {
+        var step = await _db.StepTemplates
+            .Include(s => s.StepModel)
+            .FirstOrDefaultAsync(s => s.Id == id);
+        if (step is null) return NotFound();
+
+        if (step.IsSystemContent)
+            return BadRequest("System content cannot be modified.");
+
+        if (step.StepModel is null)
+            return NotFound("No model attached.");
+
+        await storage.DeleteAsync($"uploads/step-models/{step.StepModel.FileName}");
+        _db.StepModels.Remove(step.StepModel);
+        await _db.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    [Authorize(Roles = "Admin,Engineer")]
+    [HttpPatch("{id:guid}/kind-model-ref")]
+    public async Task<ActionResult<StepTemplateResponseDto>> SetKindModelRef(
+        Guid id,
+        SetKindModelRefDto dto)
+    {
+        var step = await _db.StepTemplates
+            .Include(s => s.Ports).ThenInclude(p => p.Kind)
+            .Include(s => s.Ports).ThenInclude(p => p.Grade)
+            .Include(s => s.Images)
+            .Include(s => s.Contents)
+            .Include(s => s.StepModel)
+            .Include(s => s.KindModelRef)
+            .FirstOrDefaultAsync(s => s.Id == id);
+        if (step is null) return NotFound();
+
+        if (step.IsSystemContent)
+            return BadRequest("System content cannot be modified.");
+
+        if (dto.KindId is not null)
+        {
+            var kind = await _db.Kinds.FindAsync(dto.KindId.Value);
+            if (kind is null) return NotFound("Kind not found.");
+            if (kind.ModelFileName is null) return BadRequest("Kind has no model.");
+            if (step.StepModel is not null)
+                return BadRequest("Remove the attached model file before setting a Kind model reference.");
+            step.KindModelRef = kind;
+        }
+        else
+        {
+            step.KindModelRef = null;
+        }
+
+        step.KindModelRefId = dto.KindId;
+        await _db.SaveChangesAsync();
+
+        return MapToDto(step);
     }
 
     // ──────────── Mapping ────────────
@@ -1053,7 +1235,16 @@ public class StepTemplatesController : ControllerBase
         step.ExpectedDurationMinutes,
         step.RequiredEquipmentCategoryId,
         step.RequiredEquipmentCategory?.Name,
-        step.IsSystemContent
+        step.IsSystemContent,
+        // Phase 18
+        step.StepModel is null ? null : new StepModelResponseDto(
+            step.StepModel.Id, step.StepModel.StepTemplateId,
+            step.StepModel.FileName, step.StepModel.OriginalFileName,
+            step.StepModel.MimeType, step.StepModel.UploadedAt, step.StepModel.UploadedByUserId),
+        step.StepModel is not null,
+        step.KindModelRefId,
+        step.KindModelRef?.Name,
+        step.KindModelRef?.ModelMimeType
     );
 
     private static PortResponseDto MapPortToDto(Port port) => new(

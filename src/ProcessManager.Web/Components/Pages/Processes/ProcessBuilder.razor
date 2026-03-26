@@ -15,6 +15,8 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject ToastService Toast
+@inject IConfiguration Config
+@implements IAsyncDisposable
 
 <PageTitle>@(_name.Length > 0 ? (IsDocumentContext ? $"Document — {_name}" : IsTrainingContext ? $"Training — {_name}" : $"Builder – {_name}") : (IsDocumentContext ? "New Document" : IsTrainingContext ? "New Training" : "New Process"))</PageTitle>
 
@@ -636,6 +638,24 @@ else
                             </div>
                         }
                     }
+                }
+
+                @* ── Phase 18 — 3D Model Viewer ── *@
+                @if (_currentStepHasModel || _currentStepKindModelRefId.HasValue)
+                {
+                    <hr class="mb-4" />
+                    <h6 class="mb-3"><i class="bi bi-box me-1 text-primary"></i>3D Model</h6>
+                    <div id="@BuilderModelViewerContainerId"
+                         style="width:100%;height:350px;background:#1a1a2e;border-radius:6px;"></div>
+                    <div class="text-muted small text-center mt-1">Orbit &middot; Pan &middot; Zoom</div>
+                }
+                else if (_currentStepTemplateId.HasValue)
+                {
+                    <hr class="mb-4" />
+                    <p class="text-muted small fst-italic">
+                        No 3D model attached —
+                        <a href="/step-templates/@_currentStepTemplateId">add one in Step Template Detail</a>.
+                    </p>
                 }
             }
         </div>
@@ -1335,6 +1355,17 @@ else
     // ── View mode ──
     private string _viewMode = "Diagram";
 
+    // ── Phase 18 — 3D model viewer (builder) ──
+    private bool _currentStepHasModel;
+    private Guid? _currentStepTemplateId;
+    private Guid? _currentStepKindModelRefId;
+    private string? _currentStepModelMimeType;
+    private string? _currentStepKindModelRefMimeType;
+    private bool _builderModelViewerInitialized;
+    private bool _pendingBuilderModelViewerInit;
+    private string _apiBaseUrl = "http://localhost:5183";
+    private const string BuilderModelViewerContainerId = "model-viewer-process-builder";
+
     // ── Document view ──
     private Dictionary<Guid, List<ProcessStepContentResponseDto>> _docStepBlocks = new();
     private bool _docBlocksLoading;
@@ -1393,8 +1424,18 @@ else
     // Initialization + Diagram setup
     // ──────────────────────────────────────────────
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_viewMode == "Slide" && _pendingBuilderModelViewerInit && !_builderModelViewerInitialized)
+        {
+            _pendingBuilderModelViewerInit = false;
+            await InitBuilderModelViewer();
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _apiBaseUrl = Config["ApiBaseUrl"] ?? "http://localhost:5183";
         SetupDiagram();
         if (Id.HasValue)
         {
@@ -2250,6 +2291,8 @@ else
         // Auto-commit pending name/description edits when leaving slide view
         if (_viewMode == "Slide" && _editStepIndex >= 0 && _editStepIndex < _steps.Count)
             CommitStepEdit();
+        if (_viewMode == "Slide")
+            await DestroyBuilderModelViewer();
         _viewMode = mode;
         if (mode == "Slide" && Id.HasValue && _steps.Any())
         {
@@ -2269,6 +2312,7 @@ else
     private async Task SelectSlideStep(int index)
     {
         if (index < 0 || index >= _steps.Count) return;
+        await DestroyBuilderModelViewer();
         _editStepIndex = index;
         var step = _steps[index];
         _editNameValue = step.NameOverride ?? "";
@@ -2282,6 +2326,14 @@ else
         _newTextBody = "";
         _editingTextBody = "";
         _contentError = null;
+        // Phase 18 — update 3D model state for this step
+        var tmpl = step.Template;
+        _currentStepTemplateId = step.StepTemplateId;
+        _currentStepHasModel = tmpl?.HasStepModel ?? false;
+        _currentStepKindModelRefId = tmpl?.KindModelRefId;
+        _currentStepModelMimeType = tmpl?.StepModel?.MimeType;
+        _currentStepKindModelRefMimeType = tmpl?.KindModelRefMimeType;
+        _pendingBuilderModelViewerInit = _currentStepHasModel || _currentStepKindModelRefId.HasValue;
         StateHasChanged();
         if (step.ServerId.HasValue && Id.HasValue)
             await LoadStepContent();
@@ -2517,4 +2569,61 @@ else
         PortType.Condition => "bg-light text-dark border",
         _ => "bg-secondary"
     };
+
+    // ──────────────────────────────────────────────
+    // Phase 18 — 3D Model Viewer (builder)
+    // ──────────────────────────────────────────────
+
+    private async Task InitBuilderModelViewer()
+    {
+        string relativeUrl;
+        string mimeType;
+        if (_currentStepHasModel && _currentStepTemplateId.HasValue)
+        {
+            relativeUrl = Api.GetStepModelDownloadUrl(_currentStepTemplateId.Value);
+            mimeType = _currentStepModelMimeType ?? "";
+        }
+        else if (_currentStepKindModelRefId.HasValue)
+        {
+            relativeUrl = $"/api/kinds/{_currentStepKindModelRefId.Value}/model/download";
+            mimeType = _currentStepKindModelRefMimeType ?? "";
+        }
+        else return;
+
+        var absoluteUrl = _apiBaseUrl.TrimEnd('/') + relativeUrl;
+        var ext = GetExtensionFromMimeType(mimeType);
+
+        for (int attempt = 1; attempt <= 3; attempt++)
+        {
+            await Task.Delay(200 * attempt);
+            try
+            {
+                await JS.InvokeVoidAsync("ModelViewer.init", BuilderModelViewerContainerId, absoluteUrl, ext);
+                _builderModelViewerInitialized = true;
+                return;
+            }
+            catch { /* retry */ }
+        }
+    }
+
+    private async Task DestroyBuilderModelViewer()
+    {
+        if (!_builderModelViewerInitialized) return;
+        try { await JS.InvokeVoidAsync("ModelViewer.destroy", BuilderModelViewerContainerId); } catch { }
+        _builderModelViewerInitialized = false;
+    }
+
+    private static string GetExtensionFromMimeType(string? mimeType) => mimeType switch
+    {
+        "model/stl" => "stl",
+        "model/obj" => "obj",
+        "model/gltf-binary" => "glb",
+        "model/gltf+json" => "gltf",
+        _ => "glb"
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        await DestroyBuilderModelViewer();
+    }
 }

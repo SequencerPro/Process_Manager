@@ -4,6 +4,8 @@
 @inject ApiClient Api
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject IConfiguration Config
+@implements IAsyncDisposable
 
 <PageTitle>Step Template Detail</PageTitle>
 
@@ -589,6 +591,91 @@ else
         </div>
     </div>
 
+    @* 3D Model *@
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-box me-1"></i> 3D Model</span>
+            @if (_stepModel is null && !_kindModelRefId.HasValue && !_st.IsSystemContent)
+            {
+                <label class="btn btn-primary btn-sm mb-0">
+                    <i class="bi bi-upload me-1"></i>Upload Model
+                    <InputFile OnChange="HandleModelUpload" accept=".stl,.obj,.glb,.gltf,.step,.stp,.iges,.igs" style="display:none" />
+                </label>
+            }
+        </div>
+        <div class="card-body">
+            @if (_isModelLoading)
+            {
+                <div class="text-center py-3"><span class="spinner-border spinner-border-sm text-primary"></span></div>
+            }
+            else if (_stepModel is not null)
+            {
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <i class="bi bi-file-earmark-code me-1"></i>
+                        <strong>@_stepModel.OriginalFileName</strong>
+                        <span class="badge bg-secondary ms-1">@_stepModel.MimeType</span>
+                        <span class="text-muted small ms-2">uploaded @_stepModel.UploadedAt.ToString("g")</span>
+                    </div>
+                    @if (!_st.IsSystemContent)
+                    {
+                        <div class="d-flex gap-1">
+                            <label class="btn btn-outline-secondary btn-sm mb-0" title="Replace model">
+                                <i class="bi bi-arrow-repeat me-1"></i>Replace
+                                <InputFile OnChange="HandleModelUpload" accept=".stl,.obj,.glb,.gltf,.step,.stp,.iges,.igs" style="display:none" />
+                            </label>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="HandleDeleteModel">
+                                <i class="bi bi-trash me-1"></i>Remove
+                            </button>
+                        </div>
+                    }
+                </div>
+                <div id="@ModelViewerContainerId" style="width:100%; height:400px; background:#1a1a2e; border-radius:4px; position:relative;"></div>
+            }
+            else if (_kindModelRefId.HasValue)
+            {
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <i class="bi bi-link me-1"></i>
+                        <span class="fw-semibold">Kind Reference:</span>
+                        <a href="kinds/@_kindModelRefId" class="ms-1">@(_kindModelRefName ?? _kindModelRefId.ToString())</a>
+                        @if (!string.IsNullOrEmpty(_kindModelRefMimeType))
+                        {
+                            <span class="badge bg-secondary ms-1">@_kindModelRefMimeType</span>
+                        }
+                    </div>
+                    @if (!_st.IsSystemContent)
+                    {
+                        <button class="btn btn-outline-danger btn-sm" @onclick="HandleClearKindModelRef">
+                            <i class="bi bi-x-circle me-1"></i>Clear Reference
+                        </button>
+                    }
+                </div>
+                <div id="@ModelViewerContainerId" style="width:100%; height:400px; background:#1a1a2e; border-radius:4px; position:relative;"></div>
+            }
+            else
+            {
+                <p class="text-muted small mb-2">No 3D model attached. Upload a model file or link to a Kind's 3D model.</p>
+                @if (!_st.IsSystemContent)
+                {
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <label class="btn btn-outline-primary btn-sm mb-0">
+                            <i class="bi bi-upload me-1"></i>Upload Model
+                            <InputFile OnChange="HandleModelUpload" accept=".stl,.obj,.glb,.gltf,.step,.stp,.iges,.igs" style="display:none" />
+                        </label>
+                        <span class="text-muted small">or link to a Kind:</span>
+                        <div class="d-flex gap-1">
+                            <input class="form-control form-control-sm" style="width:260px" placeholder="Kind ID (GUID)" @bind="_kindRefInput" />
+                            <button class="btn btn-outline-secondary btn-sm" @onclick="HandleSetKindModelRef">
+                                <i class="bi bi-link me-1"></i>Set Reference
+                            </button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
     @* Run Charts *@
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -1067,6 +1154,18 @@ else
     private StepTemplateResponseDto? _st;
     private bool _loading = true;
 
+    // Phase 18 — 3D Model Viewer
+    private StepModelResponseDto? _stepModel;
+    private Guid? _kindModelRefId;
+    private string? _kindModelRefName;
+    private string? _kindModelRefMimeType;
+    private bool _isModelLoading;
+    private bool _modelViewerInitialized;
+    private bool _pendingModelViewerInit;
+    private string _kindRefInput = string.Empty;
+    private string _apiBaseUrl = "";
+    private const string ModelViewerContainerId = "model-viewer-steptemplatedetail";
+
     private List<PortResponseDto> InputPorts =>
         _st?.Ports?.Where(p => p.Direction == PortDirection.Input).OrderBy(p => p.SortOrder).ToList() ?? new();
     private List<PortResponseDto> OutputPorts =>
@@ -1171,7 +1270,20 @@ else
     private PaginatedResponse<KindResponseDto>? _kinds;
     private List<GradeResponseDto>? _grades = new();
 
-    protected override async Task OnInitializedAsync() => await LoadData();
+    protected override async Task OnInitializedAsync()
+    {
+        _apiBaseUrl = (Config["ApiBaseUrl"] ?? "http://localhost:5183").TrimEnd('/');
+        await LoadData();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_pendingModelViewerInit && !_modelViewerInitialized)
+        {
+            _pendingModelViewerInit = false;
+            await InitModelViewerWithRetry();
+        }
+    }
 
     private async Task LoadData()
     {
@@ -1179,6 +1291,12 @@ else
         try
         {
             _st = await Api.GetStepTemplateAsync(Id);
+            _stepModel = _st?.StepModel;
+            _kindModelRefId = _st?.KindModelRefId;
+            _kindModelRefName = _st?.KindModelRefName;
+            _kindModelRefMimeType = _st?.KindModelRefMimeType;
+            _modelViewerInitialized = false;
+            _pendingModelViewerInit = _stepModel != null || _kindModelRefId.HasValue;
         }
         catch (Exception ex)
         {
@@ -1807,4 +1925,143 @@ else
         PortType.Condition => "bg-light text-dark border",
         _ => "bg-secondary"
     };
+
+    // ── Phase 18 — 3D Model Viewer ──────────────────────────────────────────
+
+    private async Task InitModelViewerWithRetry()
+    {
+        var modelUrl = $"{_apiBaseUrl}{Api.GetStepModelDownloadUrl(Id)}";
+        var ext = GetExtensionFromMimeType(
+            _stepModel?.MimeType ?? _kindModelRefMimeType,
+            _stepModel?.OriginalFileName);
+
+        StateHasChanged();
+        await Task.Delay(300);
+
+        for (int attempt = 1; attempt <= 3; attempt++)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("ModelViewer.init", ModelViewerContainerId, modelUrl, ext);
+                _modelViewerInitialized = true;
+                StateHasChanged();
+                return;
+            }
+            catch
+            {
+                if (attempt < 3) await Task.Delay(attempt * 200);
+            }
+        }
+    }
+
+    private async Task DestroyModelViewer()
+    {
+        if (_modelViewerInitialized)
+        {
+            try { await JS.InvokeVoidAsync("ModelViewer.destroy", ModelViewerContainerId); } catch { }
+            _modelViewerInitialized = false;
+        }
+    }
+
+    private static string GetExtensionFromMimeType(string? mimeType, string? originalFileName)
+    {
+        if (!string.IsNullOrEmpty(originalFileName))
+        {
+            var ext = Path.GetExtension(originalFileName).ToLowerInvariant();
+            if (!string.IsNullOrEmpty(ext)) return ext;
+        }
+        return mimeType switch
+        {
+            "model/stl"         => ".stl",
+            "model/obj"         => ".obj",
+            "model/gltf-binary" => ".glb",
+            "model/gltf+json"   => ".gltf",
+            _                   => ".glb"
+        };
+    }
+
+    private async Task HandleModelUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        var ext = Path.GetExtension(file.Name).ToLowerInvariant();
+        string[] allowed = [".stl", ".obj", ".glb", ".gltf", ".step", ".stp", ".iges", ".igs"];
+        if (!allowed.Contains(ext))
+        {
+            Toast.ShowError($"Invalid file type '{ext}'. Allowed: {string.Join(", ", allowed)}");
+            return;
+        }
+        _isModelLoading = true;
+        await DestroyModelViewer();
+        StateHasChanged();
+        try
+        {
+            var result = await Api.UploadStepModelAsync(Id, file);
+            _stepModel = result;
+            _kindModelRefId = null;
+            _kindModelRefName = null;
+            _kindModelRefMimeType = null;
+            _pendingModelViewerInit = result is not null;
+        }
+        catch (Exception ex) { Toast.ShowError($"Upload failed: {ex.Message}"); }
+        finally { _isModelLoading = false; StateHasChanged(); }
+    }
+
+    private async Task HandleDeleteModel()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Remove the 3D model?")) return;
+        await DestroyModelViewer();
+        try
+        {
+            await Api.DeleteStepModelAsync(Id);
+            _stepModel = null;
+            _pendingModelViewerInit = false;
+        }
+        catch (Exception ex) { Toast.ShowError($"Delete failed: {ex.Message}"); }
+        StateHasChanged();
+    }
+
+    private async Task HandleSetKindModelRef()
+    {
+        if (!Guid.TryParse(_kindRefInput.Trim(), out var kindId))
+        {
+            Toast.ShowError("Invalid Kind ID — must be a valid GUID.");
+            return;
+        }
+        try
+        {
+            var updated = await Api.SetKindModelRefAsync(Id, kindId);
+            if (updated is not null)
+            {
+                _kindModelRefId = updated.KindModelRefId;
+                _kindModelRefName = updated.KindModelRefName;
+                _kindModelRefMimeType = updated.KindModelRefMimeType;
+                _stepModel = updated.StepModel;
+                _pendingModelViewerInit = _kindModelRefId.HasValue;
+                _kindRefInput = string.Empty;
+            }
+        }
+        catch (Exception ex) { Toast.ShowError($"Failed to set Kind model reference: {ex.Message}"); }
+        StateHasChanged();
+    }
+
+    private async Task HandleClearKindModelRef()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Clear the Kind model reference?")) return;
+        await DestroyModelViewer();
+        try
+        {
+            await Api.SetKindModelRefAsync(Id, null);
+            _kindModelRefId = null;
+            _kindModelRefName = null;
+            _kindModelRefMimeType = null;
+            _pendingModelViewerInit = false;
+        }
+        catch (Exception ex) { Toast.ShowError($"Failed to clear Kind model reference: {ex.Message}"); }
+        StateHasChanged();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await DestroyModelViewer();
+    }
 }

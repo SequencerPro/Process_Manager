@@ -39,7 +39,13 @@ public record StepTemplateResponseDto(
     int? ExpectedDurationMinutes = null,
     Guid? RequiredEquipmentCategoryId = null,
     string? RequiredEquipmentCategoryName = null,
-    bool IsSystemContent = false
+    bool IsSystemContent = false,
+    // Phase 18: Step 3D Model
+    StepModelResponseDto? StepModel = null,
+    bool HasStepModel = false,
+    Guid? KindModelRefId = null,
+    string? KindModelRefName = null,
+    string? KindModelRefMimeType = null
 );
 
 public record StepTemplateImageResponseDto(

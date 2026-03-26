@@ -1055,6 +1055,7 @@ public class StepTemplatesController : ControllerBase
         [".stl", ".obj", ".glb", ".gltf", ".step", ".stp", ".iges", ".igs"];
 
     [Authorize(Roles = "Admin,Engineer")]
+    [Consumes("multipart/form-data")]
     [HttpPost("{id:guid}/model")]
     public async Task<ActionResult<StepModelResponseDto>> UploadModel(
         Guid id,

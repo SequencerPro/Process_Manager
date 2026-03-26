@@ -30,6 +30,9 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<StepTemplateImage> StepTemplateImages => Set<StepTemplateImage>();
     public DbSet<RunChartWidget> RunChartWidgets => Set<RunChartWidget>();
 
+    // Phase 18: Step 3D Model
+    public DbSet<StepModel> StepModels => Set<StepModel>();
+
     // Phase 3: Process Composition
     public DbSet<Process> Processes => Set<Process>();
     public DbSet<ProcessStep> ProcessSteps => Set<ProcessStep>();
@@ -197,6 +200,29 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(s => s.Name).HasMaxLength(200).IsRequired();
             e.Property(s => s.Pattern).HasConversion<string>().HasMaxLength(20);
             e.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
+
+            e.HasOne(s => s.KindModelRef)
+                .WithMany()
+                .HasForeignKey(s => s.KindModelRefId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // --- StepModel ---
+        modelBuilder.Entity<StepModel>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.Property(m => m.FileName).HasMaxLength(500).IsRequired();
+            e.Property(m => m.OriginalFileName).HasMaxLength(500).IsRequired();
+            e.Property(m => m.MimeType).HasMaxLength(100).IsRequired();
+            e.Property(m => m.UploadedByUserId).HasMaxLength(450);
+
+            e.HasIndex(m => m.StepTemplateId).IsUnique();
+
+            e.HasOne(m => m.StepTemplate)
+                .WithOne(s => s.StepModel)
+                .HasForeignKey<StepModel>(m => m.StepTemplateId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // --- StepTemplateImage ---

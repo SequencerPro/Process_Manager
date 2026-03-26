@@ -59,6 +59,11 @@ public class JobsController : ControllerBase
             .Include(j => j.StepExecutions.OrderBy(se => se.Sequence))
                 .ThenInclude(se => se.ProcessStep)
                     .ThenInclude(ps => ps.StepTemplate)
+                        .ThenInclude(st => st.StepModel)
+            .Include(j => j.StepExecutions.OrderBy(se => se.Sequence))
+                .ThenInclude(se => se.ProcessStep)
+                    .ThenInclude(ps => ps.StepTemplate)
+                        .ThenInclude(st => st.KindModelRef)
             .FirstOrDefaultAsync(j => j.Id == id);
 
         if (job is null) return NotFound();
@@ -149,6 +154,11 @@ public class JobsController : ControllerBase
             .Include(j => j.StepExecutions.OrderBy(se => se.Sequence))
                 .ThenInclude(se => se.ProcessStep)
                     .ThenInclude(ps => ps.StepTemplate)
+                        .ThenInclude(st => st.StepModel)
+            .Include(j => j.StepExecutions.OrderBy(se => se.Sequence))
+                .ThenInclude(se => se.ProcessStep)
+                    .ThenInclude(ps => ps.StepTemplate)
+                        .ThenInclude(st => st.KindModelRef)
             .FirstAsync(j => j.Id == job.Id);
 
         return CreatedAtAction(nameof(GetById), new { id = job.Id }, MapJobToDto(result, includeStepExecutions: true));
@@ -400,6 +410,10 @@ public class JobsController : ControllerBase
         var executions = await _db.StepExecutions
             .Include(se => se.ProcessStep)
                 .ThenInclude(ps => ps.StepTemplate)
+                    .ThenInclude(st => st.StepModel)
+            .Include(se => se.ProcessStep)
+                .ThenInclude(ps => ps.StepTemplate)
+                    .ThenInclude(st => st.KindModelRef)
             .Where(se => se.JobId == jobId)
             .OrderBy(se => se.Sequence)
             .ToListAsync();
@@ -441,6 +455,8 @@ public class JobsController : ControllerBase
         if (!string.IsNullOrEmpty(se.ProcessStep?.NameOverride))
             stepName = se.ProcessStep.NameOverride;
 
+        var st = se.ProcessStep?.StepTemplate;
+
         return new StepExecutionResponseDto(
             se.Id,
             se.JobId,
@@ -462,7 +478,13 @@ public class JobsController : ControllerBase
             se.ParallelGroup,
             se.AssignedToUserId,
             se.EquipmentId,
-            se.Equipment?.Code);
+            se.Equipment?.Code,
+            // Phase 18
+            st?.Id,
+            st?.StepModel is not null,
+            st?.StepModel?.MimeType,
+            st?.KindModelRefId,
+            st?.KindModelRef?.ModelMimeType);
     }
 
     internal static PortTransactionResponseDto MapPortTransactionToDto(PortTransaction pt)

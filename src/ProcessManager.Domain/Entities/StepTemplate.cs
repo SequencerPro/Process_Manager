@@ -45,6 +45,11 @@ public class StepTemplate : BaseEntity
     /// <summary>True for seeded library content. System content cannot be edited or deleted — only copied.</summary>
     public bool IsSystemContent { get; set; }
 
+    // ── Phase 18: Step Model Reference ───────────────────────────────────────
+
+    /// <summary>Optional reference to a Kind whose 3D model is used for this step.</summary>
+    public Guid? KindModelRefId { get; set; }
+
     // Navigation properties
     public EquipmentCategory? RequiredEquipmentCategory { get; set; }
     public ICollection<Port> Ports { get; set; } = new List<Port>();
@@ -52,4 +57,6 @@ public class StepTemplate : BaseEntity
     public ICollection<RunChartWidget> RunChartWidgets { get; set; } = new List<RunChartWidget>();
     public ICollection<StepTemplateContent> Contents { get; set; } = new List<StepTemplateContent>();
     public ICollection<ApprovalRecord> ApprovalRecords { get; set; } = new List<ApprovalRecord>();
+    public StepModel? StepModel { get; set; }
+    public Kind? KindModelRef { get; set; }
 }

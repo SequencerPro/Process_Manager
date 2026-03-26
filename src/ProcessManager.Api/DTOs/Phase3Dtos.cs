@@ -104,7 +104,12 @@ public record ProcessStepResponseDto(
     DateTime UpdatedAt,
     MaturitySummaryDto? StepTemplateMaturity = null,
     StepPattern? PatternOverride = null,
-    List<ProcessStepPortOverrideResponseDto>? PortOverrides = null
+    List<ProcessStepPortOverrideResponseDto>? PortOverrides = null,
+    // Phase 18: Step 3D Model
+    bool HasStepModel = false,
+    Guid? KindModelRefId = null,
+    string? StepModelMimeType = null,
+    string? KindModelRefMimeType = null
 );
 
 // ──────────────────── ProcessStepPortOverride ────────────────────

@@ -29,7 +29,24 @@
     </script>
     <!-- OpenCascade WASM for STEP/IGES parsing (lazy-loaded by model-viewer.js) -->
     <script src="https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/occt-import-js.js" defer></script>
-    <script type="module" src="js/model-viewer.js?v=9"></script>
+    <script type="module" src="js/model-viewer.js?v=10"></script>
+
+    <!-- Helper: wait for the ES module to finish loading before Blazor calls it -->
+    <script>
+        window.waitForModelViewer = function (timeoutMs) {
+            return new Promise(function (resolve, reject) {
+                if (window.ModelViewer) { resolve(); return; }
+                var start = Date.now();
+                var check = setInterval(function () {
+                    if (window.ModelViewer) { clearInterval(check); resolve(); }
+                    else if (Date.now() - start > timeoutMs) {
+                        clearInterval(check);
+                        reject('ModelViewer module did not load within ' + timeoutMs + 'ms');
+                    }
+                }, 100);
+            });
+        };
+    </script>
 
     <script src="_framework/blazor.web.js" defer></script>
 </body>

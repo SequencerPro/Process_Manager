@@ -1059,7 +1059,7 @@ public class StepTemplatesController : ControllerBase
     [HttpPost("{id:guid}/model")]
     public async Task<ActionResult<StepModelResponseDto>> UploadModel(
         Guid id,
-        [FromForm] IFormFile? file,
+        IFormFile? file,
         [FromServices] IImageStorageService storage)
     {
         var step = await _db.StepTemplates

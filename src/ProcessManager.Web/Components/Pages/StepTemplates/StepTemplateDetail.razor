@@ -630,7 +630,15 @@ else
                         </div>
                     }
                 </div>
-                <div id="@ModelViewerContainerId" style="width:100%; height:400px; background:#1a1a2e; border-radius:4px; position:relative;"></div>
+                <div id="@ModelViewerContainerId" style="width:100%; height:400px; background:#1a1a2e; border-radius:4px; position:relative;">
+                    @if (!string.IsNullOrEmpty(_modelViewerStatus))
+                    {
+                        <div class="text-center text-muted py-5">
+                            <div class="spinner-border spinner-border-sm text-primary mb-2"></div><br />
+                            <small>@_modelViewerStatus</small>
+                        </div>
+                    }
+                </div>
             }
             else if (_kindModelRefId.HasValue)
             {
@@ -651,7 +659,15 @@ else
                         </button>
                     }
                 </div>
-                <div id="@ModelViewerContainerId" style="width:100%; height:400px; background:#1a1a2e; border-radius:4px; position:relative;"></div>
+                <div id="@ModelViewerContainerId" style="width:100%; height:400px; background:#1a1a2e; border-radius:4px; position:relative;">
+                    @if (!string.IsNullOrEmpty(_modelViewerStatus))
+                    {
+                        <div class="text-center text-muted py-5">
+                            <div class="spinner-border spinner-border-sm text-primary mb-2"></div><br />
+                            <small>@_modelViewerStatus</small>
+                        </div>
+                    }
+                </div>
             }
             else
             {
@@ -1161,7 +1177,8 @@ else
     private string? _kindModelRefMimeType;
     private bool _isModelLoading;
     private bool _modelViewerInitialized;
-    private bool _pendingModelViewerInit;
+    private bool _modelViewerInitializing; // re-entrancy guard
+    private string? _modelViewerStatus;
     private string _kindRefInput = string.Empty;
     private string _apiBaseUrl = "";
     private const string ModelViewerContainerId = "model-viewer-steptemplatedetail";
@@ -1278,10 +1295,12 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_pendingModelViewerInit && !_modelViewerInitialized)
+        // Init viewer whenever the component has rendered with a model but the viewer isn't active.
+        var hasModel = _stepModel is not null || _kindModelRefId.HasValue;
+        if (hasModel && !_modelViewerInitialized && !_modelViewerInitializing)
         {
-            _pendingModelViewerInit = false;
-            await InitModelViewerWithRetry();
+            Console.WriteLine($"[StepModelViewer] OnAfterRenderAsync: firstRender={firstRender}, hasModel={hasModel}, stepModel={_stepModel?.OriginalFileName}, kindRef={_kindModelRefId}");
+            await InitModelViewer();
         }
     }
 
@@ -1295,8 +1314,10 @@ else
             _kindModelRefId = _st?.KindModelRefId;
             _kindModelRefName = _st?.KindModelRefName;
             _kindModelRefMimeType = _st?.KindModelRefMimeType;
+            // Reset viewer state so it re-initialises after data loads
             _modelViewerInitialized = false;
-            _pendingModelViewerInit = _stepModel != null || _kindModelRefId.HasValue;
+            _modelViewerInitializing = false;
+            Console.WriteLine($"[StepModelViewer] LoadData: stepModel={_stepModel?.OriginalFileName}, kindRef={_kindModelRefId}, hasModel={_stepModel != null || _kindModelRefId.HasValue}");
         }
         catch (Exception ex)
         {
@@ -1928,39 +1949,74 @@ else
 
     // ── Phase 18 — 3D Model Viewer ──────────────────────────────────────────
 
-    private async Task InitModelViewerWithRetry()
+    private async Task InitModelViewer()
     {
-        var modelUrl = $"{_apiBaseUrl}{Api.GetStepModelDownloadUrl(Id)}";
-        var ext = GetExtensionFromMimeType(
-            _stepModel?.MimeType ?? _kindModelRefMimeType,
-            _stepModel?.OriginalFileName);
-
-        StateHasChanged();
-        await Task.Delay(300);
-
-        for (int attempt = 1; attempt <= 3; attempt++)
+        if (_modelViewerInitialized || _modelViewerInitializing)
         {
-            try
+            Console.WriteLine($"[StepModelViewer] InitModelViewer skipped: initialized={_modelViewerInitialized}, initializing={_modelViewerInitializing}");
+            return;
+        }
+        _modelViewerInitializing = true;
+
+        try
+        {
+            var ext = GetExtensionFromMimeType(
+                _stepModel?.MimeType ?? _kindModelRefMimeType,
+                _stepModel?.OriginalFileName);
+            var modelUrl = $"{_apiBaseUrl}{Api.GetStepModelDownloadUrl(Id)}";
+            Console.WriteLine($"[StepModelViewer] InitModelViewer: ext={ext}, url={modelUrl}, stepModel={_stepModel?.OriginalFileName}, kindRef={_kindModelRefId}");
+
+            // Ensure the DOM has been updated (container div must exist)
+            _modelViewerStatus = "Initializing 3D viewer...";
+            StateHasChanged();
+            await Task.Delay(300);
+
+            // Wait for the ES module to finish loading (fetches Three.js from CDN)
+            Console.WriteLine("[StepModelViewer] Waiting for ModelViewer module...");
+            await JS.InvokeVoidAsync("waitForModelViewer", 15000);
+            Console.WriteLine("[StepModelViewer] ModelViewer module ready.");
+
+            for (int attempt = 1; attempt <= 3; attempt++)
             {
-                await JS.InvokeVoidAsync("ModelViewer.init", ModelViewerContainerId, modelUrl, ext);
-                _modelViewerInitialized = true;
-                StateHasChanged();
-                return;
+                try
+                {
+                    Console.WriteLine($"[StepModelViewer] JS init attempt {attempt}...");
+                    await JS.InvokeVoidAsync("ModelViewer.init", ModelViewerContainerId, modelUrl, ext);
+                    Console.WriteLine($"[StepModelViewer] JS init attempt {attempt} succeeded!");
+                    _modelViewerInitialized = true;
+                    _modelViewerStatus = null;
+                    StateHasChanged();
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[StepModelViewer] JS init attempt {attempt} failed: {ex.Message}");
+                    if (attempt < 3)
+                        await Task.Delay(attempt * 500);
+                }
             }
-            catch
-            {
-                if (attempt < 3) await Task.Delay(attempt * 200);
-            }
+
+            _modelViewerStatus = "Failed to initialize 3D viewer after 3 attempts.";
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[StepModelViewer] InitModelViewer error: {ex.GetType().Name}: {ex.Message}");
+            Console.WriteLine($"[StepModelViewer] Stack trace: {ex.StackTrace}");
+            _modelViewerStatus = $"Viewer error: {ex.Message}";
+            StateHasChanged();
+        }
+        finally
+        {
+            _modelViewerInitializing = false;
         }
     }
 
     private async Task DestroyModelViewer()
     {
-        if (_modelViewerInitialized)
-        {
-            try { await JS.InvokeVoidAsync("ModelViewer.destroy", ModelViewerContainerId); } catch { }
-            _modelViewerInitialized = false;
-        }
+        try { await JS.InvokeVoidAsync("ModelViewer.destroy", ModelViewerContainerId); } catch { }
+        _modelViewerInitialized = false;
+        _modelViewerInitializing = false;
     }
 
     private static string GetExtensionFromMimeType(string? mimeType, string? originalFileName)
@@ -1990,20 +2046,50 @@ else
             Toast.ShowError($"Invalid file type '{ext}'. Allowed: {string.Join(", ", allowed)}");
             return;
         }
+        Console.WriteLine($"[StepModelViewer] HandleModelUpload: file={file.Name}, size={file.Size}");
         _isModelLoading = true;
         await DestroyModelViewer();
+        _modelViewerStatus = "Uploading model...";
         StateHasChanged();
         try
         {
+            Console.WriteLine("[StepModelViewer] Uploading model to API...");
             var result = await Api.UploadStepModelAsync(Id, file);
+            Console.WriteLine($"[StepModelViewer] Upload complete. result is null={result is null}, OriginalFileName={result?.OriginalFileName}");
             _stepModel = result;
             _kindModelRefId = null;
             _kindModelRefName = null;
             _kindModelRefMimeType = null;
-            _pendingModelViewerInit = result is not null;
+
+            if (result is null)
+            {
+                Toast.ShowError("Upload returned no data. Please try again.");
+                _modelViewerStatus = null;
+                return;
+            }
+
+            _isModelLoading = false;
+            _modelViewerStatus = "Preparing 3D viewer...";
+            StateHasChanged();
+            // Yield to let Blazor render the container div
+            await Task.Yield();
+
+            // Call JS init directly instead of relying on OnAfterRenderAsync
+            await InitModelViewer();
         }
-        catch (Exception ex) { Toast.ShowError($"Upload failed: {ex.Message}"); }
-        finally { _isModelLoading = false; StateHasChanged(); }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[StepModelViewer] HandleModelUpload error: {ex.GetType().Name}: {ex.Message}");
+            Console.WriteLine($"[StepModelViewer] Stack trace: {ex.StackTrace}");
+            _modelViewerStatus = null;
+            _modelViewerInitializing = false;
+            Toast.ShowError($"Upload failed: {ex.Message}");
+        }
+        finally
+        {
+            _isModelLoading = false;
+            StateHasChanged();
+        }
     }
 
     private async Task HandleDeleteModel()
@@ -2014,7 +2100,6 @@ else
         {
             await Api.DeleteStepModelAsync(Id);
             _stepModel = null;
-            _pendingModelViewerInit = false;
         }
         catch (Exception ex) { Toast.ShowError($"Delete failed: {ex.Message}"); }
         StateHasChanged();
@@ -2029,6 +2114,7 @@ else
         }
         try
         {
+            await DestroyModelViewer();
             var updated = await Api.SetKindModelRefAsync(Id, kindId);
             if (updated is not null)
             {
@@ -2036,8 +2122,10 @@ else
                 _kindModelRefName = updated.KindModelRefName;
                 _kindModelRefMimeType = updated.KindModelRefMimeType;
                 _stepModel = updated.StepModel;
-                _pendingModelViewerInit = _kindModelRefId.HasValue;
                 _kindRefInput = string.Empty;
+                StateHasChanged();
+                await Task.Yield();
+                await InitModelViewer();
             }
         }
         catch (Exception ex) { Toast.ShowError($"Failed to set Kind model reference: {ex.Message}"); }
@@ -2054,7 +2142,6 @@ else
             _kindModelRefId = null;
             _kindModelRefName = null;
             _kindModelRefMimeType = null;
-            _pendingModelViewerInit = false;
         }
         catch (Exception ex) { Toast.ShowError($"Failed to clear Kind model reference: {ex.Message}"); }
         StateHasChanged();
@@ -2062,6 +2149,6 @@ else
 
     public async ValueTask DisposeAsync()
     {
-        await DestroyModelViewer();
+        try { await JS.InvokeVoidAsync("ModelViewer.destroy", ModelViewerContainerId); } catch { }
     }
 }

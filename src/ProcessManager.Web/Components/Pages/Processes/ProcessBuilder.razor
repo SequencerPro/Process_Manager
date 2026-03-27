@@ -2593,16 +2593,15 @@ else
         var absoluteUrl = _apiBaseUrl.TrimEnd('/') + relativeUrl;
         var ext = GetExtensionFromMimeType(mimeType);
 
-        for (int attempt = 1; attempt <= 3; attempt++)
+        try
         {
-            await Task.Delay(200 * attempt);
-            try
-            {
-                await JS.InvokeVoidAsync("ModelViewer.init", BuilderModelViewerContainerId, absoluteUrl, ext);
-                _builderModelViewerInitialized = true;
-                return;
-            }
-            catch { /* retry */ }
+            await JS.InvokeVoidAsync("waitForModelViewer", 15000);
+            await JS.InvokeVoidAsync("ModelViewer.init", BuilderModelViewerContainerId, absoluteUrl, ext);
+            _builderModelViewerInitialized = true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ModelViewer] Builder init failed: {ex.Message}");
         }
     }
 

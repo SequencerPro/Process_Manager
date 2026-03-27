@@ -4,7 +4,7 @@ import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-console.log('[ModelViewer] model-viewer.js loaded (v8)');
+console.log('[ModelViewer] model-viewer.js loaded (v10)');
 
 const viewers = {};
 let occtReady = null; // cached initialized occt-import-js instance

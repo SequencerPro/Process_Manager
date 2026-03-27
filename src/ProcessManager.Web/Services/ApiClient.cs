@@ -2149,21 +2149,21 @@ public class ApiClient
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(
             string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType);
         content.Add(fileContent, "file", file.Name);
-        var resp = await _http.PostAsync($"api/step-templates/{stepTemplateId}/model", content);
+        var resp = await _http.PostAsync($"api/steptemplates/{stepTemplateId}/model", content);
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<StepModelResponseDto>(_json);
     }
 
     public async Task DeleteStepModelAsync(Guid stepTemplateId)
     {
-        var resp = await _http.DeleteAsync($"api/step-templates/{stepTemplateId}/model");
+        var resp = await _http.DeleteAsync($"api/steptemplates/{stepTemplateId}/model");
         resp.EnsureSuccessStatusCode();
     }
 
     public async Task<StepTemplateResponseDto?> SetKindModelRefAsync(Guid stepTemplateId, Guid? kindId)
     {
         var resp = await _http.PatchAsync(
-            $"api/step-templates/{stepTemplateId}/kind-model-ref",
+            $"api/steptemplates/{stepTemplateId}/kind-model-ref",
             JsonContent.Create(new { KindId = kindId }));
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<StepTemplateResponseDto>(_json);
@@ -2171,7 +2171,7 @@ public class ApiClient
 
     /// <summary>Returns the download URL for a step template's 3D model (own or Kind ref).</summary>
     public string GetStepModelDownloadUrl(Guid stepTemplateId)
-        => $"/api/step-templates/{stepTemplateId}/model/download";
+        => $"/api/steptemplates/{stepTemplateId}/model/download";
 
     // ═══════════════════ Helpers ═══════════════════
 

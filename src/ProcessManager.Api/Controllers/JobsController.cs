@@ -483,8 +483,10 @@ public class JobsController : ControllerBase
             st?.Id,
             st?.StepModel is not null,
             st?.StepModel?.MimeType,
+            st?.StepModel?.OriginalFileName,
             st?.KindModelRefId,
-            st?.KindModelRef?.ModelMimeType);
+            st?.KindModelRef?.ModelMimeType,
+            st?.KindModelRef?.ModelOriginalFileName);
     }
 
     internal static PortTransactionResponseDto MapPortTransactionToDto(PortTransaction pt)

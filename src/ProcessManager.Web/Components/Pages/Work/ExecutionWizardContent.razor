@@ -871,20 +871,23 @@ else
     {
         string relativeUrl;
         string mimeType;
+        string? originalFileName;
         if (_se?.HasStepModel == true && _se.StepTemplateId.HasValue)
         {
             relativeUrl = Api.GetStepModelDownloadUrl(_se.StepTemplateId.Value);
             mimeType = _se.StepModelMimeType ?? "";
+            originalFileName = _se.StepModelOriginalFileName;
         }
         else if (_se?.KindModelRefId.HasValue == true)
         {
             relativeUrl = $"/api/kinds/{_se.KindModelRefId.Value}/model/download";
             mimeType = _se.KindModelRefMimeType ?? "";
+            originalFileName = _se.KindModelRefOriginalFileName;
         }
         else return;
 
         var absoluteUrl = _apiBaseUrl.TrimEnd('/') + relativeUrl;
-        var ext = GetExtensionFromMimeType(mimeType);
+        var ext = GetExtensionFromMimeType(mimeType, originalFileName);
 
         try
         {
@@ -905,14 +908,22 @@ else
         _wizardModelViewerInitialized = false;
     }
 
-    private static string GetExtensionFromMimeType(string? mimeType) => mimeType switch
+    private static string GetExtensionFromMimeType(string? mimeType, string? originalFileName)
     {
-        "model/stl" => "stl",
-        "model/obj" => "obj",
-        "model/gltf-binary" => "glb",
-        "model/gltf+json" => "gltf",
-        _ => "glb"
-    };
+        if (!string.IsNullOrEmpty(originalFileName))
+        {
+            var ext = Path.GetExtension(originalFileName).ToLowerInvariant();
+            if (!string.IsNullOrEmpty(ext)) return ext;
+        }
+        return mimeType switch
+        {
+            "model/stl" => "stl",
+            "model/obj" => "obj",
+            "model/gltf-binary" => "glb",
+            "model/gltf+json" => "gltf",
+            _ => "glb"
+        };
+    }
 
     public async ValueTask DisposeAsync()
     {

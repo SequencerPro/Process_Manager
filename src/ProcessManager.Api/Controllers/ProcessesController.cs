@@ -1075,7 +1075,9 @@ public class ProcessesController : ControllerBase
         ps.StepTemplate.StepModel is not null,
         ps.StepTemplate.KindModelRefId,
         ps.StepTemplate.StepModel?.MimeType,
-        ps.StepTemplate.KindModelRef?.ModelMimeType
+        ps.StepTemplate.StepModel?.OriginalFileName,
+        ps.StepTemplate.KindModelRef?.ModelMimeType,
+        ps.StepTemplate.KindModelRef?.ModelOriginalFileName
     );
 
     private static FlowResponseDto MapFlowToDto(Flow f) => new(

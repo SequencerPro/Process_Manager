@@ -1360,7 +1360,9 @@ else
     private Guid? _currentStepTemplateId;
     private Guid? _currentStepKindModelRefId;
     private string? _currentStepModelMimeType;
+    private string? _currentStepModelOriginalFileName;
     private string? _currentStepKindModelRefMimeType;
+    private string? _currentStepKindModelRefOriginalFileName;
     private bool _builderModelViewerInitialized;
     private bool _pendingBuilderModelViewerInit;
     private string _apiBaseUrl = "http://localhost:5183";
@@ -2332,7 +2334,9 @@ else
         _currentStepHasModel = tmpl?.HasStepModel ?? false;
         _currentStepKindModelRefId = tmpl?.KindModelRefId;
         _currentStepModelMimeType = tmpl?.StepModel?.MimeType;
+        _currentStepModelOriginalFileName = tmpl?.StepModel?.OriginalFileName;
         _currentStepKindModelRefMimeType = tmpl?.KindModelRefMimeType;
+        _currentStepKindModelRefOriginalFileName = tmpl?.KindModelRefOriginalFileName;
         _pendingBuilderModelViewerInit = _currentStepHasModel || _currentStepKindModelRefId.HasValue;
         StateHasChanged();
         if (step.ServerId.HasValue && Id.HasValue)
@@ -2578,20 +2582,23 @@ else
     {
         string relativeUrl;
         string mimeType;
+        string? originalFileName;
         if (_currentStepHasModel && _currentStepTemplateId.HasValue)
         {
             relativeUrl = Api.GetStepModelDownloadUrl(_currentStepTemplateId.Value);
             mimeType = _currentStepModelMimeType ?? "";
+            originalFileName = _currentStepModelOriginalFileName;
         }
         else if (_currentStepKindModelRefId.HasValue)
         {
             relativeUrl = $"/api/kinds/{_currentStepKindModelRefId.Value}/model/download";
             mimeType = _currentStepKindModelRefMimeType ?? "";
+            originalFileName = _currentStepKindModelRefOriginalFileName;
         }
         else return;
 
         var absoluteUrl = _apiBaseUrl.TrimEnd('/') + relativeUrl;
-        var ext = GetExtensionFromMimeType(mimeType);
+        var ext = GetExtensionFromMimeType(mimeType, originalFileName);
 
         try
         {
@@ -2612,14 +2619,22 @@ else
         _builderModelViewerInitialized = false;
     }
 
-    private static string GetExtensionFromMimeType(string? mimeType) => mimeType switch
+    private static string GetExtensionFromMimeType(string? mimeType, string? originalFileName)
     {
-        "model/stl" => "stl",
-        "model/obj" => "obj",
-        "model/gltf-binary" => "glb",
-        "model/gltf+json" => "gltf",
-        _ => "glb"
-    };
+        if (!string.IsNullOrEmpty(originalFileName))
+        {
+            var ext = Path.GetExtension(originalFileName).ToLowerInvariant();
+            if (!string.IsNullOrEmpty(ext)) return ext;
+        }
+        return mimeType switch
+        {
+            "model/stl" => "stl",
+            "model/obj" => "obj",
+            "model/gltf-binary" => "glb",
+            "model/gltf+json" => "gltf",
+            _ => "glb"
+        };
+    }
 
     public async ValueTask DisposeAsync()
     {

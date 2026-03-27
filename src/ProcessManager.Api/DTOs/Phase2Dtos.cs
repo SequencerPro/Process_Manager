@@ -45,7 +45,8 @@ public record StepTemplateResponseDto(
     bool HasStepModel = false,
     Guid? KindModelRefId = null,
     string? KindModelRefName = null,
-    string? KindModelRefMimeType = null
+    string? KindModelRefMimeType = null,
+    string? KindModelRefOriginalFileName = null
 );
 
 public record StepTemplateImageResponseDto(

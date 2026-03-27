@@ -109,7 +109,9 @@ public record ProcessStepResponseDto(
     bool HasStepModel = false,
     Guid? KindModelRefId = null,
     string? StepModelMimeType = null,
-    string? KindModelRefMimeType = null
+    string? StepModelOriginalFileName = null,
+    string? KindModelRefMimeType = null,
+    string? KindModelRefOriginalFileName = null
 );
 
 // ──────────────────── ProcessStepPortOverride ────────────────────

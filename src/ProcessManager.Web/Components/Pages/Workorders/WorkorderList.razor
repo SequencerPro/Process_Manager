@@ -96,6 +96,10 @@ else if (_data is not null)
                     <button type="button" class="btn-close ms-auto" @onclick="CloseForm"></button>
                 </div>
                 <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(_formError))
+                    {
+                        <div class="alert alert-danger py-2">@_formError</div>
+                    }
                     @if (!_editId.HasValue)
                     {
                         <div class="pm-input-group">
@@ -217,6 +221,7 @@ else if (_data is not null)
     // Form
     private bool _showForm;
     private bool _saving;
+    private string? _formError;
     private Guid? _editId;
     private string _formCode = "";
     private string _formName = "";
@@ -269,6 +274,7 @@ else if (_data is not null)
     private async Task ShowCreate()
     {
         _editId = null;
+        _formError = null;
         _formCode = $"WO-{Guid.NewGuid().ToString("N")[..8].ToUpper()}";
         _formName = ""; _formDesc = ""; _formWorkflowId = ""; _formPriority = 0;
         _showForm = true;
@@ -297,7 +303,7 @@ else if (_data is not null)
 
     private void ShowEdit(WorkorderResponseDto w)
     {
-        _editId = w.Id; _formName = w.Name; _formDesc = w.Description ?? ""; _formPriority = w.Priority;
+        _editId = w.Id; _formError = null; _formName = w.Name; _formDesc = w.Description ?? ""; _formPriority = w.Priority;
         _showForm = true;
     }
 
@@ -306,19 +312,20 @@ else if (_data is not null)
     private async Task Save()
     {
         _saving = true;
+        _formError = null;
         try
         {
             if (_editId.HasValue)
                 await Api.UpdateWorkorderAsync(_editId.Value, new UpdateWorkorderDto(_formName, _formDesc, _formPriority));
             else
             {
-                if (!Guid.TryParse(_formWorkflowId, out var wfId)) { Toast.ShowError("Select a workflow."); return; }
+                if (!Guid.TryParse(_formWorkflowId, out var wfId)) { _formError = "Select a workflow."; return; }
                 await Api.CreateWorkorderAsync(new CreateWorkorderDto(_formCode, _formName, _formDesc, wfId, _formPriority));
             }
             _showForm = false;
             await LoadData();
         }
-        catch (Exception ex) { Toast.ShowError(ex.Message); }
+        catch (Exception ex) { _formError = ex.Message; }
         finally { _saving = false; }
     }
 

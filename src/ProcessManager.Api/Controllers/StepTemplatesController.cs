@@ -1245,7 +1245,8 @@ public class StepTemplatesController : ControllerBase
         step.StepModel is not null,
         step.KindModelRefId,
         step.KindModelRef?.Name,
-        step.KindModelRef?.ModelMimeType
+        step.KindModelRef?.ModelMimeType,
+        step.KindModelRef?.ModelOriginalFileName
     );
 
     private static PortResponseDto MapPortToDto(Port port) => new(

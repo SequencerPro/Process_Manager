@@ -122,8 +122,10 @@ public record StepExecutionResponseDto(
     Guid? StepTemplateId = null,
     bool HasStepModel = false,
     string? StepModelMimeType = null,
+    string? StepModelOriginalFileName = null,
     Guid? KindModelRefId = null,
-    string? KindModelRefMimeType = null);
+    string? KindModelRefMimeType = null,
+    string? KindModelRefOriginalFileName = null);
 
 public record UpdateStepExecutionNotesDto(
     string? Notes);

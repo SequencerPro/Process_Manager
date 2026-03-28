@@ -458,6 +458,90 @@ else
                 </div>
             }
 
+            <!-- Material Consumption -->
+            @if (_pickList is not null)
+            {
+                <div class="card mb-3">
+                    <div class="card-header small text-muted d-flex justify-content-between align-items-center">
+                        <span>Material Consumption</span>
+                        <span class="badge @(_consumptionConfirmed ? "bg-success" : "bg-warning text-dark")">
+                            @(_consumptionConfirmed ? "Confirmed" : _pickList.Status)
+                        </span>
+                    </div>
+                    <div class="card-body p-0">
+                        @{ var pickedLines = _pickList.Lines.Where(l => l.Status is "Picked" or "Consumed").ToList(); }
+                        @{ var shortLines = _pickList.Lines.Where(l => l.Status == "ShortShipped").ToList(); }
+
+                        @if (pickedLines.Any())
+                        {
+                            <table class="table table-sm mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="small">Material</th>
+                                        <th class="small text-center">Picked</th>
+                                        <th class="small text-center">Consumed</th>
+                                        <th class="small text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var line in pickedLines)
+                                    {
+                                        <tr>
+                                            <td class="small">
+                                                @line.KindCode — @line.KindName
+                                                @if (line.ItemSerialNumber is not null) { <span class="text-muted">(@line.ItemSerialNumber)</span> }
+                                            </td>
+                                            <td class="small text-center">@line.PickedQuantity @line.UnitOfMeasure</td>
+                                            <td class="small text-center">
+                                                @if (line.Status == "Consumed")
+                                                {
+                                                    <span>@line.ConsumedQuantity @line.UnitOfMeasure</span>
+                                                }
+                                                else
+                                                {
+                                                    <input type="number" class="form-control form-control-sm text-center" style="width:80px;display:inline-block"
+                                                           step="0.01" min="0.0001"
+                                                           value="@_consumeQuantities.GetValueOrDefault(line.Id, line.PickedQuantity)"
+                                                           @onchange="e => _consumeQuantities[line.Id] = decimal.TryParse(e.Value?.ToString(), out var v) ? v : line.PickedQuantity" />
+                                                }
+                                            </td>
+                                            <td class="small text-center">
+                                                <span class="badge @(line.Status == "Consumed" ? "bg-success" : "bg-info")">@line.Status</span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+
+                        @if (shortLines.Any())
+                        {
+                            <div class="alert alert-warning m-2 py-1 small">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>Short-shipped:
+                                @foreach (var sl in shortLines)
+                                {
+                                    <span class="badge bg-secondary ms-1">@sl.KindCode x@sl.RequiredQuantity</span>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    @if (!_consumptionConfirmed && pickedLines.Any(l => l.Status == "Picked"))
+                    {
+                        <div class="card-footer">
+                            @if (!string.IsNullOrEmpty(_consumeError))
+                            {
+                                <div class="alert alert-danger py-1 small mb-2">@_consumeError</div>
+                            }
+                            <button class="btn btn-sm btn-outline-success w-100" disabled="@_consumingSaving" @onclick="ConfirmAllConsumed">
+                                @if (_consumingSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                Confirm All Consumed
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+
             <!-- Notes -->
             <div class="mb-3">
                 <label class="form-label fw-semibold">Operator Notes</label>
@@ -573,6 +657,13 @@ else
     private string _apiBaseUrl = "http://localhost:5183";
     private const string WizardModelViewerContainerId = "model-viewer-execution-wizard";
 
+    // Phase 19 — Material consumption
+    private PickListResponseDto? _pickList;
+    private Dictionary<Guid, decimal> _consumeQuantities = new();
+    private bool _consumingSaving;
+    private bool _consumptionConfirmed;
+    private string? _consumeError;
+
     // NC modal state
     private bool _showNcModal;
     private Guid _ncContentBlockId;
@@ -615,6 +706,7 @@ else
             await LoadContent();
             await LoadPromptResponses();
             await LoadNonConformances();
+            await LoadPickList();
             _userPickerList = await Api.GetUserPickerListAsync() ?? new();
         }
         catch (Exception ex) { _error = ex.Message; }
@@ -652,6 +744,48 @@ else
     {
         var result = await Api.GetNonConformancesAsync(stepExecutionId: StepExecutionId, pageSize: 100);
         _openNcs = result?.Items ?? new();
+    }
+
+    private async Task LoadPickList()
+    {
+        if (_se is null) return;
+        try
+        {
+            var job = await Api.GetJobAsync(_se.JobId);
+            if (job?.PickListId is not null)
+            {
+                _pickList = await Api.GetPickListAsync(job.PickListId.Value);
+                if (_pickList is not null)
+                {
+                    foreach (var line in _pickList.Lines.Where(l => l.Status == "Picked"))
+                        _consumeQuantities[line.Id] = line.PickedQuantity;
+                    _consumptionConfirmed = _pickList.Lines
+                        .Where(l => l.Status is not "ShortShipped")
+                        .All(l => l.Status == "Consumed");
+                }
+            }
+        }
+        catch { /* picklist loading is non-critical */ }
+    }
+
+    private async Task ConfirmAllConsumed()
+    {
+        if (_pickList is null) return;
+        _consumingSaving = true;
+        _consumeError = null;
+        try
+        {
+            var pickedLines = _pickList.Lines.Where(l => l.Status == "Picked").ToList();
+            foreach (var line in pickedLines)
+            {
+                var qty = _consumeQuantities.GetValueOrDefault(line.Id, line.PickedQuantity);
+                await Api.ConsumeLineAsync(_pickList.Id, line.Id, new ConsumeLineDto(qty));
+            }
+            await LoadPickList();
+            _consumptionConfirmed = true;
+        }
+        catch (Exception ex) { _consumeError = ex.Message; }
+        finally { _consumingSaving = false; }
     }
 
     private void AdvanceTo(int phase)

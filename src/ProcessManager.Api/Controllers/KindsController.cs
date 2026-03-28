@@ -81,7 +81,9 @@ public class KindsController : ControllerBase
             RohsStatus = dto.RohsStatus,
             CountryOfOrigin = dto.CountryOfOrigin,
             Revision = dto.Revision,
-            Notes = dto.Notes
+            Notes = dto.Notes,
+            ReorderThreshold = dto.ReorderThreshold,
+            ReorderQuantity = dto.ReorderQuantity
         };
 
         // Vendor fields only relevant for Buy source type
@@ -128,6 +130,8 @@ public class KindsController : ControllerBase
         kind.CountryOfOrigin = dto.CountryOfOrigin;
         kind.Revision = dto.Revision;
         kind.Notes = dto.Notes;
+        kind.ReorderThreshold = dto.ReorderThreshold;
+        kind.ReorderQuantity = dto.ReorderQuantity;
 
         // Vendor fields only relevant for Buy source type — null out otherwise
         if (dto.SourceType == KindSourceType.Buy)
@@ -393,6 +397,7 @@ public class KindsController : ControllerBase
         kind.VendorName, kind.VendorPartNumber,
         kind.LeadTimeDays, kind.Weight, kind.WeightUnit,
         kind.RohsStatus, kind.CountryOfOrigin, kind.Revision, kind.Notes,
+        kind.ReorderThreshold, kind.ReorderQuantity,
         kind.ModelFileName, kind.ModelOriginalFileName, kind.ModelMimeType,
         kind.CreatedAt, kind.UpdatedAt,
         kind.Grades.OrderBy(g => g.SortOrder).Select(MapGradeToDto).ToList(),

@@ -78,6 +78,8 @@ public class JobsController : ControllerBase
 
         var process = await _db.Processes
             .Include(p => p.ProcessSteps)
+                .ThenInclude(ps => ps.StepTemplate)
+                    .ThenInclude(st => st!.Ports)
             .FirstOrDefaultAsync(p => p.Id == dto.ProcessId);
 
         if (process is null)
@@ -145,6 +147,62 @@ public class JobsController : ControllerBase
                 Sequence = ps.Sequence,
                 Status = StepExecutionStatus.Pending
             });
+        }
+
+        // ── Phase 19: Auto-generate PickList from input material ports ──
+        var inputMaterialPorts = process.ProcessSteps
+            .OrderBy(ps => ps.Sequence)
+            .SelectMany(ps => (ps.StepTemplate?.Ports ?? Enumerable.Empty<Port>())
+                .Where(p => p.Direction == PortDirection.Input
+                         && p.PortType == PortType.Material
+                         && p.KindId.HasValue))
+            .ToList();
+
+        if (inputMaterialPorts.Count > 0)
+        {
+            var pickList = new PickList
+            {
+                JobId = job.Id,
+                Status = PickListStatus.Open,
+                GeneratedAt = DateTime.UtcNow,
+                GeneratedByUserId = currentUserId ?? ""
+            };
+            _db.PickLists.Add(pickList);
+
+            foreach (var port in inputMaterialPorts)
+            {
+                var requiredQty = port.QtyRuleMode switch
+                {
+                    QuantityRuleMode.Exactly => port.QtyRuleN ?? 1,
+                    QuantityRuleMode.ZeroOrN => port.QtyRuleN ?? 1,
+                    QuantityRuleMode.Range => port.QtyRuleMin ?? 1,
+                    QuantityRuleMode.Unbounded => port.QtyRuleMin ?? 1,
+                    _ => 1
+                };
+
+                // Suggest a source location with available stock of this Kind
+                var suggestedLocationId = await _db.Items
+                    .Where(i => i.KindId == port.KindId!.Value
+                             && i.StorageLocationId != null
+                             && i.Status == ItemStatus.Available)
+                    .GroupBy(i => i.StorageLocationId)
+                    .Select(g => new { LocationId = g.Key, Count = g.Count() })
+                    .Where(g => g.Count >= requiredQty)
+                    .OrderBy(g => g.Count)
+                    .Select(g => g.LocationId)
+                    .FirstOrDefaultAsync();
+
+                _db.PickListLines.Add(new PickListLine
+                {
+                    PickListId = pickList.Id,
+                    KindId = port.KindId!.Value,
+                    SourceLocationId = suggestedLocationId,
+                    RequiredQuantity = requiredQty,
+                    Status = PickListLineStatus.Pending
+                });
+            }
+
+            job.PickListId = pickList.Id;
         }
 
         await _db.SaveChangesAsync();
@@ -446,7 +504,8 @@ public class JobsController : ControllerBase
                 : null,
             job.DocumentApprovalRequestId,
             job.DueDate,
-            job.PlannedStartDate);
+            job.PlannedStartDate,
+            job.PickListId);
     }
 
     internal static StepExecutionResponseDto MapStepExecutionToDto(StepExecution se, bool includePortTransactions = false)
@@ -520,7 +579,9 @@ public class JobsController : ControllerBase
             item.Batch?.Code,
             item.Status.ToString(),
             item.CreatedAt,
-            item.UpdatedAt);
+            item.UpdatedAt,
+            item.StorageLocationId,
+            item.StorageLocation?.Code);
     }
 
     internal static BatchResponseDto MapBatchToDto(Batch batch)

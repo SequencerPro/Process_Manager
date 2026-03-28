@@ -26,11 +26,16 @@ public class Item : BaseEntity
     /// <summary>Current lifecycle state.</summary>
     public ItemStatus Status { get; set; } = ItemStatus.Available;
 
+    /// <summary>Current warehouse location (denormalized from latest transaction).</summary>
+    public Guid? StorageLocationId { get; set; }
+
     // Navigation properties
     public Kind Kind { get; set; } = null!;
     public Grade Grade { get; set; } = null!;
     public Job Job { get; set; } = null!;
     public Batch? Batch { get; set; }
+    public StorageLocation? StorageLocation { get; set; }
     public ICollection<PortTransaction> PortTransactions { get; set; } = new List<PortTransaction>();
     public ICollection<ExecutionData> ExecutionData { get; set; } = new List<ExecutionData>();
+    public ICollection<InventoryTransaction> InventoryTransactions { get; set; } = new List<InventoryTransaction>();
 }

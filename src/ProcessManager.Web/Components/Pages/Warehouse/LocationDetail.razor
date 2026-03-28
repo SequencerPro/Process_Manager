@@ -1,0 +1,292 @@
+@page "/warehouse/locations/{Id:guid}"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject TokenService TokenService
+@using Microsoft.AspNetCore.Authorization
+@using ProcessManager.Api.DTOs
+@using ProcessManager.Web.Services
+
+<PageTitle>Location Detail</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>
+}
+else if (_detail is null)
+{
+    <div class="alert alert-danger">Location not found.</div>
+}
+else
+{
+    @* ── Header Card ── *@
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h3 class="mb-1">@_detail.Code &mdash; @_detail.Name</h3>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb mb-0">
+                            @if (!string.IsNullOrWhiteSpace(_detail.Zone)) { <li class="breadcrumb-item">@_detail.Zone</li> }
+                            @if (!string.IsNullOrWhiteSpace(_detail.Aisle)) { <li class="breadcrumb-item">@_detail.Aisle</li> }
+                            @if (!string.IsNullOrWhiteSpace(_detail.Bay)) { <li class="breadcrumb-item">@_detail.Bay</li> }
+                            @if (!string.IsNullOrWhiteSpace(_detail.Bin)) { <li class="breadcrumb-item active">@_detail.Bin</li> }
+                        </ol>
+                    </nav>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    @if (_detail.IsActive)
+                    {
+                        <span class="badge bg-success fs-6">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary fs-6">Inactive</span>
+                    }
+                    <button class="btn btn-primary" @onclick="OpenTransactionModal"><i class="bi bi-plus-lg me-1"></i>Record Transaction</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ── On-Hand Items ── *@
+    <div class="card mb-4">
+        <div class="card-header"><i class="bi bi-box me-2"></i>On-Hand Items</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Kind Code</th>
+                            <th>Kind Name</th>
+                            <th>Qty On Hand</th>
+                            <th>UoM</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_detail.OnHandItems is { Count: > 0 })
+                        {
+                            @foreach (var item in _detail.OnHandItems)
+                            {
+                                <tr>
+                                    <td>@item.KindCode</td>
+                                    <td>@item.KindName</td>
+                                    <td>@item.QuantityOnHand</td>
+                                    <td>@item.UnitOfMeasure</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="4" class="text-muted text-center py-3">No items on hand.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    @* ── Child Locations ── *@
+    <div class="card mb-4">
+        <div class="card-header"><i class="bi bi-diagram-3 me-2"></i>Child Locations</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Code</th>
+                            <th>Name</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_detail.ChildLocations is { Count: > 0 })
+                        {
+                            @foreach (var child in _detail.ChildLocations)
+                            {
+                                <tr>
+                                    <td><a href="/warehouse/locations/@child.Id">@child.Code</a></td>
+                                    <td>@child.Name</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="2" class="text-muted text-center py-3">No child locations.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    @* ── Transaction History ── *@
+    <div class="card mb-4">
+        <div class="card-header"><i class="bi bi-arrow-left-right me-2"></i>Transaction History</div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Type</th>
+                            <th>Kind Code</th>
+                            <th>Quantity</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_detail.RecentTransactions is { Count: > 0 })
+                        {
+                            @foreach (var tx in _detail.RecentTransactions)
+                            {
+                                <tr>
+                                    <td><span class="badge bg-secondary">@tx.TransactionType</span></td>
+                                    <td>@tx.KindCode</td>
+                                    <td>@tx.Quantity</td>
+                                    <td>@tx.FromLocationCode</td>
+                                    <td>@tx.ToLocationCode</td>
+                                    <td>@tx.TransactedAt.ToString("g")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="6" class="text-muted text-center py-3">No transactions recorded.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Record Transaction Modal ── *@
+@if (_showTransactionModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Record Transaction</h5>
+                    <button type="button" class="btn-close" @onclick="CloseTransactionModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Transaction Type</label>
+                        <select class="form-select" @bind="_txType">
+                            <option value="">-- Select --</option>
+                            <option value="Receipt">Receipt</option>
+                            <option value="Issue">Issue</option>
+                            <option value="Transfer">Transfer</option>
+                            <option value="Adjustment">Adjustment</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Item ID</label>
+                        <input class="form-control" @bind="_txItemId" placeholder="GUID" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">From Location ID</label>
+                        <input class="form-control" @bind="_txFromLocationId" placeholder="GUID (optional)" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">To Location ID</label>
+                        <input class="form-control" @bind="_txToLocationId" placeholder="GUID (optional)" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" class="form-control" @bind="_txQuantity" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" @bind="_txNotes"></textarea>
+                    </div>
+                    @if (_error is not null)
+                    {
+                        <div class="alert alert-danger">@_error</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseTransactionModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SubmitTransactionAsync" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Submit
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private StorageLocationDetailDto? _detail;
+
+    // Transaction modal
+    private bool _showTransactionModal;
+    private string _txType = "";
+    private string _txItemId = "";
+    private string _txFromLocationId = "";
+    private string _txToLocationId = "";
+    private decimal _txQuantity;
+    private string _txNotes = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _detail = await Api.GetWarehouseLocationAsync(Id);
+        }
+        catch { /* handled by null check */ }
+        finally { _loading = false; }
+    }
+
+    private void OpenTransactionModal()
+    {
+        _txType = "";
+        _txItemId = "";
+        _txFromLocationId = "";
+        _txToLocationId = "";
+        _txQuantity = 0;
+        _txNotes = "";
+        _error = null;
+        _showTransactionModal = true;
+    }
+
+    private void CloseTransactionModal()
+    {
+        _showTransactionModal = false;
+        _error = null;
+    }
+
+    private async Task SubmitTransactionAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            Guid? fromLocId = Guid.TryParse(_txFromLocationId, out var fl) ? fl : null;
+            Guid? toLocId = Guid.TryParse(_txToLocationId, out var tl) ? tl : null;
+            Guid? itemId = Guid.TryParse(_txItemId, out var iid) ? iid : null;
+
+            await Api.CreateInventoryTransactionAsync(new CreateInventoryTransactionDto(
+                _txType, itemId!.Value, fromLocId, toLocId, _txQuantity,
+                string.IsNullOrWhiteSpace(_txNotes) ? null : _txNotes));
+
+            CloseTransactionModal();
+
+            // Reload detail
+            _loading = true;
+            _detail = await Api.GetWarehouseLocationAsync(Id);
+            _loading = false;
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+}

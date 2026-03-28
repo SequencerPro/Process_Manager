@@ -40,7 +40,7 @@ public class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "2.1";
+    private const string ServerVersion   = "2.2";
 
     public McpController(ProcessManagerDbContext db) => _db = db;
 
@@ -190,6 +190,11 @@ public class McpController : ControllerBase
                  "List maintenance tasks that are Overdue or Due across all equipment, ordered by due date ascending. Requires authentication.",
                  Schema(
                      ("status", "string", "Optional: Overdue, Due, or InProgress — leave empty for Overdue and Due"))),
+
+            Tool("get_inventory_status",
+                 "On-hand inventory counts grouped by Kind, with optional location filter and low-stock-only flag",
+                 Schema(("location_id", "string", "Optional storage location GUID to filter results"),
+                        ("low_stock_only", "string", "If 'true', only return Kinds below their ReorderThreshold"))),
         }
     };
 
@@ -275,6 +280,7 @@ public class McpController : ControllerBase
             "get_production_status"          => OkResponse(id, TextContent(await ToolGetProductionStatus())),
             "list_equipment_downtime"        => OkResponse(id, TextContent(await ToolListEquipmentDowntime(args))),
             "list_overdue_maintenance"       => OkResponse(id, TextContent(await ToolListOverdueMaintenance(args))),
+            "get_inventory_status"           => OkResponse(id, TextContent(await ToolGetInventoryStatus(args))),
             _                               => ErrorResponse(id, -32602, $"Unknown tool: {toolName}")
         };
     }
@@ -1222,6 +1228,72 @@ public class McpController : ControllerBase
         sb.AppendLine("|---|---|---|---|---|---|");
         foreach (var t in tasks)
             sb.AppendLine($"| {t.Equipment?.Code ?? "?"} | {t.Title} | {t.Type} | {t.DueDate:MMM d, yyyy} | {t.AssignedTo ?? "—"} | **{t.Status}** |");
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolGetInventoryStatus(JsonElement args)
+    {
+        var locationIdStr = args.TryGetProperty("location_id",    out var li) ? li.GetString()?.Trim() : null;
+        var lowStockStr   = args.TryGetProperty("low_stock_only", out var ls) ? ls.GetString()?.Trim() : null;
+
+        Guid? locationId  = Guid.TryParse(locationIdStr, out var locGuid) ? locGuid : null;
+        bool  lowStockOnly = string.Equals(lowStockStr, "true", StringComparison.OrdinalIgnoreCase);
+
+        var query = _db.Items
+            .AsNoTracking()
+            .Include(i => i.Kind)
+            .Include(i => i.StorageLocation)
+            .Where(i => i.StorageLocationId != null);
+
+        if (locationId.HasValue)
+            query = query.Where(i => i.StorageLocationId == locationId.Value);
+
+        var items = await query.ToListAsync();
+
+        var groups = items
+            .GroupBy(i => i.KindId)
+            .Select(g =>
+            {
+                var kind     = g.First().Kind;
+                var count    = g.Count();
+                var location = g.Select(i => i.StorageLocation?.Code).Distinct().OrderBy(c => c).ToList();
+                return new
+                {
+                    KindCode          = kind.Code,
+                    KindName          = kind.Name,
+                    OnHand            = count,
+                    UoM               = kind.UnitOfMeasure ?? "Each",
+                    Location          = string.Join(", ", location),
+                    ReorderThreshold  = kind.ReorderThreshold,
+                };
+            })
+            .OrderBy(x => x.KindCode)
+            .ToList();
+
+        if (lowStockOnly)
+            groups = groups.Where(x => x.ReorderThreshold.HasValue && x.OnHand < (int)x.ReorderThreshold.Value).ToList();
+
+        if (!groups.Any())
+            return lowStockOnly
+                ? "No Kinds are currently below their reorder threshold."
+                : "No items with a storage location found.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Inventory Status ({groups.Count} Kind(s))\n");
+        sb.AppendLine("| Kind Code | Kind Name | On Hand | UoM | Location | Reorder Threshold |");
+        sb.AppendLine("|---|---|---:|---|---|---:|");
+
+        foreach (var g in groups)
+        {
+            var threshold = g.ReorderThreshold.HasValue ? g.ReorderThreshold.Value.ToString("0") : "—";
+            var flag      = g.ReorderThreshold.HasValue && g.OnHand < (int)g.ReorderThreshold.Value ? " ⚠️" : "";
+            sb.AppendLine($"| `{g.KindCode}` | {g.KindName} | {g.OnHand}{flag} | {g.UoM} | {g.Location} | {threshold} |");
+        }
+
+        var belowThreshold = groups.Count(x => x.ReorderThreshold.HasValue && x.OnHand < (int)x.ReorderThreshold.Value);
+        if (belowThreshold > 0)
+            sb.AppendLine($"\n⚠️ **{belowThreshold} Kind(s) below reorder threshold.**");
 
         return sb.ToString();
     }

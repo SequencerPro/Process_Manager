@@ -65,7 +65,15 @@ public class Kind : BaseEntity
     /// <summary>Free-form notes.</summary>
     public string? Notes { get; set; }
 
-    // ──────────── 3D Model ────────────
+    // ──────────── Reorder Thresholds ────────────
+
+    /// <summary>On-hand quantity below which a reorder alert is raised.</summary>
+    public decimal? ReorderThreshold { get; set; }
+
+    /// <summary>Suggested quantity to reorder when below threshold.</summary>
+    public decimal? ReorderQuantity { get; set; }
+
+    // ──────────── 3D Model ─���──────────
 
     /// <summary>GUID-based filename of the 3D model stored on disk (STL, OBJ, GLB, GLTF).</summary>
     public string? ModelFileName { get; set; }

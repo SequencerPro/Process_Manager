@@ -1,0 +1,412 @@
+@page "/warehouse/locations"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject TokenService TokenService
+@using Microsoft.AspNetCore.Authorization
+@using ProcessManager.Api.DTOs
+@using ProcessManager.Web.Services
+
+<PageTitle>Storage Locations</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="mb-0"><i class="bi bi-geo-alt me-2"></i>Storage Locations</h3>
+    <button class="btn btn-primary" @onclick="OpenCreateModal"><i class="bi bi-plus-lg me-1"></i>New Location</button>
+</div>
+
+@* ── Filters ── *@
+<div class="row g-2 mb-3">
+    <div class="col-md-4">
+        <input type="text" class="form-control" placeholder="Search by code or name..." @bind="_search" @bind:event="oninput" @onkeyup="OnSearchKeyUp" />
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" @bind="_zoneFilter" @bind:after="LoadDataAsync">
+            <option value="">All Zones</option>
+            @foreach (var z in _zones)
+            {
+                <option value="@z">@z</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" @bind="_activeFilter" @bind:after="LoadDataAsync">
+            <option value="">All</option>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-outline-secondary w-100" @onclick="LoadDataAsync"><i class="bi bi-search me-1"></i>Search</button>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Zone</th>
+                    <th>Aisle</th>
+                    <th>Bay</th>
+                    <th>Bin</th>
+                    <th>Items</th>
+                    <th>Active</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_locations?.Items is { Count: > 0 })
+                {
+                    @foreach (var loc in _locations.Items)
+                    {
+                        <tr>
+                            <td><a href="/warehouse/locations/@loc.Id">@loc.Code</a></td>
+                            <td>@loc.Name</td>
+                            <td>@loc.Zone</td>
+                            <td>@loc.Aisle</td>
+                            <td>@loc.Bay</td>
+                            <td>@loc.Bin</td>
+                            <td><span class="badge bg-info">@loc.ItemCount</span></td>
+                            <td>
+                                @if (loc.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Inactive</span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenEditModal(loc)"><i class="bi bi-pencil"></i></button>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="9" class="text-muted text-center py-3">No locations found.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @* ── Pagination ── *@
+    @if (_locations is not null && _locations.TotalPages > 1)
+    {
+        <nav>
+            <ul class="pagination justify-content-center">
+                <li class="page-item @(_page <= 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => GoToPage(_page - 1)">Previous</button>
+                </li>
+                @for (int i = 1; i <= _locations.TotalPages; i++)
+                {
+                    var p = i;
+                    <li class="page-item @(p == _page ? "active" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(p)">@p</button>
+                    </li>
+                }
+                <li class="page-item @(_page >= _locations.TotalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => GoToPage(_page + 1)">Next</button>
+                </li>
+            </ul>
+        </nav>
+    }
+}
+
+@* ── Create / Edit Modal ── *@
+@if (_showCreateModal || (_showEditModal && _editLocation is not null))
+{
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon @(_showEditModal ? "pm-modal-icon-blue" : "pm-modal-icon-green")">
+                        <i class="bi @(_showEditModal ? "bi-pencil-square" : "bi-plus-circle")"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">@(_showEditModal ? "Edit" : "New") Storage Location</h5>
+                        <div class="pm-modal-subtitle">@(_showEditModal ? $"Update details for {_editLocation?.Code}" : "Define a new warehouse storage location")</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="CloseModals"></button>
+                </div>
+                <div class="modal-body" style="max-height:70vh; overflow-y:auto">
+
+                    <div class="pm-modal-divider">Identification</div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-upc-scan"></i> Code</label>
+                        @if (_showEditModal)
+                        {
+                            <input class="form-control" value="@_editLocation?.Code" disabled />
+                        }
+                        else
+                        {
+                            <input class="form-control" @bind="_createCode" placeholder="e.g. RAW-A1-B2" />
+                        }
+                    </div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Name</label>
+                        @if (_showEditModal)
+                        {
+                            <input class="form-control" @bind="_editName" placeholder="e.g. Raw Materials Bay 2" />
+                        }
+                        else
+                        {
+                            <input class="form-control" @bind="_createName" placeholder="e.g. Raw Materials Bay 2" />
+                        }
+                    </div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-card-text"></i> Description</label>
+                        @if (_showEditModal)
+                        {
+                            <textarea class="form-control" rows="2" @bind="_editDescription" placeholder="Optional description..."></textarea>
+                        }
+                        else
+                        {
+                            <textarea class="form-control" rows="2" @bind="_createDescription" placeholder="Optional description..."></textarea>
+                        }
+                    </div>
+
+                    <div class="pm-modal-divider">Address</div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Zone</label>
+                            @if (_showEditModal)
+                            {
+                                <input class="form-control form-control-sm" @bind="_editZone" placeholder="e.g. Raw Materials" />
+                            }
+                            else
+                            {
+                                <input class="form-control form-control-sm" @bind="_createZone" placeholder="e.g. Raw Materials" />
+                            }
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Aisle</label>
+                            @if (_showEditModal)
+                            {
+                                <input class="form-control form-control-sm" @bind="_editAisle" placeholder="e.g. A1" />
+                            }
+                            else
+                            {
+                                <input class="form-control form-control-sm" @bind="_createAisle" placeholder="e.g. A1" />
+                            }
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Bay</label>
+                            @if (_showEditModal)
+                            {
+                                <input class="form-control form-control-sm" @bind="_editBay" placeholder="e.g. B2" />
+                            }
+                            else
+                            {
+                                <input class="form-control form-control-sm" @bind="_createBay" placeholder="e.g. B2" />
+                            }
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Bin</label>
+                            @if (_showEditModal)
+                            {
+                                <input class="form-control form-control-sm" @bind="_editBin" placeholder="e.g. 01" />
+                            }
+                            else
+                            {
+                                <input class="form-control form-control-sm" @bind="_createBin" placeholder="e.g. 01" />
+                            }
+                        </div>
+                    </div>
+
+                    @if (_showEditModal)
+                    {
+                        <div class="pm-modal-divider">Status</div>
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <div>
+                                <div class="small fw-semibold">Active</div>
+                                <div class="text-muted" style="font-size:.7rem">Inactive locations cannot receive new stock</div>
+                            </div>
+                            <div class="form-check form-switch mb-0">
+                                <input type="checkbox" class="form-check-input" @bind="_editIsActive" />
+                            </div>
+                        </div>
+                    }
+
+                    @if (_error is not null)
+                    {
+                        <div class="alert alert-danger mt-3">@_error</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseModals">Cancel</button>
+                    @if (_showEditModal)
+                    {
+                        <button class="btn btn-primary" @onclick="UpdateLocationAsync" disabled="@_saving">
+                            @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                            <i class="bi bi-check-lg"></i> Save Changes
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-primary" @onclick="CreateLocationAsync" disabled="@_saving">
+                            @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                            <i class="bi bi-plus-lg"></i> Create Location
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private int _page = 1;
+    private const int PageSize = 20;
+    private string _search = "";
+    private string _zoneFilter = "";
+    private string _activeFilter = "";
+    private List<string> _zones = new();
+    private PaginatedResponse<StorageLocationResponseDto>? _locations;
+
+    // Create modal
+    private bool _showCreateModal;
+    private string _createCode = "", _createName = "", _createZone = "", _createAisle = "", _createBay = "", _createBin = "";
+    private string _createDescription = "";
+
+    // Edit modal
+    private bool _showEditModal;
+    private StorageLocationResponseDto? _editLocation;
+    private string _editName = "", _editZone = "", _editAisle = "", _editBay = "", _editBin = "", _editDescription = "";
+    private bool _editIsActive = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _loading = true;
+        try
+        {
+            bool? isActive = string.IsNullOrEmpty(_activeFilter) ? null : bool.Parse(_activeFilter);
+            _locations = await Api.GetWarehouseLocationsAsync(
+                search: string.IsNullOrWhiteSpace(_search) ? null : _search,
+                zone: string.IsNullOrWhiteSpace(_zoneFilter) ? null : _zoneFilter,
+                active: isActive,
+                page: _page,
+                pageSize: PageSize);
+
+            // Build zone list from results for filter
+            if (_locations?.Items is not null)
+            {
+                var newZones = _locations.Items
+                    .Where(l => !string.IsNullOrWhiteSpace(l.Zone))
+                    .Select(l => l.Zone!)
+                    .Distinct()
+                    .OrderBy(z => z)
+                    .ToList();
+                if (newZones.Count > _zones.Count)
+                    _zones = newZones;
+            }
+        }
+        catch { /* handled by null check */ }
+        finally { _loading = false; }
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            _page = 1;
+            await LoadDataAsync();
+        }
+    }
+
+    private async Task GoToPage(int page)
+    {
+        _page = page;
+        await LoadDataAsync();
+    }
+
+    private void OpenCreateModal()
+    {
+        _createCode = _createName = _createZone = _createAisle = _createBay = _createBin = _createDescription = "";
+        _error = null;
+        _showCreateModal = true;
+    }
+
+    private void OpenEditModal(StorageLocationResponseDto loc)
+    {
+        _editLocation = loc;
+        _editName = loc.Name ?? "";
+        _editZone = loc.Zone ?? "";
+        _editAisle = loc.Aisle ?? "";
+        _editBay = loc.Bay ?? "";
+        _editBin = loc.Bin ?? "";
+        _editDescription = loc.Description ?? "";
+        _editIsActive = loc.IsActive;
+        _error = null;
+        _showEditModal = true;
+    }
+
+    private void CloseModals()
+    {
+        _showCreateModal = false;
+        _showEditModal = false;
+        _error = null;
+    }
+
+    private async Task CreateLocationAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            await Api.CreateStorageLocationAsync(new CreateStorageLocationDto(
+                _createCode, _createName,
+                string.IsNullOrWhiteSpace(_createZone) ? null : _createZone,
+                string.IsNullOrWhiteSpace(_createAisle) ? null : _createAisle,
+                string.IsNullOrWhiteSpace(_createBay) ? null : _createBay,
+                string.IsNullOrWhiteSpace(_createBin) ? null : _createBin,
+                null,
+                string.IsNullOrWhiteSpace(_createDescription) ? null : _createDescription));
+            CloseModals();
+            _page = 1;
+            await LoadDataAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+
+    private async Task UpdateLocationAsync()
+    {
+        if (_editLocation is null) return;
+        _saving = true;
+        _error = null;
+        try
+        {
+            await Api.UpdateStorageLocationAsync(_editLocation.Id, new UpdateStorageLocationDto(
+                _editName,
+                string.IsNullOrWhiteSpace(_editZone) ? null : _editZone,
+                string.IsNullOrWhiteSpace(_editAisle) ? null : _editAisle,
+                string.IsNullOrWhiteSpace(_editBay) ? null : _editBay,
+                string.IsNullOrWhiteSpace(_editBin) ? null : _editBin,
+                null,
+                string.IsNullOrWhiteSpace(_editDescription) ? null : _editDescription,
+                _editIsActive));
+            CloseModals();
+            await LoadDataAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _saving = false; }
+    }
+}

@@ -1,0 +1,139 @@
+@page "/picklists"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject TokenService TokenService
+@using Microsoft.AspNetCore.Authorization
+@using ProcessManager.Api.DTOs
+@using ProcessManager.Web.Services
+
+<PageTitle>Pick Lists</PageTitle>
+
+<h3 class="mb-4"><i class="bi bi-card-checklist me-2"></i>Pick Lists</h3>
+
+@* ── Filters ── *@
+<div class="row g-2 mb-3">
+    <div class="col-md-3">
+        <select class="form-select" @bind="_statusFilter" @bind:after="LoadDataAsync">
+            <option value="">All Statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="InProgress">In Progress</option>
+            <option value="Completed">Completed</option>
+            <option value="ShortShipped">Short Shipped</option>
+        </select>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5"><div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div></div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>Job Code</th>
+                    <th>Status</th>
+                    <th>Lines</th>
+                    <th>Short-Shipped</th>
+                    <th>Generated</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_pickLists?.Items is { Count: > 0 })
+                {
+                    @foreach (var pl in _pickLists.Items)
+                    {
+                        <tr role="button" @onclick="@(() => Nav.NavigateTo("/picklists/" + pl.Id))">
+                            <td><a href="/jobs/@pl.JobId">@pl.JobCode</a></td>
+                            <td><span class="badge @GetStatusBadgeClass(pl.Status)">@pl.Status</span></td>
+                            <td>@pl.LineCount</td>
+                            <td>
+                                @if (pl.ShortShippedCount > 0)
+                                {
+                                    <span class="badge bg-warning text-dark">@pl.ShortShippedCount</span>
+                                }
+                                else
+                                {
+                                    <span>0</span>
+                                }
+                            </td>
+                            <td>@pl.GeneratedAt.ToString("g")</td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="5" class="text-muted text-center py-3">No pick lists found.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @* ── Pagination ── *@
+    @if (_pickLists is not null && _pickLists.TotalPages > 1)
+    {
+        <nav>
+            <ul class="pagination justify-content-center">
+                <li class="page-item @(_page <= 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => GoToPage(_page - 1)">Previous</button>
+                </li>
+                @for (int i = 1; i <= _pickLists.TotalPages; i++)
+                {
+                    var p = i;
+                    <li class="page-item @(p == _page ? "active" : "")">
+                        <button class="page-link" @onclick="() => GoToPage(p)">@p</button>
+                    </li>
+                }
+                <li class="page-item @(_page >= _pickLists.TotalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => GoToPage(_page + 1)">Next</button>
+                </li>
+            </ul>
+        </nav>
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private int _page = 1;
+    private const int PageSize = 20;
+    private string _statusFilter = "";
+    private PaginatedResponse<PickListSummaryDto>? _pickLists;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _loading = true;
+        try
+        {
+            _pickLists = await Api.GetPickListsAsync(
+                status: string.IsNullOrWhiteSpace(_statusFilter) ? null : _statusFilter,
+                page: _page,
+                pageSize: PageSize);
+        }
+        catch { /* handled by null check */ }
+        finally { _loading = false; }
+    }
+
+    private async Task GoToPage(int page)
+    {
+        _page = page;
+        await LoadDataAsync();
+    }
+
+    private static string GetStatusBadgeClass(string? status) => status switch
+    {
+        "Pending" => "bg-warning text-dark",
+        "InProgress" => "bg-info",
+        "Completed" => "bg-success",
+        "ShortShipped" => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

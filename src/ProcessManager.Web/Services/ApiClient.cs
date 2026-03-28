@@ -2206,4 +2206,97 @@ public class ApiClient
         // Fallback: raw text
         return body.Trim('"');
     }
+
+    // ═══════════════════ Phase 19: Warehouse Management ═══════════════════
+
+    // ── Storage Locations ──
+
+    public Task<PaginatedResponse<StorageLocationResponseDto>?> GetWarehouseLocationsAsync(
+        string? search = null, string? zone = null, bool? active = null,
+        Guid? parentId = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<StorageLocationResponseDto>>(
+            $"api/warehouse/locations?search={E(search)}&zone={E(zone)}&active={active}&parentId={parentId}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<StorageLocationDetailDto?> GetWarehouseLocationAsync(Guid id)
+        => _http.GetFromJsonAsync<StorageLocationDetailDto>($"api/warehouse/locations/{id}", _json);
+
+    public async Task<StorageLocationResponseDto?> CreateStorageLocationAsync(CreateStorageLocationDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/warehouse/locations", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<StorageLocationResponseDto>(_json);
+    }
+
+    public async Task<StorageLocationResponseDto?> UpdateStorageLocationAsync(Guid id, UpdateStorageLocationDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/warehouse/locations/{id}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<StorageLocationResponseDto>(_json);
+    }
+
+    public async Task DeactivateStorageLocationAsync(Guid id)
+    {
+        var r = await _http.DeleteAsync($"api/warehouse/locations/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    // ── Inventory ──
+
+    public Task<List<OnHandSummaryDto>?> GetOnHandAsync(
+        Guid? locationId = null, Guid? kindId = null, string? zone = null, bool lowStockOnly = false)
+        => _http.GetFromJsonAsync<List<OnHandSummaryDto>>(
+            $"api/warehouse/on-hand?locationId={locationId}&kindId={kindId}&zone={E(zone)}&lowStockOnly={lowStockOnly}", _json);
+
+    public async Task<InventoryTransactionResponseDto?> CreateInventoryTransactionAsync(CreateInventoryTransactionDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/warehouse/transactions", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<InventoryTransactionResponseDto>(_json);
+    }
+
+    public Task<PaginatedResponse<InventoryTransactionResponseDto>?> GetTransactionsAsync(
+        Guid? itemId = null, Guid? locationId = null, string? transactionType = null,
+        DateTime? dateFrom = null, DateTime? dateTo = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<InventoryTransactionResponseDto>>(
+            $"api/warehouse/transactions?itemId={itemId}&locationId={locationId}&transactionType={E(transactionType)}&dateFrom={dateFrom:O}&dateTo={dateTo:O}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<WarehouseDashboardDto?> GetWarehouseDashboardAsync()
+        => _http.GetFromJsonAsync<WarehouseDashboardDto>("api/warehouse/dashboard", _json);
+
+    public async Task<List<InventoryTransactionResponseDto>?> ReceiveItemsToWarehouseAsync(ReceiveItemsToWarehouseDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/warehouse/receive-from-job", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<List<InventoryTransactionResponseDto>>(_json);
+    }
+
+    // ── PickLists ──
+
+    public Task<PaginatedResponse<PickListSummaryDto>?> GetPickListsAsync(string? status = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<PickListSummaryDto>>(
+            $"api/picklists?status={E(status)}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<PickListResponseDto?> GetPickListAsync(Guid id)
+        => _http.GetFromJsonAsync<PickListResponseDto>($"api/picklists/{id}", _json);
+
+    public async Task<PickListLineResponseDto?> PickLineAsync(Guid pickListId, Guid lineId, PickLineDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/picklists/{pickListId}/lines/{lineId}/pick", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PickListLineResponseDto>(_json);
+    }
+
+    public async Task<PickListLineResponseDto?> ConsumeLineAsync(Guid pickListId, Guid lineId, ConsumeLineDto dto)
+    {
+        var r = await _http.PostAsJsonAsync($"api/picklists/{pickListId}/lines/{lineId}/consume", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PickListLineResponseDto>(_json);
+    }
+
+    public async Task<PickListResponseDto?> ShortShipPickListAsync(Guid pickListId)
+    {
+        var r = await _http.PostAsync($"api/picklists/{pickListId}/short-ship", null);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PickListResponseDto>(_json);
+    }
 }

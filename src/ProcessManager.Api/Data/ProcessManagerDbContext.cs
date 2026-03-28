@@ -114,6 +114,12 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<MaintenanceTrigger> MaintenanceTriggers => Set<MaintenanceTrigger>();
     public DbSet<MaintenanceTask> MaintenanceTasks => Set<MaintenanceTask>();
 
+    // Phase 19: Warehouse Management
+    public DbSet<StorageLocation> StorageLocations => Set<StorageLocation>();
+    public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
+    public DbSet<PickList> PickLists => Set<PickList>();
+    public DbSet<PickListLine> PickListLines => Set<PickListLine>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -137,6 +143,8 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(k => k.CountryOfOrigin).HasMaxLength(100);
             e.Property(k => k.Revision).HasMaxLength(50);
             e.Property(k => k.Notes).HasMaxLength(2000);
+            e.Property(k => k.ReorderThreshold).HasColumnType("decimal(18,4)");
+            e.Property(k => k.ReorderQuantity).HasColumnType("decimal(18,4)");
             e.Property(k => k.ModelFileName).HasMaxLength(500);
             e.Property(k => k.ModelOriginalFileName).HasMaxLength(500);
             e.Property(k => k.ModelMimeType).HasMaxLength(100);
@@ -572,6 +580,12 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(j => j.WorkorderId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(j => j.PickList)
+                .WithOne(pl => pl.Job)
+                .HasForeignKey<Job>(j => j.PickListId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // --- Item ---
@@ -602,6 +616,12 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne(i => i.Batch)
                 .WithMany(b => b.Items)
                 .HasForeignKey(i => i.BatchId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(i => i.StorageLocation)
+                .WithMany(sl => sl.Items)
+                .HasForeignKey(i => i.StorageLocationId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
@@ -1401,6 +1421,96 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(m => m.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- StorageLocation ---
+        modelBuilder.Entity<StorageLocation>(e =>
+        {
+            e.HasKey(sl => sl.Id);
+            e.HasIndex(sl => sl.Code).IsUnique();
+            e.Property(sl => sl.Code).HasMaxLength(50).IsRequired();
+            e.Property(sl => sl.Name).HasMaxLength(200).IsRequired();
+            e.Property(sl => sl.Zone).HasMaxLength(50);
+            e.Property(sl => sl.Aisle).HasMaxLength(50);
+            e.Property(sl => sl.Bay).HasMaxLength(50);
+            e.Property(sl => sl.Bin).HasMaxLength(50);
+            e.Property(sl => sl.Description).HasMaxLength(2000);
+            e.Property(sl => sl.IsActive).HasDefaultValue(true);
+
+            e.HasOne(sl => sl.Parent)
+                .WithMany(sl => sl.Children)
+                .HasForeignKey(sl => sl.ParentId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- InventoryTransaction ---
+        modelBuilder.Entity<InventoryTransaction>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.TransactionType).HasConversion<string>().HasMaxLength(30);
+            e.Property(t => t.ReferenceType).HasConversion<string>().HasMaxLength(30);
+            e.Property(t => t.Quantity).HasColumnType("decimal(18,4)");
+            e.Property(t => t.TransactedByUserId).HasMaxLength(450).IsRequired();
+            e.Property(t => t.Notes).HasMaxLength(2000);
+
+            e.HasOne(t => t.Item)
+                .WithMany(i => i.InventoryTransactions)
+                .HasForeignKey(t => t.ItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(t => t.FromLocation)
+                .WithMany()
+                .HasForeignKey(t => t.FromLocationId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(t => t.ToLocation)
+                .WithMany()
+                .HasForeignKey(t => t.ToLocationId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- PickList ---
+        modelBuilder.Entity<PickList>(e =>
+        {
+            e.HasKey(pl => pl.Id);
+            e.Property(pl => pl.Status).HasConversion<string>().HasMaxLength(30);
+            e.Property(pl => pl.GeneratedByUserId).HasMaxLength(450).IsRequired();
+        });
+
+        // --- PickListLine ---
+        modelBuilder.Entity<PickListLine>(e =>
+        {
+            e.HasKey(l => l.Id);
+            e.Property(l => l.Status).HasConversion<string>().HasMaxLength(30);
+            e.Property(l => l.RequiredQuantity).HasColumnType("decimal(18,4)");
+            e.Property(l => l.PickedQuantity).HasColumnType("decimal(18,4)");
+            e.Property(l => l.ConsumedQuantity).HasColumnType("decimal(18,4)");
+            e.Property(l => l.Notes).HasMaxLength(2000);
+
+            e.HasOne(l => l.PickList)
+                .WithMany(pl => pl.Lines)
+                .HasForeignKey(l => l.PickListId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(l => l.Kind)
+                .WithMany()
+                .HasForeignKey(l => l.KindId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(l => l.Item)
+                .WithMany()
+                .HasForeignKey(l => l.ItemId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(l => l.SourceLocation)
+                .WithMany()
+                .HasForeignKey(l => l.SourceLocationId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 

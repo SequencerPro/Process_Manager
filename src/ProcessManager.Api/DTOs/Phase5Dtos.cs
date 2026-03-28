@@ -39,7 +39,8 @@ public record JobResponseDto(
     List<StepExecutionResponseDto>? StepExecutions = null,
     Guid? DocumentApprovalRequestId = null,
     DateTime? DueDate = null,
-    DateTime? PlannedStartDate = null);
+    DateTime? PlannedStartDate = null,
+    Guid? PickListId = null);
 
 // ───── Item ─────
 
@@ -67,7 +68,9 @@ public record ItemResponseDto(
     string? BatchCode,
     string Status,
     DateTime CreatedAt,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    Guid? StorageLocationId = null,
+    string? StorageLocationCode = null);
 
 // ───── Batch ─────
 

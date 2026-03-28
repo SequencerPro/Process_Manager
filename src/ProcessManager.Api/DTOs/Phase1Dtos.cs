@@ -24,7 +24,10 @@ public record KindCreateDto(
     [StringLength(50)] string? RohsStatus = null,
     [StringLength(100)] string? CountryOfOrigin = null,
     [StringLength(50)] string? Revision = null,
-    [StringLength(2000)] string? Notes = null
+    [StringLength(2000)] string? Notes = null,
+    // Reorder thresholds
+    decimal? ReorderThreshold = null,
+    decimal? ReorderQuantity = null
 );
 
 public record KindUpdateDto(
@@ -45,7 +48,10 @@ public record KindUpdateDto(
     [StringLength(50)] string? RohsStatus = null,
     [StringLength(100)] string? CountryOfOrigin = null,
     [StringLength(50)] string? Revision = null,
-    [StringLength(2000)] string? Notes = null
+    [StringLength(2000)] string? Notes = null,
+    // Reorder thresholds
+    decimal? ReorderThreshold = null,
+    decimal? ReorderQuantity = null
 );
 
 public record KindResponseDto(
@@ -69,6 +75,9 @@ public record KindResponseDto(
     string? CountryOfOrigin,
     string? Revision,
     string? Notes,
+    // Reorder thresholds
+    decimal? ReorderThreshold,
+    decimal? ReorderQuantity,
     // 3D Model
     string? ModelFileName,
     string? ModelOriginalFileName,

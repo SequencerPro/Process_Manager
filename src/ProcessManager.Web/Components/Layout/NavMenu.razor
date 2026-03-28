@@ -349,6 +349,34 @@
                     </li>
                 }
 
+                @* ── Warehouse ── *@
+                <li class="mt-2">
+                    <button type="button"
+                            class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
+                            @onclick='() => ToggleSection("warehouse")'>
+                        <span>Warehouse</span>
+                        <i class='bi @(_openSection == "warehouse" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
+                    </button>
+                </li>
+                @if (_openSection == "warehouse")
+                {
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="warehouse">
+                            <i class="bi bi-box-seam me-2"></i> Dashboard
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="warehouse/locations">
+                            <i class="bi bi-geo-alt me-2"></i> Locations
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="picklists">
+                            <i class="bi bi-card-checklist me-2"></i> Pick Lists
+                        </NavLink>
+                    </li>
+                }
+
                 @* ── Reports ── *@
                 <li class="mt-2">
                     <button type="button"
@@ -440,6 +468,7 @@
         ["documents"]  = ["documents"],
         ["accountability"] = ["my-actions", "team-actions", "quality-scorecard", "management-reviews"],
         ["production"] = ["production", "equipment", "maintenance"],
+        ["warehouse"]  = ["warehouse", "picklists"],
         ["admin"]     = ["admin"],
         ["reports"]   = ["reports", "reports/process-timing", "powerbi-dashboards"],
     };

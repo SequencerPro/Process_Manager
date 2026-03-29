@@ -2299,4 +2299,52 @@ public class ApiClient
         r.EnsureSuccessStatusCode();
         return await r.Content.ReadFromJsonAsync<PickListResponseDto>(_json);
     }
+
+    // ═══════════════════ Webhooks ═══════════════════
+
+    public Task<PaginatedResponse<WebhookSubscriptionDto>?> GetWebhooksAsync(int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<WebhookSubscriptionDto>>(
+            $"api/webhooks?page={page}&pageSize={pageSize}", _json);
+
+    public Task<WebhookSubscriptionDto?> GetWebhookAsync(Guid id)
+        => _http.GetFromJsonAsync<WebhookSubscriptionDto>($"api/webhooks/{id}", _json);
+
+    public async Task<WebhookSubscriptionDto?> CreateWebhookAsync(CreateWebhookSubscriptionDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/webhooks", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<WebhookSubscriptionDto>(_json);
+    }
+
+    public async Task<WebhookSubscriptionDto?> UpdateWebhookAsync(Guid id, UpdateWebhookSubscriptionDto dto)
+    {
+        var r = await _http.PutAsJsonAsync($"api/webhooks/{id}", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<WebhookSubscriptionDto>(_json);
+    }
+
+    public async Task DeleteWebhookAsync(Guid id)
+    {
+        var r = await _http.DeleteAsync($"api/webhooks/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    public Task<PaginatedResponse<WebhookDeliveryDto>?> GetWebhookDeliveriesAsync(Guid subscriptionId, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<WebhookDeliveryDto>>(
+            $"api/webhooks/{subscriptionId}/deliveries?page={page}&pageSize={pageSize}", _json);
+
+    public async Task TestWebhookAsync(Guid id)
+    {
+        var r = await _http.PostAsync($"api/webhooks/{id}/test", null);
+        r.EnsureSuccessStatusCode();
+    }
+
+    // ═══════════════════ MCP Audit Log ═══════════════════
+
+    public Task<PaginatedResponse<McpAuditLogDto>?> GetMcpAuditLogAsync(
+        string? toolName = null, string? userId = null, string? action = null,
+        bool? isSuccess = null, DateTime? dateFrom = null, DateTime? dateTo = null,
+        int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<McpAuditLogDto>>(
+            $"mcp/audit?toolName={E(toolName)}&userId={E(userId)}&action={E(action)}&isSuccess={isSuccess}&dateFrom={dateFrom:O}&dateTo={dateTo:O}&page={page}&pageSize={pageSize}", _json);
 }

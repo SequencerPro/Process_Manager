@@ -97,9 +97,17 @@ builder.Services.AddControllers()
 // ── Image storage ─────────────────────────────────────────────────────────────
 builder.Services.AddScoped<IImageStorageService, LocalImageStorageService>();
 
-// ── Background scheduler (skipped in Testing environment) ─────────────────────
+// ── Webhook event system ──────────────────────────────────────────────────────
+builder.Services.AddSingleton<WebhookEventQueue>();
+builder.Services.AddSingleton<IWebhookEventPublisher>(sp => sp.GetRequiredService<WebhookEventQueue>());
+builder.Services.AddHttpClient("Webhooks");
+
+// ── Background services (skipped in Testing environment) ──────────────────────
 if (!builder.Environment.IsEnvironment("Testing"))
+{
     builder.Services.AddHostedService<WorkflowSchedulerService>();
+    builder.Services.AddHostedService<WebhookDeliveryService>();
+}
 
 // ── Swagger ───────────────────────────────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();

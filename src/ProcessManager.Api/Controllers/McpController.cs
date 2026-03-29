@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -5,6 +7,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Api.Data;
+using ProcessManager.Api.DTOs;
+using ProcessManager.Api.Services;
+using ProcessManager.Domain.Entities;
 
 namespace ProcessManager.Api.Controllers;
 
@@ -27,9 +32,10 @@ namespace ProcessManager.Api.Controllers;
 [AllowAnonymous]
 [ApiController]
 [Route("mcp")]
-public class McpController : ControllerBase
+public partial class McpController : ControllerBase
 {
     private readonly ProcessManagerDbContext _db;
+    private readonly IWebhookEventPublisher? _webhooks;
 
     private static readonly JsonSerializerOptions _json = new()
     {
@@ -40,9 +46,13 @@ public class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "2.2";
+    private const string ServerVersion   = "3.0";
 
-    public McpController(ProcessManagerDbContext db) => _db = db;
+    public McpController(ProcessManagerDbContext db, IWebhookEventPublisher? webhooks = null)
+    {
+        _db = db;
+        _webhooks = webhooks;
+    }
 
     // ─── Discovery endpoint ───────────────────────────────────────────────────
 
@@ -96,11 +106,11 @@ public class McpController : ControllerBase
         {
             Tool("describe_domain",
                  "Get a comprehensive explanation of Process Manager concepts, terminology, and how-to guides. Does not require authentication.",
-                 new { }),
+                 Schema()),
 
             Tool("list_processes",
                  "List all active process definitions in the system, including step count. Requires authentication.",
-                 new { }),
+                 Schema()),
 
             Tool("get_process",
                  "Get detailed information about a specific process, including its ordered steps. Requires authentication.",
@@ -108,11 +118,11 @@ public class McpController : ControllerBase
 
             Tool("list_step_templates",
                  "List all active step template definitions (reusable work unit designs). Requires authentication.",
-                 new { }),
+                 Schema()),
 
             Tool("list_active_jobs",
                  "List all jobs currently in Created, InProgress, or OnHold status. Requires authentication.",
-                 new { }),
+                 Schema()),
 
             Tool("get_job_status",
                  "Get the current status and step-by-step execution progress of a specific job. Requires authentication.",
@@ -179,7 +189,7 @@ public class McpController : ControllerBase
 
             Tool("get_production_status",
                  "Get a live production dashboard: active jobs, late jobs, equipment currently down, maintenance due/overdue, and top bottleneck steps. Requires authentication.",
-                 new { }),
+                 Schema()),
 
             Tool("list_equipment_downtime",
                  "List equipment that is currently down (open downtime records) or recently experienced downtime. Requires authentication.",
@@ -195,6 +205,62 @@ public class McpController : ControllerBase
                  "On-hand inventory counts grouped by Kind, with optional location filter and low-stock-only flag",
                  Schema(("location_id", "string", "Optional storage location GUID to filter results"),
                         ("low_stock_only", "string", "If 'true', only return Kinds below their ReorderThreshold"))),
+
+            // ── Write tools ────────────────────────────────────────────────
+            Tool("create_nonconformance",
+                 "Create a non-conformance record for a step execution. Returns the new NCR details.",
+                 Schema(("step_execution_id", "string", "GUID of the step execution"),
+                        ("content_block_id", "string", "GUID of the content block that was out of spec"),
+                        ("actual_value", "string", "The actual measured/observed value"),
+                        ("limit_type", "string", "LSL, USL, or FailResult"))),
+
+            Tool("create_action_item",
+                 "Create a corrective or preventive action item. Returns the new action item details.",
+                 Schema(("title", "string", "Concise action title"),
+                        ("description", "string", "Full detail and context"),
+                        ("assigned_to_user_id", "string", "User ID of the assignee"),
+                        ("assigned_to_display_name", "string", "Display name of the assignee"),
+                        ("due_date", "string", "Due date in ISO 8601 format (e.g. 2026-04-15)"),
+                        ("priority", "string", "Low, Medium, High, or Critical"),
+                        ("source_type", "string", "Manual, NonConformance, PFMEA, Audit, MRB, or ManagementReview"),
+                        ("source_entity_id", "string", "Optional GUID linking to the source entity"))),
+
+            Tool("complete_action_item",
+                 "Mark an action item as completed with notes. Returns the updated action item.",
+                 Schema(("action_item_id", "string", "GUID of the action item to complete"),
+                        ("completion_notes", "string", "Notes describing what was done to address the action"))),
+
+            Tool("create_job",
+                 "Create a new job from a released process. Auto-creates step executions and pick list. Returns the new job details.",
+                 Schema(("code", "string", "Unique job code (e.g. JOB-2026-001)"),
+                        ("name", "string", "Job name"),
+                        ("description", "string", "Optional description"),
+                        ("process_id", "string", "GUID of the process to execute"),
+                        ("priority", "number", "Priority (1=highest, default 5)"),
+                        ("due_date", "string", "Optional due date in ISO 8601 format"),
+                        ("planned_start_date", "string", "Optional planned start date in ISO 8601 format"))),
+
+            Tool("record_inventory_transaction",
+                 "Record an inventory transaction (Receipt, Issue, Transfer, or Adjustment). Returns the transaction details.",
+                 Schema(("transaction_type", "string", "Receipt, Issue, Transfer, or Adjustment"),
+                        ("item_id", "string", "GUID of the item"),
+                        ("from_location_id", "string", "GUID of the source location (required for Issue/Transfer)"),
+                        ("to_location_id", "string", "GUID of the destination location (required for Receipt/Transfer/Adjustment)"),
+                        ("quantity", "number", "Quantity (positive number)"),
+                        ("notes", "string", "Optional notes about this transaction"))),
+
+            Tool("transition_job",
+                 "Transition a job to a new status. Valid transitions: start, complete, cancel, hold, resume.",
+                 Schema(("job_id", "string", "GUID of the job to transition"),
+                        ("transition", "string", "start, complete, cancel, hold, or resume"))),
+
+            // ── Audit log ──────────────────────────────────────────────────
+            Tool("list_mcp_audit_log",
+                 "View recent MCP tool call audit log. Returns timestamped entries showing who called what, when, and whether it succeeded.",
+                 Schema(("tool_name", "string", "Optional filter by tool name"),
+                        ("user_id", "string", "Optional filter by user ID"),
+                        ("action", "string", "Optional filter: Read, Create, Update, or Delete"),
+                        ("top", "number", "Number of entries to return (default 50, max 200)"))),
         }
     };
 
@@ -249,7 +315,7 @@ public class McpController : ControllerBase
         if (string.IsNullOrEmpty(toolName))
             return ErrorResponse(id, -32602, "tools/call requires a 'name' field.");
 
-        // Public tool — no auth required
+        // Public tool — no auth required, not audited
         if (toolName == "describe_domain")
             return OkResponse(id, TextContent(HelpController.ContextDocumentPublic));
 
@@ -259,30 +325,147 @@ public class McpController : ControllerBase
                 "Authentication required. Include 'Authorization: Bearer {jwt}' in your request. " +
                 "Obtain a token via POST /api/auth/login.");
 
-        return toolName switch
+        // ── Extract format preference ────────────────────────────────────
+        var format = args.ValueKind == JsonValueKind.Object
+            && args.TryGetProperty("format", out var fmt)
+            && fmt.GetString() == "json"
+                ? "json"
+                : "markdown";
+
+        // ── Dispatch with audit logging ────────────────────────────────────
+        var sw = Stopwatch.StartNew();
+        string? resultText = null;
+        string? errorMessage = null;
+        var isSuccess = true;
+
+        try
         {
-            "list_processes"             => OkResponse(id, TextContent(await ToolListProcesses())),
-            "get_process"                => OkResponse(id, TextContent(await ToolGetProcess(args))),
-            "list_step_templates"        => OkResponse(id, TextContent(await ToolListStepTemplates())),
-            "list_active_jobs"           => OkResponse(id, TextContent(await ToolListActiveJobs())),
-            "get_job_status"             => OkResponse(id, TextContent(await ToolGetJobStatus(args))),
-            "get_pfmea"                  => OkResponse(id, TextContent(await ToolGetPfmea(args))),
-            "list_high_rpn_failure_modes" => OkResponse(id, TextContent(await ToolListHighRpnFailureModes(args))),
-            "get_ce_matrix"              => OkResponse(id, TextContent(await ToolGetCeMatrix(args))),
-            "get_control_plan"           => OkResponse(id, TextContent(await ToolGetControlPlan(args))),
-            "list_critical_characteristics" => OkResponse(id, TextContent(await ToolListCriticalCharacteristics(args))),
-            "list_qms_documents"            => OkResponse(id, TextContent(await ToolListQmsDocuments(args))),
-            "list_recurring_root_causes"    => OkResponse(id, TextContent(await ToolListRecurringRootCauses(args))),
-            "get_rca_summary"               => OkResponse(id, TextContent(await ToolGetRcaSummary(args))),
-            "get_mrb_summary"               => OkResponse(id, TextContent(await ToolGetMrbSummary(args))),
-            "get_management_review_status"  => OkResponse(id, TextContent(await ToolGetManagementReviewStatus(args))),
-            "get_competency_status"          => OkResponse(id, TextContent(await ToolGetCompetencyStatus(args))),
-            "get_production_status"          => OkResponse(id, TextContent(await ToolGetProductionStatus())),
-            "list_equipment_downtime"        => OkResponse(id, TextContent(await ToolListEquipmentDowntime(args))),
-            "list_overdue_maintenance"       => OkResponse(id, TextContent(await ToolListOverdueMaintenance(args))),
-            "get_inventory_status"           => OkResponse(id, TextContent(await ToolGetInventoryStatus(args))),
-            _                               => ErrorResponse(id, -32602, $"Unknown tool: {toolName}")
-        };
+            resultText = toolName switch
+            {
+                "list_processes"             => await ToolListProcesses(),
+                "get_process"                => await ToolGetProcess(args),
+                "list_step_templates"        => await ToolListStepTemplates(),
+                "list_active_jobs"           => await ToolListActiveJobs(),
+                "get_job_status"             => await ToolGetJobStatus(args),
+                "get_pfmea"                  => await ToolGetPfmea(args),
+                "list_high_rpn_failure_modes" => await ToolListHighRpnFailureModes(args),
+                "get_ce_matrix"              => await ToolGetCeMatrix(args),
+                "get_control_plan"           => await ToolGetControlPlan(args),
+                "list_critical_characteristics" => await ToolListCriticalCharacteristics(args),
+                "list_qms_documents"            => await ToolListQmsDocuments(args),
+                "list_recurring_root_causes"    => await ToolListRecurringRootCauses(args),
+                "get_rca_summary"               => await ToolGetRcaSummary(args),
+                "get_mrb_summary"               => await ToolGetMrbSummary(args),
+                "get_management_review_status"  => await ToolGetManagementReviewStatus(args),
+                "get_competency_status"          => await ToolGetCompetencyStatus(args),
+                "get_production_status"          => await ToolGetProductionStatus(),
+                "list_equipment_downtime"        => await ToolListEquipmentDowntime(args),
+                "list_overdue_maintenance"       => await ToolListOverdueMaintenance(args),
+                "get_inventory_status"           => await ToolGetInventoryStatus(args),
+                // Write tools
+                "create_nonconformance"          => await ToolCreateNonConformance(args),
+                "create_action_item"             => await ToolCreateActionItem(args),
+                "complete_action_item"           => await ToolCompleteActionItem(args),
+                "create_job"                     => await ToolCreateJob(args),
+                "record_inventory_transaction"   => await ToolRecordInventoryTransaction(args),
+                "transition_job"                 => await ToolTransitionJob(args),
+                // Audit log
+                "list_mcp_audit_log"             => await ToolListMcpAuditLog(args),
+                _                               => null
+            };
+
+            if (resultText is null)
+                return ErrorResponse(id, -32602, $"Unknown tool: {toolName}");
+
+            // Check if tool returned an error message
+            if (resultText.StartsWith("Error:"))
+            {
+                isSuccess = false;
+                errorMessage = resultText;
+            }
+
+            if (format == "json")
+            {
+                // Return structured JSON content block
+                var jsonPayload = JsonSerializer.Serialize(new
+                {
+                    tool    = toolName,
+                    success = isSuccess,
+                    content = resultText,
+                }, _json);
+                return OkResponse(id, new
+                {
+                    content = new[] { new { type = "text", text = jsonPayload, mimeType = "application/json" } },
+                    isError = !isSuccess,
+                });
+            }
+
+            return OkResponse(id, TextContent(resultText));
+        }
+        catch (Exception ex)
+        {
+            isSuccess = false;
+            errorMessage = ex.Message;
+            return ErrorResponse(id, -32603, $"Tool execution failed: {ex.Message}");
+        }
+        finally
+        {
+            sw.Stop();
+            await WriteAuditLogAsync(toolName!, args, resultText, isSuccess, errorMessage, sw.ElapsedMilliseconds);
+        }
+    }
+
+    // ─── Audit log writer ─────────────────────────────────────────────────────
+
+    private async Task WriteAuditLogAsync(
+        string toolName, JsonElement args, string? resultText,
+        bool isSuccess, string? errorMessage, long durationMs)
+    {
+        try
+        {
+            var action = toolName switch
+            {
+                _ when toolName.StartsWith("create_") => "Create",
+                _ when toolName.StartsWith("complete_") => "Update",
+                _ when toolName.StartsWith("transition_") => "Update",
+                _ when toolName.StartsWith("record_") => "Create",
+                _ => "Read"
+            };
+
+            var userId = User.Identity?.IsAuthenticated == true
+                ? User.FindFirstValue(ClaimTypes.NameIdentifier)
+                : null;
+            var displayName = User.Identity?.IsAuthenticated == true
+                ? (User.FindFirstValue("display_name") ?? User.Identity?.Name)
+                : null;
+
+            var log = new McpAuditLog
+            {
+                ToolName = toolName,
+                Action = action,
+                UserId = userId,
+                UserDisplayName = displayName,
+                RequestPayload = args.ValueKind != JsonValueKind.Undefined
+                    ? args.GetRawText()
+                    : null,
+                ResponseSummary = resultText?.Length > 500
+                    ? resultText[..500]
+                    : resultText,
+                IsSuccess = isSuccess,
+                ErrorMessage = errorMessage?.Length > 2000
+                    ? errorMessage[..2000]
+                    : errorMessage,
+                DurationMs = durationMs,
+                PerformedAt = DateTime.UtcNow
+            };
+
+            _db.McpAuditLogs.Add(log);
+            await _db.SaveChangesAsync();
+        }
+        catch
+        {
+            // Audit logging must never fail the actual tool call
+        }
     }
 
     // ─── Tool implementations ─────────────────────────────────────────────────
@@ -942,12 +1125,20 @@ public class McpController : ControllerBase
         }
     };
 
-    /// <summary>Builds a single-property input schema for a tool argument.</summary>
+    /// <summary>Builds a single-property input schema for a tool argument.
+    /// Automatically injects a 'format' parameter that lets callers choose 'markdown' (default) or 'json'.</summary>
     private static object Schema(params (string name, string type, string description)[] props)
     {
         var dict = new Dictionary<string, object>();
         foreach (var (n, t, d) in props)
             dict[n] = new { type = t, description = d };
+        dict["format"] = new
+        {
+            type = "string",
+            description = "Response format: 'markdown' (default, human-readable) or 'json' (structured, machine-readable).",
+            @enum = new[] { "markdown", "json" },
+            @default = "markdown",
+        };
         return dict;
     }
 
@@ -1296,5 +1487,49 @@ public class McpController : ControllerBase
             sb.AppendLine($"\n⚠️ **{belowThreshold} Kind(s) below reorder threshold.**");
 
         return sb.ToString();
+    }
+
+    // ─── REST endpoint for Blazor audit log page ─────────────────────────────
+
+    [HttpGet("audit")]
+    [Authorize(Roles = "Admin,Engineer")]
+    public async Task<IActionResult> GetAuditLog(
+        [FromQuery] string? toolName = null,
+        [FromQuery] string? userId = null,
+        [FromQuery] string? action = null,
+        [FromQuery] bool? isSuccess = null,
+        [FromQuery] DateTime? dateFrom = null,
+        [FromQuery] DateTime? dateTo = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25)
+    {
+        var query = _db.McpAuditLogs.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(toolName))
+            query = query.Where(l => l.ToolName.Contains(toolName));
+        if (!string.IsNullOrWhiteSpace(userId))
+            query = query.Where(l => l.UserId != null && l.UserId.Contains(userId));
+        if (!string.IsNullOrWhiteSpace(action))
+            query = query.Where(l => l.Action == action);
+        if (isSuccess.HasValue)
+            query = query.Where(l => l.IsSuccess == isSuccess.Value);
+        if (dateFrom.HasValue)
+            query = query.Where(l => l.PerformedAt >= dateFrom.Value);
+        if (dateTo.HasValue)
+            query = query.Where(l => l.PerformedAt <= dateTo.Value);
+
+        var totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(l => l.PerformedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(l => new McpAuditLogDto(
+                l.Id, l.ToolName, l.Action, l.EntityType, l.EntityId,
+                l.UserId, l.UserDisplayName, l.RequestPayload, l.ResponseSummary,
+                l.IsSuccess, l.ErrorMessage, l.DurationMs, l.PerformedAt))
+            .ToListAsync();
+
+        return Ok(new PaginatedResponse<McpAuditLogDto>(items, totalCount, page, pageSize));
     }
 }

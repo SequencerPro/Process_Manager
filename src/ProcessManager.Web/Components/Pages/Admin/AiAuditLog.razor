@@ -1,0 +1,280 @@
+@page "/ai-audit"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@using Microsoft.AspNetCore.Authorization
+@using ProcessManager.Api.DTOs
+@inject ApiClient Api
+
+<PageTitle>AI Audit Log — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-robot me-2 text-primary"></i>AI Audit Log</h3>
+        <p class="text-muted small mb-0">Track all MCP tool calls made by AI agents</p>
+    </div>
+</div>
+
+@* ── Filters ── *@
+<div class="card shadow-sm mb-4">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Tool Name</label>
+                <input class="form-control form-control-sm" @bind="_filterToolName" @bind:event="oninput"
+                       placeholder="e.g. list_processes" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">User</label>
+                <input class="form-control form-control-sm" @bind="_filterUserId" @bind:event="oninput"
+                       placeholder="User ID or name" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Action</label>
+                <select class="form-select form-select-sm" @bind="_filterAction">
+                    <option value="">All</option>
+                    <option value="Read">Read</option>
+                    <option value="Create">Create</option>
+                    <option value="Update">Update</option>
+                    <option value="Delete">Delete</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">Status</label>
+                <select class="form-select form-select-sm" @bind="_filterSuccess">
+                    <option value="">All</option>
+                    <option value="true">Success</option>
+                    <option value="false">Failed</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small mb-0">From</label>
+                <input type="date" class="form-control form-control-sm" @bind="_filterDateFrom" />
+            </div>
+            <div class="col-md-1">
+                <label class="form-label small mb-0">To</label>
+                <input type="date" class="form-control form-control-sm" @bind="_filterDateTo" />
+            </div>
+            <div class="col-md-1 d-flex gap-1">
+                <button class="btn btn-sm btn-primary flex-grow-1" @onclick="Search">
+                    <i class="bi bi-search"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ClearFilters" title="Clear">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ── Results table ── *@
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:160px">Timestamp</th>
+                    <th>Tool</th>
+                    <th style="width:80px">Action</th>
+                    <th>User</th>
+                    <th style="width:80px" class="text-center">Status</th>
+                    <th style="width:90px" class="text-end">Duration</th>
+                    <th style="width:40px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_loading)
+                {
+                    <tr><td colspan="7" class="text-center text-muted py-4">
+                        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+                    </td></tr>
+                }
+                else if (_result is null || !_result.Items.Any())
+                {
+                    <tr><td colspan="7" class="text-center text-muted py-4">No audit log entries found.</td></tr>
+                }
+                else
+                {
+                    @foreach (var entry in _result.Items)
+                    {
+                        <tr>
+                            <td class="align-middle small text-muted">
+                                @entry.PerformedAt.ToString("yyyy-MM-dd HH:mm:ss")
+                            </td>
+                            <td class="align-middle">
+                                <code class="text-primary">@entry.ToolName</code>
+                            </td>
+                            <td class="align-middle">
+                                <span class="badge @ActionBadge(entry.Action)">@entry.Action</span>
+                            </td>
+                            <td class="align-middle small">
+                                @if (!string.IsNullOrEmpty(entry.UserDisplayName))
+                                {
+                                    <span>@entry.UserDisplayName</span>
+                                }
+                                else if (!string.IsNullOrEmpty(entry.UserId))
+                                {
+                                    <span class="text-muted">@entry.UserId</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted fst-italic">anonymous</span>
+                                }
+                            </td>
+                            <td class="align-middle text-center">
+                                @if (entry.IsSuccess)
+                                {
+                                    <span class="badge bg-success">OK</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger" title="@entry.ErrorMessage">FAIL</span>
+                                }
+                            </td>
+                            <td class="align-middle text-end small text-muted">
+                                @(entry.DurationMs) ms
+                            </td>
+                            <td class="align-middle text-center">
+                                <button class="btn btn-sm btn-link p-0" @onclick="() => ToggleDetail(entry.Id)"
+                                        title="Details">
+                                    <i class="bi @(_expandedId == entry.Id ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        @if (_expandedId == entry.Id)
+                        {
+                            <tr class="table-light">
+                                <td colspan="7" class="px-4 py-3">
+                                    <div class="row g-3">
+                                        @if (entry.EntityType is not null)
+                                        {
+                                            <div class="col-md-3">
+                                                <div class="fw-semibold small text-muted mb-1">Entity</div>
+                                                <div class="small">@entry.EntityType @(entry.EntityId.HasValue ? $"({entry.EntityId.Value.ToString()[..8]}…)" : "")</div>
+                                            </div>
+                                        }
+                                        @if (entry.RequestPayload is not null)
+                                        {
+                                            <div class="col-md-5">
+                                                <div class="fw-semibold small text-muted mb-1">Request Payload</div>
+                                                <pre class="small bg-dark text-light p-2 rounded mb-0" style="max-height:200px; overflow:auto; font-size:.75rem">@entry.RequestPayload</pre>
+                                            </div>
+                                        }
+                                        @if (entry.ResponseSummary is not null)
+                                        {
+                                            <div class="col-md-4">
+                                                <div class="fw-semibold small text-muted mb-1">Response Summary</div>
+                                                <pre class="small bg-dark text-light p-2 rounded mb-0" style="max-height:200px; overflow:auto; font-size:.75rem">@entry.ResponseSummary</pre>
+                                            </div>
+                                        }
+                                        @if (entry.ErrorMessage is not null)
+                                        {
+                                            <div class="col-12">
+                                                <div class="fw-semibold small text-danger mb-1">Error</div>
+                                                <pre class="small bg-danger bg-opacity-10 text-danger p-2 rounded mb-0">@entry.ErrorMessage</pre>
+                                            </div>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @* ── Pagination ── *@
+    @if (_result is not null && _result.TotalCount > _pageSize)
+    {
+        <div class="card-footer d-flex justify-content-between align-items-center py-2">
+            <span class="text-muted small">
+                Showing @((_page - 1) * _pageSize + 1)–@Math.Min(_page * _pageSize, _result.TotalCount) of @_result.TotalCount
+            </span>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" disabled="@(_page <= 1)" @onclick="PrevPage">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                <button class="btn btn-outline-secondary" disabled="@(_page * _pageSize >= _result.TotalCount)" @onclick="NextPage">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private PaginatedResponse<McpAuditLogDto>? _result;
+    private bool _loading = true;
+    private int _page = 1;
+    private int _pageSize = 25;
+    private Guid? _expandedId;
+
+    // Filters
+    private string? _filterToolName;
+    private string? _filterUserId;
+    private string _filterAction = "";
+    private string _filterSuccess = "";
+    private DateTime? _filterDateFrom;
+    private DateTime? _filterDateTo;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            bool? isSuccess = _filterSuccess switch
+            {
+                "true" => true,
+                "false" => false,
+                _ => null
+            };
+
+            _result = await Api.GetMcpAuditLogAsync(
+                toolName: string.IsNullOrWhiteSpace(_filterToolName) ? null : _filterToolName,
+                userId: string.IsNullOrWhiteSpace(_filterUserId) ? null : _filterUserId,
+                action: string.IsNullOrWhiteSpace(_filterAction) ? null : _filterAction,
+                isSuccess: isSuccess,
+                dateFrom: _filterDateFrom,
+                dateTo: _filterDateTo?.AddDays(1), // include full day
+                page: _page,
+                pageSize: _pageSize);
+        }
+        catch { /* best-effort */ }
+        finally { _loading = false; }
+    }
+
+    private async Task Search()
+    {
+        _page = 1;
+        await LoadData();
+    }
+
+    private async Task ClearFilters()
+    {
+        _filterToolName = null;
+        _filterUserId = null;
+        _filterAction = "";
+        _filterSuccess = "";
+        _filterDateFrom = null;
+        _filterDateTo = null;
+        _page = 1;
+        await LoadData();
+    }
+
+    private async Task PrevPage() { _page--; await LoadData(); }
+    private async Task NextPage() { _page++; await LoadData(); }
+
+    private void ToggleDetail(Guid id) =>
+        _expandedId = _expandedId == id ? null : id;
+
+    private static string ActionBadge(string action) => action switch
+    {
+        "Create" => "bg-success",
+        "Update" => "bg-info text-dark",
+        "Delete" => "bg-danger",
+        "Read"   => "bg-secondary",
+        _        => "bg-secondary"
+    };
+}

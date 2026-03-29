@@ -120,6 +120,11 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PickList> PickLists => Set<PickList>();
     public DbSet<PickListLine> PickListLines => Set<PickListLine>();
 
+    // Phase 20: AI Integration
+    public DbSet<McpAuditLog> McpAuditLogs => Set<McpAuditLog>();
+    public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();
+    public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -1511,6 +1516,51 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(l => l.SourceLocationId)
                 .IsRequired(false)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- McpAuditLog ---
+        modelBuilder.Entity<McpAuditLog>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.ToolName).HasMaxLength(100).IsRequired();
+            e.Property(a => a.Action).HasMaxLength(20).IsRequired();
+            e.Property(a => a.EntityType).HasMaxLength(100);
+            e.Property(a => a.UserId).HasMaxLength(450);
+            e.Property(a => a.UserDisplayName).HasMaxLength(200);
+            e.Property(a => a.RequestPayload).HasColumnType("text");
+            e.Property(a => a.ResponseSummary).HasMaxLength(500);
+            e.Property(a => a.ErrorMessage).HasMaxLength(2000);
+
+            e.HasIndex(a => a.PerformedAt);
+            e.HasIndex(a => a.ToolName);
+            e.HasIndex(a => a.UserId);
+        });
+
+        // --- WebhookSubscription ---
+        modelBuilder.Entity<WebhookSubscription>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.Property(s => s.Url).HasMaxLength(2000).IsRequired();
+            e.Property(s => s.Secret).HasMaxLength(500);
+            e.Property(s => s.EventTypes).HasMaxLength(1000).IsRequired();
+            e.Property(s => s.Description).HasMaxLength(500);
+        });
+
+        // --- WebhookDelivery ---
+        modelBuilder.Entity<WebhookDelivery>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.Property(d => d.EventType).HasMaxLength(100).IsRequired();
+            e.Property(d => d.Payload).HasColumnType("text").IsRequired();
+            e.Property(d => d.ResponseBody).HasMaxLength(2000);
+            e.Property(d => d.ErrorMessage).HasMaxLength(2000);
+
+            e.HasIndex(d => d.CreatedAt);
+
+            e.HasOne(d => d.Subscription)
+                .WithMany(s => s.Deliveries)
+                .HasForeignKey(d => d.WebhookSubscriptionId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

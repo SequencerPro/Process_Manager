@@ -252,6 +252,22 @@ public class HelpController : ControllerBase
         Supports `initialize`, `tools/list`, `tools/call`, `resources/list`, `resources/read`.
         Data tools require Bearer token. See GET /mcp for server info.
 
+        **MCP write tools** (v3.0): `create_nonconformance`, `create_action_item`, `complete_action_item`,
+        `create_job`, `record_inventory_transaction`, `transition_job`. All write tools require authentication
+        and are audited in the MCP Audit Log.
+
+        **Structured responses**: All tools accept a `format` parameter (`markdown` or `json`).
+        Default is `markdown` (human-readable). Use `format: "json"` for structured responses
+        with `{ tool, success, content }` envelope in `application/json` content blocks.
+
+        **MCP Audit Log**: `list_mcp_audit_log` tool + `GET /mcp/audit` REST endpoint. All tool
+        calls are automatically logged with user context, duration, success/failure, and request/response data.
+
+        **Webhook events**: `POST /api/webhooks` to subscribe. Events include `job.created`, `job.started`,
+        `job.completed`, `nonconformance.created`, `action_item.created`, `action_item.completed`,
+        `inventory.*`. Use `*` for all events or `job.*` for wildcards. Payloads are HMAC-SHA256 signed
+        when a secret is configured. See `GET /api/webhooks` for subscription management.
+
         ---
 
         ## Terminology Quick Reference

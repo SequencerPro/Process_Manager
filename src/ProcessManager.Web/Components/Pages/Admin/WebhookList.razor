@@ -1,0 +1,369 @@
+@page "/webhooks"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+@using Microsoft.AspNetCore.Authorization
+@using ProcessManager.Api.DTOs
+@inject ApiClient Api
+
+<PageTitle>Webhooks — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-broadcast me-2 text-primary"></i>Webhook Subscriptions</h3>
+        <p class="text-muted small mb-0">Manage webhook endpoints for real-time event notifications</p>
+    </div>
+    <button class="btn btn-primary" @onclick="OpenCreateModal">
+        <i class="bi bi-plus-lg me-1"></i> New Subscription
+    </button>
+</div>
+
+@* ── Subscription list ── *@
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>URL</th>
+                    <th>Events</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-center">Deliveries</th>
+                    <th style="width:120px">Created</th>
+                    <th class="text-end" style="width:140px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_loading)
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-4">
+                        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+                    </td></tr>
+                }
+                else if (_result is null || !_result.Items.Any())
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-4">No webhook subscriptions yet.</td></tr>
+                }
+                else
+                {
+                    @foreach (var sub in _result.Items)
+                    {
+                        <tr>
+                            <td class="align-middle">
+                                <code class="small">@Truncate(sub.Url, 60)</code>
+                                @if (sub.HasSecret)
+                                {
+                                    <i class="bi bi-lock-fill text-success ms-1" title="Signed with HMAC secret"></i>
+                                }
+                            </td>
+                            <td class="align-middle small text-muted">@sub.EventTypes</td>
+                            <td class="align-middle text-center">
+                                <span class="badge @(sub.IsActive ? "bg-success" : "bg-secondary")">
+                                    @(sub.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td class="align-middle text-center">
+                                <button class="btn btn-sm btn-link p-0" @onclick="() => OpenDeliveries(sub.Id)">
+                                    @sub.DeliveryCount
+                                </button>
+                            </td>
+                            <td class="align-middle small text-muted">@sub.CreatedAt.ToString("yyyy-MM-dd")</td>
+                            <td class="align-middle text-end">
+                                <button class="btn btn-sm btn-outline-info me-1" @onclick="() => TestWebhook(sub)" title="Send test event"
+                                        disabled="@(!sub.IsActive)">
+                                    <i class="bi bi-send"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary me-1" @onclick="() => OpenEditModal(sub)" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                @if (sub.IsActive)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => Deactivate(sub)" title="Deactivate">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (_result is not null && _result.TotalCount > _pageSize)
+    {
+        <div class="card-footer d-flex justify-content-between align-items-center py-2">
+            <span class="text-muted small">
+                Showing @((_page - 1) * _pageSize + 1)–@Math.Min(_page * _pageSize, _result.TotalCount) of @_result.TotalCount
+            </span>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" disabled="@(_page <= 1)" @onclick="PrevPage">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                <button class="btn btn-outline-secondary" disabled="@(_page * _pageSize >= _result.TotalCount)" @onclick="NextPage">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@* ── Delivery log panel ── *@
+@if (_showDeliveries)
+{
+    <div class="card shadow-sm mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-clock-history me-1"></i> Delivery Log</span>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="() => _showDeliveries = false">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Time</th>
+                        <th>Event</th>
+                        <th class="text-center">Attempt</th>
+                        <th class="text-center">Status</th>
+                        <th>Response / Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_deliveries is null || !_deliveries.Items.Any())
+                    {
+                        <tr><td colspan="5" class="text-center text-muted py-3">No deliveries yet.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var d in _deliveries.Items)
+                        {
+                            <tr>
+                                <td class="small text-muted">@d.CreatedAt.ToString("MM-dd HH:mm:ss")</td>
+                                <td class="small"><code>@d.EventType</code></td>
+                                <td class="text-center small">@d.AttemptNumber</td>
+                                <td class="text-center">
+                                    @if (d.IsSuccess)
+                                    {
+                                        <span class="badge bg-success">@d.StatusCode</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">@(d.StatusCode?.ToString() ?? "ERR")</span>
+                                    }
+                                </td>
+                                <td class="small text-muted text-truncate" style="max-width:300px">
+                                    @(d.ErrorMessage ?? Truncate(d.ResponseBody, 100) ?? "—")
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@* ── Create / Edit modal ── *@
+@if (_showModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content pm-modal">
+                <div class="modal-header">
+                    <div class="d-flex align-items-center">
+                        <div class="pm-modal-icon @(_editingId.HasValue ? "bg-primary bg-opacity-10 text-primary" : "bg-success bg-opacity-10 text-success") rounded-circle d-flex align-items-center justify-content-center"
+                             style="width:40px; height:40px">
+                            <i class="bi @(_editingId.HasValue ? "bi-pencil" : "bi-plus-lg") fs-5"></i>
+                        </div>
+                        <div class="ms-3">
+                            <h5 class="mb-0">@(_editingId.HasValue ? "Edit Subscription" : "New Subscription")</h5>
+                            <small class="text-muted">Configure a webhook endpoint</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(_modalError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_modalError</div>
+                    }
+
+                    <div class="pm-modal-divider"><span>Endpoint</span></div>
+                    <div class="mb-3">
+                        <label class="form-label small">URL <span class="text-danger">*</span></label>
+                        <div class="pm-input-group">
+                            <i class="bi bi-link-45deg"></i>
+                            <input type="url" class="form-control" @bind="_modalUrl" placeholder="https://example.com/webhook" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Secret (HMAC-SHA256)</label>
+                        <div class="pm-input-group">
+                            <i class="bi bi-key"></i>
+                            <input type="password" class="form-control" @bind="_modalSecret" placeholder="Optional signing secret" />
+                        </div>
+                    </div>
+
+                    <div class="pm-modal-divider"><span>Events</span></div>
+                    <div class="mb-3">
+                        <label class="form-label small">Event Types <span class="text-danger">*</span></label>
+                        <input class="form-control" @bind="_modalEventTypes"
+                               placeholder="* or job.created, job.completed, nonconformance.created" />
+                        <div class="form-text">Comma-separated event types. Use <code>*</code> for all events or <code>job.*</code> for wildcards.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Description</label>
+                        <input class="form-control" @bind="_modalDescription" placeholder="Optional description" />
+                    </div>
+
+                    @if (_editingId.HasValue)
+                    {
+                        <div class="pm-modal-divider"><span>Status</span></div>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" @bind="_modalIsActive" id="modalActiveToggle" />
+                            <label class="form-check-label" for="modalActiveToggle">Active</label>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveModal" disabled="@_saving">
+                        @if (_saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        @(_editingId.HasValue ? "Update" : "Create")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResponse<WebhookSubscriptionDto>? _result;
+    private PaginatedResponse<WebhookDeliveryDto>? _deliveries;
+    private bool _loading = true;
+    private int _page = 1;
+    private int _pageSize = 25;
+
+    // Delivery panel
+    private bool _showDeliveries;
+    private Guid? _deliverySubId;
+
+    // Modal state
+    private bool _showModal;
+    private bool _saving;
+    private string? _modalError;
+    private Guid? _editingId;
+    private string _modalUrl = "";
+    private string? _modalSecret;
+    private string _modalEventTypes = "*";
+    private string? _modalDescription;
+    private bool _modalIsActive = true;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try { _result = await Api.GetWebhooksAsync(_page, _pageSize); }
+        catch { /* best-effort */ }
+        finally { _loading = false; }
+    }
+
+    private async Task PrevPage() { _page--; await LoadData(); }
+    private async Task NextPage() { _page++; await LoadData(); }
+
+    private void OpenCreateModal()
+    {
+        _editingId = null;
+        _modalUrl = "";
+        _modalSecret = null;
+        _modalEventTypes = "*";
+        _modalDescription = null;
+        _modalIsActive = true;
+        _modalError = null;
+        _showModal = true;
+    }
+
+    private void OpenEditModal(WebhookSubscriptionDto sub)
+    {
+        _editingId = sub.Id;
+        _modalUrl = sub.Url;
+        _modalSecret = null; // don't pre-fill
+        _modalEventTypes = sub.EventTypes;
+        _modalDescription = sub.Description;
+        _modalIsActive = sub.IsActive;
+        _modalError = null;
+        _showModal = true;
+    }
+
+    private void CloseModal() => _showModal = false;
+
+    private async Task SaveModal()
+    {
+        _modalError = null;
+        if (string.IsNullOrWhiteSpace(_modalUrl)) { _modalError = "URL is required."; return; }
+        if (string.IsNullOrWhiteSpace(_modalEventTypes)) { _modalError = "At least one event type is required."; return; }
+
+        _saving = true;
+        try
+        {
+            if (_editingId.HasValue)
+            {
+                await Api.UpdateWebhookAsync(_editingId.Value, new UpdateWebhookSubscriptionDto(
+                    _modalUrl, _modalSecret, _modalEventTypes, _modalDescription, _modalIsActive));
+            }
+            else
+            {
+                await Api.CreateWebhookAsync(new CreateWebhookSubscriptionDto(
+                    _modalUrl, _modalSecret, _modalEventTypes, _modalDescription));
+            }
+            _showModal = false;
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            _modalError = ex.Message;
+        }
+        finally { _saving = false; }
+    }
+
+    private async Task Deactivate(WebhookSubscriptionDto sub)
+    {
+        try
+        {
+            await Api.DeleteWebhookAsync(sub.Id);
+            await LoadData();
+        }
+        catch { /* best-effort */ }
+    }
+
+    private async Task TestWebhook(WebhookSubscriptionDto sub)
+    {
+        try
+        {
+            await Api.TestWebhookAsync(sub.Id);
+            // Refresh deliveries if panel is open for this sub
+            if (_showDeliveries && _deliverySubId == sub.Id)
+                await LoadDeliveries(sub.Id);
+        }
+        catch { /* best-effort */ }
+    }
+
+    private async Task OpenDeliveries(Guid subId)
+    {
+        _deliverySubId = subId;
+        _showDeliveries = true;
+        await LoadDeliveries(subId);
+    }
+
+    private async Task LoadDeliveries(Guid subId)
+    {
+        try { _deliveries = await Api.GetWebhookDeliveriesAsync(subId, 1, 50); }
+        catch { _deliveries = null; }
+    }
+
+    private static string Truncate(string? value, int max) =>
+        value is not null && value.Length > max ? value[..max] + "..." : value ?? "";
+}

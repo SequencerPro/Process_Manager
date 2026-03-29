@@ -55,6 +55,7 @@
 | 3.17    | 2026-03-23 | Phase 13 (remaining) implemented: `IsSystemContent` bool on `Process` and `StepTemplate`; `Phase13_SystemContent` EF migration; DataSeeder marks QMS docs, training courses, DOC-SECT-01, TRN-MOD-01 as system content; ProcessesController + StepTemplatesController Update/Delete guarded (400 for system content); `POST /api/processes/{id}/copy` deep-clone endpoint (steps, port overrides, content blocks, flows with ID remapping; target is Draft, not system content); `ProcessCopyDto`; `CopyProcessToMyLibraryAsync` in ApiClient; response DTOs extended with `IsSystemContent`; ProcessList "Library" badge + "Copy to My Library" modal; ProcessDetail "System Content" badge hiding edit/lifecycle/delete; StepTemplateList "Library" badge + lock icon |
 | 3.16    | 2026-03-23 | Phase 12f implemented: Participant Portal — `Participant` role (existing in AuthController); `ParticipantLayout.razor` + `ParticipantNavMenu.razor` (minimal sidebar, My Work only); `Portal.razor` (/portal redirect), `PortalMyWork.razor` (/portal/my-work), `PortalExecutionWizard.razor` (/portal/execute/{id}); `RedirectToPortal.razor`; Routes.razor NotAuthorized block redirects Participant role to `/portal/my-work` instead of showing 403; all design/admin pages carry `[Authorize(Roles = "Admin,Engineer")]`; NavMenu design/admin sections wrapped in `<AuthorizeView Roles="Admin,Engineer">`; UserList Edit modal extended with OrgUnit Memberships section — loads current memberships via `GET /api/users/{id}/orgunits`, add via `POST /api/orgunits/{id}/members`, remove via `DELETE /api/orgunits/{id}/members/{memberId}` |
 | 3.15    | 2026-03-23 | Phase 19 design: Warehouse Management — `StorageLocation` entity (zone/aisle/bay/bin hierarchy), `InventoryTransaction` entity (Receipt/Issue/Transfer/Adjustment/Picklist types), `PickList` + `PickListLine` entities, inventory-on-hand view, job-creation picklist generation from BOM/process inputs, ExecutionWizard consumption hook, `WarehouseManagement` nav tab, MCP `get_inventory_status` tool |
+| 3.21    | 2026-03-28 | Phase 21 design: Automatic Inventory Tracking — `ApiKey` entity (SHA-256 hashed, workstation-scoped, `X-Api-Key` header auth), `Workstation` entity (Code, FixedLocationId FK → StorageLocation), `ScanEvent` append-only log; `Item.Barcode`/`StorageLocation.Barcode`/`Kind.Barcode` unique nullable fields; `POST /api/warehouse/scan` single-barcode endpoint (API key → workstation → fixed location, barcode → Item resolution with SerialNumber fallback, Transfer/Receipt creation, idempotent re-scan handling); `ScanResult` enum; `InventoryReferenceType.Workstation`; admin CRUD for workstations and API keys; `inventory.scan` webhook event; `get_workstation_status` MCP tool; API-only — no Blazor scanning UI |
 | 3.20    | 2026-03-28 | Phase 20 implemented: AI Integration — 6 MCP write tools (`create_nonconformance`, `create_action_item`, `complete_action_item`, `create_job`, `record_inventory_transaction`, `transition_job`) mirroring REST controller validation in partial class `McpController.WriteTools.cs`; `McpAuditLog` append-only entity with Stopwatch + try/catch/finally wrapper on all tool calls (classifies action from tool name prefix, extracts JWT user context, truncates response to 500 chars); `list_mcp_audit_log` MCP tool + `GET /mcp/audit` REST endpoint with paginated filters; `AiAuditLog.razor` Blazor page at `/ai-audit` with date range/tool/user/status filters and expandable detail rows; Structured JSON responses via auto-injected `format` parameter on all tool schemas (`markdown` default, `json` returns `application/json` content block with `{ tool, success, content }` envelope); Webhook event system: `IWebhookEventPublisher` interface, `WebhookEventQueue` (bounded `Channel<T>`), `WebhookDeliveryService` (`BackgroundService` with HMAC-SHA256 signing, 3-retry exponential backoff, delivery log), `WebhooksController` (6 endpoints: CRUD + delivery log + test event), `WebhookSubscription` + `WebhookDelivery` entities with cascade delete; webhook events fired from all write tools (`job.created/started/completed/cancelled`, `nonconformance.created`, `action_item.created/completed`, `inventory.*`); wildcard event matching (`*`, `job.*`); `WebhookList.razor` at `/webhooks` with create/edit modals, delivery log panel, test button; NavMenu Admin section with AI Audit Log + Webhooks links; `Phase20_AiIntegration` EF migration; MCP server version 3.0 with 28 tools total |
 | 3.19    | 2026-03-27 | Phase 19 implemented: Warehouse Management — `StorageLocation` entity (self-referencing zone/aisle/bay/bin hierarchy, unique Code, IsActive); `InventoryTransaction` immutable event log (Receipt/Issue/Transfer/Adjustment/PicklistConsumption types with type-specific validation); `PickList` + `PickListLine` entities (late-binding ItemId at pick time); `InventoryTransactionType`/`PickListStatus`/`PickListLineStatus`/`InventoryReferenceType` enums; `Item.StorageLocationId` + `Kind.ReorderThreshold`/`ReorderQuantity` + `Job.PickListId` entity extensions; `Phase19_WarehouseManagement` EF migration; `WarehouseController` (10 endpoints: location CRUD, on-hand aggregation with low-stock filter, transaction recording with type-specific validation, dashboard KPIs, bulk receive-from-job); `PickListsController` (5 endpoints: list, detail, pick with Item/Kind/Location validation + Issue transaction, consume with PicklistConsumption transaction + Item.Status=Consumed, short-ship); Job creation auto-generates PickList from input material ports (QtyRuleMode derivation, best-fit source location suggestion); ExecutionWizard Phase 5 material consumption hook (picked-line table, editable consumed quantities, confirm-all button); 16 ApiClient methods; 5 Blazor pages (WarehouseDashboard, LocationList, LocationDetail, PickListList, PickListDetail); NavMenu Warehouse section; MCP `get_inventory_status` tool (on-hand by Kind with location filter, low-stock flag, markdown table); MCP server version 2.2 |
 | 3.12    | 2026-03-24 | Phase 18 implemented: 3D Model Viewer in Process Builder & Execution — `StepModel` entity (Id, StepTemplateId, FileName, OriginalFileName, MimeType, UploadedAt, UploadedByUserId); `KindModelRefId` optional FK on `StepTemplate` (SetNull on Kind delete); `Phase18_StepModel` EF migration; `Phase18Dtos` (StepModelResponseDto, SetKindModelRefDto); `StepTemplateResponseDto`/`StepExecutionResponseDto`/`ProcessStepResponseDto` extended with HasStepModel/StepModel/KindModelRefId/KindModelRefMimeType fields; `StepTemplatesController` gains `POST {id}/model` (upload STL/OBJ/GLB/GLTF ≤ 100 MB, mutual exclusivity with KindModelRef), `GET {id}/model/download` (returns file bytes for direct model or 302 redirect to `/api/kinds/{id}/model/download` for KindModelRef), `DELETE {id}/model` (204, removes DB record + file), `PATCH {id}/kind-model-ref` (set/clear KindModelRefId, validates Kind has a model, rejects if direct StepModel exists); all 8 StepTemplates queries, JobsController step-execution queries, ProcessesController LoadProcess, and StepExecutionsController lifecycle queries updated with ThenInclude(StepModel)/ThenInclude(KindModelRef) eager-loading chains; `GetStepModelDownloadUrl` added to ApiClient; `UploadStepModelAsync`, `DeleteStepModelAsync`, `SetKindModelRefAsync` added to ApiClient; `StepTemplateDetail.razor` gains 3D Model card (upload/replace/delete direct model, set/clear KindModelRef from Kind picker, inline Three.js viewer via ModelViewer.init/destroy JS interop, 3-retry init pattern, IAsyncDisposable); `ProcessBuilder.razor` Slide view gains read-only inline viewer below content blocks (visible when step has model or KindModelRef, "No model" placeholder with link to StepTemplateDetail, IAsyncDisposable, destroy on step change/view mode switch); `ExecutionWizardContent.razor` Phase 4 gains collapsible 3D model side panel (col-lg-5 Bootstrap column, toggle ▲/▼ button, destroy on collapse/phase exit, re-init on expand, IAsyncDisposable); 12 integration tests in StepModelTests (upload valid STL, invalid extension, replace model, oversized file note, download direct + redirect + no-model, delete, set/clear KindModelRef, KindModelRef with no model, mutual exclusivity) |
@@ -2149,7 +2150,251 @@ During the ExecutionWizard close-out phase (Phase 5 of 5), if the Job has an ass
 
 ---
 
-### Phase 21+ — Integrations (future)
+### Phase 21 — Automatic Inventory Tracking
+
+**Goal:** Let workstations with barcode scanners (USB scanners on PCs or PLCs) call the REST API to move items between locations with a single scan — the scanned barcode identifies the item, the API key identifies the destination.
+
+**Status:** Designed — not yet built. Depends on Phase 19 (Warehouse Management) and Phase 20 (Webhook system) being complete. Both are implemented.
+
+**Core principle:** A workstation is a fixed physical point (assembly cell, receiving dock, shipping lane) that has one barcode scanner and one bound storage location. The operator scans an item barcode; the system resolves the item from the barcode, the destination from the workstation's fixed location, and the source from the item's current `StorageLocationId`. One scan = one transfer. No UI interaction required — external clients (PLC software, barcode-scanner apps) consume the REST API directly.
+
+---
+
+#### 21a — API Key Authentication
+
+Long-lived API keys replace JWT for machine-to-machine authentication. Each key is scoped to exactly one workstation, so the key alone determines the caller's identity and fixed location.
+
+**Key entity: `ApiKey`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `KeyHash` | string | SHA-256 hash of the raw key (raw key shown once at creation, never stored) |
+| `KeyPrefix` | string(8) | First 8 characters of raw key, stored in plain text for admin identification (e.g. "pk_a3f8...") |
+| `Name` | string | Human-readable label (e.g. "Assembly Cell 3 Scanner") |
+| `WorkstationId` | Guid | FK → `Workstation` — each key bound to exactly one workstation |
+| `CreatedByUserId` | string | FK → `ApplicationUser` — admin who created the key |
+| `IsActive` | bool | Soft-revoke toggle |
+| `CreatedAt` | DateTime | |
+| `LastUsedAt` | DateTime? | Updated on each authenticated request |
+| `ExpiresAt` | DateTime? | Null = never expires; if set, key is rejected after this date |
+
+**Authentication flow:**
+
+1. External client sends `X-Api-Key: <raw-key>` header with every request.
+2. `ApiKeyAuthenticationHandler` (secondary scheme alongside JWT) hashes the incoming key with SHA-256, queries `ApiKeys` table by hash.
+3. If found, active, and not expired: set `ClaimsPrincipal` with claims `workstation_id`, `workstation_code`, `fixed_location_id`, `api_key_id`. Update `LastUsedAt`. Authenticate succeeds.
+4. If not found, inactive, or expired: 401 Unauthorized.
+5. If `X-Api-Key` header is present, API key auth is used; otherwise JWT auth is used. Both schemes are valid for `[Authorize]` endpoints.
+
+**Admin endpoints (JWT-authenticated, Admin role only):**
+
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/api/admin/api-keys` | List all API keys (paginated, filterable by workstationId, active) — returns `KeyPrefix` + metadata, never the full key |
+| `POST` | `/api/admin/api-keys` | Create new key — returns the raw key **once** in the response body; caller must save it |
+| `GET` | `/api/admin/api-keys/{id}` | Get key metadata |
+| `PATCH` | `/api/admin/api-keys/{id}` | Update Name, IsActive, ExpiresAt |
+| `DELETE` | `/api/admin/api-keys/{id}` | Hard-delete (revokes permanently) |
+
+---
+
+#### 21b — Workstations
+
+A workstation represents a physical scanning station bound to a specific storage location. Scanning at this station means "transfer item TO this location."
+
+**Key entity: `Workstation`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `Code` | string | Unique short code (e.g. "WS-ASSY-03", "WS-RECV-01") |
+| `Name` | string | Display name (e.g. "Assembly Cell 3") |
+| `Description` | string? | |
+| `FixedLocationId` | Guid | FK → `StorageLocation` — the location items are transferred TO when scanned |
+| `IsActive` | bool | Soft-delete |
+
+**Admin endpoints (JWT-authenticated, Admin role only):**
+
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/api/admin/workstations` | List workstations (paginated, search by code/name, filter by active) |
+| `POST` | `/api/admin/workstations` | Create — validates `FixedLocationId` exists and is active |
+| `GET` | `/api/admin/workstations/{id}` | Get with linked location details and API key count |
+| `PUT` | `/api/admin/workstations/{id}` | Update (cannot change `Code` after creation) |
+| `DELETE` | `/api/admin/workstations/{id}` | Deactivate (soft-delete); rejects if active API keys exist |
+
+---
+
+#### 21c — Barcode Fields
+
+New barcode fields enable lookup-by-scan distinct from existing serial number and location code fields. Barcodes may be vendor-assigned, use different encoding formats (Code 128, QR, Data Matrix), or follow internal labelling schemes.
+
+**Entity extensions:**
+
+| Entity | New Field | Type | Notes |
+|---|---|---|---|
+| `Item` | `Barcode` | string? | Unique index (nullable). The value physically encoded on the item's label — may differ from `SerialNumber`. If null, scan endpoint falls back to `SerialNumber`. |
+| `StorageLocation` | `Barcode` | string? | Unique index (nullable). Encoded on location labels for optional two-scan workflows (future). |
+| `Kind` | `Barcode` | string? | Unique index (nullable). UPC/EAN/GTIN for the product type — enables future receiving workflows where a Kind barcode identifies what is being received. |
+
+**Barcode resolution order for the scan endpoint:** The scan endpoint resolves a barcode string to an Item using this precedence:
+1. `Item.Barcode` — exact match
+2. `Item.SerialNumber` — exact match (fallback for sites that encode serial numbers directly)
+
+If neither matches, the scan fails with a descriptive error logged to `ScanEvent`.
+
+---
+
+#### 21d — Scan Endpoint
+
+The primary new API endpoint. Designed for maximum simplicity — the caller sends one barcode string, and the API key provides all other context.
+
+**Endpoint: `POST /api/warehouse/scan`**
+
+**Authentication:** `X-Api-Key` header required (API key auth scheme).
+
+**Request body:**
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `barcode` | string | Yes | The scanned barcode value |
+
+**Processing logic:**
+
+1. **Resolve caller context** from API key claims: `workstation_id`, `fixed_location_id`.
+2. **Resolve Item** from barcode using the resolution order defined in 21c.
+3. **Validate Item state:**
+   - Item must exist → 404 `{ error: "unknown_barcode", barcode: "..." }`
+   - Item must have status `Available` or `InProcess` → 409 `{ error: "invalid_item_status", status: "Consumed" }`
+   - Item's current `StorageLocationId` must not already be the workstation's `FixedLocationId` → 200 no-op with `{ result: "already_at_location" }` (idempotent — not an error, logged as informational)
+4. **Create transaction:**
+   - `TransactionType` = `Transfer` (or `Receipt` if `Item.StorageLocationId` is null — item has never been located)
+   - `FromLocationId` = `Item.StorageLocationId` (null for Receipt)
+   - `ToLocationId` = workstation's `FixedLocationId`
+   - `Quantity` = 1
+   - `ReferenceType` = `Workstation` (new enum value on `InventoryReferenceType`)
+   - `ReferenceId` = workstation's Id
+   - `TransactedByUserId` = `"apikey:{KeyPrefix}"` — synthetic identifier since API keys have no user identity
+5. **Update Item** `StorageLocationId` to workstation's `FixedLocationId`.
+6. **Log ScanEvent** (see 21e).
+7. **Fire webhook** `inventory.scan` (see 21f).
+
+**Success response (200):**
+
+```json
+{
+  "result": "transferred",
+  "transactionId": "...",
+  "item": {
+    "id": "...",
+    "barcode": "WDG-001-0042",
+    "serialNumber": "SN-0042",
+    "kindCode": "WDG-001",
+    "kindName": "Widget Type A"
+  },
+  "fromLocation": { "id": "...", "code": "RAW-A1-B3" },
+  "toLocation": { "id": "...", "code": "ASSY-03" },
+  "workstation": { "id": "...", "code": "WS-ASSY-03" },
+  "transactedAt": "2026-03-28T14:30:00Z"
+}
+```
+
+**Error responses:**
+
+| Status | `error` code | When |
+|---|---|---|
+| 401 | (standard) | Missing or invalid API key |
+| 404 | `unknown_barcode` | Barcode not found in Item.Barcode or Item.SerialNumber |
+| 409 | `invalid_item_status` | Item is Consumed, Completed, or Scrapped |
+| 400 | `workstation_inactive` | Workstation or its fixed location is deactivated |
+
+---
+
+#### 21e — Scan Event Logging
+
+A dedicated scan event log captures every scan attempt — including failures — for diagnostics, throughput tracking, and integration monitoring. Separate from `InventoryTransaction` (which only records successful movements).
+
+**Key entity: `ScanEvent`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `WorkstationId` | Guid | FK → `Workstation` |
+| `ApiKeyId` | Guid | FK → `ApiKey` |
+| `ScannedBarcode` | string | The raw barcode string received |
+| `ItemId` | Guid? | FK → `Item` — null if barcode was not resolved |
+| `TransactionId` | Guid? | FK → `InventoryTransaction` — null if no transaction created |
+| `Result` | ScanResult enum | `Transferred` / `AlreadyAtLocation` / `UnknownBarcode` / `InvalidItemStatus` / `WorkstationInactive` / `Error` |
+| `ErrorMessage` | string? | Descriptive message for failed scans |
+| `ScannedAt` | DateTime | Server UTC |
+
+**No BaseEntity inheritance** — append-only log with own `Id` + `ScannedAt`.
+
+**Query endpoint (JWT-authenticated, Admin/Engineer role):**
+
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/api/warehouse/scan-events` | Paginated list with filters: `workstationId`, `result`, `dateFrom`, `dateTo`, `barcode` (partial match) |
+
+---
+
+#### 21f — Webhook & MCP Integration
+
+Scan events fire through the existing Phase 20 webhook system. Subscribers can filter on `inventory.scan` or use the wildcard `inventory.*`.
+
+**New webhook event type:** `inventory.scan`
+
+**Payload shape:**
+
+```json
+{
+  "eventType": "inventory.scan",
+  "timestamp": "2026-03-28T14:30:00Z",
+  "data": {
+    "result": "transferred",
+    "scanEventId": "...",
+    "transactionId": "...",
+    "workstation": { "id": "...", "code": "WS-ASSY-03" },
+    "item": { "id": "...", "barcode": "WDG-001-0042", "kindCode": "WDG-001" },
+    "fromLocationCode": "RAW-A1-B3",
+    "toLocationCode": "ASSY-03"
+  }
+}
+```
+
+Failed scans also fire `inventory.scan` with the `result` field set to the failure reason — subscribers decide whether to act on failures.
+
+**New MCP tool:** `get_workstation_status` — returns all active workstations with their fixed locations, API key count, and last scan time (from latest ScanEvent). Useful for AI assistants monitoring scanner health.
+
+---
+
+#### Key design decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| API key auth, not JWT | API keys with `X-Api-Key` header | Workstations are unattended machines; JWT refresh is impractical for PLCs and simple scanner apps. API keys are long-lived, revocable, and scoped to a single workstation. |
+| Key scoped to workstation, not user | 1:1 ApiKey→Workstation | The key identifies the machine, not the person. Operator identity is not captured at scan time. If operator tracking is needed later, it can be layered via a badge scan. |
+| SHA-256 hash, raw key shown once | Hash-only storage | Same pattern as GitHub PATs — raw key never stored. If lost, admin revokes and reissues. KeyPrefix allows identification in admin UI. |
+| Separate Barcode from SerialNumber | Item.Barcode nullable unique | Barcodes may be vendor-assigned (GS1, Code 128) and differ from internal serial numbers. Fallback to SerialNumber keeps backward compatibility. |
+| Kind.Barcode for future receiving | Nullable, not used by scan endpoint | Enables future "receive by scanning product barcode" workflow without a schema change. |
+| ScanEvent separate from InventoryTransaction | Dedicated append-only table | InventoryTransaction only records successful movements. ScanEvent captures failures (unknown barcodes, status errors) which are critical for diagnostics and monitoring scanner health. |
+| Idempotent "already at location" | 200 no-op, not an error | Barcode scanners sometimes double-fire. Treating a re-scan as an error would confuse operators. The scan is logged but no transaction is created. |
+| Receipt fallback for unlocated items | Transfer if item has location, Receipt if null | Items that have never been warehouse-located get their first location via Receipt, not Transfer. Scan endpoint handles both transparently. |
+
+**New entities:** `ApiKey`, `Workstation`, `ScanEvent`
+
+**Existing entities extended:** `Item.Barcode`, `StorageLocation.Barcode`, `Kind.Barcode` (all string?, unique index)
+
+**New enum values:** `InventoryReferenceType.Workstation`, `ScanResult` enum (6 values)
+
+**EF migration:** `Phase21_AutomaticInventoryTracking`
+
+**Swagger/OpenAPI:** `X-Api-Key` registered as a SecurityDefinition (type: ApiKey, in: Header) alongside existing JWT Bearer definition.
+
+---
+
+### Phase 22+ — Integrations (future)
 
 **Goal:** Connect the process system to peripheral business functions.
 
@@ -2256,9 +2501,10 @@ Additional capability added post-Phase 6:
 
 #### Not yet built
 - **Phase 17 — Standards Conformance Management** — `StandardsClause` seed table (ISO 9001:2015 + AS9100 Rev D clauses), `ClauseEvidenceLink` many-to-many join with auto-linking rules for all seeded QMS documents and quality records, `AuditProgram`/`Audit`/`AuditFinding` entities with `ActionItem` FK for CA tracking, Conformance Dashboard (`/conformance`) with clause-coverage heatmap, Clause Browser, Audit Program list and detail pages, Audit detail with finding management, `get_conformance_status` MCP tool
+- **Phase 21 — Automatic Inventory Tracking** — `ApiKey` entity (SHA-256 hashed, workstation-scoped, `X-Api-Key` header auth), `Workstation` entity (Code, FixedLocationId FK), `ScanEvent` append-only log; `Item.Barcode`/`StorageLocation.Barcode`/`Kind.Barcode` barcode fields; `POST /api/warehouse/scan` single-barcode endpoint (API key → workstation → fixed location auto-transfer); `ScanResult` enum; admin CRUD for workstations and API keys; `inventory.scan` webhook event; `get_workstation_status` MCP tool
 
 #### Ongoing limitations
 
 - Multi-tenancy deferred until a second SaaS tenant is onboarded (database-per-tenant approach selected — see Architecture Decision above)
 - Email notifications for out-of-range alerts not yet implemented (webhook notifications are available via Phase 20)
-- MCP server uses short-lived JWT tokens; a long-lived API-key auth path would improve service-account ergonomics for AI integrations
+- MCP server uses short-lived JWT tokens; Phase 21 introduces long-lived API keys for workstation/PLC integration — this could also be extended to MCP service accounts

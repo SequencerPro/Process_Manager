@@ -25,7 +25,9 @@ public class KindsController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
-        var query = _db.Kinds.Include(k => k.Grades).Include(k => k.Documents).AsQueryable();
+        var query = _db.Kinds.Include(k => k.Grades).Include(k => k.Documents)
+            .Include(k => k.BomLines).ThenInclude(b => b.ComponentKind)
+            .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(k => k.Code.Contains(search) || k.Name.Contains(search));
@@ -51,6 +53,7 @@ public class KindsController : ControllerBase
         var kind = await _db.Kinds
             .Include(k => k.Grades)
             .Include(k => k.Documents)
+            .Include(k => k.BomLines).ThenInclude(b => b.ComponentKind)
             .FirstOrDefaultAsync(k => k.Id == id);
 
         if (kind is null) return NotFound();
@@ -99,6 +102,7 @@ public class KindsController : ControllerBase
         var result = await _db.Kinds
             .Include(k => k.Grades)
             .Include(k => k.Documents)
+            .Include(k => k.BomLines).ThenInclude(b => b.ComponentKind)
             .FirstAsync(k => k.Id == kind.Id);
 
         return CreatedAtAction(nameof(GetById), new { id = kind.Id }, MapToDto(result));
@@ -111,6 +115,7 @@ public class KindsController : ControllerBase
         var kind = await _db.Kinds
             .Include(k => k.Grades)
             .Include(k => k.Documents)
+            .Include(k => k.BomLines).ThenInclude(b => b.ComponentKind)
             .FirstOrDefaultAsync(k => k.Id == id);
 
         if (kind is null) return NotFound();
@@ -159,6 +164,10 @@ public class KindsController : ControllerBase
         // Check if any ports reference this kind
         if (await _db.Ports.AnyAsync(p => p.KindId == id))
             return Conflict("Cannot delete a Kind that is referenced by one or more Ports.");
+
+        // Check if this kind is used as a component in any BoM
+        if (await _db.BomLines.AnyAsync(b => b.ComponentKindId == id))
+            return Conflict("Cannot delete a Kind that is used as a component in a Bill of Materials.");
 
         _db.Kinds.Remove(kind);
         await _db.SaveChangesAsync();
@@ -329,6 +338,7 @@ public class KindsController : ControllerBase
         var kind = await _db.Kinds
             .Include(k => k.Grades)
             .Include(k => k.Documents)
+            .Include(k => k.BomLines).ThenInclude(b => b.ComponentKind)
             .FirstOrDefaultAsync(k => k.Id == kindId);
         if (kind is null) return NotFound("Kind not found.");
 
@@ -389,6 +399,82 @@ public class KindsController : ControllerBase
 
     // ──────────── Mapping ────────────
 
+    // ──────────── BoM sub-resource ────────────
+
+    [Authorize(Roles = "Admin,Engineer")]
+    [HttpPost("{kindId:guid}/bom")]
+    public async Task<ActionResult<BomLineResponseDto>> CreateBomLine(Guid kindId, BomLineCreateDto dto)
+    {
+        var kind = await _db.Kinds.FindAsync(kindId);
+        if (kind is null) return NotFound("Kind not found.");
+
+        if (dto.ComponentKindId == kindId)
+            return Conflict("A Kind cannot reference itself as a component.");
+
+        var component = await _db.Kinds.FindAsync(dto.ComponentKindId);
+        if (component is null) return NotFound("Component Kind not found.");
+
+        if (await _db.BomLines.AnyAsync(b => b.ParentKindId == kindId && b.ComponentKindId == dto.ComponentKindId))
+            return Conflict("This component is already in the Bill of Materials.");
+
+        var bomLine = new BomLine
+        {
+            ParentKindId = kindId,
+            ComponentKindId = dto.ComponentKindId,
+            LineNumber = dto.LineNumber,
+            Quantity = dto.Quantity,
+            UnitOfMeasure = dto.UnitOfMeasure,
+            Notes = dto.Notes,
+            SortOrder = dto.SortOrder
+        };
+
+        _db.BomLines.Add(bomLine);
+        await _db.SaveChangesAsync();
+
+        // Reload with component navigation
+        var result = await _db.BomLines
+            .Include(b => b.ComponentKind)
+            .FirstAsync(b => b.Id == bomLine.Id);
+
+        return CreatedAtAction(nameof(GetById), new { id = kindId }, MapBomLineToDto(result));
+    }
+
+    [Authorize(Roles = "Admin,Engineer")]
+    [HttpPut("{kindId:guid}/bom/{lineId:guid}")]
+    public async Task<ActionResult<BomLineResponseDto>> UpdateBomLine(Guid kindId, Guid lineId, BomLineUpdateDto dto)
+    {
+        var bomLine = await _db.BomLines
+            .Include(b => b.ComponentKind)
+            .FirstOrDefaultAsync(b => b.Id == lineId && b.ParentKindId == kindId);
+
+        if (bomLine is null) return NotFound();
+
+        bomLine.LineNumber = dto.LineNumber;
+        bomLine.Quantity = dto.Quantity;
+        bomLine.UnitOfMeasure = dto.UnitOfMeasure;
+        bomLine.Notes = dto.Notes;
+        bomLine.SortOrder = dto.SortOrder;
+
+        await _db.SaveChangesAsync();
+        return MapBomLineToDto(bomLine);
+    }
+
+    [Authorize(Roles = "Admin,Engineer")]
+    [HttpDelete("{kindId:guid}/bom/{lineId:guid}")]
+    public async Task<IActionResult> DeleteBomLine(Guid kindId, Guid lineId)
+    {
+        var bomLine = await _db.BomLines
+            .FirstOrDefaultAsync(b => b.Id == lineId && b.ParentKindId == kindId);
+
+        if (bomLine is null) return NotFound();
+
+        _db.BomLines.Remove(bomLine);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ──────────── Mapping ────────────
+
     private static KindResponseDto MapToDto(Kind kind) => new(
         kind.Id, kind.Code, kind.Name, kind.Description,
         kind.IsSerialized, kind.IsBatchable,
@@ -401,7 +487,8 @@ public class KindsController : ControllerBase
         kind.ModelFileName, kind.ModelOriginalFileName, kind.ModelMimeType,
         kind.CreatedAt, kind.UpdatedAt,
         kind.Grades.OrderBy(g => g.SortOrder).Select(MapGradeToDto).ToList(),
-        kind.Documents.OrderBy(d => d.SortOrder).Select(MapDocumentToDto).ToList()
+        kind.Documents.OrderBy(d => d.SortOrder).Select(MapDocumentToDto).ToList(),
+        kind.BomLines.OrderBy(b => b.SortOrder).Select(MapBomLineToDto).ToList()
     );
 
     private static GradeResponseDto MapGradeToDto(Grade grade) => new(
@@ -414,5 +501,13 @@ public class KindsController : ControllerBase
         doc.Id, doc.KindId, doc.FileName, doc.OriginalFileName,
         doc.MimeType, doc.Title, doc.SortOrder,
         doc.CreatedAt, doc.UpdatedAt
+    );
+
+    private static BomLineResponseDto MapBomLineToDto(BomLine b) => new(
+        b.Id, b.ParentKindId, b.ComponentKindId,
+        b.ComponentKind.Code, b.ComponentKind.Name,
+        b.ComponentKind.UnitOfMeasure, b.ComponentKind.Cost,
+        b.LineNumber, b.Quantity, b.UnitOfMeasure, b.Notes, b.SortOrder,
+        b.CreatedAt, b.UpdatedAt
     );
 }

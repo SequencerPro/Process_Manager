@@ -85,7 +85,8 @@ public record KindResponseDto(
     DateTime CreatedAt,
     DateTime UpdatedAt,
     List<GradeResponseDto> Grades,
-    List<KindDocumentResponseDto> Documents
+    List<KindDocumentResponseDto> Documents,
+    List<BomLineResponseDto> BomLines
 );
 
 public record KindDocumentResponseDto(
@@ -124,6 +125,42 @@ public record GradeResponseDto(
     string Name,
     string? Description,
     bool IsDefault,
+    int SortOrder,
+    DateTime CreatedAt,
+    DateTime UpdatedAt
+);
+
+// ──────────────────── BomLine ────────────────────
+
+public record BomLineCreateDto(
+    [Required] Guid ComponentKindId,
+    [Range(1, int.MaxValue)] int LineNumber,
+    [Required, Range(0.0001, (double)decimal.MaxValue)] decimal Quantity,
+    [StringLength(50)] string? UnitOfMeasure = null,
+    [StringLength(2000)] string? Notes = null,
+    int SortOrder = 0
+);
+
+public record BomLineUpdateDto(
+    [Range(1, int.MaxValue)] int LineNumber,
+    [Required, Range(0.0001, (double)decimal.MaxValue)] decimal Quantity,
+    [StringLength(50)] string? UnitOfMeasure = null,
+    [StringLength(2000)] string? Notes = null,
+    int SortOrder = 0
+);
+
+public record BomLineResponseDto(
+    Guid Id,
+    Guid ParentKindId,
+    Guid ComponentKindId,
+    string ComponentCode,
+    string ComponentName,
+    string? ComponentUnitOfMeasure,
+    decimal? ComponentCost,
+    int LineNumber,
+    decimal Quantity,
+    string? UnitOfMeasure,
+    string? Notes,
     int SortOrder,
     DateTime CreatedAt,
     DateTime UpdatedAt

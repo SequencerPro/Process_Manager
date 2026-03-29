@@ -70,6 +70,23 @@ public abstract class IntegrationTestBase : IClassFixture<TestWebApplicationFact
         return (kind, grade);
     }
 
+    // ──────────── BomLine helpers ────────────
+
+    protected async Task<BomLineResponseDto> CreateBomLine(
+        Guid parentKindId,
+        Guid componentKindId,
+        int lineNumber = 1,
+        decimal quantity = 1,
+        string? unitOfMeasure = null,
+        string? notes = null,
+        int sortOrder = 0)
+    {
+        var dto = new BomLineCreateDto(componentKindId, lineNumber, quantity, unitOfMeasure, notes, sortOrder);
+        var response = await Client.PostAsJsonAsync($"/api/kinds/{parentKindId}/bom", dto, JsonOptions);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<BomLineResponseDto>(JsonOptions))!;
+    }
+
     // ──────────── StepTemplate helpers ────────────
 
     protected async Task<StepTemplateResponseDto> CreateTransformStep(

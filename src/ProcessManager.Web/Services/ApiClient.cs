@@ -119,6 +119,28 @@ public class ApiClient
         resp.EnsureSuccessStatusCode();
     }
 
+    // ═══════════════════ BOM Lines ═══════════════════
+
+    public async Task<BomLineResponseDto?> CreateBomLineAsync(Guid kindId, BomLineCreateDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/kinds/{kindId}/bom", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<BomLineResponseDto>(_json);
+    }
+
+    public async Task<BomLineResponseDto?> UpdateBomLineAsync(Guid kindId, Guid lineId, BomLineUpdateDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/kinds/{kindId}/bom/{lineId}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<BomLineResponseDto>(_json);
+    }
+
+    public async Task DeleteBomLineAsync(Guid kindId, Guid lineId)
+    {
+        var resp = await _http.DeleteAsync($"api/kinds/{kindId}/bom/{lineId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
     // ═══════════════════ Step Templates ═══════════════════
 
     public Task<PaginatedResponse<StepTemplateResponseDto>?> GetStepTemplatesAsync(

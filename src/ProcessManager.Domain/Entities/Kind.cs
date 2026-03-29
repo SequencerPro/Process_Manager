@@ -87,4 +87,5 @@ public class Kind : BaseEntity
     // Navigation properties
     public ICollection<Grade> Grades { get; set; } = new List<Grade>();
     public ICollection<KindDocument> Documents { get; set; } = new List<KindDocument>();
+    public ICollection<BomLine> BomLines { get; set; } = new List<BomLine>();
 }

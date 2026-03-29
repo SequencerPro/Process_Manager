@@ -125,6 +125,9 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
 
+    // Bill of Materials
+    public DbSet<BomLine> BomLines => Set<BomLine>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -1561,6 +1564,27 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany(s => s.Deliveries)
                 .HasForeignKey(d => d.WebhookSubscriptionId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- BomLine ---
+        modelBuilder.Entity<BomLine>(e =>
+        {
+            e.HasKey(b => b.Id);
+            e.HasIndex(b => new { b.ParentKindId, b.LineNumber }).IsUnique();
+            e.HasIndex(b => new { b.ParentKindId, b.ComponentKindId }).IsUnique();
+            e.Property(b => b.Quantity).HasColumnType("decimal(18,4)");
+            e.Property(b => b.UnitOfMeasure).HasMaxLength(50);
+            e.Property(b => b.Notes).HasMaxLength(2000);
+
+            e.HasOne(b => b.ParentKind)
+                .WithMany(k => k.BomLines)
+                .HasForeignKey(b => b.ParentKindId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(b => b.ComponentKind)
+                .WithMany()
+                .HasForeignKey(b => b.ComponentKindId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 

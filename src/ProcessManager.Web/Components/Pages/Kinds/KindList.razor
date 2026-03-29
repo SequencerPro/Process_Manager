@@ -388,7 +388,29 @@ else if (_data is not null)
         _cloneSourceName = "";
         _showForm = true;
         _allKinds = await Api.GetKindsAsync(pageSize: 100);
+
+        // Auto-populate a unique sequential code starting at 100000
+        _form.Code = await GenerateNextCodeAsync();
+
         StateHasChanged();
+    }
+
+    private async Task<string> GenerateNextCodeAsync()
+    {
+        // Load all existing codes (large pageSize to capture all)
+        var allKinds = await Api.GetKindsAsync(pageSize: 10000);
+        var existingCodes = new HashSet<string>(
+            allKinds?.Items.Select(k => k.Code) ?? Enumerable.Empty<string>(),
+            StringComparer.OrdinalIgnoreCase);
+
+        for (int candidate = 100000; candidate < 999999; candidate++)
+        {
+            var code = candidate.ToString();
+            if (!existingCodes.Contains(code))
+                return code;
+        }
+
+        return "100000"; // fallback — should never be reached
     }
 
     private void SelectKindFromPicker(KindResponseDto k)

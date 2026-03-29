@@ -289,6 +289,79 @@ else
             </tbody>
         </table>
     </div>
+
+    @* ──── Bill of Materials ──── *@
+    <div class="d-flex justify-content-between align-items-center mb-3 mt-4">
+        <h5 class="mb-0"><i class="bi bi-diagram-3 me-1"></i> Bill of Materials (@(_kind.BomLines?.Count ?? 0) lines)</h5>
+        <button class="btn btn-primary btn-sm" @onclick="ShowBomForm">
+            <i class="bi bi-plus-lg me-1"></i> Add Component
+        </button>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Line #</th>
+                    <th>Code</th>
+                    <th>Component</th>
+                    <th class="text-end">Qty</th>
+                    <th>UoM</th>
+                    <th>Notes</th>
+                    <th class="text-end">Line Cost</th>
+                    <th style="width:120px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_kind.BomLines?.Any() == true)
+                {
+                    @foreach (var line in _kind.BomLines.OrderBy(b => b.SortOrder).ThenBy(b => b.LineNumber))
+                    {
+                        <tr>
+                            <td>@line.LineNumber</td>
+                            <td><code>@line.ComponentCode</code></td>
+                            <td>@line.ComponentName</td>
+                            <td class="text-end">@line.Quantity.ToString("G")</td>
+                            <td>@(line.UnitOfMeasure ?? line.ComponentUnitOfMeasure ?? "—")</td>
+                            <td class="text-muted small">@line.Notes</td>
+                            <td class="text-end">
+                                @if (line.ComponentCost.HasValue)
+                                {
+                                    @((line.Quantity * line.ComponentCost.Value).ToString("C"))
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-outline-secondary btn-sm me-1"
+                                        @onclick="() => ShowEditBomLine(line)">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-outline-danger btn-sm"
+                                        @onclick="() => DeleteBomLine(line)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                    @if (GetBomTotalCost() > 0)
+                    {
+                        <tr class="table-light fw-semibold">
+                            <td colspan="6" class="text-end">Total BoM Cost</td>
+                            <td class="text-end">@GetBomTotalCost().ToString("C")</td>
+                            <td></td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr><td colspan="8" class="text-center text-muted py-3">No components defined.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
 }
 
 @if (_showGradeForm)
@@ -335,6 +408,158 @@ else
     </div>
 }
 
+@if (_showBomForm)
+{
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <div class="pm-modal-icon @(_editingBomLineId.HasValue ? "pm-modal-icon-blue" : "pm-modal-icon-green")">
+                            <i class="bi @(_editingBomLineId.HasValue ? "bi-pencil" : "bi-diagram-3")"></i>
+                        </div>
+                        <h5 class="modal-title">@(_editingBomLineId.HasValue ? "Edit Component" : "Add Component")</h5>
+                        <div class="pm-modal-subtitle">@(_editingBomLineId.HasValue ? "Update component line details" : "Add a component to this Kind's Bill of Materials")</div>
+                    </div>
+                    <button type="button" class="btn-close" @onclick="CloseBomForm"></button>
+                </div>
+                <EditForm Model="_bomForm" OnValidSubmit="SaveBomLine">
+                    <DataAnnotationsValidator />
+                    <div class="modal-body">
+                        <div class="pm-modal-divider">Component</div>
+                        @if (_editingBomLineId.HasValue)
+                        {
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-box me-1"></i> Component</label>
+                                <div class="form-control-plaintext fw-semibold">
+                                    <code>@_selectedComponentKind?.Code</code> @_selectedComponentKind?.Name
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="pm-input-group">
+                                <label class="form-label"><i class="bi bi-box me-1"></i> Component Kind</label>
+                                @if (_selectedComponentKind is not null)
+                                {
+                                    <div class="d-flex align-items-center gap-2">
+                                        <span class="fw-semibold"><code>@_selectedComponentKind.Code</code> @_selectedComponentKind.Name</span>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="() => _showComponentPicker = true">
+                                            <i class="bi bi-arrow-repeat"></i> Change
+                                        </button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <button type="button" class="btn btn-outline-primary" @onclick="() => _showComponentPicker = true">
+                                        <i class="bi bi-search me-1"></i> Select Component Kind
+                                    </button>
+                                }
+                            </div>
+                        }
+
+                        <div class="pm-modal-divider">Line Details</div>
+                        <div class="pm-input-group">
+                            <label class="form-label"><i class="bi bi-hash me-1"></i> Line Number</label>
+                            <InputNumber class="form-control" @bind-Value="_bomForm.LineNumber" />
+                        </div>
+                        <div class="pm-input-group">
+                            <label class="form-label"><i class="bi bi-123 me-1"></i> Quantity</label>
+                            <InputNumber class="form-control" @bind-Value="_bomForm.Quantity" />
+                        </div>
+                        <div class="pm-input-group">
+                            <label class="form-label"><i class="bi bi-rulers me-1"></i> Unit of Measure (override)</label>
+                            <InputText class="form-control" @bind-Value="_bomForm.UnitOfMeasure" placeholder="Leave blank to use component default" />
+                        </div>
+                        <div class="pm-input-group">
+                            <label class="form-label"><i class="bi bi-chat-left-text me-1"></i> Notes</label>
+                            <InputTextArea class="form-control" @bind-Value="_bomForm.Notes" rows="2" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="CloseBomForm">Cancel</button>
+                        <button type="submit" class="btn btn-primary" disabled="@(_selectedComponentKind is null && !_editingBomLineId.HasValue)">Save</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_showComponentPicker)
+{
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.55); z-index: 1060">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <div class="pm-modal-icon pm-modal-icon-green">
+                            <i class="bi bi-box"></i>
+                        </div>
+                        <h5 class="modal-title">Select Component Kind</h5>
+                        <div class="pm-modal-subtitle">Choose a Kind to add as a component</div>
+                    </div>
+                    <button type="button" class="btn-close" @onclick="() => _showComponentPicker = false"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="p-3 border-bottom">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control" placeholder="Search by code or name..."
+                                   @bind="_componentPickerSearch" @bind:event="oninput" />
+                        </div>
+                    </div>
+                    <div style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-hover table-sm align-middle mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Name</th>
+                                    <th>Source</th>
+                                    <th>UoM</th>
+                                    <th class="text-end">Cost</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{
+                                    var existingComponentIds = new HashSet<Guid>(
+                                        _kind?.BomLines?.Select(b => b.ComponentKindId) ?? Enumerable.Empty<Guid>());
+                                    var filteredKinds = (_availableKinds ?? Enumerable.Empty<KindResponseDto>())
+                                        .Where(k => k.Id != Id && !existingComponentIds.Contains(k.Id))
+                                        .Where(k => string.IsNullOrWhiteSpace(_componentPickerSearch)
+                                            || k.Code.Contains(_componentPickerSearch, StringComparison.OrdinalIgnoreCase)
+                                            || k.Name.Contains(_componentPickerSearch, StringComparison.OrdinalIgnoreCase))
+                                        .OrderBy(k => k.Code)
+                                        .Take(100);
+                                }
+                                @foreach (var k in filteredKinds)
+                                {
+                                    <tr class="cursor-pointer" style="cursor: pointer;" @onclick="() => SelectComponent(k)">
+                                        <td><code>@k.Code</code></td>
+                                        <td>@k.Name</td>
+                                        <td><span class="badge @SourceBadgeClass(k.SourceType)">@FormatSourceType(k.SourceType)</span></td>
+                                        <td class="text-muted small">@(k.UnitOfMeasure ?? "—")</td>
+                                        <td class="text-end">@(k.Cost.HasValue ? k.Cost.Value.ToString("C") : "—")</td>
+                                    </tr>
+                                }
+                                @if (!filteredKinds.Any())
+                                {
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-4">
+                                            <i class="bi bi-inbox d-block fs-3 mb-2"></i>
+                                            No available kinds found.
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter] public Guid Id { get; set; }
 
@@ -349,6 +574,15 @@ else
     private bool _showGradeForm;
     private Guid? _editingGradeId;
     private GradeFormModel _gradeForm = new();
+
+    // BoM form
+    private bool _showBomForm;
+    private Guid? _editingBomLineId;
+    private BomFormModel _bomForm = new();
+    private KindResponseDto? _selectedComponentKind;
+    private bool _showComponentPicker;
+    private string _componentPickerSearch = "";
+    private IEnumerable<KindResponseDto>? _availableKinds;
 
     protected override async Task OnInitializedAsync()
     {
@@ -625,6 +859,118 @@ else
         public string Name { get; set; } = "";
         public string? Description { get; set; }
         public bool IsDefault { get; set; }
+        public int SortOrder { get; set; }
+    }
+
+    private decimal GetBomTotalCost() =>
+        _kind?.BomLines?.Where(b => b.ComponentCost.HasValue).Sum(b => b.Quantity * b.ComponentCost!.Value) ?? 0;
+
+    // ──── Bill of Materials ────
+
+    private async Task ShowBomForm()
+    {
+        _editingBomLineId = null;
+        _selectedComponentKind = null;
+        _componentPickerSearch = "";
+        // Auto-increment line number
+        var nextLine = (_kind?.BomLines?.Any() == true)
+            ? _kind.BomLines.Max(b => b.LineNumber) + 1
+            : 1;
+        _bomForm = new() { LineNumber = nextLine, Quantity = 1 };
+        // Load available kinds for the picker
+        await LoadAvailableKinds();
+        _showBomForm = true;
+    }
+
+    private async Task ShowEditBomLine(BomLineResponseDto line)
+    {
+        _editingBomLineId = line.Id;
+        _selectedComponentKind = new KindResponseDto(
+            line.ComponentKindId, line.ComponentCode, line.ComponentName, null,
+            false, false, "", line.ComponentUnitOfMeasure, line.ComponentCost, null,
+            null, null, null, null, null, null, null, null, null, null, null,
+            null, null, null, DateTime.MinValue, DateTime.MinValue,
+            new List<GradeResponseDto>(), new List<KindDocumentResponseDto>(), new List<BomLineResponseDto>());
+        _bomForm = new()
+        {
+            LineNumber = line.LineNumber,
+            Quantity = line.Quantity,
+            UnitOfMeasure = line.UnitOfMeasure ?? "",
+            Notes = line.Notes ?? ""
+        };
+        await LoadAvailableKinds();
+        _showBomForm = true;
+    }
+
+    private void CloseBomForm() { _showBomForm = false; _showComponentPicker = false; }
+
+    private void SelectComponent(KindResponseDto kind)
+    {
+        _selectedComponentKind = kind;
+        _showComponentPicker = false;
+    }
+
+    private async Task LoadAvailableKinds()
+    {
+        try
+        {
+            var result = await Api.GetKindsAsync(pageSize: 10000);
+            _availableKinds = result?.Items ?? Enumerable.Empty<KindResponseDto>();
+        }
+        catch { _availableKinds = Enumerable.Empty<KindResponseDto>(); }
+    }
+
+    private async Task SaveBomLine()
+    {
+        try
+        {
+            if (_editingBomLineId.HasValue)
+            {
+                await Api.UpdateBomLineAsync(Id, _editingBomLineId.Value,
+                    new BomLineUpdateDto(
+                        _bomForm.LineNumber,
+                        _bomForm.Quantity,
+                        string.IsNullOrWhiteSpace(_bomForm.UnitOfMeasure) ? null : _bomForm.UnitOfMeasure,
+                        string.IsNullOrWhiteSpace(_bomForm.Notes) ? null : _bomForm.Notes,
+                        _bomForm.SortOrder));
+            }
+            else
+            {
+                if (_selectedComponentKind is null) return;
+                await Api.CreateBomLineAsync(Id,
+                    new BomLineCreateDto(
+                        _selectedComponentKind.Id,
+                        _bomForm.LineNumber,
+                        _bomForm.Quantity,
+                        string.IsNullOrWhiteSpace(_bomForm.UnitOfMeasure) ? null : _bomForm.UnitOfMeasure,
+                        string.IsNullOrWhiteSpace(_bomForm.Notes) ? null : _bomForm.Notes,
+                        _bomForm.SortOrder));
+            }
+
+            _showBomForm = false;
+            _showComponentPicker = false;
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private async Task DeleteBomLine(BomLineResponseDto line)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Remove component '{line.ComponentCode}' from BoM?")) return;
+        try
+        {
+            await Api.DeleteBomLineAsync(Id, line.Id);
+            await LoadData();
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
+    }
+
+    private class BomFormModel
+    {
+        public int LineNumber { get; set; } = 1;
+        public decimal Quantity { get; set; } = 1;
+        public string UnitOfMeasure { get; set; } = "";
+        public string Notes { get; set; } = "";
         public int SortOrder { get; set; }
     }
 }

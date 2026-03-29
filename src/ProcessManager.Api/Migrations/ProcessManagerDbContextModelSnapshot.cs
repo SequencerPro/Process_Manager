@@ -445,6 +445,60 @@ namespace ProcessManager.Api.Migrations
                     b.ToTable("Batches");
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.BomLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ComponentKindId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ParentKindId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UnitOfMeasure")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ComponentKindId");
+
+                    b.HasIndex("ParentKindId", "ComponentKindId")
+                        .IsUnique();
+
+                    b.HasIndex("ParentKindId", "LineNumber")
+                        .IsUnique();
+
+                    b.ToTable("BomLines");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.CeCorrelation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4337,6 +4391,25 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Kind");
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.BomLine", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.Kind", "ComponentKind")
+                        .WithMany()
+                        .HasForeignKey("ComponentKindId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ProcessManager.Domain.Entities.Kind", "ParentKind")
+                        .WithMany("BomLines")
+                        .HasForeignKey("ParentKindId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ComponentKind");
+
+                    b.Navigation("ParentKind");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.CeCorrelation", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.CeInput", "Input")
@@ -5414,6 +5487,8 @@ namespace ProcessManager.Api.Migrations
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Kind", b =>
                 {
+                    b.Navigation("BomLines");
+
                     b.Navigation("Documents");
 
                     b.Navigation("Grades");

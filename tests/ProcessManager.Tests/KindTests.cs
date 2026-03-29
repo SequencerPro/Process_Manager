@@ -601,4 +601,139 @@ public class KindTests : IntegrationTestBase
         var result = await response.Content.ReadFromJsonAsync<KindResponseDto>(JsonOptions);
         Assert.Equal("v2.step", result!.ModelOriginalFileName);
     }
+
+    // ──────────── BILL OF MATERIALS ────────────
+
+    [Fact]
+    public async Task CreateBomLine_ValidComponent_ReturnsCreated()
+    {
+        var assembly = await CreateKind("BOM-ASM-001", "Assembly");
+        var component = await CreateKind("BOM-CMP-001", "Component", isSerialized: false);
+
+        var bomLine = await CreateBomLine(assembly.Id, component.Id, lineNumber: 1, quantity: 5);
+
+        Assert.Equal(assembly.Id, bomLine.ParentKindId);
+        Assert.Equal(component.Id, bomLine.ComponentKindId);
+        Assert.Equal(component.Code, bomLine.ComponentCode);
+        Assert.Equal(component.Name, bomLine.ComponentName);
+        Assert.Equal(1, bomLine.LineNumber);
+        Assert.Equal(5m, bomLine.Quantity);
+    }
+
+    [Fact]
+    public async Task CreateBomLine_SelfReference_ReturnsConflict()
+    {
+        var kind = await CreateKind("BOM-SELF-001", "Self Ref Kind");
+
+        var dto = new BomLineCreateDto(kind.Id, 1, 1);
+        var response = await Client.PostAsJsonAsync($"/api/kinds/{kind.Id}/bom", dto, JsonOptions);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateBomLine_DuplicateComponent_ReturnsConflict()
+    {
+        var assembly = await CreateKind("BOM-DUP-001", "Assembly Dup");
+        var component = await CreateKind("BOM-DUP-002", "Component Dup");
+
+        await CreateBomLine(assembly.Id, component.Id, lineNumber: 1, quantity: 2);
+
+        var dto = new BomLineCreateDto(component.Id, 2, 3);
+        var response = await Client.PostAsJsonAsync($"/api/kinds/{assembly.Id}/bom", dto, JsonOptions);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateBomLine_InvalidComponentId_ReturnsNotFound()
+    {
+        var assembly = await CreateKind("BOM-INV-001", "Assembly Invalid");
+
+        var dto = new BomLineCreateDto(Guid.NewGuid(), 1, 1);
+        var response = await Client.PostAsJsonAsync($"/api/kinds/{assembly.Id}/bom", dto, JsonOptions);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateBomLine_ValidChanges_ReturnsUpdated()
+    {
+        var assembly = await CreateKind("BOM-UPD-001", "Assembly Upd");
+        var component = await CreateKind("BOM-UPD-002", "Component Upd");
+
+        var bomLine = await CreateBomLine(assembly.Id, component.Id, lineNumber: 1, quantity: 2);
+
+        var updateDto = new BomLineUpdateDto(10, 25, "Kg", "Updated notes", 5);
+        var response = await Client.PutAsJsonAsync($"/api/kinds/{assembly.Id}/bom/{bomLine.Id}", updateDto, JsonOptions);
+        response.EnsureSuccessStatusCode();
+
+        var updated = await response.Content.ReadFromJsonAsync<BomLineResponseDto>(JsonOptions);
+        Assert.Equal(10, updated!.LineNumber);
+        Assert.Equal(25m, updated.Quantity);
+        Assert.Equal("Kg", updated.UnitOfMeasure);
+        Assert.Equal("Updated notes", updated.Notes);
+    }
+
+    [Fact]
+    public async Task DeleteBomLine_Existing_ReturnsNoContent()
+    {
+        var assembly = await CreateKind("BOM-DEL-001", "Assembly Del");
+        var component = await CreateKind("BOM-DEL-002", "Component Del");
+
+        var bomLine = await CreateBomLine(assembly.Id, component.Id, lineNumber: 1, quantity: 1);
+
+        var response = await Client.DeleteAsync($"/api/kinds/{assembly.Id}/bom/{bomLine.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        // Verify line no longer in Kind response
+        var kindResponse = await Client.GetFromJsonAsync<KindResponseDto>($"/api/kinds/{assembly.Id}", JsonOptions);
+        Assert.Empty(kindResponse!.BomLines);
+    }
+
+    [Fact]
+    public async Task GetKind_IncludesBomLines()
+    {
+        var assembly = await CreateKind("BOM-GET-001", "Assembly Get");
+        var comp1 = await CreateKind("BOM-GET-002", "Component A");
+        var comp2 = await CreateKind("BOM-GET-003", "Component B");
+
+        await CreateBomLine(assembly.Id, comp1.Id, lineNumber: 1, quantity: 3);
+        await CreateBomLine(assembly.Id, comp2.Id, lineNumber: 2, quantity: 7);
+
+        var kind = await Client.GetFromJsonAsync<KindResponseDto>($"/api/kinds/{assembly.Id}", JsonOptions);
+        Assert.Equal(2, kind!.BomLines.Count);
+        Assert.Contains(kind.BomLines, b => b.ComponentCode == "BOM-GET-002" && b.Quantity == 3);
+        Assert.Contains(kind.BomLines, b => b.ComponentCode == "BOM-GET-003" && b.Quantity == 7);
+    }
+
+    [Fact]
+    public async Task DeleteKind_UsedAsComponent_ReturnsConflict()
+    {
+        var assembly = await CreateKind("BOM-DC-001", "Assembly DC");
+        var component = await CreateKind("BOM-DC-002", "Component DC");
+
+        await CreateBomLine(assembly.Id, component.Id, lineNumber: 1, quantity: 1);
+
+        // Cannot delete a Kind used as component
+        var response = await Client.DeleteAsync($"/api/kinds/{component.Id}");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteKind_WithBomLines_CascadesDelete()
+    {
+        var assembly = await CreateKind("BOM-CAS-001", "Assembly Cascade");
+        var component = await CreateKind("BOM-CAS-002", "Component Cascade");
+
+        await CreateBomLine(assembly.Id, component.Id, lineNumber: 1, quantity: 1);
+
+        // Deleting the assembly should cascade-delete BomLines
+        var response = await Client.DeleteAsync($"/api/kinds/{assembly.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        // Component Kind should still exist
+        var compResponse = await Client.GetAsync($"/api/kinds/{component.Id}");
+        Assert.Equal(HttpStatusCode.OK, compResponse.StatusCode);
+    }
 }

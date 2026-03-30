@@ -678,13 +678,16 @@ else
     // UserPicker prompt support
     private List<UserPickerDto> _userPickerList = new();
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override Task OnAfterRenderAsync(bool firstRender)
     {
+        // Fire-and-forget so the render pipeline is never blocked — users can interact
+        // with the rest of the page while the 3D model loads in the background.
         if (_phase == 4 && _pendingWizardModelViewerInit && !_wizardModelViewerInitialized)
         {
             _pendingWizardModelViewerInit = false;
-            await InitWizardModelViewer();
+            _ = InitWizardModelViewer();
         }
+        return Task.CompletedTask;
     }
 
     protected override async Task OnInitializedAsync()

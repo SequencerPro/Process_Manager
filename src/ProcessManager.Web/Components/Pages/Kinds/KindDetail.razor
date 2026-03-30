@@ -591,19 +591,22 @@ else
         await LoadData();
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override Task OnAfterRenderAsync(bool firstRender)
     {
         // Init viewer whenever the component has rendered with a model but the viewer isn't active.
         // This covers: first page load, navigating away and back (DOM destroyed/recreated),
         // and enhanced navigation re-renders.
+        // Fire-and-forget so the render pipeline is never blocked — users can interact
+        // with the rest of the page while the 3D model loads in the background.
         if (_kind is not null && HasModel() && !_modelViewerInitialized && !_modelViewerInitializing)
         {
             Console.WriteLine($"[ModelViewer] OnAfterRenderAsync: firstRender={firstRender}, HasModel=true, file={_kind.ModelOriginalFileName}");
-            await InitModelViewer();
+            _ = InitModelViewerAsync();
         }
+        return Task.CompletedTask;
     }
 
-    private async Task InitModelViewer()
+    private async Task InitModelViewerAsync()
     {
         if (_modelViewerInitialized || _modelViewerInitializing)
         {
@@ -724,8 +727,9 @@ else
             // Yield to let Blazor render the model-viewer-container div
             await Task.Yield();
 
-            // Call JS init directly instead of relying on OnAfterRenderAsync
-            await InitModelViewer();
+            // Fire-and-forget so the upload handler returns immediately
+            // and the user can interact with the rest of the page
+            _ = InitModelViewerAsync();
         }
         catch (Exception ex)
         {

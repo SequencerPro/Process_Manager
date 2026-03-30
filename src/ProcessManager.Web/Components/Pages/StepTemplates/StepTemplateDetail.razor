@@ -1293,15 +1293,18 @@ else
         await LoadData();
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override Task OnAfterRenderAsync(bool firstRender)
     {
         // Init viewer whenever the component has rendered with a model but the viewer isn't active.
+        // Fire-and-forget so the render pipeline is never blocked — users can interact
+        // with the rest of the page while the 3D model loads in the background.
         var hasModel = _stepModel is not null || _kindModelRefId.HasValue;
         if (hasModel && !_modelViewerInitialized && !_modelViewerInitializing)
         {
             Console.WriteLine($"[StepModelViewer] OnAfterRenderAsync: firstRender={firstRender}, hasModel={hasModel}, stepModel={_stepModel?.OriginalFileName}, kindRef={_kindModelRefId}");
-            await InitModelViewer();
+            _ = InitModelViewer();
         }
+        return Task.CompletedTask;
     }
 
     private async Task LoadData()
@@ -2074,8 +2077,8 @@ else
             // Yield to let Blazor render the container div
             await Task.Yield();
 
-            // Call JS init directly instead of relying on OnAfterRenderAsync
-            await InitModelViewer();
+            // Fire-and-forget so the user can interact with the page immediately
+            _ = InitModelViewer();
         }
         catch (Exception ex)
         {
@@ -2125,7 +2128,7 @@ else
                 _kindRefInput = string.Empty;
                 StateHasChanged();
                 await Task.Yield();
-                await InitModelViewer();
+                _ = InitModelViewer();
             }
         }
         catch (Exception ex) { Toast.ShowError($"Failed to set Kind model reference: {ex.Message}"); }

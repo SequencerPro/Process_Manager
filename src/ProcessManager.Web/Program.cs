@@ -85,6 +85,7 @@ app.UseAuthorization();
 // throughout the Blazor Server circuit lifetime.
 app.Use(async (context, next) =>
 {
+    var logger = context.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("AuthMiddleware");
     if (context.User.Identity?.IsAuthenticated == true)
     {
         var tokenService = context.RequestServices.GetRequiredService<TokenService>();
@@ -92,6 +93,24 @@ app.Use(async (context, next) =>
         tokenService.UserName = context.User.Identity.Name;
         tokenService.DisplayName = context.User.FindFirst("display_name")?.Value;
         tokenService.Role = context.User.FindFirst(ClaimTypes.Role)?.Value;
+
+        if (string.IsNullOrEmpty(tokenService.AccessToken))
+        {
+            logger.LogWarning(
+                "[AuthMiddleware] User '{User}' authenticated but NO access_token claim found. Claims: {Claims}",
+                tokenService.UserName,
+                string.Join(", ", context.User.Claims.Select(c => c.Type)));
+        }
+        else
+        {
+            logger.LogDebug(
+                "[AuthMiddleware] Populated TokenService for '{User}' (token length: {Len})",
+                tokenService.UserName, tokenService.AccessToken.Length);
+        }
+    }
+    else
+    {
+        logger.LogDebug("[AuthMiddleware] Request from unauthenticated user to {Path}", context.Request.Path);
     }
     await next();
 });

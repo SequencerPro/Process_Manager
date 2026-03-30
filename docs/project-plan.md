@@ -2503,6 +2503,22 @@ Additional capability added post-Phase 6:
 - **Phase 17 — Standards Conformance Management** — `StandardsClause` seed table (ISO 9001:2015 + AS9100 Rev D clauses), `ClauseEvidenceLink` many-to-many join with auto-linking rules for all seeded QMS documents and quality records, `AuditProgram`/`Audit`/`AuditFinding` entities with `ActionItem` FK for CA tracking, Conformance Dashboard (`/conformance`) with clause-coverage heatmap, Clause Browser, Audit Program list and detail pages, Audit detail with finding management, `get_conformance_status` MCP tool
 - **Phase 21 — Automatic Inventory Tracking** — `ApiKey` entity (SHA-256 hashed, workstation-scoped, `X-Api-Key` header auth), `Workstation` entity (Code, FixedLocationId FK), `ScanEvent` append-only log; `Item.Barcode`/`StorageLocation.Barcode`/`Kind.Barcode` barcode fields; `POST /api/warehouse/scan` single-barcode endpoint (API key → workstation → fixed location auto-transfer); `ScanResult` enum; admin CRUD for workstations and API keys; `inventory.scan` webhook event; `get_workstation_status` MCP tool
 
+#### To Do
+
+- **Migrate file storage to cloud blob storage (S3/Azure Blob)** — Currently, uploaded files (Kind 3D models, Kind documents, StepTemplate 3D models) are stored on local disk under `wwwroot/uploads/`. This means files are tied to the specific server instance and are lost when cloning the database to another environment (e.g., restoring the Render production database locally results in 404s for all model/document files). Migrate to a shared cloud blob storage provider so files are accessible from any environment. Affected areas:
+  - Kind model uploads/downloads (`uploads/kind-models/`)
+  - Kind document uploads/downloads (`uploads/kind-documents/`)
+  - StepTemplate model uploads/downloads (`uploads/step-models/`)
+  - 3D model viewer on KindDetail, StepTemplateDetail, ProcessBuilder (slide view), and ExecutionWizard (Phase 4 panel)
+  - `IImageStorageService` / `LocalImageStorageService` abstraction should be extended or replaced with a cloud-backed implementation
+
+- **Server-side CAD to GLB conversion for faster 3D model loading** — STEP/STP/IGES/IGS files require an ~8 MB WASM module download and expensive client-side tessellation (boundary representation → triangle mesh), making them the slowest format to render. Add a server-side conversion pipeline: when a user uploads a STEP/IGES file, convert it to GLB on the API server and store the GLB alongside the original. The 3D viewer serves the pre-converted GLB for instant rendering while the original CAD file is preserved for download/engineering use. Affected areas:
+  - API model upload endpoints for Kinds (`POST /api/kinds/{id}/model`) and StepTemplates (`POST /api/steptemplates/{id}/model`)
+  - API model download/serve endpoints (serve GLB to viewer, original to download)
+  - `model-viewer.js` — detect when a pre-converted GLB is available and use the fast GLTFLoader path instead of the OCCT WASM path
+  - 3D viewer on KindDetail, StepTemplateDetail, ProcessBuilder (slide view), and ExecutionWizard (Phase 4 panel)
+  - Consider using a .NET OpenCascade binding (e.g., `CadSharp`, `OpenCasCade.NET`) or a CLI tool (e.g., `FreeCAD` headless, `assimp`) for server-side conversion
+
 #### Ongoing limitations
 
 - Multi-tenancy deferred until a second SaaS tenant is onboarded (database-per-tenant approach selected — see Architecture Decision above)

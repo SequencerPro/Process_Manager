@@ -1028,3 +1028,126 @@ h1:focus {
     .page-heading-row h4 { font-size: 1.15rem; }
     .search-box-input-group { max-width: 100%; width: 100%; }
 }
+
+/* ══════════════════════════════════════════
+   BUILDER MOBILE RESPONSIVE STYLES
+   ══════════════════════════════════════════ */
+
+/* ── Top bars: wrap on small screens ── */
+.builder-topbar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.builder-topbar .breadcrumb { font-size: 0.85rem; }
+.builder-actions {
+    flex-wrap: wrap;
+    gap: 0.35rem !important;
+}
+
+/* ── < lg: sidebar becomes bottom drawer ── */
+@media (max-width: 991.98px) {
+    /* Workflow builder diagram view */
+    .workflow-builder-canvas {
+        height: 50vh !important;
+        min-height: 260px;
+    }
+    .wfb-diagram-wrapper {
+        flex-direction: column !important;
+        height: auto !important;
+    }
+    .workflow-builder-sidebar {
+        width: 100% !important;
+        min-width: unset !important;
+        max-height: 40vh;
+        border-left: none !important;
+        border-top: 1px solid #dee2e6;
+    }
+
+    /* Process builder diagram view */
+    .pb-diagram-wrapper {
+        flex-direction: column !important;
+        height: auto !important;
+        min-height: unset !important;
+    }
+    .pb-canvas {
+        height: 50vh !important;
+        min-height: 260px;
+    }
+    .pb-sidebar {
+        width: 100% !important;
+        min-width: unset !important;
+        max-height: 40vh;
+        border-left: none !important;
+        border-top: 1px solid #dee2e6;
+    }
+
+    /* Slide view: rail collapses to horizontal strip */
+    .pb-slide-layout,
+    .wfb-slide-layout {
+        flex-direction: column !important;
+        height: auto !important;
+        min-height: unset !important;
+    }
+    .pb-slide-rail {
+        width: 100% !important;
+        min-width: unset !important;
+        max-height: 120px;
+        overflow-y: auto;
+        border-right: none !important;
+        border-bottom: 1px solid #dee2e6;
+        flex-direction: row !important;
+        flex-wrap: wrap;
+    }
+    .pb-slide-rail > .p-2.border-bottom {
+        border-bottom: none !important;
+        border-right: 1px solid #dee2e6;
+        width: auto;
+    }
+    .pb-slide-thumbnail {
+        border-bottom: none !important;
+        border-right: 1px solid #e9ecef;
+        white-space: nowrap;
+        min-width: 120px;
+        max-width: 180px;
+    }
+    .pb-slide-editor {
+        padding: 1rem !important;
+        min-height: 50vh;
+    }
+
+    /* Document view */
+    .pb-doc-view {
+        height: auto !important;
+        min-height: 50vh;
+        padding: 1rem 1rem !important;
+    }
+
+    /* Builder view mode toggle — full-width on mobile */
+    .builder-view-toggle {
+        order: 10;
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* ── < md: even more compact ── */
+@media (max-width: 767.98px) {
+    .workflow-builder-canvas { height: 40vh !important; }
+    .pb-canvas { height: 40vh !important; }
+    .workflow-builder-sidebar,
+    .pb-sidebar { max-height: 35vh; }
+    .pb-slide-rail { max-height: 100px; }
+    .pb-slide-thumbnail {
+        min-width: 100px;
+        font-size: 0.75rem;
+    }
+    .pb-slide-thumbnail .d-flex.flex-column { display: none !important; }
+    .builder-topbar .breadcrumb { font-size: 0.78rem; }
+    .builder-topbar .btn-sm { font-size: 0.78rem; padding: 0.3rem 0.5rem; }
+
+    /* Process metadata card — stack columns */
+    .pb-metadata .row { flex-direction: column; }
+    .pb-metadata .col-md-3,
+    .pb-metadata .col-md-4,
+    .pb-metadata .col-md-5 { width: 100%; }
+}

@@ -22,7 +22,7 @@ else if (_wf is null)
 else
 {
     @* ── Top Bar ── *@
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 builder-topbar">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb mb-0">
                 <li class="breadcrumb-item"><a href="workflows">Workflows</a></li>
@@ -30,11 +30,11 @@ else
                 <li class="breadcrumb-item active">Builder</li>
             </ol>
         </nav>
-        <div class="d-flex gap-1">
+        <div class="d-flex gap-1 builder-actions">
             <button class="btn btn-outline-info btn-sm" @onclick="Validate" disabled="@_saving">
                 <i class="bi bi-check2-circle me-1"></i>Validate
             </button>
-            <div class="btn-group btn-group-sm" role="group" title="Switch view">
+            <div class="btn-group btn-group-sm builder-view-toggle" role="group" title="Switch view">
                 <button type="button" title="Diagram view"
                         class="btn @(_viewMode == "Diagram" ? "btn-secondary" : "btn-outline-secondary")"
                         @onclick='() => _ = SetViewMode("Diagram")'>
@@ -90,7 +90,7 @@ else
     @* ── Diagram View ── *@
     @if (_viewMode == "Diagram")
     {
-    <div class="d-flex" style="height: calc(100vh - 180px);">
+    <div class="d-flex wfb-diagram-wrapper" style="height: calc(100vh - 180px);">
         @* Diagram Canvas *@
         <div class="flex-grow-1 workflow-builder-canvas">
             <CascadingValue Value="_diagram" IsFixed="true">

@@ -23,7 +23,7 @@
 <div class="alert alert-info d-flex align-items-center gap-2 d-md-none mb-3"><i class="bi bi-info-circle-fill flex-shrink-0"></i><span>The workflow builder is designed for desktop use. Some features may not work on touch devices.</span></div>
 
 @* ── Top bar ── *@
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 builder-topbar">
     <nav aria-label="breadcrumb">
         <ol class="breadcrumb mb-0">
             @if (IsDocumentContext)
@@ -43,7 +43,7 @@
             }
         </ol>
     </nav>
-    <div class="d-flex gap-2 align-items-center">
+    <div class="d-flex gap-2 align-items-center builder-actions">
         @if (Id.HasValue)
         {
             <button class="btn btn-outline-info btn-sm" @onclick="RunValidation">
@@ -52,7 +52,7 @@
         }
         @if (Id.HasValue)
         {
-            <div class="btn-group btn-group-sm" role="group" title="Switch view">
+            <div class="btn-group btn-group-sm builder-view-toggle" role="group" title="Switch view">
                 <button type="button" title="Diagram view"
                         class="btn @(_viewMode == "Diagram" ? "btn-secondary" : "btn-outline-secondary")"
                         @onclick='() => _ = SetViewMode("Diagram")'>
@@ -114,7 +114,7 @@ else
     }
 
     @* ── Process metadata ── *@
-    <div class="card mb-2">
+    <div class="card mb-2 pb-metadata">
         <div class="card-body py-2">
             <div class="row g-2">
                 <div class="col-md-3">
@@ -161,7 +161,7 @@ else
     @if (_viewMode == "Diagram")
     {
     @* ── Canvas + Sidebar ── *@
-    <div class="d-flex" style="height: calc(100vh - 285px); min-height: 380px;">
+    <div class="d-flex pb-diagram-wrapper" style="height: calc(100vh - 285px); min-height: 380px;">
 
         @* ── Diagram Canvas ── *@
         <div class="flex-grow-1 pb-canvas position-relative">

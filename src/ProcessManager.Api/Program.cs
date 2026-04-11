@@ -94,8 +94,12 @@ builder.Services.AddControllers()
             new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
 
-// ── Image storage ─────────────────────────────────────────────────────────────
-builder.Services.AddScoped<IImageStorageService, LocalImageStorageService>();
+// ── File storage (Local or Azure Blob) ────────────────────────────────────────
+var storageProvider = builder.Configuration["Storage:Provider"] ?? "Local";
+if (storageProvider.Equals("AzureBlob", StringComparison.OrdinalIgnoreCase))
+    builder.Services.AddSingleton<IImageStorageService, AzureBlobStorageService>();
+else
+    builder.Services.AddScoped<IImageStorageService, LocalImageStorageService>();
 
 // ── Webhook event system ──────────────────────────────────────────────────────
 builder.Services.AddSingleton<WebhookEventQueue>();

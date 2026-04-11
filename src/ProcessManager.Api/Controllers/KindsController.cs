@@ -351,7 +351,7 @@ public class KindsController : ControllerBase
 
         // Delete old model if exists
         if (!string.IsNullOrEmpty(kind.ModelFileName))
-            await imageStorage.DeleteAsync(Path.Combine("kind-models", kind.ModelFileName));
+            await imageStorage.DeleteAsync($"kind-models/{kind.ModelFileName}");
 
         var (fileName, _) = await imageStorage.SaveAsync(file, "kind-models");
         kind.ModelFileName = fileName;
@@ -364,18 +364,19 @@ public class KindsController : ControllerBase
 
     [AllowAnonymous]
     [HttpGet("{kindId:guid}/model/download")]
-    public async Task<IActionResult> DownloadModel(Guid kindId)
+    public async Task<IActionResult> DownloadModel(
+        Guid kindId,
+        [FromServices] IImageStorageService storage)
     {
         var kind = await _db.Kinds.FindAsync(kindId);
         if (kind is null) return NotFound();
         if (string.IsNullOrEmpty(kind.ModelFileName)) return NotFound("No 3D model attached.");
 
-        var filePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "kind-models", kind.ModelFileName);
-        if (!System.IO.File.Exists(filePath))
-            return NotFound("Model file not found on disk.");
+        var stream = await storage.GetStreamAsync($"kind-models/{kind.ModelFileName}");
+        if (stream is null)
+            return NotFound("Model file not found in storage.");
 
-        var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
-        return File(bytes, kind.ModelMimeType ?? "application/octet-stream", kind.ModelOriginalFileName);
+        return File(stream, kind.ModelMimeType ?? "application/octet-stream", kind.ModelOriginalFileName);
     }
 
     [Authorize(Roles = "Admin,Engineer")]
@@ -388,7 +389,7 @@ public class KindsController : ControllerBase
         if (kind is null) return NotFound();
         if (string.IsNullOrEmpty(kind.ModelFileName)) return NotFound("No 3D model attached.");
 
-        await imageStorage.DeleteAsync(Path.Combine("kind-models", kind.ModelFileName));
+        await imageStorage.DeleteAsync($"kind-models/{kind.ModelFileName}");
         kind.ModelFileName = null;
         kind.ModelOriginalFileName = null;
         kind.ModelMimeType = null;

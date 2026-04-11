@@ -190,7 +190,7 @@ public class StepTemplatesController : ControllerBase
             return Conflict("Cannot delete a StepTemplate that is used in one or more Processes.");
 
         if (step.StepModel is not null)
-            await storage.DeleteAsync($"uploads/step-models/{step.StepModel.FileName}");
+            await storage.DeleteAsync($"step-models/{step.StepModel.FileName}");
 
         _db.StepTemplates.Remove(step);
         await _db.SaveChangesAsync();
@@ -1083,7 +1083,7 @@ public class StepTemplatesController : ControllerBase
 
         if (step.StepModel is not null)
         {
-            await storage.DeleteAsync($"uploads/step-models/{step.StepModel.FileName}");
+            await storage.DeleteAsync($"step-models/{step.StepModel.FileName}");
             _db.StepModels.Remove(step.StepModel);
         }
 
@@ -1122,7 +1122,9 @@ public class StepTemplatesController : ControllerBase
 
     [AllowAnonymous]
     [HttpGet("{id:guid}/model/download")]
-    public async Task<IActionResult> DownloadModel(Guid id)
+    public async Task<IActionResult> DownloadModel(
+        Guid id,
+        [FromServices] IImageStorageService storage)
     {
         var step = await _db.StepTemplates
             .Include(s => s.StepModel)
@@ -1132,13 +1134,10 @@ public class StepTemplatesController : ControllerBase
 
         if (step.StepModel is not null)
         {
-            var filePath = Path.Combine(
-                Directory.GetCurrentDirectory(), "wwwroot", "uploads", "step-models",
-                step.StepModel.FileName);
-            if (!System.IO.File.Exists(filePath))
-                return NotFound("Model file not found on disk.");
-            var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
-            return File(bytes, step.StepModel.MimeType, step.StepModel.OriginalFileName);
+            var stream = await storage.GetStreamAsync($"step-models/{step.StepModel.FileName}");
+            if (stream is null)
+                return NotFound("Model file not found in storage.");
+            return File(stream, step.StepModel.MimeType, step.StepModel.OriginalFileName);
         }
 
         if (step.KindModelRefId is not null)
@@ -1164,7 +1163,7 @@ public class StepTemplatesController : ControllerBase
         if (step.StepModel is null)
             return NotFound("No model attached.");
 
-        await storage.DeleteAsync($"uploads/step-models/{step.StepModel.FileName}");
+        await storage.DeleteAsync($"step-models/{step.StepModel.FileName}");
         _db.StepModels.Remove(step.StepModel);
         await _db.SaveChangesAsync();
 

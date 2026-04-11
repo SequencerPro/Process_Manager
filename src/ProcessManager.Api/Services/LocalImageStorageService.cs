@@ -6,7 +6,7 @@ public class LocalImageStorageService : IImageStorageService
 
     public LocalImageStorageService(IWebHostEnvironment env) => _env = env;
 
-    public async Task<(string fileName, string relativePath)> SaveAsync(IFormFile file, string subfolder)
+    public async Task<(string fileName, string storageKey)> SaveAsync(IFormFile file, string subfolder)
     {
         var webRoot = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
         var folder = Path.Combine(webRoot, "uploads", subfolder);
@@ -19,15 +19,31 @@ public class LocalImageStorageService : IImageStorageService
         using var stream = File.Create(fullPath);
         await file.CopyToAsync(stream);
 
-        return (fileName, $"uploads/{subfolder}/{fileName}");
+        return (fileName, $"{subfolder}/{fileName}");
     }
 
-    public Task DeleteAsync(string relativePath)
+    public Task DeleteAsync(string storageKey)
     {
-        var webRoot = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
-        var fullPath = Path.Combine(webRoot, relativePath.TrimStart('/'));
+        var fullPath = ResolvePath(storageKey);
         if (File.Exists(fullPath))
             File.Delete(fullPath);
         return Task.CompletedTask;
+    }
+
+    public Task<Stream?> GetStreamAsync(string storageKey)
+    {
+        var fullPath = ResolvePath(storageKey);
+        if (!File.Exists(fullPath))
+            return Task.FromResult<Stream?>(null);
+
+        Stream stream = File.OpenRead(fullPath);
+        return Task.FromResult<Stream?>(stream);
+    }
+
+    private string ResolvePath(string storageKey)
+    {
+        var webRoot = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
+        // storageKey is "subfolder/fileName", files live under wwwroot/uploads/
+        return Path.Combine(webRoot, "uploads", storageKey.Replace('/', Path.DirectorySeparatorChar));
     }
 }

@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@rendermode InteractiveServer
 @using System.Security.Claims
 @inject AuthenticationStateProvider AuthState
 @inject ProcessManager.Web.Services.TokenService TokenSvc
@@ -18,7 +19,7 @@
         <div class="sidebar-backdrop d-lg-none" @onclick="CloseNav"></div>
     }
 
-    <NavMenu IsOpen="_navOpen" OnClose="CloseNav" />
+    <NavMenu IsOpen="@_navOpen" OnClose="@CloseNav" />
 
     <main class="flex-grow-1 overflow-auto bg-light">
         <div class="container-fluid py-3 px-2 px-md-4">

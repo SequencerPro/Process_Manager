@@ -1,5 +1,4 @@
 @inherits LayoutComponentBase
-@rendermode InteractiveServer
 @using System.Security.Claims
 @inject AuthenticationStateProvider AuthState
 @inject ProcessManager.Web.Services.TokenService TokenSvc
@@ -7,19 +6,7 @@
 @inject ApiClient Api
 
 <div class="d-flex vh-100 position-relative flex-column flex-lg-row">
-    <header class="mobile-topbar d-flex d-lg-none align-items-center">
-        <button class="btn btn-sm btn-outline-light border-0" @onclick="ToggleNav" aria-label="Open menu">
-            <i class="bi bi-list fs-5"></i>
-        </button>
-        <span class="ms-2 fw-semibold text-white small">Process Manager</span>
-    </header>
-
-    @if (_navOpen)
-    {
-        <div class="sidebar-backdrop d-lg-none" @onclick="CloseNav"></div>
-    }
-
-    <NavMenu IsOpen="@_navOpen" OnClose="@CloseNav" />
+    <NavMenu />
 
     <main class="flex-grow-1 overflow-auto bg-light">
         <div class="container-fluid py-3 px-2 px-md-4">
@@ -37,11 +24,6 @@
 </div>
 
 @code {
-    private bool _navOpen;
-
-    private void ToggleNav() => _navOpen = !_navOpen;
-    private void CloseNav() => _navOpen = false;
-
     protected override async Task OnInitializedAsync()
     {
         // In Blazor Server, HTTP middleware populates TokenService for the

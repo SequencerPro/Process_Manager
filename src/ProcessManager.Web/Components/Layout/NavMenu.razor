@@ -7,6 +7,18 @@
 @implements IDisposable
 @using System.Security.Claims
 
+<header class="mobile-topbar d-flex d-lg-none align-items-center">
+    <button class="btn btn-sm btn-outline-light border-0" @onclick="ToggleOpen" aria-label="Open menu">
+        <i class="bi bi-list fs-5"></i>
+    </button>
+    <span class="ms-2 fw-semibold text-white small">Process Manager</span>
+</header>
+
+@if (_isOpen)
+{
+    <div class="sidebar-backdrop d-lg-none" @onclick="CloseNav"></div>
+}
+
 <nav class="d-flex flex-column flex-shrink-0 p-3 pm-sidebar @(_isOpen ? "sidebar-open" : "")" style="overflow: hidden; background: #141414; color: #c0c0c0;">
     <a href="/" class="pm-sidebar-brand d-flex align-items-center mb-3 text-decoration-none">
         <i class="bi bi-gear-wide-connected me-2 fs-4"></i>
@@ -464,7 +476,10 @@
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
-    private bool _isOpen => IsOpen;
+    private bool _isOpen;
+
+    private void ToggleOpen() => _isOpen = !_isOpen;
+    private void CloseNav() => _isOpen = false;
 
     private string? _displayName;
     private string? _role;
@@ -540,12 +555,12 @@
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         var section = GetSectionForUrl(e.Location);
+        _isOpen = false;
         if (section is not null && section != _openSection)
         {
             _openSection = section;
-            InvokeAsync(StateHasChanged);
         }
-        InvokeAsync(() => OnClose.InvokeAsync());
+        InvokeAsync(StateHasChanged);
     }
 
     private void ToggleSection(string key) =>

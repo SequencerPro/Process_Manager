@@ -33,26 +33,26 @@ public class MobileLayoutTests
     }
 
     [Fact]
-    public void MainLayout_HasNavOpenField()
+    public void NavMenu_HasIsOpenField()
     {
-        var type = typeof(ProcessManager.Web.Components.Layout.MainLayout);
-        var field = type.GetField("_navOpen", BindingFlags.NonPublic | BindingFlags.Instance);
+        var type = GetType("NavMenu");
+        var field = type.GetField("_isOpen", BindingFlags.NonPublic | BindingFlags.Instance);
         Assert.NotNull(field);
         Assert.Equal(typeof(bool), field!.FieldType);
     }
 
     [Fact]
-    public void MainLayout_HasToggleNavMethod()
+    public void NavMenu_HasToggleOpenMethod()
     {
-        var type = typeof(ProcessManager.Web.Components.Layout.MainLayout);
-        var method = type.GetMethod("ToggleNav", BindingFlags.NonPublic | BindingFlags.Instance);
+        var type = GetType("NavMenu");
+        var method = type.GetMethod("ToggleOpen", BindingFlags.NonPublic | BindingFlags.Instance);
         Assert.NotNull(method);
     }
 
     [Fact]
-    public void MainLayout_HasCloseNavMethod()
+    public void NavMenu_HasCloseNavMethod()
     {
-        var type = typeof(ProcessManager.Web.Components.Layout.MainLayout);
+        var type = GetType("NavMenu");
         var method = type.GetMethod("CloseNav", BindingFlags.NonPublic | BindingFlags.Instance);
         Assert.NotNull(method);
     }

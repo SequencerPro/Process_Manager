@@ -5,9 +5,7 @@
 
 <PageTitle>Dashboard</PageTitle>
 
-<div class="container-fluid py-3 px-4">
-
-    <div class="d-flex align-items-center mb-4 gap-3">
+<div class="d-flex align-items-center mb-4 gap-3 page-heading-row">
         <h3 class="mb-0"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h3>
         @if (_loading)
         {
@@ -250,8 +248,6 @@
         </div>
 
     </div>
-
-</div>
 
 @code {
     private ReportSummaryDto?            _summary;

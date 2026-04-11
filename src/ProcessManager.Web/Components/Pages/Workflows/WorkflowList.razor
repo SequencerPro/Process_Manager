@@ -8,14 +8,14 @@
 
 <PageTitle>@Vocab.Workflows</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 page-heading-row">
     <h3 class="mb-0">@Vocab.Workflows</h3>
     <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
         <i class="bi bi-plus-lg me-1"></i> New @Vocab.Workflow
     </button>
 </div>
 
-<div class="d-flex gap-3 mb-3">
+<div class="d-flex flex-wrap gap-2 mb-3">
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="@($"Search {Vocab.Workflows.ToLower()}...")" />
     <select class="form-select form-select-sm" style="width:auto" @onchange="OnActiveFilter">
         <option value="">All</option>
@@ -36,9 +36,9 @@ else if (_data is not null)
                 <tr>
                     <th>Code</th>
                     <th>Name</th>
-                    <th>Version</th>
+                    <th class="col-hide-mobile">Version</th>
                     <th>Processes</th>
-                    <th>Links</th>
+                    <th class="col-hide-mobile">Links</th>
                     <th>Active</th>
                     <th style="width:140px">Actions</th>
                 </tr>
@@ -55,9 +55,9 @@ else if (_data is not null)
                     <tr>
                         <td><code>@w.Code</code></td>
                         <td><a href="workflows/@w.Id">@w.Name</a></td>
-                        <td>v@w.Version</td>
+                        <td class="col-hide-mobile">v@w.Version</td>
                         <td><span class="badge bg-secondary">@(w.Processes?.Count ?? 0)</span></td>
-                        <td><span class="badge bg-secondary">@(w.Links?.Count ?? 0)</span></td>
+                        <td class="col-hide-mobile"><span class="badge bg-secondary">@(w.Links?.Count ?? 0)</span></td>
                         <td>
                             @if (w.IsActive)
                             {

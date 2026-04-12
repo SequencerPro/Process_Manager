@@ -7,10 +7,10 @@
 
 <PageTitle>Webhooks — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-broadcast me-2 text-primary"></i>Webhook Subscriptions</h3>
-        <p class="text-muted small mb-0">Manage webhook endpoints for real-time event notifications</p>
+        <p class="text-muted small mb-0 d-none d-md-block">Manage webhook endpoints for real-time event notifications</p>
     </div>
     <button class="btn btn-primary" @onclick="OpenCreateModal">
         <i class="bi bi-plus-lg me-1"></i> New Subscription
@@ -24,10 +24,10 @@
             <thead class="table-light">
                 <tr>
                     <th>URL</th>
-                    <th>Events</th>
+                    <th class="col-hide-mobile">Events</th>
                     <th class="text-center">Status</th>
-                    <th class="text-center">Deliveries</th>
-                    <th style="width:120px">Created</th>
+                    <th class="text-center col-hide-mobile">Deliveries</th>
+                    <th class="col-hide-mobile" style="width:120px">Created</th>
                     <th class="text-end" style="width:140px">Actions</th>
                 </tr>
             </thead>
@@ -54,18 +54,18 @@
                                     <i class="bi bi-lock-fill text-success ms-1" title="Signed with HMAC secret"></i>
                                 }
                             </td>
-                            <td class="align-middle small text-muted">@sub.EventTypes</td>
+                            <td class="align-middle small text-muted col-hide-mobile">@sub.EventTypes</td>
                             <td class="align-middle text-center">
                                 <span class="badge @(sub.IsActive ? "bg-success" : "bg-secondary")">
                                     @(sub.IsActive ? "Active" : "Inactive")
                                 </span>
                             </td>
-                            <td class="align-middle text-center">
+                            <td class="align-middle text-center col-hide-mobile">
                                 <button class="btn btn-sm btn-link p-0" @onclick="() => OpenDeliveries(sub.Id)">
                                     @sub.DeliveryCount
                                 </button>
                             </td>
-                            <td class="align-middle small text-muted">@sub.CreatedAt.ToString("yyyy-MM-dd")</td>
+                            <td class="align-middle small text-muted col-hide-mobile">@sub.CreatedAt.ToString("yyyy-MM-dd")</td>
                             <td class="align-middle text-end">
                                 <button class="btn btn-sm btn-outline-info me-1" @onclick="() => TestWebhook(sub)" title="Send test event"
                                         disabled="@(!sub.IsActive)">
@@ -122,9 +122,9 @@
                     <tr>
                         <th>Time</th>
                         <th>Event</th>
-                        <th class="text-center">Attempt</th>
+                        <th class="text-center col-hide-mobile">Attempt</th>
                         <th class="text-center">Status</th>
-                        <th>Response / Error</th>
+                        <th class="col-hide-mobile">Response / Error</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -139,7 +139,7 @@
                             <tr>
                                 <td class="small text-muted">@d.CreatedAt.ToString("MM-dd HH:mm:ss")</td>
                                 <td class="small"><code>@d.EventType</code></td>
-                                <td class="text-center small">@d.AttemptNumber</td>
+                                <td class="text-center small col-hide-mobile">@d.AttemptNumber</td>
                                 <td class="text-center">
                                     @if (d.IsSuccess)
                                     {
@@ -150,7 +150,7 @@
                                         <span class="badge bg-danger">@(d.StatusCode?.ToString() ?? "ERR")</span>
                                     }
                                 </td>
-                                <td class="small text-muted text-truncate" style="max-width:300px">
+                                <td class="small text-muted text-truncate col-hide-mobile" style="max-width:300px">
                                     @(d.ErrorMessage ?? Truncate(d.ResponseBody, 100) ?? "—")
                                 </td>
                             </tr>

@@ -15,7 +15,7 @@
     </button>
 </div>
 
-<div class="d-flex flex-wrap gap-2 mb-3">
+<div class="d-flex gap-3 mb-3">
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="@($"Search {Vocab.Workflows.ToLower()}...")" />
     <select class="form-select form-select-sm" style="width:auto" @onchange="OnActiveFilter">
         <option value="">All</option>
@@ -37,9 +37,9 @@ else if (_data is not null)
                     <th>Code</th>
                     <th>Name</th>
                     <th class="col-hide-mobile">Version</th>
-                    <th>Processes</th>
+                    <th class="col-hide-mobile">Processes</th>
                     <th class="col-hide-mobile">Links</th>
-                    <th>Active</th>
+                    <th class="col-hide-mobile">Active</th>
                     <th style="width:140px">Actions</th>
                 </tr>
             </thead>
@@ -56,9 +56,9 @@ else if (_data is not null)
                         <td><code>@w.Code</code></td>
                         <td><a href="workflows/@w.Id">@w.Name</a></td>
                         <td class="col-hide-mobile">v@w.Version</td>
-                        <td><span class="badge bg-secondary">@(w.Processes?.Count ?? 0)</span></td>
+                        <td class="col-hide-mobile"><span class="badge bg-secondary">@(w.Processes?.Count ?? 0)</span></td>
                         <td class="col-hide-mobile"><span class="badge bg-secondary">@(w.Links?.Count ?? 0)</span></td>
-                        <td>
+                        <td class="col-hide-mobile">
                             @if (w.IsActive)
                             {
                                 <i class="bi bi-check-circle-fill text-success"></i>

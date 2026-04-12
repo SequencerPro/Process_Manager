@@ -5,10 +5,10 @@
 
 <PageTitle>Production Dashboard — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-speedometer me-2 text-primary"></i>Production Dashboard</h3>
-        <p class="text-muted small mb-0">Live WIP status, bottlenecks and maintenance schedule</p>
+        <p class="text-muted small mb-0 d-none d-md-block">Live WIP status, bottlenecks and maintenance schedule</p>
     </div>
     <button class="btn btn-sm btn-outline-secondary" @onclick="Load" disabled="@_loading">
         <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
@@ -95,11 +95,11 @@ else
                             <thead class="table-light">
                                 <tr>
                                     <th>Job</th>
-                                    <th>Process</th>
-                                    <th>Current Step</th>
-                                    <th>Due Date</th>
+                                    <th class="col-hide-mobile">Process</th>
+                                    <th class="col-hide-mobile">Current Step</th>
+                                    <th class="col-hide-mobile">Due Date</th>
                                     <th>Days Late</th>
-                                    <th>Equipment</th>
+                                    <th class="col-hide-mobile">Equipment</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -110,11 +110,11 @@ else
                                             <a href="jobs/@j.JobId" class="text-decoration-none fw-semibold">@j.JobCode</a>
                                             <div class="text-muted small">@j.JobName</div>
                                         </td>
-                                        <td class="text-muted small">@j.ProcessName</td>
-                                        <td class="small">@j.CurrentStepName</td>
-                                        <td class="small">@j.DueDate?.ToString("MMM d, yyyy")</td>
+                                        <td class="text-muted small col-hide-mobile">@j.ProcessName</td>
+                                        <td class="small col-hide-mobile">@j.CurrentStepName</td>
+                                        <td class="small col-hide-mobile">@j.DueDate?.ToString("MMM d, yyyy")</td>
                                         <td><span class="badge bg-danger">@j.DaysLate d</span></td>
-                                        <td>
+                                        <td class="col-hide-mobile">
                                             @if (j.CurrentEquipmentCode is not null)
                                             {
                                                 <span class="badge @(j.CurrentEquipmentDown ? "bg-warning text-dark" : "bg-secondary")">
@@ -145,9 +145,9 @@ else
                             <thead class="table-light">
                                 <tr>
                                     <th>Job</th>
-                                    <th>Current Step</th>
-                                    <th>Step Time</th>
-                                    <th>Expected Done</th>
+                                    <th class="col-hide-mobile">Current Step</th>
+                                    <th class="col-hide-mobile">Step Time</th>
+                                    <th class="col-hide-mobile">Expected Done</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
@@ -159,7 +159,7 @@ else
                                             <a href="jobs/@j.JobId" class="text-decoration-none fw-semibold">@j.JobCode</a>
                                             <div class="text-muted" style="font-size:.78rem">@j.JobName</div>
                                         </td>
-                                        <td class="small">
+                                        <td class="small col-hide-mobile">
                                             @j.CurrentStepName
                                             @if (j.CurrentEquipmentCode is not null)
                                             {
@@ -171,7 +171,7 @@ else
                                                 </div>
                                             }
                                         </td>
-                                        <td class="small text-muted">
+                                        <td class="small text-muted col-hide-mobile">
                                             @if (j.CurrentStepRunningMinutes.HasValue)
                                             {
                                                 @FormatMinutes(j.CurrentStepRunningMinutes.Value)
@@ -182,7 +182,7 @@ else
                                             }
                                             else { <span>—</span> }
                                         </td>
-                                        <td class="small">@j.ExpectedCompletionDate?.ToString("MMM d")</td>
+                                        <td class="small col-hide-mobile">@j.ExpectedCompletionDate?.ToString("MMM d")</td>
                                         <td>
                                             @if (j.IsLate)
                                             {

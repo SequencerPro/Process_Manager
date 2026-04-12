@@ -5,7 +5,7 @@
 
 <PageTitle>Approval Queue</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 page-heading-row">
     <h3 class="mb-0">Approval Queue</h3>
 </div>
 
@@ -33,11 +33,11 @@ else if (_data is not null)
         <table class="table table-hover table-sm align-middle">
             <thead class="table-light">
                 <tr>
-                    <th>Type</th>
+                    <th class="col-hide-mobile">Type</th>
                     <th>Entity</th>
-                    <th>Version</th>
-                    <th>Submitted By</th>
-                    <th>Submitted At</th>
+                    <th class="col-hide-mobile">Version</th>
+                    <th class="col-hide-mobile">Submitted By</th>
+                    <th class="col-hide-mobile">Submitted At</th>
                     <th>Decision</th>
                     <th style="width:160px">Actions</th>
                 </tr>
@@ -52,7 +52,7 @@ else if (_data is not null)
                     @foreach (var ar in _data.Items)
                     {
                         <tr>
-                            <td><span class="badge bg-secondary">@ar.EntityType</span></td>
+                            <td class="col-hide-mobile"><span class="badge bg-secondary">@ar.EntityType</span></td>
                             <td>
                                 @if (ar.EntityType == "Process")
                                 {
@@ -63,9 +63,9 @@ else if (_data is not null)
                                     <a href="step-templates/@ar.EntityId">@ar.EntityId.ToString()[..8]…</a>
                                 }
                             </td>
-                            <td>v@ar.EntityVersion</td>
-                            <td>@ar.SubmittedBy</td>
-                            <td>@ar.SubmittedAt.ToString("g")</td>
+                            <td class="col-hide-mobile">v@ar.EntityVersion</td>
+                            <td class="col-hide-mobile">@ar.SubmittedBy</td>
+                            <td class="col-hide-mobile">@ar.SubmittedAt.ToString("g")</td>
                             <td>
                                 <span class="badge @DecisionBadgeClass(ar.Decision)">@ar.Decision</span>
                             </td>

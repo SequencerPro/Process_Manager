@@ -5,12 +5,12 @@
 
 <PageTitle>Maintenance Tasks — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-tools me-2 text-primary"></i>Maintenance Tasks</h3>
-        <p class="text-muted small mb-0">All maintenance tasks across all equipment</p>
+        <p class="text-muted small mb-0 d-none d-md-block">All maintenance tasks across all equipment</p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
         <AuthorizeView Roles="Admin,Engineer">
             <Authorized>
                 <button class="btn btn-primary btn-sm" @onclick="ShowCreateModal">
@@ -73,9 +73,9 @@ else
                     <tr>
                         <th>Equipment</th>
                         <th>Title</th>
-                        <th>Type</th>
+                        <th class="col-hide-mobile">Type</th>
                         <th>Due Date</th>
-                        <th>Assigned To</th>
+                        <th class="col-hide-mobile">Assigned To</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
@@ -89,9 +89,9 @@ else
                                 <div class="text-muted" style="font-size:.78rem">@t.EquipmentName</div>
                             </td>
                             <td class="small">@t.Title</td>
-                            <td><span class="badge bg-light text-dark border">@FormatType(t.Type)</span></td>
+                            <td class="col-hide-mobile"><span class="badge bg-light text-dark border">@FormatType(t.Type)</span></td>
                             <td class="small">@t.DueDate.ToString("MMM d, yyyy")</td>
-                            <td class="small text-muted">@(t.AssignedTo ?? "—")</td>
+                            <td class="small text-muted col-hide-mobile">@(t.AssignedTo ?? "—")</td>
                             <td><span class="badge @TaskStatusBadge(t.Status)">@t.Status</span></td>
                             <td>
                                 <div class="d-flex gap-1">

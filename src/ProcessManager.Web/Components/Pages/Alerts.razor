@@ -6,7 +6,7 @@
 
 <div class="container-fluid py-3 px-4">
 
-    <div class="d-flex align-items-center mb-3 gap-3 flex-wrap">
+    <div class="d-flex align-items-center mb-3 gap-3 flex-wrap page-heading-row">
         <h3 class="mb-0">
             <i class="bi bi-bell-fill me-2 text-danger"></i>Out-of-Range Alerts
         </h3>
@@ -52,14 +52,14 @@
                 <table class="table table-sm table-hover mb-0 align-middle">
                     <thead class="table-light">
                         <tr>
-                            <th>When</th>
+                            <th class="col-hide-mobile">When</th>
                             <th>Job</th>
-                            <th>Process</th>
+                            <th class="col-hide-mobile">Process</th>
                             <th>Step</th>
-                            <th>Prompt</th>
+                            <th class="col-hide-mobile">Prompt</th>
                             <th>Value</th>
-                            <th>Override Note</th>
-                            <th>Operator</th>
+                            <th class="col-hide-mobile">Override Note</th>
+                            <th class="col-hide-mobile">Operator</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -67,7 +67,7 @@
                         @foreach (var a in _alerts)
                         {
                             <tr>
-                                <td class="text-nowrap small text-muted">
+                                <td class="text-nowrap small text-muted col-hide-mobile">
                                     @a.RespondedAt.ToLocalTime().ToString("MM/dd HH:mm")
                                 </td>
                                 <td class="small">
@@ -76,16 +76,16 @@
                                         <span class="text-muted ms-1">@a.JobName</span>
                                     </a>
                                 </td>
-                                <td class="small text-muted">@a.ProcessName</td>
+                                <td class="small text-muted col-hide-mobile">@a.ProcessName</td>
                                 <td class="small">@a.StepName</td>
-                                <td class="small fw-semibold">@a.PromptLabel</td>
+                                <td class="small fw-semibold col-hide-mobile">@a.PromptLabel</td>
                                 <td>
                                     <span class="badge bg-danger-subtle text-danger border border-danger-subtle"
                                           style="font-size:.85rem;font-weight:600">
                                         @a.Value
                                     </span>
                                 </td>
-                                <td class="small">
+                                <td class="small col-hide-mobile">
                                     @if (!string.IsNullOrWhiteSpace(a.OverrideNote))
                                     {
                                         <span class="text-warning-emphasis fst-italic" title="@a.OverrideNote">
@@ -97,7 +97,7 @@
                                         <span class="text-muted">—</span>
                                     }
                                 </td>
-                                <td class="small text-muted">@(a.RespondedBy ?? "—")</td>
+                                <td class="small text-muted col-hide-mobile">@(a.RespondedBy ?? "—")</td>
                                 <td>
                                     <a href="step-executions/@a.StepExecutionId"
                                        class="btn btn-sm btn-outline-secondary py-0 px-2"

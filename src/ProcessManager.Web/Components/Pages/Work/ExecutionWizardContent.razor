@@ -31,12 +31,19 @@ else
 {
     <!-- Header progress bar -->
     <div class="position-sticky top-0 bg-white border-bottom shadow-sm py-2 px-3 mb-3" style="z-index:100">
-        <div class="d-flex align-items-center justify-content-between">
-            <div>
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-1">
+            <div class="text-truncate" style="min-width:0">
                 <span class="fw-semibold">@_se.StepName</span>
-                <span class="text-muted small ms-2">@(string.IsNullOrEmpty(_se.JobCode) ? "" : $"Job {_se.JobCode}")</span>
+                <span class="text-muted small ms-2 d-none d-sm-inline">@(string.IsNullOrEmpty(_se.JobCode) ? "" : $"Job {_se.JobCode}")</span>
             </div>
             <div class="d-flex gap-2 align-items-center">
+                @* ── Mobile compact phase indicator ── *@
+                @{
+                    var mobileLabel = _phase switch { 1 => "Setup", 2 => "Safety", 3 => "Reference", 4 => "Execution", _ => "Sign-off" };
+                }
+                <span class="badge bg-primary d-md-none">@_phase/5 @mobileLabel</span>
+
+                @* ── Desktop phase buttons ── *@
                 @for (int i = 1; i <= 5; i++)
                 {
                     var pi = i;

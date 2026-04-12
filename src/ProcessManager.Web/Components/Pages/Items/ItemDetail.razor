@@ -96,7 +96,7 @@ else
             <div class="table-responsive">
                 <table class="table table-sm mb-0 align-middle">
                     <thead class="table-light">
-                        <tr><th>Key</th><th>Value</th><th>Type</th><th>Unit</th><th>Created</th></tr>
+                        <tr><th>Key</th><th>Value</th><th class="col-hide-mobile">Type</th><th class="col-hide-mobile">Unit</th><th class="col-hide-mobile">Created</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var d in _data)
@@ -104,9 +104,9 @@ else
                             <tr>
                                 <td><strong>@d.Key</strong></td>
                                 <td>@d.Value</td>
-                                <td><span class="badge bg-secondary">@d.DataType</span></td>
-                                <td>@(d.UnitOfMeasure ?? "—")</td>
-                                <td>@d.CreatedAt.ToString("g")</td>
+                                <td class="col-hide-mobile"><span class="badge bg-secondary">@d.DataType</span></td>
+                                <td class="col-hide-mobile">@(d.UnitOfMeasure ?? "—")</td>
+                                <td class="col-hide-mobile">@d.CreatedAt.ToString("g")</td>
                             </tr>
                         }
                     </tbody>

@@ -7,7 +7,9 @@
 
 <PageTitle>@Vocab.StepExecutions</PageTitle>
 
-<h3 class="mb-3">@Vocab.StepExecutions</h3>
+<div class="d-flex justify-content-between align-items-center mb-3 page-heading-row">
+    <h3 class="mb-0">@Vocab.StepExecutions</h3>
+</div>
 
 <div class="d-flex gap-3 mb-3 flex-wrap align-items-center">
     <select class="form-select form-select-sm" style="width:auto" @onchange="OnStatusFilter">
@@ -48,9 +50,9 @@ else if (_data is not null)
                     <th>Step Name</th>
                     <th>Job</th>
                     <th>Status</th>
-                    <th>Started</th>
-                    <th>Completed</th>
-                    <th>Notes</th>
+                    <th class="col-hide-mobile">Started</th>
+                    <th class="col-hide-mobile">Completed</th>
+                    <th class="col-hide-mobile">Notes</th>
                 </tr>
             </thead>
             <tbody>
@@ -67,9 +69,9 @@ else if (_data is not null)
                         <td><a href="step-executions/@se.Id">@se.StepName</a></td>
                         <td><a href="jobs/@se.JobId">View Job</a></td>
                         <td><StatusBadge Status="@se.Status" /></td>
-                        <td>@(se.StartedAt?.ToString("g") ?? "—")</td>
-                        <td>@(se.CompletedAt?.ToString("g") ?? "—")</td>
-                        <td class="small text-truncate" style="max-width:200px">@(se.Notes ?? "")</td>
+                        <td class="col-hide-mobile">@(se.StartedAt?.ToString("g") ?? "—")</td>
+                        <td class="col-hide-mobile">@(se.CompletedAt?.ToString("g") ?? "—")</td>
+                        <td class="col-hide-mobile small text-truncate" style="max-width:200px">@(se.Notes ?? "")</td>
                     </tr>
                 }
                 }

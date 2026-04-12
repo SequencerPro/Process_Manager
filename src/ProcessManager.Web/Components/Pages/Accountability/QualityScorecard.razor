@@ -5,10 +5,10 @@
 
 <PageTitle>Quality Scorecard — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-clipboard2-data me-2 text-primary"></i>Quality Scorecard</h3>
-        <p class="text-muted small mb-0">Live quality metrics and action item performance</p>
+        <p class="text-muted small mb-0 d-none d-md-block">Live quality metrics and action item performance</p>
     </div>
     <button class="btn btn-sm btn-outline-secondary" @onclick="Load" disabled="@_loading">
         <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
@@ -99,7 +99,7 @@ else
                             <tr>
                                 <th>Priority</th>
                                 <th class="text-end">Open</th>
-                                <th class="text-end text-danger">Overdue</th>
+                                <th class="text-end text-danger col-hide-mobile">Overdue</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -110,7 +110,7 @@ else
                                         <span class="badge @PriorityBadge(row.Priority)">@row.Priority</span>
                                     </td>
                                     <td class="text-end fw-medium">@row.Open</td>
-                                    <td class="text-end @(row.Overdue > 0 ? "text-danger fw-bold" : "text-muted")">@row.Overdue</td>
+                                    <td class="text-end col-hide-mobile @(row.Overdue > 0 ? "text-danger fw-bold" : "text-muted")">@row.Overdue</td>
                                 </tr>
                             }
                         </tbody>
@@ -129,7 +129,7 @@ else
                             <tr>
                                 <th>Source</th>
                                 <th class="text-end">Open</th>
-                                <th class="text-end">Total</th>
+                                <th class="text-end col-hide-mobile">Total</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -138,7 +138,7 @@ else
                                 <tr>
                                     <td><span class="small">@row.SourceType</span></td>
                                     <td class="text-end fw-medium">@row.Open</td>
-                                    <td class="text-end text-muted">@row.Total</td>
+                                    <td class="text-end text-muted col-hide-mobile">@row.Total</td>
                                 </tr>
                             }
                         </tbody>
@@ -167,7 +167,7 @@ else
                             <thead class="table-light">
                                 <tr>
                                     <th>Title</th>
-                                    <th>Assignee</th>
+                                    <th class="col-hide-mobile">Assignee</th>
                                     <th>Due</th>
                                 </tr>
                             </thead>
@@ -176,7 +176,7 @@ else
                                 {
                                     <tr>
                                         <td class="small fw-medium text-truncate" style="max-width:180px" title="@item.Title">@item.Title</td>
-                                        <td class="small text-muted text-truncate" style="max-width:120px">@item.AssignedToDisplayName</td>
+                                        <td class="small text-muted text-truncate col-hide-mobile" style="max-width:120px">@item.AssignedToDisplayName</td>
                                         <td class="small text-danger fw-bold">@item.DueDate.ToString("MMM d")</td>
                                     </tr>
                                 }

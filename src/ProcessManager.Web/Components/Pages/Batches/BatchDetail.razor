@@ -31,7 +31,7 @@ else
                     <h4 class="mb-1"><code class="fs-5">@_batch.Code</code></h4>
                     <StatusBadge Status="@_batch.Status" />
                 </div>
-                <div class="d-flex gap-1">
+                <div class="d-flex gap-1 flex-wrap">
                     <button class="btn btn-outline-secondary btn-sm" @onclick="ShowEditForm">
                         <i class="bi bi-pencil me-1"></i>Edit
                     </button>
@@ -92,9 +92,9 @@ else
                         <tr>
                             <th>Serial</th>
                             <th>Kind</th>
-                            <th>Grade</th>
+                            <th class="col-hide-mobile">Grade</th>
                             <th>Status</th>
-                            <th>Created</th>
+                            <th class="col-hide-mobile">Created</th>
                             <th style="width:80px">Actions</th>
                         </tr>
                     </thead>
@@ -108,9 +108,9 @@ else
                                     </a>
                                 </td>
                                 <td>@item.KindName</td>
-                                <td>@item.GradeName</td>
+                                <td class="col-hide-mobile">@item.GradeName</td>
                                 <td><StatusBadge Status="@item.Status" /></td>
-                                <td>@item.CreatedAt.ToString("g")</td>
+                                <td class="col-hide-mobile">@item.CreatedAt.ToString("g")</td>
                                 <td>
                                     @if (_batch.Status == "Open")
                                     {
@@ -145,7 +145,7 @@ else
             <div class="table-responsive">
                 <table class="table table-sm mb-0 align-middle">
                     <thead class="table-light">
-                        <tr><th>Key</th><th>Value</th><th>Type</th><th>Unit</th><th>Created</th></tr>
+                        <tr><th>Key</th><th>Value</th><th class="col-hide-mobile">Type</th><th class="col-hide-mobile">Unit</th><th class="col-hide-mobile">Created</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var d in _data)
@@ -153,9 +153,9 @@ else
                             <tr>
                                 <td><strong>@d.Key</strong></td>
                                 <td>@d.Value</td>
-                                <td><span class="badge bg-secondary">@d.DataType</span></td>
-                                <td>@(d.UnitOfMeasure ?? "—")</td>
-                                <td>@d.CreatedAt.ToString("g")</td>
+                                <td class="col-hide-mobile"><span class="badge bg-secondary">@d.DataType</span></td>
+                                <td class="col-hide-mobile">@(d.UnitOfMeasure ?? "—")</td>
+                                <td class="col-hide-mobile">@d.CreatedAt.ToString("g")</td>
                             </tr>
                         }
                     </tbody>

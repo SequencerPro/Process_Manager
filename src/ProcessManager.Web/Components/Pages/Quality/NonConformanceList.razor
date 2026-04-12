@@ -7,10 +7,10 @@
 
 <PageTitle>Non-Conformances — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>Non-Conformances</h3>
-        <p class="text-muted small mb-0">Out-of-spec records requiring disposition</p>
+        <p class="text-muted small mb-0 d-none d-md-block">Out-of-spec records requiring disposition</p>
     </div>
     <button class="btn btn-sm btn-outline-secondary" @onclick="LoadData" disabled="@_loading">
         <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
@@ -59,12 +59,12 @@ else
                 <thead class="table-light">
                     <tr>
                         <th>Job</th>
-                        <th>Step</th>
-                        <th>Block / Prompt</th>
-                        <th>Actual Value</th>
-                        <th>Limit</th>
+                        <th class="col-hide-mobile">Step</th>
+                        <th class="col-hide-mobile">Block / Prompt</th>
+                        <th class="col-hide-mobile">Actual Value</th>
+                        <th class="col-hide-mobile">Limit</th>
                         <th>Status</th>
-                        <th>Raised</th>
+                        <th class="col-hide-mobile">Raised</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -73,10 +73,10 @@ else
                     {
                         <tr>
                             <td><code>@(nc.JobCode ?? "—")</code></td>
-                            <td>@(nc.StepName ?? "—")</td>
-                            <td><small>@(nc.ContentBlockLabel ?? nc.ContentBlockId.ToString("D")[..8])</small></td>
-                            <td><code>@(nc.ActualValue ?? "—")</code></td>
-                            <td><span class="badge @LimitTypeBadgeClass(nc.LimitType)">@nc.LimitType</span></td>
+                            <td class="col-hide-mobile">@(nc.StepName ?? "—")</td>
+                            <td class="col-hide-mobile"><small>@(nc.ContentBlockLabel ?? nc.ContentBlockId.ToString("D")[..8])</small></td>
+                            <td class="col-hide-mobile"><code>@(nc.ActualValue ?? "—")</code></td>
+                            <td class="col-hide-mobile"><span class="badge @LimitTypeBadgeClass(nc.LimitType)">@nc.LimitType</span></td>
                             <td>
                                 @if (nc.DispositionStatus == "Pending")
                                 {
@@ -99,7 +99,7 @@ else
                                     <span class="badge bg-secondary">@nc.DispositionStatus</span>
                                 }
                             </td>
-                            <td class="small text-muted">@nc.CreatedAt.ToString("g")</td>
+                            <td class="small text-muted col-hide-mobile">@nc.CreatedAt.ToString("g")</td>
                             <td>
                                 @if (nc.DispositionStatus == "Pending")
                                 {

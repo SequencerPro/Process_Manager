@@ -10,7 +10,9 @@
 
 <PageTitle>Warehouse Dashboard</PageTitle>
 
-<h3 class="mb-4"><i class="bi bi-box-seam me-2"></i>Warehouse Dashboard</h3>
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
+    <h3 class="mb-0"><i class="bi bi-box-seam me-2"></i>Warehouse Dashboard</h3>
+</div>
 
 @if (_loading)
 {
@@ -69,9 +71,9 @@ else
                             <th>Kind Code</th>
                             <th>Kind Name</th>
                             <th>On Hand</th>
-                            <th>Reorder Threshold</th>
-                            <th>Reorder Qty</th>
-                            <th>UoM</th>
+                            <th class="col-hide-mobile">Reorder Threshold</th>
+                            <th class="col-hide-mobile">Reorder Qty</th>
+                            <th class="col-hide-mobile">UoM</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -83,9 +85,9 @@ else
                                     <td>@item.KindCode</td>
                                     <td>@item.KindName</td>
                                     <td>@item.OnHand</td>
-                                    <td>@item.ReorderThreshold</td>
-                                    <td>@item.ReorderQuantity</td>
-                                    <td>@item.UnitOfMeasure</td>
+                                    <td class="col-hide-mobile">@item.ReorderThreshold</td>
+                                    <td class="col-hide-mobile">@item.ReorderQuantity</td>
+                                    <td class="col-hide-mobile">@item.UnitOfMeasure</td>
                                 </tr>
                             }
                         }
@@ -109,11 +111,11 @@ else
                         <tr>
                             <th>Type</th>
                             <th>Kind Code</th>
-                            <th>Serial #</th>
-                            <th>From</th>
-                            <th>To</th>
+                            <th class="col-hide-mobile">Serial #</th>
+                            <th class="col-hide-mobile">From</th>
+                            <th class="col-hide-mobile">To</th>
                             <th>Quantity</th>
-                            <th>Date</th>
+                            <th class="col-hide-mobile">Date</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -124,11 +126,11 @@ else
                                 <tr>
                                     <td><span class="badge bg-secondary">@tx.TransactionType</span></td>
                                     <td>@tx.KindCode</td>
-                                    <td>@tx.ItemSerialNumber</td>
-                                    <td>@tx.FromLocationCode</td>
-                                    <td>@tx.ToLocationCode</td>
+                                    <td class="col-hide-mobile">@tx.ItemSerialNumber</td>
+                                    <td class="col-hide-mobile">@tx.FromLocationCode</td>
+                                    <td class="col-hide-mobile">@tx.ToLocationCode</td>
                                     <td>@tx.Quantity</td>
-                                    <td>@tx.TransactedAt.ToString("g")</td>
+                                    <td class="col-hide-mobile">@tx.TransactedAt.ToString("g")</td>
                                 </tr>
                             }
                         }

@@ -8,14 +8,14 @@
 
 <PageTitle>Org Units</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 page-heading-row">
     <h3 class="mb-0">Org Units</h3>
     <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
         <i class="bi bi-plus-lg me-1"></i> New Org Unit
     </button>
 </div>
 
-<div class="d-flex gap-3 mb-3 flex-wrap">
+<div class="d-flex gap-2 mb-3 flex-wrap">
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search org units..." />
     <select class="form-select form-select-sm" style="width:auto" @onchange="OnTypeFilter">
         <option value="" selected="@(_type is null)">All Types</option>
@@ -47,9 +47,9 @@ else if (_data is not null)
                     <th>Code</th>
                     <th>Name</th>
                     <th>Type</th>
-                    <th>Parent</th>
-                    <th>Children</th>
-                    <th>Members</th>
+                    <th class="col-hide-mobile">Parent</th>
+                    <th class="col-hide-mobile">Children</th>
+                    <th class="col-hide-mobile">Members</th>
                     <th>Active</th>
                     <th style="width:180px">Actions</th>
                 </tr>
@@ -67,8 +67,8 @@ else if (_data is not null)
                             <td><code>@o.Code</code></td>
                             <td>@o.Name</td>
                             <td><span class="badge bg-secondary">@o.Type</span></td>
-                            <td>@(o.ParentName ?? "—")</td>
-                            <td>
+                            <td class="col-hide-mobile">@(o.ParentName ?? "—")</td>
+                            <td class="col-hide-mobile">
                                 @if (o.ChildCount > 0)
                                 {
                                     <a href="orgunits?parentId=@o.Id" class="text-decoration-none">@o.ChildCount</a>
@@ -78,7 +78,7 @@ else if (_data is not null)
                                     <span class="text-muted">0</span>
                                 }
                             </td>
-                            <td>
+                            <td class="col-hide-mobile">
                                 <button class="btn btn-link btn-sm p-0 text-decoration-none" @onclick="() => ShowMembers(o)">
                                     <i class="bi bi-people me-1"></i>@o.MemberCount
                                 </button>
@@ -231,8 +231,8 @@ else if (_data is not null)
                             <thead class="table-light">
                                 <tr>
                                     <th>User</th>
-                                    <th>Email</th>
-                                    <th>Added</th>
+                                    <th class="col-hide-mobile">Email</th>
+                                    <th class="col-hide-mobile">Added</th>
                                     <th style="width:60px"></th>
                                 </tr>
                             </thead>
@@ -247,8 +247,8 @@ else if (_data is not null)
                                                 <small class="text-muted ms-1">(@m.UserName)</small>
                                             }
                                         </td>
-                                        <td><small>@m.Email</small></td>
-                                        <td><small class="text-muted">@m.CreatedAt.ToString("yyyy-MM-dd")</small></td>
+                                        <td class="col-hide-mobile"><small>@m.Email</small></td>
+                                        <td class="col-hide-mobile"><small class="text-muted">@m.CreatedAt.ToString("yyyy-MM-dd")</small></td>
                                         <td>
                                             <button class="btn btn-outline-danger btn-sm" title="Remove"
                                                     @onclick="() => RemoveMember(m.Id)">

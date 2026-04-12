@@ -18,7 +18,7 @@ else if (_eq is null)
 }
 else
 {
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 page-heading-row">
         <div>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb mb-1">
@@ -28,7 +28,7 @@ else
             </nav>
             <h4 class="mb-0"><i class="bi bi-gear-wide me-2"></i>@_eq.Code — @_eq.Name</h4>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 flex-wrap">
             @if (_eq.IsCurrentlyDown)
             {
                 <span class="badge bg-danger fs-6"><i class="bi bi-exclamation-triangle me-1"></i>Currently Down</span>
@@ -101,9 +101,9 @@ else
                             <th>Type</th>
                             <th>Started</th>
                             <th>Ended</th>
-                            <th>Duration</th>
+                            <th class="col-hide-mobile">Duration</th>
                             <th>Reason</th>
-                            <th>Resolved By</th>
+                            <th class="col-hide-mobile">Resolved By</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -113,9 +113,9 @@ else
                                 <td><span class="badge @(dt.Type == "Unplanned" ? "bg-danger" : "bg-warning text-dark")">@dt.Type</span></td>
                                 <td class="small">@dt.StartedAt.ToString("MMM d, yyyy HH:mm")</td>
                                 <td class="small">@(dt.EndedAt.HasValue ? dt.EndedAt.Value.ToString("MMM d, yyyy HH:mm") : "Open")</td>
-                                <td class="small">@(dt.DurationMinutes.HasValue ? FormatMinutes(dt.DurationMinutes.Value) : "—")</td>
+                                <td class="small col-hide-mobile">@(dt.DurationMinutes.HasValue ? FormatMinutes(dt.DurationMinutes.Value) : "—")</td>
                                 <td class="small">@dt.Reason</td>
-                                <td class="small text-muted">@(dt.ResolvedBy ?? "—")</td>
+                                <td class="small text-muted col-hide-mobile">@(dt.ResolvedBy ?? "—")</td>
                             </tr>
                         }
                     </tbody>
@@ -191,9 +191,9 @@ else
                     <thead class="table-light">
                         <tr>
                             <th>Title</th>
-                            <th>Type</th>
+                            <th class="col-hide-mobile">Type</th>
                             <th>Due</th>
-                            <th>Assigned</th>
+                            <th class="col-hide-mobile">Assigned</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -203,9 +203,9 @@ else
                         {
                             <tr>
                                 <td class="small">@t.Title</td>
-                                <td><span class="badge bg-light text-dark border">@t.Type</span></td>
+                                <td class="col-hide-mobile"><span class="badge bg-light text-dark border">@t.Type</span></td>
                                 <td class="small">@t.DueDate.ToString("MMM d, yyyy")</td>
-                                <td class="small text-muted">@(t.AssignedTo ?? "—")</td>
+                                <td class="small text-muted col-hide-mobile">@(t.AssignedTo ?? "—")</td>
                                 <td><span class="badge @TaskStatusBadge(t.Status)">@t.Status</span></td>
                                 <td>
                                     <div class="d-flex gap-1">

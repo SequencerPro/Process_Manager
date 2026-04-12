@@ -3,10 +3,10 @@
 
 <PageTitle>My Work — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-person-workspace me-2 text-primary"></i>My Work</h3>
-        <p class="text-muted small mb-0">Steps ready to start or currently in progress</p>
+        <p class="text-muted small mb-0 d-none d-md-block">Steps ready to start or currently in progress</p>
     </div>
     <button class="btn btn-sm btn-outline-secondary" @onclick="Load" disabled="@_loading">
         <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
@@ -68,7 +68,7 @@ else
                         <tr>
                             <th>Step</th>
                             <th>Job</th>
-                            <th>Started</th>
+                            <th class="col-hide-mobile">Started</th>
                             <th class="text-end">Action</th>
                         </tr>
                     </thead>
@@ -84,7 +84,7 @@ else
                                     <span class="fw-medium">@(se.JobCode ?? "—")</span>
                                     <span class="text-muted small ms-1">@se.JobName</span>
                                 </td>
-                                <td class="align-middle text-muted small">
+                                <td class="align-middle text-muted small col-hide-mobile">
                                     @(se.StartedAt?.ToString("g") ?? "—")
                                 </td>
                                 <td class="align-middle text-end">

@@ -26,14 +26,14 @@ else
 
     <div class="card mb-4">
         <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="d-flex justify-content-between align-items-start mb-2 page-heading-row">
                 <div>
                     <h4 class="mb-1">@_wf.Name</h4>
                     <span class="text-muted me-3"><code>@_wf.Code</code></span>
                     <span class="badge me-1 @(_wf.IsActive ? "bg-success" : "bg-secondary")">@(_wf.IsActive ? "Active" : "Inactive")</span>
                     <span class="badge bg-dark">v@_wf.Version</span>
                 </div>
-                <div class="d-flex gap-1">
+                <div class="d-flex gap-1 flex-wrap">
                     <a href="workflows/@Id/builder" class="btn btn-primary btn-sm">
                         <i class="bi bi-diagram-3 me-1"></i>Builder
                     </a>
@@ -50,7 +50,7 @@ else
             </div>
             @if (!string.IsNullOrEmpty(_wf.Description))
             {
-                <p class="mb-2">@_wf.Description</p>
+                <p class="mb-2 d-none d-md-block">@_wf.Description</p>
             }
             <small class="text-muted">Created @_wf.CreatedAt.ToString("g") &bull; Updated @_wf.UpdatedAt.ToString("g")</small>
         </div>
@@ -92,18 +92,18 @@ else
             <div class="table-responsive">
                 <table class="table table-sm mb-0 align-middle">
                     <thead class="table-light">
-                        <tr><th>Process</th><th>Code</th><th>Entry Point</th><th>Sort</th><th></th></tr>
+                        <tr><th>Process</th><th class="col-hide-mobile">Code</th><th class="col-hide-mobile">Entry Point</th><th class="col-hide-mobile">Sort</th><th></th></tr>
                     </thead>
                     <tbody>
                         @foreach (var wp in _wf.Processes.OrderBy(p => p.SortOrder))
                         {
                             <tr>
                                 <td><a href="processes/@wp.ProcessId">@wp.ProcessName</a></td>
-                                <td><code>@wp.ProcessCode</code></td>
-                                <td>
+                                <td class="col-hide-mobile"><code>@wp.ProcessCode</code></td>
+                                <td class="col-hide-mobile">
                                     @if (wp.IsEntryPoint) { <i class="bi bi-flag-fill text-success"></i> }
                                 </td>
-                                <td>@wp.SortOrder</td>
+                                <td class="col-hide-mobile">@wp.SortOrder</td>
                                 <td class="text-end">
                                     <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1" @onclick="() => ShowEditWfProcess(wp)">
                                         <i class="bi bi-pencil"></i>
@@ -137,7 +137,7 @@ else
             <div class="table-responsive">
                 <table class="table table-sm mb-0 align-middle">
                     <thead class="table-light">
-                        <tr><th>Name</th><th>Source</th><th></th><th>Target</th><th>Routing</th><th>Conditions</th><th></th></tr>
+                        <tr><th>Name</th><th>Source</th><th class="col-hide-mobile"></th><th>Target</th><th class="col-hide-mobile">Routing</th><th class="col-hide-mobile">Conditions</th><th></th></tr>
                     </thead>
                     <tbody>
                         @foreach (var lk in _wf.Links.OrderBy(l => l.SortOrder))
@@ -145,10 +145,10 @@ else
                             <tr>
                                 <td>@(lk.Name ?? "—")</td>
                                 <td>@lk.SourceProcessName</td>
-                                <td class="text-center"><i class="bi bi-arrow-right"></i></td>
+                                <td class="col-hide-mobile text-center"><i class="bi bi-arrow-right"></i></td>
                                 <td>@lk.TargetProcessName</td>
-                                <td><span class="badge bg-info text-dark">@lk.RoutingType</span></td>
-                                <td>
+                                <td class="col-hide-mobile"><span class="badge bg-info text-dark">@lk.RoutingType</span></td>
+                                <td class="col-hide-mobile">
                                     @if (lk.Conditions?.Any() == true)
                                     {
                                         @foreach (var c in lk.Conditions)

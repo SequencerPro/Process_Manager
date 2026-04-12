@@ -13,7 +13,7 @@
     </button>
 </div>
 
-<div class="d-flex flex-wrap gap-2 mb-3">
+<div class="d-flex gap-3 mb-3 flex-wrap">
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="Search control plans..." />
     <select class="form-select form-select-sm" style="width:auto" @onchange="OnActiveFilter">
         <option value="">All</option>
@@ -39,11 +39,11 @@ else if (_data is not null)
                 <tr>
                     <th>Code</th>
                     <th>Name</th>
-                    <th>Process</th>
+                    <th class="col-hide-mobile">Process</th>
                     <th class="col-hide-mobile">Ver</th>
                     <th class="col-hide-mobile">Entries</th>
                     <th class="col-hide-mobile">Status</th>
-                    <th>Active</th>
+                    <th class="col-hide-mobile">Active</th>
                     <th style="width:100px">Actions</th>
                 </tr>
             </thead>
@@ -59,7 +59,7 @@ else if (_data is not null)
                         <tr>
                             <td><code>@p.Code</code></td>
                             <td><a href="control-plans/@p.Id">@p.Name</a></td>
-                            <td><a href="processes/@p.ProcessId">@p.ProcessName</a></td>
+                            <td class="col-hide-mobile"><a href="processes/@p.ProcessId">@p.ProcessName</a></td>
                             <td class="col-hide-mobile">v@p.Version</td>
                             <td class="col-hide-mobile"><span class="badge bg-secondary">@p.EntryCount</span></td>
                             <td class="col-hide-mobile">
@@ -72,7 +72,7 @@ else if (_data is not null)
                                     <span class="badge bg-success">Current</span>
                                 }
                             </td>
-                            <td>
+                            <td class="col-hide-mobile">
                                 @if (p.IsActive) { <i class="bi bi-check-circle-fill text-success"></i> }
                                 else { <i class="bi bi-x-circle text-danger"></i> }
                             </td>

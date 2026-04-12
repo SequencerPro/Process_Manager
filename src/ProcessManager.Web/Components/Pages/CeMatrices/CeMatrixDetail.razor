@@ -26,7 +26,7 @@ else
 
     <!-- Header card -->
     <div class="card mb-3">
-        <div class="card-body py-2 d-flex justify-content-between align-items-center">
+        <div class="card-body py-2 d-flex justify-content-between align-items-center page-heading-row">
             <div>
                 <h5 class="mb-0">@_matrix.Name</h5>
                 <small class="text-muted">
@@ -35,7 +35,7 @@ else
                     @if (!string.IsNullOrEmpty(_matrix.Description)) { <span> — @_matrix.Description</span> }
                 </small>
             </div>
-            <div class="d-flex gap-1">
+            <div class="d-flex gap-1 flex-wrap">
                 <a href="/api/cematrices/@_matrix.Id/export" target="_blank" class="btn btn-outline-secondary btn-sm">
                     <i class="bi bi-download me-1"></i>CSV
                 </a>
@@ -71,7 +71,7 @@ else
     @if (_matrix.Inputs.Count > 0 || _matrix.Outputs.Count > 0)
     {
         <div class="table-responsive">
-            <table class="table table-bordered table-sm align-middle ce-matrix-table">
+            <table class="table table-bordered table-sm align-middle ce-matrix-table matrix-table">
                 <thead>
                     <!-- Output names row -->
                     <tr>

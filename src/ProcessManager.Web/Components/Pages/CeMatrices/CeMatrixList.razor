@@ -6,7 +6,7 @@
 
 <PageTitle>C&amp;E Matrices</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 page-heading-row">
     <h3 class="mb-0">C&amp;E Matrices</h3>
     <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
         <i class="bi bi-plus-lg me-1"></i> New Matrix
@@ -29,9 +29,9 @@ else if (_data is not null)
                 <tr>
                     <th>Name</th>
                     <th>Step</th>
-                    <th>Inputs</th>
-                    <th>Outputs</th>
-                    <th>Updated</th>
+                    <th class="col-hide-mobile">Inputs</th>
+                    <th class="col-hide-mobile">Outputs</th>
+                    <th class="col-hide-mobile">Updated</th>
                     <th style="width:100px">Actions</th>
                 </tr>
             </thead>
@@ -50,9 +50,9 @@ else if (_data is not null)
                                 <span class="badge bg-secondary me-1">Step @m.ProcessStepSequence</span>
                                 @m.ProcessStepName
                             </td>
-                            <td><span class="badge bg-light text-dark border">@m.InputCount inputs</span></td>
-                            <td><span class="badge bg-light text-dark border">@m.OutputCount outputs</span></td>
-                            <td class="text-muted small">@m.UpdatedAt.ToString("g")</td>
+                            <td class="col-hide-mobile"><span class="badge bg-light text-dark border">@m.InputCount inputs</span></td>
+                            <td class="col-hide-mobile"><span class="badge bg-light text-dark border">@m.OutputCount outputs</span></td>
+                            <td class="col-hide-mobile text-muted small">@m.UpdatedAt.ToString("g")</td>
                             <td>
                                 <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEdit(m)" title="Edit">
                                     <i class="bi bi-pencil"></i>

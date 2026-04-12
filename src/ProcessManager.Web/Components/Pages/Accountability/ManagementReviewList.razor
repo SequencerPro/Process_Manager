@@ -6,10 +6,10 @@
 
 <PageTitle>Management Reviews — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-journal-check me-2 text-primary"></i>Management Reviews</h3>
-        <p class="text-muted small mb-0">Scheduled quality management review meetings</p>
+        <p class="text-muted small mb-0 d-none d-md-block">Scheduled quality management review meetings</p>
     </div>
     <button class="btn btn-sm btn-primary" @onclick="OpenCreate">
         <i class="bi bi-plus-lg me-1"></i>New Review
@@ -62,11 +62,11 @@ else
                 <thead class="table-light">
                     <tr>
                         <th>Title</th>
-                        <th>Type</th>
-                        <th>Scheduled</th>
+                        <th class="col-hide-mobile">Type</th>
+                        <th class="col-hide-mobile">Scheduled</th>
                         <th>Status</th>
-                        <th>Conducted By</th>
-                        <th class="text-center">Action Items</th>
+                        <th class="col-hide-mobile">Conducted By</th>
+                        <th class="text-center col-hide-mobile">Action Items</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -75,11 +75,11 @@ else
                     {
                         <tr>
                             <td class="fw-medium">@r.Title</td>
-                            <td><span class="badge @TypeBadge(r.ReviewType)">@r.ReviewType</span></td>
-                            <td class="text-muted small">@r.ScheduledDate.ToString("MMM d, yyyy")</td>
+                            <td class="col-hide-mobile"><span class="badge @TypeBadge(r.ReviewType)">@r.ReviewType</span></td>
+                            <td class="text-muted small col-hide-mobile">@r.ScheduledDate.ToString("MMM d, yyyy")</td>
                             <td><span class="badge @StatusBadge(r.Status)">@r.Status</span></td>
-                            <td class="small text-muted">@(r.ConductedBy ?? "—")</td>
-                            <td class="text-center">
+                            <td class="small text-muted col-hide-mobile">@(r.ConductedBy ?? "—")</td>
+                            <td class="text-center col-hide-mobile">
                                 @if (r.ActionItemCount > 0)
                                 {
                                     <span class="badge bg-secondary rounded-pill">@r.ActionItemCount</span>

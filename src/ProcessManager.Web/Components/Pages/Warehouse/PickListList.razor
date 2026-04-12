@@ -10,7 +10,9 @@
 
 <PageTitle>Pick Lists</PageTitle>
 
-<h3 class="mb-4"><i class="bi bi-card-checklist me-2"></i>Pick Lists</h3>
+<div class="page-heading-row mb-4">
+    <h3 class="mb-0"><i class="bi bi-card-checklist me-2"></i>Pick Lists</h3>
+</div>
 
 @* ── Filters ── *@
 <div class="row g-2 mb-3">
@@ -37,9 +39,9 @@ else
                 <tr>
                     <th>Job Code</th>
                     <th>Status</th>
-                    <th>Lines</th>
-                    <th>Short-Shipped</th>
-                    <th>Generated</th>
+                    <th class="col-hide-mobile">Lines</th>
+                    <th class="col-hide-mobile">Short-Shipped</th>
+                    <th class="col-hide-mobile">Generated</th>
                 </tr>
             </thead>
             <tbody>
@@ -50,8 +52,8 @@ else
                         <tr role="button" @onclick="@(() => Nav.NavigateTo("/picklists/" + pl.Id))">
                             <td><a href="/jobs/@pl.JobId">@pl.JobCode</a></td>
                             <td><span class="badge @GetStatusBadgeClass(pl.Status)">@pl.Status</span></td>
-                            <td>@pl.LineCount</td>
-                            <td>
+                            <td class="col-hide-mobile">@pl.LineCount</td>
+                            <td class="col-hide-mobile">
                                 @if (pl.ShortShippedCount > 0)
                                 {
                                     <span class="badge bg-warning text-dark">@pl.ShortShippedCount</span>
@@ -61,7 +63,7 @@ else
                                     <span>0</span>
                                 }
                             </td>
-                            <td>@pl.GeneratedAt.ToString("g")</td>
+                            <td class="col-hide-mobile">@pl.GeneratedAt.ToString("g")</td>
                         </tr>
                     }
                 }

@@ -15,7 +15,7 @@
     </button>
 </div>
 
-<div class="d-flex flex-wrap gap-2 mb-3">
+<div class="d-flex gap-3 mb-3 flex-wrap">
     <SearchBox Value="@_search" ValueChanged="OnSearch" Placeholder="@($"Search {Vocab.Kinds.ToLower()}...")" />
     <select class="form-select form-select-sm" style="width:160px" @onchange="OnSourceTypeFilter">
         <option value="">All Sources</option>
@@ -39,10 +39,10 @@ else if (_data is not null)
                 <tr>
                     <th>Code</th>
                     <th>Name</th>
-                    <th class="col-hide-mobile">Source</th>
+                    <th>Source</th>
                     <th class="col-hide-mobile">Serialized</th>
                     <th class="col-hide-mobile">Batchable</th>
-                    <th>Grades</th>
+                    <th class="col-hide-mobile">Grades</th>
                     <th style="width:120px">Actions</th>
                 </tr>
             </thead>
@@ -60,10 +60,10 @@ else if (_data is not null)
                         <td>
                             <a href="kinds/@kind.Id">@kind.Name</a>
                         </td>
-                        <td class="col-hide-mobile"><span class="badge @SourceBadgeClass(kind.SourceType)">@FormatSourceType(kind.SourceType)</span></td>
+                        <td><span class="badge @SourceBadgeClass(kind.SourceType)">@FormatSourceType(kind.SourceType)</span></td>
                         <td class="col-hide-mobile">@(kind.IsSerialized ? "Yes" : "No")</td>
                         <td class="col-hide-mobile">@(kind.IsBatchable ? "Yes" : "No")</td>
-                        <td>
+                        <td class="col-hide-mobile">
                             @foreach (var g in kind.Grades)
                             {
                                 <span class="badge bg-light text-dark border me-1">@g.Code</span>

@@ -128,6 +128,13 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     // Bill of Materials
     public DbSet<BomLine> BomLines => Set<BomLine>();
 
+    // Phase 22: Factory Design Suite
+    public DbSet<FloorPlan> FloorPlans => Set<FloorPlan>();
+    public DbSet<FloorPlanWorkstation> FloorPlanWorkstations => Set<FloorPlanWorkstation>();
+    public DbSet<FloorPlanWorkstationProcess> FloorPlanWorkstationProcesses => Set<FloorPlanWorkstationProcess>();
+    public DbSet<FloorPlanWorkstationTool> FloorPlanWorkstationTools => Set<FloorPlanWorkstationTool>();
+    public DbSet<FloorPlanInventoryLocation> FloorPlanInventoryLocations => Set<FloorPlanInventoryLocation>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -1585,6 +1592,97 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(b => b.ComponentKindId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── Phase 22: Factory Design Suite ──
+
+        modelBuilder.Entity<FloorPlan>(e =>
+        {
+            e.HasKey(f => f.Id);
+            e.HasIndex(f => f.Code).IsUnique();
+            e.Property(f => f.Code).HasMaxLength(50).IsRequired();
+            e.Property(f => f.Name).HasMaxLength(200).IsRequired();
+            e.Property(f => f.Description).HasMaxLength(2000);
+            e.Property(f => f.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(f => f.LayoutJson).IsRequired();
+        });
+
+        modelBuilder.Entity<FloorPlanWorkstation>(e =>
+        {
+            e.HasKey(w => w.Id);
+            e.HasIndex(w => new { w.FloorPlanId, w.PlacementId }).IsUnique();
+            e.Property(w => w.PlacementId).HasMaxLength(100).IsRequired();
+
+            e.HasOne(w => w.FloorPlan)
+                .WithMany(f => f.Workstations)
+                .HasForeignKey(w => w.FloorPlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(w => w.Equipment)
+                .WithMany()
+                .HasForeignKey(w => w.EquipmentId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(w => w.OrgUnit)
+                .WithMany()
+                .HasForeignKey(w => w.OrgUnitId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(w => w.StorageLocation)
+                .WithMany()
+                .HasForeignKey(w => w.StorageLocationId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<FloorPlanWorkstationProcess>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.HasIndex(p => new { p.FloorPlanWorkstationId, p.ProcessId }).IsUnique();
+
+            e.HasOne(p => p.FloorPlanWorkstation)
+                .WithMany(w => w.Processes)
+                .HasForeignKey(p => p.FloorPlanWorkstationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(p => p.Process)
+                .WithMany()
+                .HasForeignKey(p => p.ProcessId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<FloorPlanWorkstationTool>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.HasIndex(t => new { t.FloorPlanWorkstationId, t.KindId }).IsUnique();
+            e.Property(t => t.Notes).HasMaxLength(500);
+
+            e.HasOne(t => t.FloorPlanWorkstation)
+                .WithMany(w => w.Tools)
+                .HasForeignKey(t => t.FloorPlanWorkstationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(t => t.Kind)
+                .WithMany()
+                .HasForeignKey(t => t.KindId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<FloorPlanInventoryLocation>(e =>
+        {
+            e.HasKey(l => l.Id);
+            e.HasIndex(l => new { l.FloorPlanId, l.PlacementId }).IsUnique();
+            e.HasIndex(l => new { l.FloorPlanId, l.StorageLocationId }).IsUnique();
+            e.Property(l => l.PlacementId).HasMaxLength(100).IsRequired();
+
+            e.HasOne(l => l.FloorPlan)
+                .WithMany(f => f.InventoryLocations)
+                .HasForeignKey(l => l.FloorPlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(l => l.StorageLocation)
+                .WithMany()
+                .HasForeignKey(l => l.StorageLocationId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

@@ -1,0 +1,205 @@
+@page "/factory-design"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Factory Design Suite — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-bounding-box me-2 text-primary"></i>Factory Design Suite</h3>
+        <p class="text-muted small mb-0 d-none d-md-block">Visual floor plan editor for production areas</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <select class="form-select form-select-sm" style="width:auto" @bind="_statusFilter" @bind:after="Load">
+            <option value="">All Statuses</option>
+            <option value="Draft">Draft</option>
+            <option value="Published">Published</option>
+            <option value="Archived">Archived</option>
+        </select>
+        <button class="btn btn-sm btn-primary" @onclick="ShowCreate">
+            <i class="bi bi-plus-lg me-1"></i>New Floor Plan
+        </button>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading floor plans…
+    </div>
+}
+else if (!_plans.Any())
+{
+    <div class="card shadow-sm">
+        <div class="card-body text-center text-muted py-5">
+            <i class="bi bi-bounding-box fs-1 d-block mb-3"></i>
+            <p class="mb-2">No floor plans yet.</p>
+            <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
+                <i class="bi bi-plus-lg me-1"></i>Create Your First Floor Plan
+            </button>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
+        @foreach (var plan in _plans)
+        {
+            <div class="col">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h6 class="mb-0 fw-semibold">@plan.Name</h6>
+                                <small class="text-muted">@plan.Code</small>
+                            </div>
+                            <span class="badge @StatusBadge(plan.Status)">@plan.Status</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(plan.Description))
+                        {
+                            <p class="text-muted small mb-2" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">@plan.Description</p>
+                        }
+                        <div class="d-flex gap-3 text-muted small mb-2">
+                            <span><i class="bi bi-gear-wide me-1"></i>@plan.WorkstationCount workstations</span>
+                            <span><i class="bi bi-box-seam me-1"></i>@plan.InventoryLocationCount locations</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center small text-muted">
+                            <span>v@(plan.Version) · @plan.UpdatedAt.ToString("MMM d")</span>
+                            <div class="d-flex gap-1">
+                                <a href="factory-design/@plan.Id" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-pencil-square me-1"></i>Open
+                                </a>
+                                @if (plan.Status == FloorPlanStatus.Draft)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => DeletePlan(plan.Id)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (_showCreate)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">New Floor Plan</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showCreate = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Code</label>
+                        <input class="form-control form-control-sm" @bind="_createCode" placeholder="FP-ASSY-01" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input class="form-control form-control-sm" @bind="_createName" placeholder="Assembly Hall" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control form-control-sm" rows="2" @bind="_createDesc"></textarea>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_createError))
+                    {
+                        <div class="alert alert-danger py-1 small">@_createError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary btn-sm" @onclick="() => _showCreate = false">Cancel</button>
+                    <button class="btn btn-primary btn-sm" @onclick="DoCreate" disabled="@_creating">
+                        @if (_creating) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Create
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@using ProcessManager.Domain.Entities
+@using Microsoft.AspNetCore.Authorization
+
+@code {
+    private List<FloorPlanSummaryDto> _plans = new();
+    private bool _loading;
+    private string _statusFilter = "";
+
+    // Create modal
+    private bool _showCreate;
+    private string _createCode = "";
+    private string _createName = "";
+    private string? _createDesc;
+    private string? _createError;
+    private bool _creating;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            var result = await Api.GetFloorPlansAsync(status: string.IsNullOrEmpty(_statusFilter) ? null : _statusFilter);
+            _plans = result?.Items ?? new();
+        }
+        catch { }
+        _loading = false;
+    }
+
+    private void ShowCreate()
+    {
+        _createCode = "";
+        _createName = "";
+        _createDesc = null;
+        _createError = null;
+        _showCreate = true;
+    }
+
+    private async Task DoCreate()
+    {
+        if (string.IsNullOrWhiteSpace(_createCode) || string.IsNullOrWhiteSpace(_createName))
+        {
+            _createError = "Code and Name are required.";
+            return;
+        }
+        _creating = true;
+        _createError = null;
+        try
+        {
+            var result = await Api.CreateFloorPlanAsync(_createCode.Trim(), _createName.Trim(), _createDesc?.Trim());
+            if (result != null)
+            {
+                _showCreate = false;
+                Nav.NavigateTo($"factory-design/{result.Id}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _createError = ex.Message;
+        }
+        _creating = false;
+    }
+
+    private async Task DeletePlan(Guid id)
+    {
+        await Api.DeleteFloorPlanAsync(id);
+        await Load();
+    }
+
+    private static string StatusBadge(FloorPlanStatus status) => status switch
+    {
+        FloorPlanStatus.Draft => "bg-secondary",
+        FloorPlanStatus.Published => "bg-success",
+        FloorPlanStatus.Archived => "bg-dark",
+        _ => "bg-light text-dark"
+    };
+}

@@ -55,7 +55,10 @@
 | 3.17    | 2026-03-23 | Phase 13 (remaining) implemented: `IsSystemContent` bool on `Process` and `StepTemplate`; `Phase13_SystemContent` EF migration; DataSeeder marks QMS docs, training courses, DOC-SECT-01, TRN-MOD-01 as system content; ProcessesController + StepTemplatesController Update/Delete guarded (400 for system content); `POST /api/processes/{id}/copy` deep-clone endpoint (steps, port overrides, content blocks, flows with ID remapping; target is Draft, not system content); `ProcessCopyDto`; `CopyProcessToMyLibraryAsync` in ApiClient; response DTOs extended with `IsSystemContent`; ProcessList "Library" badge + "Copy to My Library" modal; ProcessDetail "System Content" badge hiding edit/lifecycle/delete; StepTemplateList "Library" badge + lock icon |
 | 3.16    | 2026-03-23 | Phase 12f implemented: Participant Portal — `Participant` role (existing in AuthController); `ParticipantLayout.razor` + `ParticipantNavMenu.razor` (minimal sidebar, My Work only); `Portal.razor` (/portal redirect), `PortalMyWork.razor` (/portal/my-work), `PortalExecutionWizard.razor` (/portal/execute/{id}); `RedirectToPortal.razor`; Routes.razor NotAuthorized block redirects Participant role to `/portal/my-work` instead of showing 403; all design/admin pages carry `[Authorize(Roles = "Admin,Engineer")]`; NavMenu design/admin sections wrapped in `<AuthorizeView Roles="Admin,Engineer">`; UserList Edit modal extended with OrgUnit Memberships section — loads current memberships via `GET /api/users/{id}/orgunits`, add via `POST /api/orgunits/{id}/members`, remove via `DELETE /api/orgunits/{id}/members/{memberId}` |
 | 3.15    | 2026-03-23 | Phase 19 design: Warehouse Management — `StorageLocation` entity (zone/aisle/bay/bin hierarchy), `InventoryTransaction` entity (Receipt/Issue/Transfer/Adjustment/Picklist types), `PickList` + `PickListLine` entities, inventory-on-hand view, job-creation picklist generation from BOM/process inputs, ExecutionWizard consumption hook, `WarehouseManagement` nav tab, MCP `get_inventory_status` tool |
-| 3.22    | 2026-04-11 | Comprehensive mobile browser optimization (16 work packages) — NavMenu off-canvas drawer with hamburger toggle (interactive island pattern, SSR-safe); 4-breakpoint responsive CSS (<576px, <768px, <992px, ≥992px); `page-heading-row` responsive headings on all pages; `col-hide-mobile` secondary table columns hidden <768px across 56+ pages; `flex-wrap` on all toolbar/filter bars; ProcessBuilder + WorkflowBuilder mobile layout (bottom drawers, horizontal slide rails, collapsible sidebars); ExecutionWizard compact mobile phase indicator; Pager flex-wrap + touch targets; ToastContainer full-width on mobile; matrix tables sticky first column; stat-value font scaling; SearchBox responsive width; mobile info banners on builder pages; 5 reflection-based xUnit tests for NavMenu parameters |
+| 3.24    | 2026-04-11 | Phase 22 design: Factory Design Suite — `FloorPlan` entity with JSON-serialised layout document (rooms, workstations, inventory locations, utility lines, annotations); `FloorPlanWorkstation` junction linking visual placements to Equipment/OrgUnit/StorageLocation with assigned Processes and tool Kinds; `FloorPlanInventoryLocation` junction to StorageLocation; material-flow analysis engine (Euclidean distance from workstation process input ports to nearest stocked inventory location); HTML5 Canvas editor via `factory-canvas.js` JS interop (drag-and-drop palette, grid snap, zoom/pan, undo/redo, resize handles, polyline utility drawing); properties panel with Equipment/Process/Kind/StorageLocation pickers; animated flow-arrow overlay; `FloorPlanController` (CRUD + layout save + publish/archive); `FloorPlanWorkstationController` (process/tool management); `get_floor_plan_summary` MCP tool; 10 implementation steps |
+| 3.25    | 2026-04-11 | Phase 22 implemented: 5 domain entities (`FloorPlan`, `FloorPlanWorkstation`, `FloorPlanWorkstationProcess`, `FloorPlanWorkstationTool`, `FloorPlanInventoryLocation`); `FloorPlanStatus` enum (Draft/Published/Archived); `Phase22_FactoryDesignSuite` EF migration; `Phase22Dtos.cs` (20+ DTOs including material-flow request/result); `FloorPlansController` (CRUD + layout save with version increment + publish/archive lifecycle + workstation process/tool management + inventory location linkage + material-flow analysis endpoint with Euclidean distance computation and on-hand inventory lookup); 25 integration tests in `FloorPlanTests.cs` (CRUD, duplicate code rejection, layout save version increment, soft-delete, status transitions with invalid state checks, archived layout rejection, workstation CRUD with duplicate placement detection, process/tool/inventory-location management, material-flow analysis with unresolved and stocked scenarios, list/filter endpoints); `FactoryDesignList.razor` (card grid with status badges, workstation/location counts, status filter, create modal); `FactoryDesignEditor.razor` (toolbar, element palette sidebar, HTML5 Canvas mount, properties panel placeholder, status bar); `factory-canvas.js` ES module (~580 lines: grid rendering, 7 element types with distinct visuals, select/draw tools, snap-to-grid, zoom/pan, resize handles, keyboard shortcuts, HiDPI support, Blazor JS interop callbacks); 7 ApiClient methods; NavMenu Factory Design entry under Production |
+| 3.23    | 2026-04-11 | Mobile optimization plan: 16 work packages covering all 77 pages — WP1 MyWork/MyActions, WP2 ExecutionWizard, WP3–7 all list pages (page-heading-row, flex-wrap, col-hide-mobile), WP8–9 dashboards (stat scaling, KPI grid fixes), WP10–12 all detail pages (header wrapping, sub-table column hiding), WP13 matrix/grid pages (sticky first column, scroll shadows), WP14 form pages (login card max-width fix), WP15 shared components (Pager wrap, Toast mobile, global CSS consolidation), WP16 portal pages |
+| 3.22    | 2026-04-10 | Mobile browser optimization: collapsible off-canvas sidebar with hamburger toggle (NavMenu IsOpen/OnClose parameters, MainLayout mobile topbar + backdrop), full responsive CSS (4 breakpoint media queries for sidebar drawer, touch targets, full-screen modals, table column hiding), page-level fixes (SearchBox class-based width, flex-wrap toolbars, page-heading-row, Dashboard de-duped padding, builder mobile info banners, col-hide-mobile on secondary table columns), reflection-based MobileLayoutTests (5 tests) |
 | 3.21    | 2026-03-28 | Phase 21 design: Automatic Inventory Tracking — `ApiKey` entity (SHA-256 hashed, workstation-scoped, `X-Api-Key` header auth), `Workstation` entity (Code, FixedLocationId FK → StorageLocation), `ScanEvent` append-only log; `Item.Barcode`/`StorageLocation.Barcode`/`Kind.Barcode` unique nullable fields; `POST /api/warehouse/scan` single-barcode endpoint (API key → workstation → fixed location, barcode → Item resolution with SerialNumber fallback, Transfer/Receipt creation, idempotent re-scan handling); `ScanResult` enum; `InventoryReferenceType.Workstation`; admin CRUD for workstations and API keys; `inventory.scan` webhook event; `get_workstation_status` MCP tool; API-only — no Blazor scanning UI |
 | 3.20    | 2026-03-28 | Phase 20 implemented: AI Integration — 6 MCP write tools (`create_nonconformance`, `create_action_item`, `complete_action_item`, `create_job`, `record_inventory_transaction`, `transition_job`) mirroring REST controller validation in partial class `McpController.WriteTools.cs`; `McpAuditLog` append-only entity with Stopwatch + try/catch/finally wrapper on all tool calls (classifies action from tool name prefix, extracts JWT user context, truncates response to 500 chars); `list_mcp_audit_log` MCP tool + `GET /mcp/audit` REST endpoint with paginated filters; `AiAuditLog.razor` Blazor page at `/ai-audit` with date range/tool/user/status filters and expandable detail rows; Structured JSON responses via auto-injected `format` parameter on all tool schemas (`markdown` default, `json` returns `application/json` content block with `{ tool, success, content }` envelope); Webhook event system: `IWebhookEventPublisher` interface, `WebhookEventQueue` (bounded `Channel<T>`), `WebhookDeliveryService` (`BackgroundService` with HMAC-SHA256 signing, 3-retry exponential backoff, delivery log), `WebhooksController` (6 endpoints: CRUD + delivery log + test event), `WebhookSubscription` + `WebhookDelivery` entities with cascade delete; webhook events fired from all write tools (`job.created/started/completed/cancelled`, `nonconformance.created`, `action_item.created/completed`, `inventory.*`); wildcard event matching (`*`, `job.*`); `WebhookList.razor` at `/webhooks` with create/edit modals, delivery log panel, test button; NavMenu Admin section with AI Audit Log + Webhooks links; `Phase20_AiIntegration` EF migration; MCP server version 3.0 with 28 tools total |
 | 3.19    | 2026-03-27 | Phase 19 implemented: Warehouse Management — `StorageLocation` entity (self-referencing zone/aisle/bay/bin hierarchy, unique Code, IsActive); `InventoryTransaction` immutable event log (Receipt/Issue/Transfer/Adjustment/PicklistConsumption types with type-specific validation); `PickList` + `PickListLine` entities (late-binding ItemId at pick time); `InventoryTransactionType`/`PickListStatus`/`PickListLineStatus`/`InventoryReferenceType` enums; `Item.StorageLocationId` + `Kind.ReorderThreshold`/`ReorderQuantity` + `Job.PickListId` entity extensions; `Phase19_WarehouseManagement` EF migration; `WarehouseController` (10 endpoints: location CRUD, on-hand aggregation with low-stock filter, transaction recording with type-specific validation, dashboard KPIs, bulk receive-from-job); `PickListsController` (5 endpoints: list, detail, pick with Item/Kind/Location validation + Issue transaction, consume with PicklistConsumption transaction + Item.Status=Consumed, short-ship); Job creation auto-generates PickList from input material ports (QtyRuleMode derivation, best-fit source location suggestion); ExecutionWizard Phase 5 material consumption hook (picked-line table, editable consumed quantities, confirm-all button); 16 ApiClient methods; 5 Blazor pages (WarehouseDashboard, LocationList, LocationDetail, PickListList, PickListDetail); NavMenu Warehouse section; MCP `get_inventory_status` tool (on-hand by Kind with location filter, low-stock flag, markdown table); MCP server version 2.2 |
@@ -2395,7 +2398,409 @@ Failed scans also fire `inventory.scan` with the `result` field set to the failu
 
 ---
 
-### Phase 22+ — Integrations (future)
+### Phase 22 — Factory Design Suite
+
+**Goal:** Provide an all-in-one visual factory layout tool under the Production tab that lets engineers design, configure, and optimise production floor plans — including room geometry, workstation placement and sizing, inventory location placement, utility routing, and intelligent material-flow analysis driven by process input requirements.
+
+**Status:** ✅ Implemented. Depends on Phase 19 (Warehouse / StorageLocation) ✅, Phase 11 (Equipment) ✅, Phase 1 (Kind) ✅, Phase 3 (Process / ProcessStep / Port) ✅, and Phase 12 (OrgUnit) ✅. All dependencies are met.
+
+**Blazor page:** `/factory-design` under the Production NavMenu section.
+
+**Key architectural decisions:**
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Rendering engine | HTML5 Canvas via JS interop (custom `factory-canvas.js`) | Three.js is already loaded for 3D model viewer; Canvas gives pixel-level control for 2D top-down rendering with optional 3D perspective toggle. Avoids heavy third-party diagram libraries. |
+| Persistence model | JSON-serialised layout documents stored as `FloorPlan` entities | Floor plans are design documents, not transactional data — blob storage with versioning is simpler than normalising every rectangle and line into relational tables. |
+| Coordinate system | Metric (millimetres internally, displayed as metres) | Manufacturing floors are measured in metric; mm precision avoids floating-point rounding. |
+| Material-flow analysis | Server-side computation via API endpoint | Pathfinding and nearest-location queries involve spatial distance + inventory availability — too complex for client-side. |
+
+---
+
+#### 22a — Data Model
+
+**New entity: `FloorPlan`**
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `Code` | string | Unique identifier (e.g. "FP-ASSY-01") |
+| `Name` | string | Display name (e.g. "Assembly Hall — Building 2") |
+| `Description` | string? | Purpose, scope |
+| `Version` | int | Auto-incrementing on save (optimistic concurrency) |
+| `Status` | FloorPlanStatus enum | `Draft` / `Published` / `Archived` |
+| `LayoutJson` | string (text) | Full serialised layout document (see schema below) |
+| `ThumbnailBase64` | string? | Auto-generated PNG thumbnail for list view |
+| `IsActive` | bool | Soft-delete |
+| `CreatedAt`, `UpdatedAt`, `CreatedBy`, `UpdatedBy` | — | From BaseEntity |
+
+**New entity: `FloorPlanWorkstation`** (junction — links visual placement to domain entities)
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `FloorPlanId` | Guid | FK → `FloorPlan` |
+| `PlacementId` | string | Matches the `id` field of the workstation element in `LayoutJson` |
+| `EquipmentId` | Guid? | FK → `Equipment` — optional link to physical equipment asset |
+| `OrgUnitId` | Guid? | FK → `OrgUnit` — optional link to responsible work area |
+| `StorageLocationId` | Guid? | FK → `StorageLocation` — the workstation's associated storage location for inventory |
+
+**New entity: `FloorPlanWorkstationProcess`** (processes performed at a workstation)
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `FloorPlanWorkstationId` | Guid | FK → `FloorPlanWorkstation` |
+| `ProcessId` | Guid | FK → `Process` — a process performed at this workstation |
+| `SortOrder` | int | Display ordering |
+
+**New entity: `FloorPlanWorkstationTool`** (tooling/fixtures at a workstation)
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `FloorPlanWorkstationId` | Guid | FK → `FloorPlanWorkstation` |
+| `KindId` | Guid | FK → `Kind` — the tool/fixture type (e.g. torque wrench, caliper, fixture) |
+| `Quantity` | int | How many of this tool at the station (default 1) |
+| `Notes` | string? | Calibration ID, location on bench, etc. |
+
+**New entity: `FloorPlanInventoryLocation`** (junction — links visual placement to StorageLocation)
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid | PK |
+| `FloorPlanId` | Guid | FK → `FloorPlan` |
+| `PlacementId` | string | Matches `id` in `LayoutJson` |
+| `StorageLocationId` | Guid | FK → `StorageLocation` |
+
+**New enums:**
+
+- `FloorPlanStatus`: `Draft`, `Published`, `Archived`
+- `FloorPlanElementType`: `Room`, `Workstation`, `InventoryLocation`, `UtilityLine`, `Annotation`, `Wall`, `Door`, `Aisle`
+- `UtilityType`: `Power`, `Data`, `CompressedAir`, `Water`, `Vacuum`, `Exhaust`, `Gas`
+
+---
+
+#### 22b — LayoutJson Schema
+
+The `LayoutJson` field stores the full visual state of the floor plan. This is the document that the canvas editor reads and writes.
+
+```jsonc
+{
+  "canvasWidth": 50000,        // mm — total canvas dimensions
+  "canvasHeight": 30000,
+  "gridSize": 500,             // mm — snap grid increment
+  "backgroundColor": "#f5f5f5",
+  "elements": [
+    {
+      "id": "room-1",
+      "type": "Room",
+      "label": "Assembly Hall",
+      "x": 0, "y": 0,         // top-left corner in mm
+      "width": 20000,          // mm
+      "height": 15000,
+      "rotation": 0,           // degrees
+      "fill": "#ffffff",
+      "stroke": "#333333",
+      "strokeWidth": 150,      // wall thickness in mm
+      "locked": false,
+      "zIndex": 0
+    },
+    {
+      "id": "ws-1",
+      "type": "Workstation",
+      "label": "Assembly Cell 1",
+      "x": 2000, "y": 3000,
+      "width": 3000,           // scaled to real dimensions
+      "height": 2000,
+      "rotation": 0,
+      "fill": "#e3f2fd",
+      "stroke": "#1565c0",
+      "icon": "bi-gear-wide",
+      "zIndex": 10
+    },
+    {
+      "id": "inv-1",
+      "type": "InventoryLocation",
+      "label": "RAW-A1-B3",
+      "x": 1000, "y": 1000,
+      "width": 2000,
+      "height": 1000,
+      "fill": "#fff3e0",
+      "stroke": "#e65100",
+      "icon": "bi-box-seam",
+      "zIndex": 10
+    },
+    {
+      "id": "util-1",
+      "type": "UtilityLine",
+      "utilityType": "Power",
+      "points": [              // polyline waypoints in mm
+        { "x": 0, "y": 5000 },
+        { "x": 10000, "y": 5000 },
+        { "x": 10000, "y": 8000 }
+      ],
+      "stroke": "#f44336",
+      "strokeWidth": 50,
+      "dashPattern": [],       // solid line; [100, 50] for dashed
+      "zIndex": 5
+    },
+    {
+      "id": "annot-1",
+      "type": "Annotation",
+      "label": "Fire exit →",
+      "x": 18000, "y": 14000,
+      "fontSize": 200,
+      "color": "#d32f2f",
+      "zIndex": 20
+    }
+  ]
+}
+```
+
+---
+
+#### 22c — API Endpoints
+
+**FloorPlanController** (JWT-authenticated, Admin/Engineer roles):
+
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/api/floor-plans` | List all floor plans (paginated, search, filter by status/active) — returns summary DTOs with thumbnail |
+| `POST` | `/api/floor-plans` | Create new floor plan with default empty layout |
+| `GET` | `/api/floor-plans/{id}` | Get full floor plan including `LayoutJson` and linked workstations/inventory |
+| `PUT` | `/api/floor-plans/{id}` | Update metadata (Name, Description, Status) |
+| `PUT` | `/api/floor-plans/{id}/layout` | Save layout JSON (auto-increments Version, generates thumbnail server-side) |
+| `DELETE` | `/api/floor-plans/{id}` | Soft-delete (set IsActive = false) |
+| `POST` | `/api/floor-plans/{id}/publish` | Transition Draft → Published (validates all workstations have at least one Process) |
+| `POST` | `/api/floor-plans/{id}/archive` | Transition Published → Archived |
+
+**FloorPlanWorkstationController** (nested under floor plan):
+
+| Method | Route | Description |
+|---|---|---|
+| `GET` | `/api/floor-plans/{id}/workstations` | List all workstations with their processes and tools |
+| `POST` | `/api/floor-plans/{id}/workstations` | Link a visual element to domain entities (EquipmentId, OrgUnitId, StorageLocationId) |
+| `PUT` | `/api/floor-plans/{id}/workstations/{wsId}` | Update linkages |
+| `DELETE` | `/api/floor-plans/{id}/workstations/{wsId}` | Remove linkage |
+| `GET` | `/api/floor-plans/{id}/workstations/{wsId}/processes` | List processes at workstation |
+| `POST` | `/api/floor-plans/{id}/workstations/{wsId}/processes` | Add a Process to workstation |
+| `DELETE` | `/api/floor-plans/{id}/workstations/{wsId}/processes/{procId}` | Remove a Process |
+| `GET` | `/api/floor-plans/{id}/workstations/{wsId}/tools` | List tools (Kinds) at workstation |
+| `POST` | `/api/floor-plans/{id}/workstations/{wsId}/tools` | Add a Kind as tooling |
+| `PUT` | `/api/floor-plans/{id}/workstations/{wsId}/tools/{toolId}` | Update quantity/notes |
+| `DELETE` | `/api/floor-plans/{id}/workstations/{wsId}/tools/{toolId}` | Remove tool |
+
+**FloorPlanInventoryLocationController:**
+
+| Method | Route | Description |
+|---|---|---|
+| `POST` | `/api/floor-plans/{id}/inventory-locations` | Link visual element to StorageLocation |
+| `DELETE` | `/api/floor-plans/{id}/inventory-locations/{locId}` | Remove linkage |
+
+**Material-Flow Analysis Endpoint:**
+
+| Method | Route | Description |
+|---|---|---|
+| `POST` | `/api/floor-plans/{id}/analyse-material-flow` | Compute nearest inventory source for each workstation's process inputs; returns flow lines with distances |
+
+---
+
+#### 22d — Material-Flow Analysis Engine
+
+When enabled, the analysis engine examines each workstation's assigned processes, extracts the input material ports (Port where Direction = Input and PortType = Material), and finds the nearest inventory location on the floor plan that holds that Kind.
+
+**Algorithm:**
+
+1. For each `FloorPlanWorkstation`:
+   a. Collect all assigned `Process` → `ProcessStep` → `StepTemplate` → `Port` where `Direction = Input` and `PortType = Material`.
+   b. Extract the unique `KindId` values — these are the materials this workstation needs.
+2. For each required `KindId`:
+   a. Query all `FloorPlanInventoryLocation` entries on this floor plan.
+   b. For each inventory location, check current on-hand quantity for this Kind (via the existing warehouse on-hand aggregation: `Item` where `StorageLocationId` = location and `KindId` = Kind and Status = Available, grouped by quantity).
+   c. Filter to locations that have stock > 0 (or optionally include all locations that *could* store this Kind).
+   d. Compute Euclidean distance from the workstation's centre point to each candidate location's centre point (using `x + width/2`, `y + height/2` from LayoutJson).
+   e. Rank by distance; select nearest.
+3. Return a list of `MaterialFlowLine` objects:
+
+```jsonc
+{
+  "flows": [
+    {
+      "workstationPlacementId": "ws-1",
+      "workstationLabel": "Assembly Cell 1",
+      "kindId": "...",
+      "kindCode": "WDG-100",
+      "kindName": "Widget Body",
+      "sourceLocationPlacementId": "inv-1",
+      "sourceLocationLabel": "RAW-A1-B3",
+      "sourceLocationCode": "RAW-A1-B3",
+      "onHandQuantity": 42,
+      "distanceMm": 5830,
+      "distanceM": 5.83,
+      "fromPoint": { "x": 2000, "y": 1500 },
+      "toPoint": { "x": 3500, "y": 4000 }
+    }
+  ],
+  "unresolved": [
+    {
+      "workstationPlacementId": "ws-2",
+      "kindId": "...",
+      "kindCode": "FST-M6",
+      "kindName": "M6 Fastener",
+      "reason": "no_inventory_location_with_stock"
+    }
+  ]
+}
+```
+
+The Blazor canvas renders these flows as directional arrows (animated dashed lines) from source inventory locations to destination workstations, colour-coded by material type. Unresolved flows are highlighted in red with a warning icon.
+
+---
+
+#### 22e — Blazor UI: Factory Design Suite Page
+
+**Route:** `/factory-design` (list) and `/factory-design/{id}` (editor)
+
+**List page (`FactoryDesignList.razor`):**
+- Card grid showing floor plan thumbnails, name, status badge, version, last modified
+- Create new, duplicate, archive/delete actions
+- Status filter (Draft / Published / Archived)
+
+**Editor page (`FactoryDesignEditor.razor`):**
+- `@rendermode InteractiveServer`
+- Full-viewport canvas with toolbar, properties panel, and element palette
+
+**Editor layout:**
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Toolbar: Save │ Undo/Redo │ Zoom │ Grid │ Analyse │ Export │
+├────────┬─────────────────────────────────────────┬───────────┤
+│ Palette│                                         │ Properties│
+│        │          Canvas (top-down view)          │   Panel   │
+│ Room   │                                         │           │
+│ Station│     ┌───────────┐    ┌──────┐           │ Name:___  │
+│ Inv Loc│     │ Assembly  │    │ RAW  │           │ Width:___ │
+│ Utility│     │  Cell 1   │───→│ A1B3 │           │ Height:___│
+│ Wall   │     └───────────┘    └──────┘           │ Equipment │
+│ Door   │                                         │ Processes │
+│ Annot  │                                         │ Tools     │
+│        │                                         │           │
+├────────┴─────────────────────────────────────────┴───────────┤
+│  Status bar: Zoom 100% │ Grid: 500mm │ Elements: 24 │ v3    │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Canvas interactions (JS interop via `factory-canvas.js`):**
+- **Drag from palette** to create new elements
+- **Click** to select; shows resize handles and rotation grip
+- **Drag** to move; snap-to-grid with visual guides
+- **Resize** by dragging corner/edge handles; dimensions update in real-time in properties panel
+- **Right-click** context menu: duplicate, delete, lock/unlock, bring forward/send back
+- **Scroll** to zoom; middle-drag to pan
+- **Multi-select** with Shift+click or rectangle marquee
+- **Utility lines**: click to place waypoints; double-click to finish polyline
+- **Keyboard**: Delete to remove, Ctrl+Z/Y undo/redo, Ctrl+S save, G toggle grid snap
+
+**Properties panel (right sidebar):**
+- Changes based on selected element type
+- **Room**: Label, dimensions (width × height in metres), wall thickness, fill colour
+- **Workstation**: Label, dimensions, rotation; linked Equipment (dropdown from existing Equipment); linked OrgUnit (dropdown); linked StorageLocation (dropdown); Processes list (add/remove from existing Processes); Tools list (add Kind with quantity)
+- **Inventory Location**: Label, dimensions; linked StorageLocation (dropdown); shows current on-hand summary
+- **Utility Line**: Utility type (dropdown: Power, Data, CompressedAir, Water, Vacuum, Exhaust, Gas); colour auto-assigned by type; line style
+- **Annotation**: Text, font size, colour
+
+**Material-flow overlay:**
+- Toggle button "Analyse Material Flow" in toolbar
+- Calls `POST /api/floor-plans/{id}/analyse-material-flow`
+- Renders animated directional arrows on canvas layer
+- Shows distance labels on each arrow
+- Red warning markers for unresolved materials
+- Summary panel listing all flows with distances and quantities
+
+---
+
+#### 22f — JS Interop Module (`factory-canvas.js`)
+
+ES module loaded via Blazor JS interop. Manages the HTML5 Canvas rendering loop and user interactions.
+
+**Exported functions:**
+
+| Function | Description |
+|---|---|
+| `init(canvasId, dotNetRef)` | Initialise canvas, attach event listeners, accept .NET callback reference |
+| `loadLayout(layoutJson)` | Parse and render all elements from saved layout |
+| `getLayout()` | Serialise current canvas state back to LayoutJson format |
+| `setTool(toolName)` | Switch active tool: `select`, `room`, `workstation`, `inventory`, `utility`, `wall`, `door`, `annotation` |
+| `setZoom(level)` | Programmatic zoom (0.25–4.0) |
+| `setGridSnap(enabled, size)` | Toggle grid snap and grid size |
+| `selectElement(id)` | Programmatically select an element |
+| `updateElement(id, propsJson)` | Update element properties from Blazor (e.g. label, dimensions, colour) |
+| `deleteSelected()` | Remove selected element(s) |
+| `undo()` / `redo()` | Command history |
+| `renderFlowOverlay(flowsJson)` | Draw material-flow arrows on overlay layer |
+| `clearFlowOverlay()` | Remove flow arrows |
+| `exportPng()` | Render canvas to PNG data URL for thumbnail/export |
+| `destroy()` | Clean up event listeners, animation frame |
+
+**Callbacks to .NET:**
+
+| Callback | Description |
+|---|---|
+| `OnElementSelected(id, type)` | Notify Blazor to show properties for selected element |
+| `OnElementMoved(id, x, y)` | Position changed (after drag) |
+| `OnElementResized(id, w, h)` | Dimensions changed |
+| `OnElementCreated(elementJson)` | New element placed on canvas |
+| `OnElementDeleted(id)` | Element removed |
+| `OnCanvasChanged()` | Any mutation — triggers dirty flag for save prompt |
+
+---
+
+#### 22g — Implementation Steps
+
+| Step | Description | Scope |
+|---|---|---|
+| **22g-1** | **Domain entities & migration** | `FloorPlan`, `FloorPlanWorkstation`, `FloorPlanWorkstationProcess`, `FloorPlanWorkstationTool`, `FloorPlanInventoryLocation` entities; enums; `Phase22_FactoryDesignSuite` EF migration; DbContext registrations |
+| **22g-2** | **DTOs & API controller** | `FloorPlanController` with CRUD + layout save + publish/archive; `FloorPlanWorkstationController` with process/tool management; `FloorPlanInventoryLocationController`; all DTOs in `Phase22Dtos.cs` |
+| **22g-3** | **Canvas JS module** | `factory-canvas.js` — rendering engine, element creation/manipulation, grid snap, zoom/pan, undo/redo, selection, event callbacks to .NET |
+| **22g-4** | **List page** | `FactoryDesignList.razor` — card grid, status filters, create/duplicate/delete |
+| **22g-5** | **Editor page — core canvas** | `FactoryDesignEditor.razor` — toolbar, canvas mount, palette sidebar, element creation via drag, save/load round-trip |
+| **22g-6** | **Properties panel** | Right sidebar with per-element-type property editors; Equipment/OrgUnit/StorageLocation/Process/Kind picker dropdowns; real-time dimension editing |
+| **22g-7** | **Utility lines** | Polyline drawing tool, utility type colour coding, dash patterns, waypoint editing |
+| **22g-8** | **Material-flow analysis** | `POST /api/floor-plans/{id}/analyse-material-flow` endpoint; Euclidean distance computation; on-hand inventory lookup; flow arrow overlay rendering |
+| **22g-9** | **MCP tool** | `get_floor_plan_summary` — returns floor plan metadata, workstation count, process assignments, material-flow distances for AI assistant queries |
+| **22g-10** | **Integration tests** | FloorPlan CRUD, workstation linkage, process/tool assignment, material-flow analysis with seeded inventory data, layout JSON round-trip validation |
+
+---
+
+#### Key design decisions
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Layout stored as JSON blob, not normalised tables | `LayoutJson` text field on `FloorPlan` | Visual layout elements (coordinates, colours, z-order) are tightly coupled and always loaded/saved together. Normalising every rectangle/line into separate tables adds join complexity with no querying benefit. Junction tables (`FloorPlanWorkstation`, `FloorPlanInventoryLocation`) bridge visual elements to domain entities where relational queries are needed. |
+| Workstation is a floor-plan concept, not a standalone entity | `FloorPlanWorkstation` junction with optional `EquipmentId` FK | The Phase 21 `Workstation` entity represents a barcode-scanning station; the Factory Design Suite workstation is a visual placement that *may* link to Equipment, OrgUnit, and StorageLocation. Keeping them separate avoids overloading either concept. |
+| Material-flow computed on demand, not persisted | API endpoint returns flow lines; not stored in DB | Inventory levels change constantly — persisted flows would be immediately stale. On-demand computation ensures flows always reflect current stock. |
+| Canvas via JS interop, not a Blazor component library | Custom `factory-canvas.js` | Blazor's DOM diffing is not suited for high-frequency canvas operations (drag, zoom, pan at 60fps). JS handles rendering; Blazor handles data binding and API calls. Same pattern as the existing Three.js model viewer. |
+| Euclidean distance, not pathfinding | Straight-line distance between centre points | Floor plan obstacles (walls, other stations) would require A* pathfinding through a navigation mesh — significant complexity for marginal accuracy improvement. Euclidean distance gives a useful approximation for layout optimisation. Walking-path distance can be added in a future iteration. |
+
+**New entities:** `FloorPlan`, `FloorPlanWorkstation`, `FloorPlanWorkstationProcess`, `FloorPlanWorkstationTool`, `FloorPlanInventoryLocation`
+
+**New enums:** `FloorPlanStatus`, `FloorPlanElementType`, `UtilityType`
+
+**EF migration:** `Phase22_FactoryDesignSuite`
+
+**New JS module:** `wwwroot/js/factory-canvas.js`
+
+**New Blazor pages:** `FactoryDesignList.razor`, `FactoryDesignEditor.razor`
+
+**NavMenu:** Added under Production section as "Factory Design"
+
+**MCP tool:** `get_floor_plan_summary`
+
+---
+
+### Phase 23+ — Integrations (future)
 
 **Goal:** Connect the process system to peripheral business functions.
 
@@ -2442,9 +2847,9 @@ Additional capability added post-Phase 6:
 
 ### Test Coverage
 
-256 integration tests across all phases, all passing. Tests run against an in-memory SQLite database spun up per test run. Test files cover all controllers including Analytics, Alerts, Reports, and the Document Library filters.
+483 integration tests across all phases, all passing. Tests run against an in-memory SQLite database spun up per test run. Test files cover all controllers including Analytics, Alerts, Reports, and the Document Library filters.
 
-### Blazor UI Pages (39 total)
+### Blazor UI Pages (41 total)
 
 | Page | Features |
 |---|---|
@@ -2475,6 +2880,8 @@ Additional capability added post-Phase 6:
 | Admin / UserList | User management: add users (with Display Name), edit Display Name + Role, delete users |
 | Admin / AiAuditLog | MCP tool call audit trail with date/tool/user/status filters, expandable detail rows showing request payload and response summary |
 | Admin / WebhookList | Webhook subscription CRUD, delivery log viewer, test event sender, HMAC secret management |
+| FactoryDesignList | Card grid of floor plans with status badges, workstation/location counts, status filter, create modal |
+| FactoryDesignEditor | Full-viewport canvas editor with toolbar (save/publish/archive), element palette sidebar (7 element types), HTML5 Canvas rendering via `factory-canvas.js` JS interop, properties panel, status bar (version/counts) |
 
 ### Known Limitations / Next Steps
 
@@ -2496,6 +2903,8 @@ Additional capability added post-Phase 6:
 - **Phase 18 — 3D Model Viewer in Process Builder & Execution** ✅ `StepModel` entity (GUID-based file storage for STL/OBJ/GLB/GLTF); `KindModelRefId` optional FK on StepTemplate (inherit Kind's model without re-upload); `Phase18_StepModel` EF migration; StepTemplatesController model upload/download/delete + kind-model-ref endpoints; StepTemplateDetail 3D Model panel (upload/replace/delete, inline Three.js viewer); ProcessBuilder slide view inline viewer; ExecutionWizard Phase 4 collapsible 3D model side panel; 12 integration tests in StepModelTests
 - **Phase 19 — Warehouse Management** ✅ `StorageLocation` entity (self-referencing zone/aisle/bay/bin hierarchy); `InventoryTransaction` immutable event log (Receipt/Issue/Transfer/Adjustment/PicklistConsumption); `PickList` + `PickListLine` entities (late-binding ItemId at pick time); `Item.StorageLocationId` + `Kind.ReorderThreshold`/`ReorderQuantity` + `Job.PickListId` extensions; `Phase19_WarehouseManagement` EF migration; `WarehouseController` (10 endpoints: location CRUD, on-hand aggregation, transactions, dashboard, receive-from-job); `PickListsController` (5 endpoints: list, detail, pick, consume, short-ship); Job creation auto-generates PickList from input material ports; ExecutionWizard Phase 5 material consumption hook; 16 ApiClient methods; 5 Blazor pages (WarehouseDashboard, LocationList, LocationDetail, PickListList, PickListDetail); NavMenu Warehouse section; MCP `get_inventory_status` tool; MCP server version 2.2
 - **Phase 20 — AI Integration** ✅ 6 MCP write tools (`create_nonconformance`, `create_action_item`, `complete_action_item`, `create_job`, `record_inventory_transaction`, `transition_job`) in partial class `McpController.WriteTools.cs`; `McpAuditLog` append-only entity with Stopwatch/try/finally wrapper on all tool calls; `list_mcp_audit_log` MCP tool + `GET /mcp/audit` REST endpoint; `AiAuditLog.razor` Blazor page with filters and expandable detail rows; structured JSON responses via auto-injected `format` parameter (`markdown` default, `json` returns structured envelope); webhook event system with `WebhookEventQueue` (bounded Channel), `WebhookDeliveryService` (HMAC-SHA256 signing, 3-retry exponential backoff), `WebhooksController` (CRUD + delivery log + test), events fired from all write tools; `WebhookList.razor` at `/webhooks`; `Phase20_AiIntegration` migration; MCP v3.0 with 28 tools total
+
+- **Phase 22 — Factory Design Suite** ✅ `FloorPlan` entity (Code, Name, Version, Status, LayoutJson, ThumbnailBase64); `FloorPlanWorkstation` junction linking visual placements to Equipment/OrgUnit/StorageLocation with `FloorPlanWorkstationProcess` and `FloorPlanWorkstationTool` sub-entities; `FloorPlanInventoryLocation` junction to StorageLocation; `FloorPlanStatus` enum (Draft/Published/Archived); `Phase22_FactoryDesignSuite` EF migration; `FloorPlansController` (CRUD + layout save with version auto-increment + publish/archive lifecycle + workstation process/tool management + inventory location linkage + material-flow analysis via Euclidean distance to nearest stocked inventory location); 25 integration tests; `FactoryDesignList.razor` (card grid, status filter, create modal); `FactoryDesignEditor.razor` (toolbar, palette sidebar, HTML5 Canvas, properties panel, status bar); `factory-canvas.js` ES module (~580 lines: 7 element types, select/draw tools, grid snap, zoom/pan, resize handles, keyboard shortcuts, HiDPI, Blazor JS interop callbacks); 7 ApiClient methods; NavMenu Factory Design under Production
 
 #### Partially built
 *(none at this time)*

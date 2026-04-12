@@ -1,0 +1,245 @@
+@page "/factory-design/{Id:guid}"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>Floor Plan Editor — Process Manager</PageTitle>
+
+@if (_loading)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height:60vh">
+        <div class="spinner-border text-primary mb-3"></div>
+        <span class="text-muted">Loading floor plan…</span>
+    </div>
+}
+else if (_plan is null)
+{
+    <div class="alert alert-warning mt-4">Floor plan not found.</div>
+}
+else
+{
+    <div class="d-flex flex-column" style="height:calc(100vh - 80px)">
+        <!-- Toolbar -->
+        <div class="d-flex align-items-center gap-2 px-3 py-2 bg-white border-bottom flex-wrap">
+            <a href="factory-design" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Back
+            </a>
+            <span class="fw-semibold">@_plan.Name</span>
+            <span class="badge @StatusBadge(_plan.Status)">@_plan.Status</span>
+            <span class="text-muted small">v@(_plan.Version)</span>
+            <div class="ms-auto d-flex gap-1 flex-wrap">
+                @if (_plan.Status == FloorPlanStatus.Draft)
+                {
+                    <button class="btn btn-sm btn-outline-success" @onclick="Publish">
+                        <i class="bi bi-check2-circle me-1"></i>Publish
+                    </button>
+                }
+                @if (_plan.Status == FloorPlanStatus.Published)
+                {
+                    <button class="btn btn-sm btn-outline-dark" @onclick="Archive">
+                        <i class="bi bi-archive me-1"></i>Archive
+                    </button>
+                }
+                <button class="btn btn-sm btn-primary" @onclick="Save" disabled="@_saving">
+                    @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    <i class="bi bi-floppy me-1"></i>Save
+                </button>
+            </div>
+        </div>
+
+        <!-- Main editor area -->
+        <div class="flex-grow-1 d-flex overflow-hidden">
+            <!-- Element palette (left) -->
+            <div class="border-end bg-white p-2 d-flex flex-column gap-1" style="width:140px;flex-shrink:0;overflow-y:auto">
+                <small class="text-muted fw-semibold text-uppercase" style="font-size:.65rem;letter-spacing:.08em">Elements</small>
+                @foreach (var (icon, label, type) in _paletteItems)
+                {
+                    <button class="btn btn-sm btn-outline-secondary text-start d-flex align-items-center gap-2 @(_activeTool == type ? "active" : "")"
+                            @onclick="async () => await SetTool(type)">
+                        <i class="bi @icon"></i><span class="small">@label</span>
+                    </button>
+                }
+            </div>
+
+            <!-- Canvas -->
+            <div class="flex-grow-1 position-relative bg-light">
+                <canvas id="factory-canvas" class="w-100 h-100" style="cursor:crosshair"></canvas>
+                @if (!string.IsNullOrEmpty(_statusMessage))
+                {
+                    <div class="position-absolute bottom-0 start-0 end-0 bg-dark text-white small px-3 py-1 d-flex justify-content-between">
+                        <span>@_statusMessage</span>
+                        <span>v@(_plan.Version) · @_plan.Workstations.Count workstations · @_plan.InventoryLocations.Count locations</span>
+                    </div>
+                }
+            </div>
+
+            <!-- Properties panel (right) -->
+            <div class="border-start bg-white p-3" style="width:280px;flex-shrink:0;overflow-y:auto">
+                <small class="text-muted fw-semibold text-uppercase" style="font-size:.65rem;letter-spacing:.08em">Properties</small>
+                @if (_selectedElementId is null)
+                {
+                    <p class="text-muted small mt-2">Select an element on the canvas to view its properties.</p>
+                    <hr />
+                    <small class="text-muted fw-semibold text-uppercase" style="font-size:.65rem">Floor Plan</small>
+                    <div class="mt-2 small">
+                        <div class="mb-1"><strong>Code:</strong> @_plan.Code</div>
+                        <div class="mb-1"><strong>Name:</strong> @_plan.Name</div>
+                        <div class="mb-1"><strong>Workstations:</strong> @_plan.Workstations.Count</div>
+                        <div class="mb-1"><strong>Inventory Locations:</strong> @_plan.InventoryLocations.Count</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="mt-2 small">
+                        <div class="mb-2"><strong>Selected:</strong> @_selectedElementId</div>
+                        <p class="text-muted">Element properties editing will be available in the full canvas implementation.</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@using ProcessManager.Domain.Entities
+@using Microsoft.AspNetCore.Authorization
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private FloorPlanDetailDto? _plan;
+    private bool _loading = true;
+    private bool _saving;
+    private string? _selectedElementId;
+    private string _activeTool = "select";
+    private string _statusMessage = "Ready";
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<FactoryDesignEditor>? _dotNetRef;
+    private bool _canvasInitialized;
+
+    private static readonly (string icon, string label, string type)[] _paletteItems = new[]
+    {
+        ("bi-cursor", "Select", "select"),
+        ("bi-square", "Room", "room"),
+        ("bi-gear-wide", "Workstation", "workstation"),
+        ("bi-box-seam", "Inventory", "inventory"),
+        ("bi-lightning", "Utility", "utility"),
+        ("bi-dash-lg", "Wall", "wall"),
+        ("bi-door-open", "Door", "door"),
+        ("bi-chat-square-text", "Annotation", "annotation"),
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _plan = await Api.GetFloorPlanAsync(Id);
+        }
+        catch { }
+        _loading = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && _plan is not null && !_canvasInitialized)
+        {
+            try
+            {
+                _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/factory-canvas.js");
+                _dotNetRef = DotNetObjectReference.Create(this);
+                await _module.InvokeVoidAsync("initCanvas", "factory-canvas", _dotNetRef, _plan.LayoutJson);
+                _canvasInitialized = true;
+            }
+            catch (Exception ex)
+            {
+                _statusMessage = $"Canvas init failed: {ex.Message}";
+                StateHasChanged();
+            }
+        }
+    }
+
+    private async Task SetTool(string tool)
+    {
+        _activeTool = tool;
+        _statusMessage = $"Tool: {tool}";
+        if (_module is not null && _canvasInitialized)
+        {
+            await _module.InvokeVoidAsync("setActiveTool", "factory-canvas", tool);
+        }
+    }
+
+    private async Task Save()
+    {
+        if (_plan is null) return;
+        _saving = true;
+        try
+        {
+            // Get the current layout from the JS canvas, not from the stale _plan object
+            var layoutJson = _plan.LayoutJson;
+            if (_module is not null && _canvasInitialized)
+            {
+                layoutJson = await _module.InvokeAsync<string>("getLayoutJson", "factory-canvas");
+            }
+
+            var version = await Api.SaveFloorPlanLayoutAsync(Id, layoutJson);
+            if (version.HasValue)
+            {
+                _plan = await Api.GetFloorPlanAsync(Id);
+                _statusMessage = $"Saved — v{version}";
+            }
+        }
+        catch (Exception ex) { _statusMessage = $"Save failed: {ex.Message}"; }
+        _saving = false;
+    }
+
+    private async Task Publish()
+    {
+        if (_plan is null) return;
+        await Api.PublishFloorPlanAsync(Id);
+        _plan = await Api.GetFloorPlanAsync(Id);
+    }
+
+    private async Task Archive()
+    {
+        if (_plan is null) return;
+        await Api.ArchiveFloorPlanAsync(Id);
+        _plan = await Api.GetFloorPlanAsync(Id);
+    }
+
+    [JSInvokable]
+    public Task OnElementSelected(string elementId)
+    {
+        _selectedElementId = elementId;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task OnElementChanged(string elementJson)
+    {
+        // Element was created, moved, or resized on the canvas — mark dirty
+        _statusMessage = "Unsaved changes";
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private static string StatusBadge(FloorPlanStatus status) => status switch
+    {
+        FloorPlanStatus.Draft => "bg-secondary",
+        FloorPlanStatus.Published => "bg-success",
+        FloorPlanStatus.Archived => "bg-dark",
+        _ => "bg-light text-dark"
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null && _canvasInitialized)
+        {
+            try { await _module.InvokeVoidAsync("dispose", "factory-canvas"); } catch { }
+            try { await _module.DisposeAsync(); } catch { }
+        }
+        _dotNetRef?.Dispose();
+    }
+}

@@ -2369,4 +2369,47 @@ public class ApiClient
         int page = 1, int pageSize = 25)
         => _http.GetFromJsonAsync<PaginatedResponse<McpAuditLogDto>>(
             $"mcp/audit?toolName={E(toolName)}&userId={E(userId)}&action={E(action)}&isSuccess={isSuccess}&dateFrom={dateFrom:O}&dateTo={dateTo:O}&page={page}&pageSize={pageSize}", _json);
+
+    // ═══════════════════ Floor Plans (Phase 22) ═══════════════════
+
+    public Task<PaginatedResponse<FloorPlanSummaryDto>?> GetFloorPlansAsync(
+        string? search = null, string? status = null, bool? active = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<FloorPlanSummaryDto>>(
+            $"api/floor-plans?search={E(search)}&status={E(status)}&active={active}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<FloorPlanDetailDto?> GetFloorPlanAsync(Guid id)
+        => _http.GetFromJsonAsync<FloorPlanDetailDto>($"api/floor-plans/{id}", _json);
+
+    public async Task<FloorPlanSummaryDto?> CreateFloorPlanAsync(string code, string name, string? description)
+    {
+        var r = await _http.PostAsJsonAsync("api/floor-plans", new { code, name, description }, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FloorPlanSummaryDto>(_json);
+    }
+
+    public async Task DeleteFloorPlanAsync(Guid id)
+    {
+        var r = await _http.DeleteAsync($"api/floor-plans/{id}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    public async Task<int?> SaveFloorPlanLayoutAsync(Guid id, string layoutJson)
+    {
+        var r = await _http.PutAsJsonAsync($"api/floor-plans/{id}/layout", new { layoutJson }, _json);
+        r.EnsureSuccessStatusCode();
+        var result = await r.Content.ReadFromJsonAsync<JsonElement>(_json);
+        return result.GetProperty("version").GetInt32();
+    }
+
+    public async Task PublishFloorPlanAsync(Guid id)
+    {
+        var r = await _http.PostAsync($"api/floor-plans/{id}/publish", null);
+        r.EnsureSuccessStatusCode();
+    }
+
+    public async Task ArchiveFloorPlanAsync(Guid id)
+    {
+        var r = await _http.PostAsync($"api/floor-plans/{id}/archive", null);
+        r.EnsureSuccessStatusCode();
+    }
 }

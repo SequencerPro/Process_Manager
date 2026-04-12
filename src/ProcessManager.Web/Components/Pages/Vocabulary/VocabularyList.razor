@@ -8,7 +8,7 @@
 
 <PageTitle>Domain Vocabulary</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 page-heading-row">
     <h3 class="mb-0">Domain Vocabulary</h3>
     <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
         <i class="bi bi-plus-lg me-1"></i> New Vocabulary
@@ -39,14 +39,14 @@ else if (_data is not null)
                 <tr>
                     <th>Name</th>
                     <th>Active</th>
-                    <th>Kind</th>
-                    <th>Grade</th>
-                    <th>Item</th>
-                    <th>Batch</th>
-                    <th>Job</th>
-                    <th>Workorder</th>
-                    <th>Process</th>
-                    <th>Step</th>
+                    <th class="col-hide-mobile">Kind</th>
+                    <th class="col-hide-mobile">Grade</th>
+                    <th class="col-hide-mobile">Item</th>
+                    <th class="col-hide-mobile">Batch</th>
+                    <th class="col-hide-mobile">Job</th>
+                    <th class="col-hide-mobile">Workorder</th>
+                    <th class="col-hide-mobile">Process</th>
+                    <th class="col-hide-mobile">Step</th>
                     <th style="width:160px">Actions</th>
                 </tr>
             </thead>
@@ -67,14 +67,14 @@ else if (_data is not null)
                                 <span class="badge bg-success"><i class="bi bi-check-lg"></i> Active</span>
                             }
                         </td>
-                        <td>@v.TermKind</td>
-                        <td>@v.TermGrade</td>
-                        <td>@v.TermItem</td>
-                        <td>@v.TermBatch</td>
-                        <td>@v.TermJob</td>
-                        <td>@v.TermWorkorder</td>
-                        <td>@v.TermProcess</td>
-                        <td>@v.TermStep</td>
+                        <td class="col-hide-mobile">@v.TermKind</td>
+                        <td class="col-hide-mobile">@v.TermGrade</td>
+                        <td class="col-hide-mobile">@v.TermItem</td>
+                        <td class="col-hide-mobile">@v.TermBatch</td>
+                        <td class="col-hide-mobile">@v.TermJob</td>
+                        <td class="col-hide-mobile">@v.TermWorkorder</td>
+                        <td class="col-hide-mobile">@v.TermProcess</td>
+                        <td class="col-hide-mobile">@v.TermStep</td>
                         <td>
                             <button class="btn @(v.IsActive ? "btn-success" : "btn-outline-success") btn-sm me-1"
                                     @onclick="() => ToggleActive(v)"

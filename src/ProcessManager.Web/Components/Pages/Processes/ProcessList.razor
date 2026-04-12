@@ -8,7 +8,7 @@
 
 <PageTitle>@Vocab.Processes</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 page-heading-row">
     <h3 class="mb-0">@Vocab.Processes</h3>
     <a href="processes/builder" class="btn btn-primary btn-sm">
         <i class="bi bi-plus-lg me-1"></i> New @Vocab.Process
@@ -50,10 +50,10 @@ else if (_data is not null)
                 <tr>
                     <th>Code</th>
                     <th>Name</th>
-                    <th>Steps</th>
-                    <th>Version</th>
+                    <th class="col-hide-mobile">Steps</th>
+                    <th class="col-hide-mobile">Version</th>
                     <th>Status</th>
-                    <th>Active</th>
+                    <th class="col-hide-mobile">Active</th>
                     <th style="width:140px">Actions</th>
                 </tr>
             </thead>
@@ -75,10 +75,10 @@ else if (_data is not null)
                                 <span class="badge bg-info text-dark ms-1" title="System content — read only">Library</span>
                             }
                         </td>
-                        <td><span class="badge bg-secondary">@p.StepCount</span></td>
-                        <td>v@p.Version</td>
+                        <td class="col-hide-mobile"><span class="badge bg-secondary">@p.StepCount</span></td>
+                        <td class="col-hide-mobile">v@p.Version</td>
                         <td><span class="badge @StatusBadgeClass(p.Status)">@p.Status</span></td>
-                        <td>
+                        <td class="col-hide-mobile">
                             @if (p.IsActive)
                             {
                                 <i class="bi bi-check-circle-fill text-success"></i>

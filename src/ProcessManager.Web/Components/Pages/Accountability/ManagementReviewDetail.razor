@@ -217,9 +217,9 @@ else
                             <thead class="table-light">
                                 <tr>
                                     <th>Title</th>
-                                    <th>Assigned To</th>
-                                    <th>Priority</th>
-                                    <th>Due</th>
+                                    <th class="col-hide-mobile">Assigned To</th>
+                                    <th class="col-hide-mobile">Priority</th>
+                                    <th class="col-hide-mobile">Due</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
@@ -228,9 +228,9 @@ else
                                 {
                                     <tr>
                                         <td class="fw-medium">@a.Title</td>
-                                        <td class="small text-muted">@a.AssignedToDisplayName</td>
-                                        <td><span class="badge @PriorityBadge(a.Priority)">@a.Priority</span></td>
-                                        <td class="@(a.IsOverdue ? "text-danger fw-bold" : "text-muted") small">
+                                        <td class="small text-muted col-hide-mobile">@a.AssignedToDisplayName</td>
+                                        <td class="col-hide-mobile"><span class="badge @PriorityBadge(a.Priority)">@a.Priority</span></td>
+                                        <td class="@(a.IsOverdue ? "text-danger fw-bold" : "text-muted") small col-hide-mobile">
                                             @a.DueDate.ToString("MMM d, yyyy")
                                         </td>
                                         <td><span class="badge bg-light text-dark border">@a.Status</span></td>

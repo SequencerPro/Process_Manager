@@ -5,10 +5,10 @@
 
 <PageTitle>Reports — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-bar-chart-line me-2 text-primary"></i>Reports</h3>
-        <p class="text-muted small mb-0">Operational analytics</p>
+        <p class="text-muted small mb-0 d-none d-md-block">Operational analytics</p>
     </div>
     <button class="btn btn-sm btn-outline-secondary" @onclick="LoadAll" disabled="@_loading">
         <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
@@ -173,9 +173,9 @@ else
                                 <tr>
                                     <th>Step</th>
                                     <th class="text-end">Total</th>
-                                    <th class="text-end">Done</th>
-                                    <th class="text-end">Failed</th>
-                                    <th class="text-end">Fail %</th>
+                                    <th class="text-end col-hide-mobile">Done</th>
+                                    <th class="text-end col-hide-mobile">Failed</th>
+                                    <th class="text-end col-hide-mobile">Fail %</th>
                                     <th class="text-end">Avg Time</th>
                                 </tr>
                             </thead>
@@ -186,9 +186,9 @@ else
                                     <tr>
                                         <td class="fw-medium text-truncate" style="max-width:180px" title="@row.StepName">@row.StepName</td>
                                         <td class="text-end">@row.Total</td>
-                                        <td class="text-end text-success">@row.Completed</td>
-                                        <td class="text-end @(row.Failed > 0 ? "text-danger fw-medium" : "text-secondary")">@row.Failed</td>
-                                        <td class="text-end">
+                                        <td class="text-end text-success col-hide-mobile">@row.Completed</td>
+                                        <td class="text-end col-hide-mobile @(row.Failed > 0 ? "text-danger fw-medium" : "text-secondary")">@row.Failed</td>
+                                        <td class="text-end col-hide-mobile">
                                             <span class="@(failPct > 10 ? "text-danger" : failPct > 0 ? "text-warning" : "text-secondary")">
                                                 @failPct.ToString("0")%
                                             </span>

@@ -31,7 +31,7 @@ else
             <h3>@_kind.Name <code class="ms-2 fs-6">@_kind.Code</code></h3>
             @if (!string.IsNullOrEmpty(_kind.Description))
             {
-                <p class="text-muted">@_kind.Description</p>
+                <p class="text-muted d-none d-md-block">@_kind.Description</p>
             }
             <div class="d-flex gap-2 flex-wrap mb-3">
                 <span class="badge @SourceBadgeClass(_kind.SourceType)">@FormatSourceType(_kind.SourceType)</span>
@@ -250,9 +250,9 @@ else
                 <tr>
                     <th>Code</th>
                     <th>Name</th>
-                    <th>Description</th>
-                    <th>Default</th>
-                    <th>Sort</th>
+                    <th class="col-hide-mobile">Description</th>
+                    <th class="col-hide-mobile">Default</th>
+                    <th class="col-hide-mobile">Sort</th>
                     <th style="width:120px">Actions</th>
                 </tr>
             </thead>
@@ -262,14 +262,14 @@ else
                     <tr>
                         <td><code>@grade.Code</code></td>
                         <td>@grade.Name</td>
-                        <td class="text-muted small">@grade.Description</td>
-                        <td>
+                        <td class="col-hide-mobile text-muted small">@grade.Description</td>
+                        <td class="col-hide-mobile">
                             @if (grade.IsDefault)
                             {
                                 <i class="bi bi-check-circle-fill text-success"></i>
                             }
                         </td>
-                        <td>@grade.SortOrder</td>
+                        <td class="col-hide-mobile">@grade.SortOrder</td>
                         <td>
                             <button class="btn btn-outline-secondary btn-sm me-1"
                                     @onclick="() => ShowEditGrade(grade)">
@@ -302,13 +302,13 @@ else
         <table class="table table-hover table-sm align-middle">
             <thead class="table-light">
                 <tr>
-                    <th>Line #</th>
+                    <th class="col-hide-mobile">Line #</th>
                     <th>Code</th>
                     <th>Component</th>
                     <th class="text-end">Qty</th>
-                    <th>UoM</th>
-                    <th>Notes</th>
-                    <th class="text-end">Line Cost</th>
+                    <th class="col-hide-mobile">UoM</th>
+                    <th class="col-hide-mobile">Notes</th>
+                    <th class="col-hide-mobile text-end">Line Cost</th>
                     <th style="width:120px">Actions</th>
                 </tr>
             </thead>
@@ -318,13 +318,13 @@ else
                     @foreach (var line in _kind.BomLines.OrderBy(b => b.SortOrder).ThenBy(b => b.LineNumber))
                     {
                         <tr>
-                            <td>@line.LineNumber</td>
+                            <td class="col-hide-mobile">@line.LineNumber</td>
                             <td><code>@line.ComponentCode</code></td>
                             <td>@line.ComponentName</td>
                             <td class="text-end">@line.Quantity.ToString("G")</td>
-                            <td>@(line.UnitOfMeasure ?? line.ComponentUnitOfMeasure ?? "—")</td>
-                            <td class="text-muted small">@line.Notes</td>
-                            <td class="text-end">
+                            <td class="col-hide-mobile">@(line.UnitOfMeasure ?? line.ComponentUnitOfMeasure ?? "—")</td>
+                            <td class="col-hide-mobile text-muted small">@line.Notes</td>
+                            <td class="col-hide-mobile text-end">
                                 @if (line.ComponentCost.HasValue)
                                 {
                                     @((line.Quantity * line.ComponentCost.Value).ToString("C"))
@@ -515,9 +515,9 @@ else
                                 <tr>
                                     <th>Code</th>
                                     <th>Name</th>
-                                    <th>Source</th>
-                                    <th>UoM</th>
-                                    <th class="text-end">Cost</th>
+                                    <th class="col-hide-mobile">Source</th>
+                                    <th class="col-hide-mobile">UoM</th>
+                                    <th class="col-hide-mobile text-end">Cost</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -537,9 +537,9 @@ else
                                     <tr class="cursor-pointer" style="cursor: pointer;" @onclick="() => SelectComponent(k)">
                                         <td><code>@k.Code</code></td>
                                         <td>@k.Name</td>
-                                        <td><span class="badge @SourceBadgeClass(k.SourceType)">@FormatSourceType(k.SourceType)</span></td>
-                                        <td class="text-muted small">@(k.UnitOfMeasure ?? "—")</td>
-                                        <td class="text-end">@(k.Cost.HasValue ? k.Cost.Value.ToString("C") : "—")</td>
+                                        <td class="col-hide-mobile"><span class="badge @SourceBadgeClass(k.SourceType)">@FormatSourceType(k.SourceType)</span></td>
+                                        <td class="col-hide-mobile text-muted small">@(k.UnitOfMeasure ?? "—")</td>
+                                        <td class="col-hide-mobile text-end">@(k.Cost.HasValue ? k.Cost.Value.ToString("C") : "—")</td>
                                     </tr>
                                 }
                                 @if (!filteredKinds.Any())

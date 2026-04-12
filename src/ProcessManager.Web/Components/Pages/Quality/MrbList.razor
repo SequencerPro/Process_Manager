@@ -6,10 +6,10 @@
 
 <PageTitle>Material Review Board — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-clipboard2-x-fill me-2 text-danger"></i>Material Review Board</h3>
-        <p class="text-muted small mb-0">Formal cross-functional disposition of nonconforming material</p>
+        <p class="text-muted small mb-0 d-none d-md-block">Formal cross-functional disposition of nonconforming material</p>
     </div>
     <button class="btn btn-sm btn-outline-secondary" @onclick="LoadData" disabled="@_loading">
         <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
@@ -82,12 +82,12 @@ else
                 <thead class="table-light">
                     <tr>
                         <th>Job / Step</th>
-                        <th>Item Description</th>
+                        <th class="col-hide-mobile">Item Description</th>
                         <th>Status</th>
-                        <th>Disposition</th>
-                        <th>Flags</th>
-                        <th>Participants</th>
-                        <th>Created</th>
+                        <th class="col-hide-mobile">Disposition</th>
+                        <th class="col-hide-mobile">Flags</th>
+                        <th class="col-hide-mobile">Participants</th>
+                        <th class="col-hide-mobile">Created</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -102,7 +102,7 @@ else
                                     <small class="text-muted d-block">@r.NcStepName</small>
                                 }
                             </td>
-                            <td>
+                            <td class="col-hide-mobile">
                                 <span class="text-truncate d-inline-block" style="max-width:200px"
                                       title="@r.ItemDescription">@r.ItemDescription</span>
                                 @if (!string.IsNullOrEmpty(r.NcActualValue))
@@ -111,7 +111,7 @@ else
                                 }
                             </td>
                             <td><span class="badge @StatusBadge(r.Status)">@StatusLabel(r.Status)</span></td>
-                            <td>
+                            <td class="col-hide-mobile">
                                 @if (!string.IsNullOrEmpty(r.DispositionDecision))
                                 {
                                     <span class="badge @DecisionBadge(r.DispositionDecision)">@DecisionLabel(r.DispositionDecision)</span>
@@ -121,7 +121,7 @@ else
                                     <span class="text-muted small">Pending</span>
                                 }
                             </td>
-                            <td>
+                            <td class="col-hide-mobile">
                                 @if (r.ScarRequired)
                                 {
                                     <span class="badge bg-warning text-dark me-1" title="Supplier Corrective Action Request required">SCAR</span>
@@ -139,8 +139,8 @@ else
                                     <span class="text-muted small">—</span>
                                 }
                             </td>
-                            <td class="small text-muted">@r.ParticipantCount</td>
-                            <td class="small text-muted">@r.CreatedAt.ToString("g")</td>
+                            <td class="small text-muted col-hide-mobile">@r.ParticipantCount</td>
+                            <td class="small text-muted col-hide-mobile">@r.CreatedAt.ToString("g")</td>
                             <td>
                                 <button class="btn btn-outline-primary btn-sm py-0 px-2"
                                         @onclick='() => Nav.NavigateTo($"/mrb/{r.Id}")'>

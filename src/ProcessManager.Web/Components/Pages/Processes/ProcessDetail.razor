@@ -35,7 +35,7 @@ else
 
     <div class="card mb-4">
         <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="d-flex justify-content-between align-items-start mb-2 page-heading-row">
                 <div>
                     <h4 class="mb-1">@_proc.Name</h4>
                     <span class="text-muted me-3"><code>@_proc.Code</code></span>
@@ -54,7 +54,7 @@ else
                         }
                     }
                 </div>
-                <div>
+                <div class="d-flex flex-wrap gap-2">
                     <a href="@(IsDocumentContext ? $"documents/{Id}/builder" : $"processes/{Id}/builder")" class="btn btn-outline-primary btn-sm me-1">
                         <i class="bi bi-diagram-3 me-1"></i>Builder
                     </a>
@@ -102,7 +102,7 @@ else
             </div>
             @if (!string.IsNullOrEmpty(_proc.Description))
             {
-                <p class="mb-2">@_proc.Description</p>
+                <p class="mb-2 d-none d-md-block">@_proc.Description</p>
             }
             <small class="text-muted">Created @_proc.CreatedAt.ToString("g") &bull; Updated @_proc.UpdatedAt.ToString("g")</small>
         </div>
@@ -133,7 +133,7 @@ else
             <div class="table-responsive">
                 <table class="table table-sm mb-0 align-middle">
                     <thead class="table-light">
-                        <tr><th>#</th><th>Template</th><th>Name Override</th><th>Desc. Override</th><th>Maturity</th></tr>
+                        <tr><th>#</th><th>Template</th><th class="col-hide-mobile">Name Override</th><th class="col-hide-mobile">Desc. Override</th><th class="col-hide-mobile">Maturity</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var s in _proc.Steps.OrderBy(s => s.Sequence))
@@ -146,9 +146,9 @@ else
                                     </a>
                                     — @s.StepTemplateName
                                 </td>
-                                <td>@(s.NameOverride ?? "—")</td>
-                                <td class="small text-truncate" style="max-width:200px">@(s.DescriptionOverride ?? "—")</td>
-                                <td>
+                                <td class="col-hide-mobile">@(s.NameOverride ?? "—")</td>
+                                <td class="col-hide-mobile small text-truncate" style="max-width:200px">@(s.DescriptionOverride ?? "—")</td>
+                                <td class="col-hide-mobile">
                                     @if (s.StepTemplateMaturity is not null)
                                     {
                                         <span class="badge @MaturityBadgeClass(s.StepTemplateMaturity.Level)" title="Score @s.StepTemplateMaturity.Score/100">
@@ -182,7 +182,7 @@ else
             <div class="table-responsive">
                 <table class="table table-sm mb-0 align-middle">
                     <thead class="table-light">
-                        <tr><th>Source Step</th><th>Source Port</th><th></th><th>Target Step</th><th>Target Port</th></tr>
+                        <tr><th>Source Step</th><th class="col-hide-mobile">Source Port</th><th class="col-hide-mobile"></th><th>Target Step</th><th class="col-hide-mobile">Target Port</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var f in _proc.Flows)
@@ -191,10 +191,10 @@ else
                             var tgtStep = _proc.Steps.FirstOrDefault(s => s.Id == f.TargetProcessStepId);
                             <tr>
                                 <td>@(srcStep?.NameOverride ?? srcStep?.StepTemplateName ?? "?")</td>
-                                <td><code>@f.SourcePortName</code></td>
-                                <td class="text-center"><i class="bi bi-arrow-right"></i></td>
+                                <td class="col-hide-mobile"><code>@f.SourcePortName</code></td>
+                                <td class="col-hide-mobile text-center"><i class="bi bi-arrow-right"></i></td>
                                 <td>@(tgtStep?.NameOverride ?? tgtStep?.StepTemplateName ?? "?")</td>
-                                <td><code>@f.TargetPortName</code></td>
+                                <td class="col-hide-mobile"><code>@f.TargetPortName</code></td>
                             </tr>
                         }
                     </tbody>
@@ -238,7 +238,7 @@ else
                         <thead class="table-light">
                             <tr>
                                 <th>Training Course</th>
-                                <th>Competency</th>
+                                <th class="col-hide-mobile">Competency</th>
                                 <th>Enforcement</th>
                                 <th></th>
                             </tr>
@@ -248,7 +248,7 @@ else
                             {
                                 <tr>
                                     <td><code>@req.TrainingProcessCode</code> — @req.TrainingProcessName</td>
-                                    <td class="small text-muted">@(req.CompetencyTitle ?? req.TrainingProcessName)</td>
+                                    <td class="col-hide-mobile small text-muted">@(req.CompetencyTitle ?? req.TrainingProcessName)</td>
                                     <td>
                                         @if (req.IsEnforced)
                                         {

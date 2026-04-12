@@ -7,10 +7,10 @@
 
 <PageTitle>Ishikawa Diagrams — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-fish me-2 text-secondary"></i>Ishikawa Diagrams</h3>
-        <p class="text-muted small mb-0">Fishbone cause enumeration by 7M category</p>
+        <p class="text-muted small mb-0 d-none d-md-block">Fishbone cause enumeration by 7M category</p>
     </div>
     <AuthorizeView Roles="Admin,Engineer">
         <Authorized>
@@ -72,12 +72,12 @@ else
                 <thead class="table-light">
                     <tr>
                         <th>Title</th>
-                        <th>Problem Statement</th>
-                        <th>Trigger</th>
-                        <th class="text-center">Causes</th>
-                        <th class="text-center">Root Causes</th>
+                        <th class="col-hide-mobile">Problem Statement</th>
+                        <th class="col-hide-mobile">Trigger</th>
+                        <th class="text-center col-hide-mobile">Causes</th>
+                        <th class="text-center col-hide-mobile">Root Causes</th>
                         <th>Status</th>
-                        <th>Created</th>
+                        <th class="col-hide-mobile">Created</th>
                         <th style="width:80px"></th>
                     </tr>
                 </thead>
@@ -86,10 +86,10 @@ else
                     {
                         <tr style="cursor:pointer" @onclick='() => Nav.NavigateTo($"/ishikawa/{d.Id}")'>
                             <td class="fw-semibold">@d.Title</td>
-                            <td><small class="text-muted">@Truncate(d.ProblemStatement, 70)</small></td>
-                            <td>@TriggerBadge(d.LinkedEntityType)</td>
-                            <td class="text-center"><span class="badge bg-secondary">@d.TotalCauses</span></td>
-                            <td class="text-center">
+                            <td class="col-hide-mobile"><small class="text-muted">@Truncate(d.ProblemStatement, 70)</small></td>
+                            <td class="col-hide-mobile">@TriggerBadge(d.LinkedEntityType)</td>
+                            <td class="text-center col-hide-mobile"><span class="badge bg-secondary">@d.TotalCauses</span></td>
+                            <td class="text-center col-hide-mobile">
                                 @if (d.SelectedRootCauses > 0)
                                 {
                                     <span class="badge bg-success">@d.SelectedRootCauses</span>
@@ -109,7 +109,7 @@ else
                                     <span class="badge bg-success">Closed</span>
                                 }
                             </td>
-                            <td class="small text-muted">@d.CreatedAt.ToString("d MMM yyyy")</td>
+                            <td class="small text-muted col-hide-mobile">@d.CreatedAt.ToString("d MMM yyyy")</td>
                             <td @onclick:stopPropagation>
                                 <AuthorizeView Roles="Admin,Engineer">
                                     <Authorized>

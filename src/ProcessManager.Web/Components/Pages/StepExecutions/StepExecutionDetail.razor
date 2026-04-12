@@ -299,10 +299,10 @@ else
                         <tr>
                             <th>Port</th>
                             <th>Direction</th>
-                            <th>Item</th>
-                            <th>Batch</th>
+                            <th class="col-hide-mobile">Item</th>
+                            <th class="col-hide-mobile">Batch</th>
                             <th>Quantity</th>
-                            <th>Created</th>
+                            <th class="col-hide-mobile">Created</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -315,7 +315,7 @@ else
                                         @pt.PortDirection
                                     </span>
                                 </td>
-                                <td>
+                                <td class="col-hide-mobile">
                                     @if (pt.ItemId.HasValue)
                                     {
                                         <a href="items/@pt.ItemId"><code>@(pt.ItemSerialNumber ?? pt.ItemId.Value.ToString()[..8])</code></a>
@@ -325,7 +325,7 @@ else
                                         <span class="text-muted">—</span>
                                     }
                                 </td>
-                                <td>
+                                <td class="col-hide-mobile">
                                     @if (pt.BatchId.HasValue)
                                     {
                                         <a href="batches/@pt.BatchId"><code>@(pt.BatchCode ?? pt.BatchId.Value.ToString()[..8])</code></a>
@@ -336,7 +336,7 @@ else
                                     }
                                 </td>
                                 <td>@pt.Quantity</td>
-                                <td>@pt.CreatedAt.ToString("g")</td>
+                                <td class="col-hide-mobile">@pt.CreatedAt.ToString("g")</td>
                             </tr>
                         }
                     </tbody>
@@ -362,7 +362,7 @@ else
             <div class="table-responsive">
                 <table class="table table-sm align-middle">
                     <thead class="table-light">
-                        <tr><th>Key</th><th>Value</th><th>Type</th><th>Unit</th><th>Created</th></tr>
+                        <tr><th>Key</th><th>Value</th><th class="col-hide-mobile">Type</th><th class="col-hide-mobile">Unit</th><th class="col-hide-mobile">Created</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var d in _data)
@@ -370,9 +370,9 @@ else
                             <tr>
                                 <td><strong>@d.Key</strong></td>
                                 <td>@d.Value</td>
-                                <td><span class="badge bg-secondary">@d.DataType</span></td>
-                                <td>@(d.UnitOfMeasure ?? "—")</td>
-                                <td>@d.CreatedAt.ToString("g")</td>
+                                <td class="col-hide-mobile"><span class="badge bg-secondary">@d.DataType</span></td>
+                                <td class="col-hide-mobile">@(d.UnitOfMeasure ?? "—")</td>
+                                <td class="col-hide-mobile">@d.CreatedAt.ToString("g")</td>
                             </tr>
                         }
                     </tbody>

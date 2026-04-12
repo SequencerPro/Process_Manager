@@ -35,7 +35,7 @@ else
                         </ol>
                     </nav>
                 </div>
-                <div class="d-flex align-items-center gap-2">
+                <div class="d-flex align-items-center flex-wrap gap-2">
                     @if (_detail.IsActive)
                     {
                         <span class="badge bg-success fs-6">Active</span>
@@ -59,9 +59,9 @@ else
                     <thead class="table-light">
                         <tr>
                             <th>Kind Code</th>
-                            <th>Kind Name</th>
+                            <th class="col-hide-mobile">Kind Name</th>
                             <th>Qty On Hand</th>
-                            <th>UoM</th>
+                            <th class="col-hide-mobile">UoM</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -71,9 +71,9 @@ else
                             {
                                 <tr>
                                     <td>@item.KindCode</td>
-                                    <td>@item.KindName</td>
+                                    <td class="col-hide-mobile">@item.KindName</td>
                                     <td>@item.QuantityOnHand</td>
-                                    <td>@item.UnitOfMeasure</td>
+                                    <td class="col-hide-mobile">@item.UnitOfMeasure</td>
                                 </tr>
                             }
                         }
@@ -131,9 +131,9 @@ else
                             <th>Type</th>
                             <th>Kind Code</th>
                             <th>Quantity</th>
-                            <th>From</th>
-                            <th>To</th>
-                            <th>Date</th>
+                            <th class="col-hide-mobile">From</th>
+                            <th class="col-hide-mobile">To</th>
+                            <th class="col-hide-mobile">Date</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -145,9 +145,9 @@ else
                                     <td><span class="badge bg-secondary">@tx.TransactionType</span></td>
                                     <td>@tx.KindCode</td>
                                     <td>@tx.Quantity</td>
-                                    <td>@tx.FromLocationCode</td>
-                                    <td>@tx.ToLocationCode</td>
-                                    <td>@tx.TransactedAt.ToString("g")</td>
+                                    <td class="col-hide-mobile">@tx.FromLocationCode</td>
+                                    <td class="col-hide-mobile">@tx.ToLocationCode</td>
+                                    <td class="col-hide-mobile">@tx.TransactedAt.ToString("g")</td>
                                 </tr>
                             }
                         }

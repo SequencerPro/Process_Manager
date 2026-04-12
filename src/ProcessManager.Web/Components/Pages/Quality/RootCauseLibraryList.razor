@@ -7,10 +7,10 @@
 
 <PageTitle>Root Cause Library — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-diagram-3 me-2 text-secondary"></i>Root Cause Library</h3>
-        <p class="text-muted small mb-0">Institutional catalogue of named causes — shared across all RCA tools</p>
+        <p class="text-muted small mb-0 d-none d-md-block">Institutional catalogue of named causes — shared across all RCA tools</p>
     </div>
     @if (_activeTab == "entries")
     {
@@ -93,9 +93,9 @@ else
                     <tr>
                         <th>Title</th>
                         <th>Category</th>
-                        <th>Tags</th>
-                        <th>Corrective Action Template</th>
-                        <th class="text-center">Usage</th>
+                        <th class="col-hide-mobile">Tags</th>
+                        <th class="col-hide-mobile">Corrective Action Template</th>
+                        <th class="text-center col-hide-mobile">Usage</th>
                         <th style="width:100px"></th>
                     </tr>
                 </thead>
@@ -111,7 +111,7 @@ else
                                 }
                             </td>
                             <td><span class="badge @CategoryBadgeClass(entry.Category)">@entry.Category</span></td>
-                            <td>
+                            <td class="col-hide-mobile">
                                 @if (!string.IsNullOrEmpty(entry.Tags))
                                 {
                                     @foreach (var tag in entry.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -120,7 +120,7 @@ else
                                     }
                                 }
                             </td>
-                            <td>
+                            <td class="col-hide-mobile">
                                 @if (!string.IsNullOrEmpty(entry.CorrectiveActionTemplate))
                                 {
                                     <small class="text-muted">@Truncate(entry.CorrectiveActionTemplate, 80)</small>
@@ -130,7 +130,7 @@ else
                                     <span class="text-muted">—</span>
                                 }
                             </td>
-                            <td class="text-center">
+                            <td class="text-center col-hide-mobile">
                                 @if (entry.UsageCount > 0)
                                 {
                                     <span class="badge bg-info text-dark">@entry.UsageCount</span>
@@ -245,11 +245,11 @@ else
                         <tr>
                             <th>Type</th>
                             <th>Title</th>
-                            <th>Problem / Defect</th>
-                            <th class="text-center">Nodes</th>
-                            <th class="text-center">Root Causes</th>
+                            <th class="col-hide-mobile">Problem / Defect</th>
+                            <th class="text-center col-hide-mobile">Nodes</th>
+                            <th class="text-center col-hide-mobile">Root Causes</th>
                             <th>Status</th>
-                            <th>Created</th>
+                            <th class="col-hide-mobile">Created</th>
                             <th style="width:60px"></th>
                         </tr>
                     </thead>
@@ -268,9 +268,9 @@ else
                                     }
                                 </td>
                                 <td class="fw-semibold">@item.Title</td>
-                                <td><small class="text-muted">@Truncate(item.ProblemStatement, 70)</small></td>
-                                <td class="text-center">@item.TotalNodes</td>
-                                <td class="text-center">
+                                <td class="col-hide-mobile"><small class="text-muted">@Truncate(item.ProblemStatement, 70)</small></td>
+                                <td class="text-center col-hide-mobile">@item.TotalNodes</td>
+                                <td class="text-center col-hide-mobile">
                                     @if (item.ConfirmedRootCauses > 0)
                                     {
                                         <span class="badge bg-success">@item.ConfirmedRootCauses</span>
@@ -282,7 +282,7 @@ else
                                         @item.Status
                                     </span>
                                 </td>
-                                <td><small class="text-muted">@item.CreatedAt.ToString("dd MMM yyyy")</small></td>
+                                <td class="col-hide-mobile"><small class="text-muted">@item.CreatedAt.ToString("dd MMM yyyy")</small></td>
                                 <td>
                                     <a href="@IdxAnalysisUrl(item)" class="btn btn-outline-secondary btn-sm py-0 px-2" title="Open">
                                         <i class="bi bi-box-arrow-up-right"></i>

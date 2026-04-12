@@ -45,7 +45,7 @@ else
     <!-- Header card -->
     <div class="card mb-4">
         <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="d-flex justify-content-between align-items-start mb-2 page-heading-row">
                 <div>
                     <h4 class="mb-1">@_cp.Name</h4>
                     <span class="text-muted me-3"><code>@_cp.Code</code></span>
@@ -55,7 +55,7 @@ else
                     <span class="badge bg-dark">v@_cp.Version</span>
                     <span class="ms-3 text-muted small">Process: <a href="processes/@_cp.ProcessId">@_cp.ProcessName</a></span>
                 </div>
-                <div class="d-flex gap-1">
+                <div class="d-flex gap-1 flex-wrap">
                     <a class="btn btn-outline-success btn-sm" href="api/controlplans/@Id/export" target="_blank">
                         <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export CSV
                     </a>
@@ -113,14 +113,14 @@ else
                             <thead class="table-light">
                                 <tr>
                                     <th>Characteristic</th>
-                                    <th>Type</th>
-                                    <th>Specification / Tolerance</th>
-                                    <th>Measurement Technique</th>
-                                    <th>Sample Size</th>
-                                    <th>Frequency</th>
-                                    <th>Control Method</th>
-                                    <th>Reaction Plan</th>
-                                    <th>PFMEA Link</th>
+                                    <th class="col-hide-mobile">Type</th>
+                                    <th class="col-hide-mobile">Specification / Tolerance</th>
+                                    <th class="col-hide-mobile">Measurement Technique</th>
+                                    <th class="col-hide-mobile">Sample Size</th>
+                                    <th class="col-hide-mobile">Frequency</th>
+                                    <th class="col-hide-mobile">Control Method</th>
+                                    <th class="col-hide-mobile">Reaction Plan</th>
+                                    <th class="col-hide-mobile">PFMEA Link</th>
                                     <th style="width:80px"></th>
                                 </tr>
                             </thead>
@@ -129,18 +129,18 @@ else
                                 {
                                     <tr>
                                         <td class="fw-semibold small">@e.CharacteristicName</td>
-                                        <td>
+                                        <td class="col-hide-mobile">
                                             <span class="badge @(e.CharacteristicType == "Product" ? "bg-primary" : "bg-info text-dark")">
                                                 @e.CharacteristicType
                                             </span>
                                         </td>
-                                        <td class="small">@(e.SpecificationOrTolerance ?? "—")</td>
-                                        <td class="small">@(e.MeasurementTechnique ?? "—")</td>
-                                        <td class="small">@(e.SampleSize ?? "—")</td>
-                                        <td class="small">@(e.SampleFrequency ?? "—")</td>
-                                        <td class="small">@(e.ControlMethod ?? "—")</td>
-                                        <td class="small">@(e.ReactionPlan ?? "—")</td>
-                                        <td class="small">
+                                        <td class="small col-hide-mobile">@(e.SpecificationOrTolerance ?? "—")</td>
+                                        <td class="small col-hide-mobile">@(e.MeasurementTechnique ?? "—")</td>
+                                        <td class="small col-hide-mobile">@(e.SampleSize ?? "—")</td>
+                                        <td class="small col-hide-mobile">@(e.SampleFrequency ?? "—")</td>
+                                        <td class="small col-hide-mobile">@(e.ControlMethod ?? "—")</td>
+                                        <td class="small col-hide-mobile">@(e.ReactionPlan ?? "—")</td>
+                                        <td class="small col-hide-mobile">
                                             @if (!string.IsNullOrEmpty(e.LinkedPfmeaFailureModeDescription))
                                             {
                                                 <span class="text-muted" title="@e.LinkedPfmeaFailureModeDescription">

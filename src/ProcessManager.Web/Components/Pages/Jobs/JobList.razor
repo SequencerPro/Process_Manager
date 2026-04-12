@@ -8,7 +8,7 @@
 
 <PageTitle>@Vocab.Jobs</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 page-heading-row">
     <h3 class="mb-0">@Vocab.Jobs</h3>
     <button class="btn btn-primary btn-sm" @onclick="ShowCreate">
         <i class="bi bi-plus-lg me-1"></i> New @Vocab.Job
@@ -39,10 +39,10 @@ else if (_data is not null)
                 <tr>
                     <th>Code</th>
                     <th>Name</th>
-                    <th>Process</th>
+                    <th class="col-hide-mobile">Process</th>
                     <th>Status</th>
-                    <th>Priority</th>
-                    <th>Created</th>
+                    <th class="col-hide-mobile">Priority</th>
+                    <th class="col-hide-mobile">Created</th>
                     <th style="width:140px">Actions</th>
                 </tr>
             </thead>
@@ -58,10 +58,10 @@ else if (_data is not null)
                     <tr>
                         <td><code>@j.Code</code></td>
                         <td><a href="jobs/@j.Id">@j.Name</a></td>
-                        <td>@j.ProcessName</td>
+                        <td class="col-hide-mobile">@j.ProcessName</td>
                         <td><StatusBadge Status="@j.Status" /></td>
-                        <td>@j.Priority</td>
-                        <td>@j.CreatedAt.ToString("g")</td>
+                        <td class="col-hide-mobile">@j.Priority</td>
+                        <td class="col-hide-mobile">@j.CreatedAt.ToString("g")</td>
                         <td>
                             <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => ShowEdit(j)">
                                 <i class="bi bi-pencil"></i>

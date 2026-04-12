@@ -5,10 +5,10 @@
 
 <PageTitle>Team Actions — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-people me-2 text-primary"></i>Team Actions</h3>
-        <p class="text-muted small mb-0">All action items across the team</p>
+        <p class="text-muted small mb-0 d-none d-md-block">All action items across the team</p>
     </div>
     <button class="btn btn-sm btn-primary" @onclick="OpenCreateModal">
         <i class="bi bi-plus-lg me-1"></i>New Action Item
@@ -89,9 +89,9 @@ else
                     <tr>
                         <th>Title</th>
                         <th>Assigned To</th>
-                        <th>Assigned By</th>
-                        <th>Source</th>
-                        <th>Priority</th>
+                        <th class="col-hide-mobile">Assigned By</th>
+                        <th class="col-hide-mobile">Source</th>
+                        <th class="col-hide-mobile">Priority</th>
                         <th>Due</th>
                         <th>Status</th>
                         <th class="text-end">Actions</th>
@@ -103,9 +103,9 @@ else
                         <tr>
                             <td class="fw-medium">@item.Title</td>
                             <td class="small">@item.AssignedToDisplayName</td>
-                            <td class="small text-muted">@item.AssignedByDisplayName</td>
-                            <td><span class="badge @SourceBadge(item.SourceType) text-truncate" style="max-width:90px">@item.SourceType</span></td>
-                            <td><span class="badge @PriorityBadge(item.Priority)">@item.Priority</span></td>
+                            <td class="small text-muted col-hide-mobile">@item.AssignedByDisplayName</td>
+                            <td class="col-hide-mobile"><span class="badge @SourceBadge(item.SourceType) text-truncate" style="max-width:90px">@item.SourceType</span></td>
+                            <td class="col-hide-mobile"><span class="badge @PriorityBadge(item.Priority)">@item.Priority</span></td>
                             <td class="@(item.IsOverdue ? "text-danger fw-bold" : "text-muted") small">
                                 @item.DueDate.ToString("MMM d, yyyy")
                             </td>

@@ -7,10 +7,10 @@
 
 <PageTitle>5 Whys — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-question-circle me-2 text-secondary"></i>5 Whys</h3>
-        <p class="text-muted small mb-0">Iterative root cause tree analysis</p>
+        <p class="text-muted small mb-0 d-none d-md-block">Iterative root cause tree analysis</p>
     </div>
     <AuthorizeView Roles="Admin,Engineer">
         <Authorized>
@@ -72,12 +72,12 @@ else
                 <thead class="table-light">
                     <tr>
                         <th>Title</th>
-                        <th>Problem</th>
-                        <th>Trigger</th>
-                        <th class="text-center">Nodes</th>
-                        <th class="text-center">Root Causes</th>
+                        <th class="col-hide-mobile">Problem</th>
+                        <th class="col-hide-mobile">Trigger</th>
+                        <th class="text-center col-hide-mobile">Nodes</th>
+                        <th class="text-center col-hide-mobile">Root Causes</th>
                         <th>Status</th>
-                        <th>Created</th>
+                        <th class="col-hide-mobile">Created</th>
                         <th style="width:80px"></th>
                     </tr>
                 </thead>
@@ -86,9 +86,9 @@ else
                     {
                         <tr style="cursor:pointer" @onclick='() => Nav.NavigateTo($"/five-whys/{a.Id}")'>
                             <td class="fw-semibold">@a.Title</td>
-                            <td><small class="text-muted">@Truncate(a.ProblemStatement, 70)</small></td>
-                            <td>@TriggerBadge(a.LinkedEntityType)</td>
-                            <td class="text-center">
+                            <td class="col-hide-mobile"><small class="text-muted">@Truncate(a.ProblemStatement, 70)</small></td>
+                            <td class="col-hide-mobile">@TriggerBadge(a.LinkedEntityType)</td>
+                            <td class="text-center col-hide-mobile">
                                 <span class="badge bg-secondary">@a.TotalNodes</span>
                                 @if (a.HasIncompleteLeaves)
                                 {
@@ -96,7 +96,7 @@ else
                                        title="Some branches have no confirmed root cause"></i>
                                 }
                             </td>
-                            <td class="text-center">
+                            <td class="text-center col-hide-mobile">
                                 @if (a.RootCauseNodes > 0)
                                 {
                                     <span class="badge bg-success">@a.RootCauseNodes</span>
@@ -116,7 +116,7 @@ else
                                     <span class="badge bg-success">Closed</span>
                                 }
                             </td>
-                            <td class="small text-muted">@a.CreatedAt.ToString("d MMM yyyy")</td>
+                            <td class="small text-muted col-hide-mobile">@a.CreatedAt.ToString("d MMM yyyy")</td>
                             <td @onclick:stopPropagation>
                                 <AuthorizeView Roles="Admin,Engineer">
                                     <Authorized>

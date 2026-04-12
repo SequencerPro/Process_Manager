@@ -6,12 +6,12 @@
 
 <PageTitle>Equipment — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-gear-wide me-2 text-primary"></i>Equipment</h3>
-        <p class="text-muted small mb-0">Equipment catalog and availability status</p>
+        <p class="text-muted small mb-0 d-none d-md-block">Equipment catalog and availability status</p>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
         <AuthorizeView Roles="Admin,Engineer">
             <Authorized>
                 <button class="btn btn-primary btn-sm" @onclick="ShowCreateModal">
@@ -74,10 +74,10 @@ else
                     <tr>
                         <th>Code</th>
                         <th>Name</th>
-                        <th>Category</th>
-                        <th>Location</th>
+                        <th class="col-hide-mobile">Category</th>
+                        <th class="col-hide-mobile">Location</th>
                         <th>Status</th>
-                        <th>Next Maintenance</th>
+                        <th class="col-hide-mobile">Next Maintenance</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -87,8 +87,8 @@ else
                         <tr>
                             <td class="fw-semibold">@eq.Code</td>
                             <td>@eq.Name</td>
-                            <td><span class="badge bg-light text-dark border">@eq.CategoryName</span></td>
-                            <td class="text-muted small">@(eq.Location ?? "—")</td>
+                            <td class="col-hide-mobile"><span class="badge bg-light text-dark border">@eq.CategoryName</span></td>
+                            <td class="col-hide-mobile text-muted small">@(eq.Location ?? "—")</td>
                             <td>
                                 @if (!eq.IsActive)
                                 {
@@ -103,7 +103,7 @@ else
                                     <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Available</span>
                                 }
                             </td>
-                            <td class="small text-muted">
+                            <td class="small text-muted col-hide-mobile">
                                 @(eq.NextMaintenanceDue.HasValue ? eq.NextMaintenanceDue.Value.ToString("MMM d, yyyy") : "—")
                             </td>
                             <td>

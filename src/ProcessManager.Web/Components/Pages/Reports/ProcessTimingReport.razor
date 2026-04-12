@@ -6,12 +6,12 @@
 
 <PageTitle>Process Timing — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-stopwatch me-2 text-primary"></i>Process Timing</h3>
-        <p class="text-muted small mb-0">Duration statistics per process and step, across all completed runs</p>
+        <p class="text-muted small mb-0 d-none d-md-block">Duration statistics per process and step, across all completed runs</p>
     </div>
-    <div class="d-flex gap-2 align-items-center">
+    <div class="d-flex gap-2 align-items-center flex-wrap">
         <select class="form-select form-select-sm" style="width:auto" @onchange="OnRoleFilter">
             <option value="">All Roles</option>
             <option value="ManufacturingProcess">Manufacturing Process</option>
@@ -144,11 +144,11 @@ else
                                     <th style="width:2.2rem">#</th>
                                     <th>Step</th>
                                     <th class="text-end">Runs</th>
-                                    <th class="text-end">Min</th>
+                                    <th class="text-end col-hide-mobile">Min</th>
                                     <th class="text-end">Avg</th>
-                                    <th class="text-end">Median</th>
-                                    <th class="text-end">P95</th>
-                                    <th class="text-end">Max</th>
+                                    <th class="text-end col-hide-mobile">Median</th>
+                                    <th class="text-end col-hide-mobile">P95</th>
+                                    <th class="text-end col-hide-mobile">Max</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -164,11 +164,11 @@ else
                                             <span class="text-muted ms-1" style="font-size:.7rem">@step.StepCode</span>
                                         </td>
                                         <td class="text-end text-muted">@step.CompletedExecutions</td>
-                                        <td class="text-end text-secondary">@FmtMins(step.MinMinutes)</td>
+                                        <td class="text-end text-secondary col-hide-mobile">@FmtMins(step.MinMinutes)</td>
                                         <td class="text-end fw-semibold text-primary">@FmtMins(step.AvgMinutes)</td>
-                                        <td class="text-end">@FmtMins(step.MedianMinutes)</td>
-                                        <td class="text-end text-warning">@FmtMins(step.P95Minutes)</td>
-                                        <td class="text-end text-danger">@FmtMins(step.MaxMinutes)</td>
+                                        <td class="text-end col-hide-mobile">@FmtMins(step.MedianMinutes)</td>
+                                        <td class="text-end text-warning col-hide-mobile">@FmtMins(step.P95Minutes)</td>
+                                        <td class="text-end text-danger col-hide-mobile">@FmtMins(step.MaxMinutes)</td>
                                     </tr>
                                 }
                             </tbody>

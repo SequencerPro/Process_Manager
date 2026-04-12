@@ -893,3 +893,40 @@ h1:focus {
     background: #fff7ed;
     color: #f97316;
 }
+
+/* ── WP15: Global mobile helpers ──────────────────────────────────────── */
+
+/* Stat-value cards (dashboard) scale down on small screens */
+@media (max-width: 575.98px) {
+    .stat-value { font-size: 1.4rem; }
+}
+
+/* Job step items wrap on narrow viewports */
+@media (max-width: 767.98px) {
+    .job-step-item {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: .5rem;
+    }
+    .job-step-item .text-end {
+        text-align: start !important;
+        width: 100%;
+    }
+}
+
+/* Pager wraps gracefully */
+@media (max-width: 575.98px) {
+    .pagination { flex-wrap: wrap; }
+    .pagination .page-link { min-width: 2.2rem; text-align: center; }
+}
+
+/* Matrix tables: sticky first column for horizontal scrolling */
+@media (max-width: 991.98px) {
+    .matrix-table th:first-child,
+    .matrix-table td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: inherit;
+    }
+}

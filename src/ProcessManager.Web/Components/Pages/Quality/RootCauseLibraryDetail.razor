@@ -103,11 +103,11 @@ else
                         <tr>
                             <th>Type</th>
                             <th>Title</th>
-                            <th>Problem / Defect</th>
-                            <th class="text-center">Nodes</th>
-                            <th class="text-center">Root Causes</th>
+                            <th class="col-hide-mobile">Problem / Defect</th>
+                            <th class="text-center col-hide-mobile">Nodes</th>
+                            <th class="text-center col-hide-mobile">Root Causes</th>
                             <th>Status</th>
-                            <th>Created</th>
+                            <th class="col-hide-mobile">Created</th>
                             <th style="width:60px"></th>
                         </tr>
                     </thead>
@@ -126,9 +126,9 @@ else
                                     }
                                 </td>
                                 <td class="fw-semibold">@item.Title</td>
-                                <td><small class="text-muted">@Truncate(item.ProblemStatement, 70)</small></td>
-                                <td class="text-center">@item.TotalNodes</td>
-                                <td class="text-center">
+                                <td class="col-hide-mobile"><small class="text-muted">@Truncate(item.ProblemStatement, 70)</small></td>
+                                <td class="text-center col-hide-mobile">@item.TotalNodes</td>
+                                <td class="text-center col-hide-mobile">
                                     @if (item.ConfirmedRootCauses > 0)
                                     {
                                         <span class="badge bg-success">@item.ConfirmedRootCauses</span>
@@ -140,7 +140,7 @@ else
                                         @item.Status
                                     </span>
                                 </td>
-                                <td><small class="text-muted">@item.CreatedAt.ToString("dd MMM yyyy")</small></td>
+                                <td class="col-hide-mobile"><small class="text-muted">@item.CreatedAt.ToString("dd MMM yyyy")</small></td>
                                 <td>
                                     <a href="@AnalysisUrl(item)" class="btn btn-outline-secondary btn-sm py-0 px-2" title="Open">
                                         <i class="bi bi-box-arrow-up-right"></i>

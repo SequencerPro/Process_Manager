@@ -8,10 +8,10 @@
 
 <PageTitle>Document Library — Process Manager</PageTitle>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex justify-content-between align-items-center mb-3 page-heading-row">
     <div>
         <h3 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>Document Library</h3>
-        <p class="text-muted small mb-0">QMS documents, procedures, work instructions, and training courses</p>
+        <p class="text-muted small mb-0 d-none d-md-block">QMS documents, procedures, work instructions, and training courses</p>
     </div>
     <AuthorizeView Roles="Admin,Engineer">
         <Authorized>
@@ -61,11 +61,11 @@ else if (_data is not null)
                     <tr>
                         <th>Code</th>
                         <th>Name</th>
-                        <th>Type</th>
-                        <th>Rev</th>
-                        <th>Version</th>
+                        <th class="col-hide-mobile">Type</th>
+                        <th class="col-hide-mobile">Rev</th>
+                        <th class="col-hide-mobile">Version</th>
                         <th>Status</th>
-                        <th>Effective</th>
+                        <th class="col-hide-mobile">Effective</th>
                         <th style="width:160px">Actions</th>
                     </tr>
                 </thead>
@@ -81,11 +81,11 @@ else if (_data is not null)
                             <tr>
                                 <td><code>@doc.Code</code></td>
                                 <td><a href="documents/@doc.Id">@doc.Name</a></td>
-                                <td><span class="badge @RoleBadgeClass(doc.ProcessRole)">@FormatRole(doc.ProcessRole)</span></td>
-                                <td><small class="text-muted">@(doc.RevisionCode ?? "—")</small></td>
-                                <td>v@doc.Version</td>
+                                <td class="col-hide-mobile"><span class="badge @RoleBadgeClass(doc.ProcessRole)">@FormatRole(doc.ProcessRole)</span></td>
+                                <td class="col-hide-mobile"><small class="text-muted">@(doc.RevisionCode ?? "—")</small></td>
+                                <td class="col-hide-mobile">v@doc.Version</td>
                                 <td><span class="badge @StatusBadgeClass(doc.Status)">@doc.Status</span></td>
-                                <td><small class="text-muted">@(doc.EffectiveDate?.ToString("yyyy-MM-dd") ?? "—")</small></td>
+                                <td class="col-hide-mobile"><small class="text-muted">@(doc.EffectiveDate?.ToString("yyyy-MM-dd") ?? "—")</small></td>
                                 <td>
                                     <a href="documents/@doc.Id" class="btn btn-outline-secondary btn-sm me-1" title="View">
                                         <i class="bi bi-eye"></i>

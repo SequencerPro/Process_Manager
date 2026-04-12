@@ -27,7 +27,7 @@ else
     <!-- Header card -->
     <div class="card mb-4">
         <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2">
+            <div class="d-flex justify-content-between align-items-start mb-2 page-heading-row">
                 <div>
                     <h4 class="mb-1">@_pfmea.Name</h4>
                     <span class="text-muted me-3"><code>@_pfmea.Code</code></span>
@@ -37,7 +37,7 @@ else
                     <span class="badge bg-dark">v@_pfmea.Version</span>
                     <span class="ms-3 text-muted small">Process: <a href="processes/@_pfmea.ProcessId">@_pfmea.ProcessName</a></span>
                 </div>
-                <div class="d-flex gap-1">
+                <div class="d-flex gap-1 flex-wrap">
                     <button class="btn btn-outline-info btn-sm" @onclick="Branch" title="Create new version">
                         <i class="bi bi-git me-1"></i>Branch
                     </button>
@@ -95,13 +95,13 @@ else
                         <table class="table table-sm table-hover align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Step Function</th>
+                                    <th class="col-hide-mobile">Step Function</th>
                                     <th>Failure Mode</th>
-                                    <th>Failure Effect</th>
-                                    <th>Failure Cause</th>
-                                    <th title="Severity">S</th>
-                                    <th title="Occurrence">O</th>
-                                    <th title="Detection">D</th>
+                                    <th class="col-hide-mobile">Failure Effect</th>
+                                    <th class="col-hide-mobile">Failure Cause</th>
+                                    <th class="col-hide-mobile" title="Severity">S</th>
+                                    <th class="col-hide-mobile" title="Occurrence">O</th>
+                                    <th class="col-hide-mobile" title="Detection">D</th>
                                     <th title="Risk Priority Number">RPN</th>
                                     <th>Actions</th>
                                     <th style="width:80px"></th>
@@ -111,13 +111,13 @@ else
                                 @foreach (var fm in grp.OrderBy(f => f.CreatedAt))
                                 {
                                     <tr>
-                                        <td class="small">@fm.StepFunction</td>
+                                        <td class="small col-hide-mobile">@fm.StepFunction</td>
                                         <td class="small fw-semibold">@fm.FailureMode</td>
-                                        <td class="small">@fm.FailureEffect</td>
-                                        <td class="small text-muted">@(fm.FailureCause ?? "—")</td>
-                                        <td><span class="badge @SeverityBadge(fm.Severity)">@fm.Severity</span></td>
-                                        <td><span class="badge bg-secondary">@fm.Occurrence</span></td>
-                                        <td><span class="badge bg-secondary">@fm.Detection</span></td>
+                                        <td class="small col-hide-mobile">@fm.FailureEffect</td>
+                                        <td class="small text-muted col-hide-mobile">@(fm.FailureCause ?? "—")</td>
+                                        <td class="col-hide-mobile"><span class="badge @SeverityBadge(fm.Severity)">@fm.Severity</span></td>
+                                        <td class="col-hide-mobile"><span class="badge bg-secondary">@fm.Occurrence</span></td>
+                                        <td class="col-hide-mobile"><span class="badge bg-secondary">@fm.Detection</span></td>
                                         <td><span class="badge @RpnBadge(fm.Rpn) fw-bold">@fm.Rpn</span></td>
                                         <td>
                                             <button class="btn btn-link btn-sm p-0 text-decoration-none"
@@ -173,12 +173,12 @@ else
                                                         <thead class="table-light">
                                                             <tr>
                                                                 <th>Description</th>
-                                                                <th>Responsible</th>
-                                                                <th>Target Date</th>
+                                                                <th class="col-hide-mobile">Responsible</th>
+                                                                <th class="col-hide-mobile">Target Date</th>
                                                                 <th>Status</th>
-                                                                <th>Revised O</th>
-                                                                <th>Revised D</th>
-                                                                <th title="Revised RPN">Rev. RPN</th>
+                                                                <th class="col-hide-mobile">Revised O</th>
+                                                                <th class="col-hide-mobile">Revised D</th>
+                                                                <th class="col-hide-mobile" title="Revised RPN">Rev. RPN</th>
                                                                 <th></th>
                                                             </tr>
                                                         </thead>
@@ -187,12 +187,12 @@ else
                                                             {
                                                                 <tr>
                                                                     <td class="small">@a.Description</td>
-                                                                    <td class="small">@(a.ResponsiblePerson ?? "—")</td>
-                                                                    <td class="small">@(a.TargetDate?.ToString("d") ?? "—")</td>
+                                                                    <td class="small col-hide-mobile">@(a.ResponsiblePerson ?? "—")</td>
+                                                                    <td class="small col-hide-mobile">@(a.TargetDate?.ToString("d") ?? "—")</td>
                                                                     <td><span class="badge @ActionStatusBadge(a.Status)">@a.Status</span></td>
-                                                                    <td class="small">@(a.RevisedOccurrence?.ToString() ?? "—")</td>
-                                                                    <td class="small">@(a.RevisedDetection?.ToString() ?? "—")</td>
-                                                                    <td>
+                                                                    <td class="small col-hide-mobile">@(a.RevisedOccurrence?.ToString() ?? "—")</td>
+                                                                    <td class="small col-hide-mobile">@(a.RevisedDetection?.ToString() ?? "—")</td>
+                                                                    <td class="col-hide-mobile">
                                                                         @if (a.RevisedRpn.HasValue)
                                                                         {
                                                                             <span class="badge @RpnBadge(a.RevisedRpn.Value)">@a.RevisedRpn</span>

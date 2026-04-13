@@ -64,13 +64,14 @@ else
                 }
             </div>
 
-            <!-- Canvas -->
+            <!-- 3D Viewport -->
             <div class="flex-grow-1 position-relative bg-light">
-                <canvas id="factory-canvas" class="w-100 h-100" style="cursor:crosshair"></canvas>
+                <div id="factory-canvas" class="w-100 h-100" style="cursor:default;overflow:hidden"></div>
                 @if (!string.IsNullOrEmpty(_statusMessage))
                 {
-                    <div class="position-absolute bottom-0 start-0 end-0 bg-dark text-white small px-3 py-1 d-flex justify-content-between">
+                    <div class="position-absolute bottom-0 start-0 end-0 bg-dark bg-opacity-75 text-white small px-3 py-1 d-flex justify-content-between" style="z-index:10">
                         <span>@_statusMessage</span>
+                        <span class="d-none d-md-inline text-white-50 me-3">Orbit: drag · Pan: right-drag · Zoom: scroll</span>
                         <span>v@(_plan.Version) · @_plan.Workstations.Count workstations · @_plan.InventoryLocations.Count locations</span>
                     </div>
                 }
@@ -143,7 +144,7 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender && _plan is not null && !_canvasInitialized)
+        if (_plan is not null && !_canvasInitialized)
         {
             try
             {

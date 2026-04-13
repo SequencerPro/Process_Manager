@@ -148,7 +148,7 @@ else
         _loading = true;
         try
         {
-            var result = await Api.GetFloorPlansAsync(status: string.IsNullOrEmpty(_statusFilter) ? null : _statusFilter);
+            var result = await Api.GetFloorPlansAsync(status: string.IsNullOrEmpty(_statusFilter) ? null : _statusFilter, active: true);
             _plans = result?.Items ?? new();
         }
         catch { }

@@ -56,6 +56,8 @@
 | 3.16    | 2026-03-23 | Phase 12f implemented: Participant Portal — `Participant` role (existing in AuthController); `ParticipantLayout.razor` + `ParticipantNavMenu.razor` (minimal sidebar, My Work only); `Portal.razor` (/portal redirect), `PortalMyWork.razor` (/portal/my-work), `PortalExecutionWizard.razor` (/portal/execute/{id}); `RedirectToPortal.razor`; Routes.razor NotAuthorized block redirects Participant role to `/portal/my-work` instead of showing 403; all design/admin pages carry `[Authorize(Roles = "Admin,Engineer")]`; NavMenu design/admin sections wrapped in `<AuthorizeView Roles="Admin,Engineer">`; UserList Edit modal extended with OrgUnit Memberships section — loads current memberships via `GET /api/users/{id}/orgunits`, add via `POST /api/orgunits/{id}/members`, remove via `DELETE /api/orgunits/{id}/members/{memberId}` |
 | 3.15    | 2026-03-23 | Phase 19 design: Warehouse Management — `StorageLocation` entity (zone/aisle/bay/bin hierarchy), `InventoryTransaction` entity (Receipt/Issue/Transfer/Adjustment/Picklist types), `PickList` + `PickListLine` entities, inventory-on-hand view, job-creation picklist generation from BOM/process inputs, ExecutionWizard consumption hook, `WarehouseManagement` nav tab, MCP `get_inventory_status` tool |
 | 3.24    | 2026-04-11 | Phase 22 design: Factory Design Suite — `FloorPlan` entity with JSON-serialised layout document (rooms, workstations, inventory locations, utility lines, annotations); `FloorPlanWorkstation` junction linking visual placements to Equipment/OrgUnit/StorageLocation with assigned Processes and tool Kinds; `FloorPlanInventoryLocation` junction to StorageLocation; material-flow analysis engine (Euclidean distance from workstation process input ports to nearest stocked inventory location); HTML5 Canvas editor via `factory-canvas.js` JS interop (drag-and-drop palette, grid snap, zoom/pan, undo/redo, resize handles, polyline utility drawing); properties panel with Equipment/Process/Kind/StorageLocation pickers; animated flow-arrow overlay; `FloorPlanController` (CRUD + layout save + publish/archive); `FloorPlanWorkstationController` (process/tool management); `get_floor_plan_summary` MCP tool; 10 implementation steps |
+| 3.26    | 2026-04-20 | MVP work stream planned: `docs/mvp-market-analysis.md` defines market need, MVP scope (5 pillars), and 9 customer segments; `docs/mvp-implementation-plan.md` sequences 5 MVP phases (M1 Multi-Tenant Isolation → M2 Onboarding Wizard → M3 Execution Wizard Polish → M4 PFMEA/Control Plan PDF Export → M5 Billing Infrastructure) with task breakdown, test requirements (80+ new tests planned across `MultiTenancyTests`, `OnboardingTests`, `ExecutionWizardUxTests`, `PdfExportTests`, `BillingTests`), ~6-week single-developer timeline, and progress tracker; no code changes yet — planning artifact only |
+| 3.27    | 2026-04-20 | **M1 Multi-Tenant Isolation implemented**: `Tenant` entity (Id/Subdomain/Name/Status/CreatedAt/UpdatedAt) with `TenantStatus` enum (Trial/Active/Suspended/Archived) and sentinel `DefaultTenantId` for backfill; `TenantId` column on `BaseEntity` → stamped on all 74 domain entities; `ApplicationUser.TenantId`/`IsPlatformAdmin`; `ITenantContext`/`TenantContext` scoped service with `BeginScope` pattern for background work; `TenantSaveChangesInterceptor` stamps inserts + blocks cross-tenant updates (defence-in-depth); EF global query filter applied via reflection to every BaseEntity-derived type; `TenantContextMiddleware` reads `tenant_id`/`platform_admin` claims from JWT; `AuthController.GenerateJwt` issues tenant_id claim; `PlatformTenantsController` (`GET/POST /api/platform/tenants`, `PATCH /api/platform/tenants/{id}/status`) gated by `PlatformAdminPolicy`; `Phase_MVP01_MultiTenancy` EF migration (backfills existing rows to `DefaultTenantId`, creates `Tenants` table, adds `TenantId`/`IsPlatformAdmin` to AspNetUsers); `TestWebApplicationFactory` extended with `CreateTenant`/`CreateTenantClient`/`CreatePlatformAdminClient` and default-tenant seeding; 14 new `MultiTenancyTests` (JWT claim shape, cross-tenant read/write isolation, interceptor stamping, TenantId immutability on update, interceptor defence-in-depth, platform-admin endpoint gating, tenant provisioning, duplicate subdomain rejection, status updates); full test suite green (508 tests) |
 | 3.25    | 2026-04-11 | Phase 22 implemented: 5 domain entities (`FloorPlan`, `FloorPlanWorkstation`, `FloorPlanWorkstationProcess`, `FloorPlanWorkstationTool`, `FloorPlanInventoryLocation`); `FloorPlanStatus` enum (Draft/Published/Archived); `Phase22_FactoryDesignSuite` EF migration; `Phase22Dtos.cs` (20+ DTOs including material-flow request/result); `FloorPlansController` (CRUD + layout save with version increment + publish/archive lifecycle + workstation process/tool management + inventory location linkage + material-flow analysis endpoint with Euclidean distance computation and on-hand inventory lookup); 25 integration tests in `FloorPlanTests.cs` (CRUD, duplicate code rejection, layout save version increment, soft-delete, status transitions with invalid state checks, archived layout rejection, workstation CRUD with duplicate placement detection, process/tool/inventory-location management, material-flow analysis with unresolved and stocked scenarios, list/filter endpoints); `FactoryDesignList.razor` (card grid with status badges, workstation/location counts, status filter, create modal); `FactoryDesignEditor.razor` (toolbar, element palette sidebar, HTML5 Canvas mount, properties panel placeholder, status bar); `factory-canvas.js` ES module (~580 lines: grid rendering, 7 element types with distinct visuals, select/draw tools, snap-to-grid, zoom/pan, resize handles, keyboard shortcuts, HiDPI support, Blazor JS interop callbacks); 7 ApiClient methods; NavMenu Factory Design entry under Production |
 | 3.23    | 2026-04-11 | Mobile optimization plan: 16 work packages covering all 77 pages — WP1 MyWork/MyActions, WP2 ExecutionWizard, WP3–7 all list pages (page-heading-row, flex-wrap, col-hide-mobile), WP8–9 dashboards (stat scaling, KPI grid fixes), WP10–12 all detail pages (header wrapping, sub-table column hiding), WP13 matrix/grid pages (sticky first column, scroll shadows), WP14 form pages (login card max-width fix), WP15 shared components (Pager wrap, Toast mobile, global CSS consolidation), WP16 portal pages |
 | 3.22    | 2026-04-10 | Mobile browser optimization: collapsible off-canvas sidebar with hamburger toggle (NavMenu IsOpen/OnClose parameters, MainLayout mobile topbar + backdrop), full responsive CSS (4 breakpoint media queries for sidebar drawer, touch targets, full-screen modals, table column hiding), page-level fixes (SearchBox class-based width, flex-wrap toolbars, page-heading-row, Dashboard de-duped padding, builder mobile info banners, col-hide-mobile on secondary table columns), reflection-based MobileLayoutTests (5 tests) |
@@ -2800,7 +2802,45 @@ ES module loaded via Blazor JS interop. Manages the HTML5 Canvas rendering loop 
 
 ---
 
-### Phase 23+ — Integrations (future)
+### Phase 23 — BOM-Aware Process Validation
+
+**Status:** Implemented — extends the existing `GET /api/processes/{processId}/validate` endpoint with Bill-of-Materials coverage checks.
+
+**Motivation.** Phase 21 (type-system work) made Kinds first-class assemblies by giving each Kind a collection of `BomLine`s. Phase 3 (Process composition) independently models step inputs and outputs via typed, quantified Material ports. The two models met but did not cross-check: a released Process could produce an assembly Kind while consuming the wrong components, wrong quantities, or missing components entirely. This phase closes that gap at validation time — before release or execution.
+
+**Rule.** For every distinct effective **output** Kind in a Process that has a non-empty Bill of Materials, the sum of effective **input** port quantities across all steps (matched by `ComponentKindId`) must satisfy every BomLine's required quantity.
+
+**Effective-port resolution.** Each ProcessStep's port values come from the underlying template `Port` merged with any `ProcessStepPortOverride` (null override = keep template default). The validator operates on this merged view, so `KindIdOverride`, `QtyRuleModeOverride`, and `QtyRuleNOverride` all participate correctly.
+
+**How each port contributes to the sum.**
+
+| `QtyRuleMode` | Min contribution | Max contribution |
+|---|---|---|
+| `Exactly` | `QtyRuleN` | `QtyRuleN` |
+| `ZeroOrN` | `0` (conditional) | `QtyRuleN` |
+| `Range` | `QtyRuleMin` | `QtyRuleMax` |
+| `Unbounded` | `QtyRuleMin` | unbounded (∞) |
+
+Contributions for a given component Kind are accumulated across all Material input ports in the process, yielding a `[totalMin, totalMax?]` interval.
+
+**Emitted diagnostics.**
+- **Error** — `Output Kind 'X' requires component 'Y' (qty N) but no input port consumes it.` when no input port matches a BomLine's `ComponentKindId`.
+- **Error** — `Inputs for component 'Y' sum to [min..max] which does not cover required BOM quantity Q for output Kind 'X'.` when the required quantity falls outside the aggregated interval.
+- **Warning** — `Component 'Y' coverage for 'X' depends on a conditional (ZeroOrN) input port; execution may not deliver the BOM quantity.` when at least one contributing port is `ZeroOrN` and total coverage is only reached if the conditional flow fires.
+- **Warning** — `Output Kind 'X' is marked Make but has no Bill of Materials — input coverage cannot be verified.` when a Make-sourced output has no BomLines at all.
+
+**Out of scope for this phase.**
+- Multi-level BOM explosion (recursing into a component Kind's own BOM). Component Kinds are treated as leaves even when they are themselves assemblies.
+- Parameter / Characteristic / Condition ports — only Material ports participate.
+- No UI changes: the existing **Validate** button in `ProcessBuilder.razor` already renders both error and warning lists.
+
+**Key code.**
+- Controller: `ProcessesController.AppendBomValidation` + `ResolveEffectivePorts` (private helpers). Called at the end of `Validate` (`src/ProcessManager.Api/Controllers/ProcessesController.cs`).
+- Tests: `tests/ProcessManager.Tests/ProcessBomValidationTests.cs` — 11 integration tests covering matching, missing, under-quantity, summed-across-steps, Range coverage, Range under, port override, multi-output BOMs, ZeroOrN warning, no-BOM skip, Make-without-BOM warning.
+
+---
+
+### Phase 24+ — Integrations (future)
 
 **Goal:** Connect the process system to peripheral business functions.
 

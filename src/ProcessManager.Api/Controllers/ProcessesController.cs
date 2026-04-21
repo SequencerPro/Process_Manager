@@ -798,7 +798,191 @@ public class ProcessesController : ControllerBase
             }
         }
 
+        // Phase 23: Validate BOM coverage for assembly outputs.
+        await AppendBomValidation(process, errors, warnings);
+
         return Ok(new ProcessValidationResultDto(errors, warnings));
+    }
+
+    // ──────────── BOM Validation (Phase 23) ────────────
+
+    /// <summary>
+    /// Effective (template + override) view of a Port on a specific ProcessStep.
+    /// A null override preserves the template default.
+    /// </summary>
+    private sealed record EffectivePort(
+        Guid ProcessStepId,
+        int StepSequence,
+        Guid PortId,
+        string PortName,
+        PortDirection Direction,
+        PortType PortType,
+        Guid? KindId,
+        QuantityRuleMode? QtyRuleMode,
+        int? QtyRuleN,
+        int? QtyRuleMin,
+        int? QtyRuleMax);
+
+    /// <summary>
+    /// For every ProcessStep × Port on its StepTemplate, merge any ProcessStepPortOverride
+    /// onto the template defaults and return the flattened effective view.
+    /// </summary>
+    private static List<EffectivePort> ResolveEffectivePorts(
+        Process process,
+        IDictionary<Guid, List<Port>> templatePortsByTemplateId)
+    {
+        var result = new List<EffectivePort>();
+        foreach (var step in process.ProcessSteps)
+        {
+            if (!templatePortsByTemplateId.TryGetValue(step.StepTemplateId, out var templatePorts))
+                continue;
+
+            foreach (var port in templatePorts)
+            {
+                var ov = step.PortOverrides.FirstOrDefault(o => o.PortId == port.Id);
+                result.Add(new EffectivePort(
+                    step.Id,
+                    step.Sequence,
+                    port.Id,
+                    ov?.NameOverride ?? port.Name,
+                    ov?.DirectionOverride ?? port.Direction,
+                    port.PortType,
+                    ov?.KindIdOverride ?? port.KindId,
+                    ov?.QtyRuleModeOverride ?? port.QtyRuleMode,
+                    ov?.QtyRuleNOverride ?? port.QtyRuleN,
+                    port.QtyRuleMin,
+                    port.QtyRuleMax));
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Validates that, for every output port whose effective Kind has a Bill of Materials,
+    /// the sum of the process's Material input port quantities covers each BomLine.
+    /// Emits errors for missing or under-provided components and warnings for conditional
+    /// (ZeroOrN) or missing-BOM situations.
+    /// </summary>
+    private async Task AppendBomValidation(Process process, List<string> errors, List<string> warnings)
+    {
+        if (process.ProcessSteps.Count == 0) return;
+
+        var templateIds = process.ProcessSteps.Select(ps => ps.StepTemplateId).Distinct().ToList();
+        var templatePorts = await _db.Ports
+            .Where(p => templateIds.Contains(p.StepTemplateId))
+            .ToListAsync();
+        var portsByTemplate = templatePorts
+            .GroupBy(p => p.StepTemplateId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var effectivePorts = ResolveEffectivePorts(process, portsByTemplate);
+
+        // Material input ports keyed by effective Kind (for BOM sum lookups).
+        var materialInputs = effectivePorts
+            .Where(ep => ep.PortType == PortType.Material
+                      && ep.Direction == PortDirection.Input
+                      && ep.KindId.HasValue)
+            .ToList();
+
+        // Distinct output Kinds in this process (only Material).
+        var outputKindIds = effectivePorts
+            .Where(ep => ep.PortType == PortType.Material
+                      && ep.Direction == PortDirection.Output
+                      && ep.KindId.HasValue)
+            .Select(ep => ep.KindId!.Value)
+            .Distinct()
+            .ToList();
+
+        if (outputKindIds.Count == 0) return;
+
+        // Eager load any BOMs and their component Kinds + parent Kinds (for name display).
+        var boms = await _db.BomLines
+            .Include(b => b.ComponentKind)
+            .Include(b => b.ParentKind)
+            .Where(b => outputKindIds.Contains(b.ParentKindId))
+            .ToListAsync();
+
+        // Warn when a Make-sourced output Kind is missing a BOM entirely.
+        var kindsWithBoms = boms.Select(b => b.ParentKindId).ToHashSet();
+        var makeOutputKindsWithoutBom = await _db.Kinds
+            .Where(k => outputKindIds.Contains(k.Id)
+                     && !kindsWithBoms.Contains(k.Id)
+                     && k.SourceType == KindSourceType.Make)
+            .ToListAsync();
+        foreach (var k in makeOutputKindsWithoutBom)
+            warnings.Add($"Output Kind '{k.Code}' ({k.Name}) is marked Make but has no Bill of Materials — input coverage cannot be verified.");
+
+        // Check each parent BOM as a group.
+        foreach (var group in boms.GroupBy(b => b.ParentKindId))
+        {
+            var parent = group.First().ParentKind;
+            foreach (var line in group.OrderBy(b => b.LineNumber))
+            {
+                var contributingPorts = materialInputs
+                    .Where(mi => mi.KindId == line.ComponentKindId)
+                    .ToList();
+
+                if (contributingPorts.Count == 0)
+                {
+                    errors.Add(
+                        $"Output Kind '{parent.Code}' requires component '{line.ComponentKind.Code}' " +
+                        $"(qty {line.Quantity:0.####}) but no input port consumes it.");
+                    continue;
+                }
+
+                // Accumulate the contribution range [min, max?] from every contributing input port.
+                decimal totalMin = 0m;
+                decimal? totalMax = 0m;
+                bool hasZeroOrN = false;
+
+                foreach (var ep in contributingPorts)
+                {
+                    switch (ep.QtyRuleMode)
+                    {
+                        case QuantityRuleMode.Exactly:
+                            var n = ep.QtyRuleN ?? 0;
+                            totalMin += n;
+                            if (totalMax.HasValue) totalMax += n;
+                            break;
+                        case QuantityRuleMode.ZeroOrN:
+                            hasZeroOrN = true;
+                            // Could deliver 0 .. N
+                            if (totalMax.HasValue) totalMax += ep.QtyRuleN ?? 0;
+                            // totalMin unchanged (may be 0)
+                            break;
+                        case QuantityRuleMode.Range:
+                            totalMin += ep.QtyRuleMin ?? 0;
+                            if (totalMax.HasValue) totalMax += ep.QtyRuleMax ?? 0;
+                            break;
+                        case QuantityRuleMode.Unbounded:
+                            totalMin += ep.QtyRuleMin ?? 0;
+                            totalMax = null;
+                            break;
+                        default:
+                            // Port has no quantity rule — conservatively contributes nothing.
+                            break;
+                    }
+                }
+
+                var required = line.Quantity;
+                var belowMax = totalMax is null || required <= totalMax.Value;
+                var aboveMin = required >= totalMin;
+
+                if (!belowMax || !aboveMin)
+                {
+                    var maxStr = totalMax.HasValue ? totalMax.Value.ToString("0.####") : "∞";
+                    errors.Add(
+                        $"Inputs for component '{line.ComponentKind.Code}' sum to [{totalMin:0.####}..{maxStr}] " +
+                        $"which does not cover required BOM quantity {required:0.####} for output Kind '{parent.Code}'.");
+                }
+                else if (hasZeroOrN)
+                {
+                    warnings.Add(
+                        $"Component '{line.ComponentKind.Code}' coverage for '{parent.Code}' depends on a " +
+                        "conditional (ZeroOrN) input port; execution may not deliver the BOM quantity.");
+                }
+            }
+        }
     }
 
     // ──────────── Lifecycle ────────────

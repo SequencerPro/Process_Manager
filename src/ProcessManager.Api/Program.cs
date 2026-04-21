@@ -33,8 +33,14 @@ static string ToNpgsqlConnectionString(string raw)
 
 var connStr = ToNpgsqlConnectionString(rawConnStr);
 
-builder.Services.AddDbContext<ProcessManagerDbContext>(options =>
-    options.UseNpgsql(connStr));
+builder.Services.AddScoped<ProcessManager.Api.Services.ITenantContext, ProcessManager.Api.Services.TenantContext>();
+builder.Services.AddScoped<ProcessManager.Api.Data.TenantSaveChangesInterceptor>();
+
+builder.Services.AddDbContext<ProcessManagerDbContext>((sp, options) =>
+{
+    options.UseNpgsql(connStr);
+    options.AddInterceptors(sp.GetRequiredService<ProcessManager.Api.Data.TenantSaveChangesInterceptor>());
+});
 
 // ── ASP.NET Core Identity ─────────────────────────────────────────────────────
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -70,7 +76,11 @@ builder.Services.AddAuthentication(options =>
         };
     });
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(ProcessManager.Api.Controllers.PlatformAdminPolicy.Name, policy =>
+        policy.RequireClaim("platform_admin", "true"));
+});
 builder.Services.AddHttpContextAccessor();
 
 // ── CORS (allow Blazor frontend to fetch files directly, e.g. 3D model viewer) ──
@@ -160,6 +170,7 @@ if (!app.Environment.IsDevelopment())
 app.UseStaticFiles();
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
+app.UseMiddleware<ProcessManager.Api.Middleware.TenantContextMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 
@@ -181,31 +192,53 @@ try
     else
         db.Database.EnsureCreated();
 
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    foreach (var role in new[] { "Admin", "Engineer", "Participant" })
+    // Ensure the Default tenant exists before any seeding runs — every seeded row
+    // is stamped with its Id via the SaveChanges interceptor.
+    if (!db.Tenants.IgnoreQueryFilters().Any(t => t.Id == ProcessManager.Domain.Entities.Tenant.DefaultTenantId))
     {
-        if (!await roleManager.RoleExistsAsync(role))
-            await roleManager.CreateAsync(new IdentityRole(role));
-    }
-
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-    if (!userManager.Users.Any())
-    {
-        var adminUser = new ApplicationUser
+        db.Tenants.Add(new ProcessManager.Domain.Entities.Tenant
         {
-            UserName = "admin",
-            Email = "admin@processmanager.local",
-            DisplayName = "Administrator"
-        };
-        var adminPassword = app.Configuration["SeedAdminPassword"] ?? "Admin1234!";
-        var result = await userManager.CreateAsync(adminUser, adminPassword);
-        if (result.Succeeded)
-            await userManager.AddToRoleAsync(adminUser, "Admin");
+            Id = ProcessManager.Domain.Entities.Tenant.DefaultTenantId,
+            Subdomain = "default",
+            Name = "Default Tenant",
+            Status = ProcessManager.Domain.Entities.TenantStatus.Active,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
     }
 
-    await DataSeeder.SeedAsync(db);
-    await DataSeeder.SeedQmsDocumentsAsync(db);
-    await DataSeeder.SeedTrainingDocumentsAsync(db);
+    // Run seeding inside a tenant scope so every inserted row gets stamped with DefaultTenantId.
+    var tenantContext = scope.ServiceProvider.GetRequiredService<ProcessManager.Api.Services.ITenantContext>();
+    using (tenantContext.BeginScope(ProcessManager.Domain.Entities.Tenant.DefaultTenantId))
+    {
+        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        foreach (var role in new[] { "Admin", "Engineer", "Participant" })
+        {
+            if (!await roleManager.RoleExistsAsync(role))
+                await roleManager.CreateAsync(new IdentityRole(role));
+        }
+
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        if (!userManager.Users.Any())
+        {
+            var adminUser = new ApplicationUser
+            {
+                UserName = "admin",
+                Email = "admin@processmanager.local",
+                DisplayName = "Administrator",
+                TenantId = ProcessManager.Domain.Entities.Tenant.DefaultTenantId
+            };
+            var adminPassword = app.Configuration["SeedAdminPassword"] ?? "Admin1234!";
+            var result = await userManager.CreateAsync(adminUser, adminPassword);
+            if (result.Succeeded)
+                await userManager.AddToRoleAsync(adminUser, "Admin");
+        }
+
+        await DataSeeder.SeedAsync(db);
+        await DataSeeder.SeedQmsDocumentsAsync(db);
+        await DataSeeder.SeedTrainingDocumentsAsync(db);
+    }
 }
 catch (Exception ex)
 {

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using ProcessManager.Api.Data;
+using ProcessManager.Domain.Entities;
 
 namespace ProcessManager.Tests;
 
@@ -24,6 +25,7 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
     public const string TestIssuer = "ProcessManager.Api";
     public const string TestAudience = "ProcessManager";
     public const string DefaultTestUserId = "test-user-id";
+    public static readonly Guid DefaultTenantId = Tenant.DefaultTenantId;
 
     private readonly string _dbName = Guid.NewGuid().ToString();
 
@@ -49,9 +51,12 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
             if (descriptor is not null)
                 services.Remove(descriptor);
 
-            // Add in-memory database
-            services.AddDbContext<ProcessManagerDbContext>(options =>
-                options.UseInMemoryDatabase(_dbName));
+            // Add in-memory database with the tenant-stamping interceptor
+            services.AddDbContext<ProcessManagerDbContext>((sp, options) =>
+            {
+                options.UseInMemoryDatabase(_dbName);
+                options.AddInterceptors(sp.GetRequiredService<TenantSaveChangesInterceptor>());
+            });
 
             // Override JWT validation parameters to use the known test key
             // (PostConfigure ensures this runs after Program.cs configures JWT)
@@ -69,18 +74,52 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
                 };
             });
 
-            // Ensure database is created
+            // Ensure database is created and seed the default tenant row so
+            // SaveChanges-stamped inserts have a valid FK target.
             var sp = services.BuildServiceProvider();
             using var scope = sp.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ProcessManagerDbContext>();
             db.Database.EnsureCreated();
+            if (!db.Tenants.IgnoreQueryFilters().Any(t => t.Id == Tenant.DefaultTenantId))
+            {
+                db.Tenants.Add(new Tenant
+                {
+                    Id = Tenant.DefaultTenantId,
+                    Subdomain = "default",
+                    Name = "Default Test Tenant",
+                    Status = TenantStatus.Active,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+                db.SaveChanges();
+            }
         });
 
         builder.UseEnvironment("Testing");
     }
 
+    /// <summary>Provision a fresh tenant directly in the DB (bypasses platform API). Used by isolation tests.</summary>
+    public Guid CreateTenant(string subdomain, string? name = null)
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ProcessManagerDbContext>();
+        var tenant = new Tenant
+        {
+            Id = Guid.NewGuid(),
+            Subdomain = subdomain,
+            Name = name ?? subdomain,
+            Status = TenantStatus.Active,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.Tenants.Add(tenant);
+        db.SaveChanges();
+        return tenant.Id;
+    }
+
     /// <summary>
-    /// Creates an HttpClient pre-configured with a valid Admin JWT bearer token for the default test user.
+    /// Creates an HttpClient pre-configured with a valid Admin JWT bearer token for the default test user
+    /// scoped to the Default tenant. The overwhelming majority of existing tests use this.
     /// </summary>
     public HttpClient CreateAuthenticatedClient()
     {
@@ -91,31 +130,59 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>
-    /// Creates an HttpClient authenticated as the specified user ID.
+    /// Creates an HttpClient authenticated as the specified user ID, with the given role,
+    /// scoped to the Default tenant.
     /// </summary>
     public HttpClient CreateAuthenticatedClient(string userId, string role = "Admin")
     {
         var client = CreateClient();
         client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", GenerateJwt(userId, role));
+            new AuthenticationHeaderValue("Bearer", GenerateJwt(userId, role, DefaultTenantId));
         return client;
     }
 
-    public static string GenerateAdminJwt() => GenerateJwt(DefaultTestUserId, "Admin");
+    /// <summary>Creates an HttpClient scoped to an arbitrary tenant — used by isolation tests.</summary>
+    public HttpClient CreateTenantClient(Guid tenantId, string userId = DefaultTestUserId, string role = "Admin")
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", GenerateJwt(userId, role, tenantId));
+        return client;
+    }
+
+    /// <summary>Creates an HttpClient bearing the platform_admin claim — bypasses tenant filtering.</summary>
+    public HttpClient CreatePlatformAdminClient()
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", GeneratePlatformAdminJwt());
+        return client;
+    }
+
+    public static string GenerateAdminJwt() => GenerateJwt(DefaultTestUserId, "Admin", DefaultTenantId);
+
+    public static string GeneratePlatformAdminJwt() =>
+        GenerateJwt("platform-admin-id", "Admin", DefaultTenantId, isPlatformAdmin: true);
 
     public static string GenerateJwt(string userId, string role = "Admin")
+        => GenerateJwt(userId, role, DefaultTenantId);
+
+    public static string GenerateJwt(string userId, string role, Guid tenantId, bool isPlatformAdmin = false)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(TestJwtKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.Name, userId),
-            new Claim(ClaimTypes.Email, $"{userId}@test.local"),
-            new Claim(ClaimTypes.Role, role),
-            new Claim(JwtRegisteredClaimNames.Sub, userId),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            new(ClaimTypes.Name, userId),
+            new(ClaimTypes.Email, $"{userId}@test.local"),
+            new(ClaimTypes.Role, role),
+            new(JwtRegisteredClaimNames.Sub, userId),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new("tenant_id", tenantId.ToString())
         };
+        if (isPlatformAdmin)
+            claims.Add(new Claim("platform_admin", "true"));
 
         var token = new JwtSecurityToken(
             issuer: TestIssuer,

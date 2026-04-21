@@ -1,6 +1,8 @@
+using System.Linq.Expressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using ProcessManager.Api.Services;
 using ProcessManager.Domain.Entities;
 using ProcessManager.Domain.Enums;
 
@@ -9,14 +11,20 @@ namespace ProcessManager.Api.Data;
 public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
 {
     private readonly IHttpContextAccessor? _httpContextAccessor;
+    private readonly ITenantContext? _tenantContext;
 
     public ProcessManagerDbContext(
         DbContextOptions<ProcessManagerDbContext> options,
-        IHttpContextAccessor? httpContextAccessor = null)
+        IHttpContextAccessor? httpContextAccessor = null,
+        ITenantContext? tenantContext = null)
         : base(options)
     {
         _httpContextAccessor = httpContextAccessor;
+        _tenantContext = tenantContext;
     }
+
+    // Multi-tenancy
+    public DbSet<Tenant> Tenants => Set<Tenant>();
 
     // Phase 1: Type System
     public DbSet<Kind> Kinds => Set<Kind>();
@@ -1684,6 +1692,52 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(l => l.StorageLocationId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        // --- Tenant (root entity — not tenant-owned itself) ---
+        modelBuilder.Entity<Tenant>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.HasIndex(t => t.Subdomain).IsUnique();
+            e.Property(t => t.Subdomain).HasMaxLength(63).IsRequired();
+            e.Property(t => t.Name).HasMaxLength(200).IsRequired();
+            e.Property(t => t.Status).HasConversion<string>().HasMaxLength(20);
+        });
+
+        ApplyTenantQueryFilters(modelBuilder);
+    }
+
+    /// <summary>
+    /// Apply a global query filter of the form <c>e =&gt; e.TenantId == _tenantContext.CurrentTenantId
+    /// || _tenantContext.IsPlatformAdmin</c> to every entity that inherits <see cref="BaseEntity"/>.
+    /// Built via expression trees because <c>HasQueryFilter</c> requires a strongly-typed lambda.
+    /// </summary>
+    private void ApplyTenantQueryFilters(ModelBuilder modelBuilder)
+    {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            var clr = entityType.ClrType;
+            if (!typeof(BaseEntity).IsAssignableFrom(clr)) continue;
+
+            // Build: (TEntity e) => e.TenantId == ctx.CurrentTenantId || ctx.IsPlatformAdmin || ctx == null
+            var method = typeof(ProcessManagerDbContext)
+                .GetMethod(nameof(BuildTenantFilter),
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .MakeGenericMethod(clr);
+
+            var filter = method.Invoke(this, null);
+            modelBuilder.Entity(clr).HasQueryFilter((LambdaExpression)filter!);
+        }
+    }
+
+    private LambdaExpression BuildTenantFilter<TEntity>() where TEntity : BaseEntity
+    {
+        // The filter captures _this_ context so it re-evaluates on every query against
+        // the current request's tenant context.
+        Expression<Func<TEntity, bool>> filter = e =>
+            _tenantContext == null
+            || _tenantContext.IsPlatformAdmin
+            || e.TenantId == _tenantContext.CurrentTenantId;
+        return filter;
     }
 
     public override int SaveChanges()

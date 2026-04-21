@@ -1039,3 +1039,76 @@ Process: Widget Finishing (WDG-FINISH-01)
 6. Complete Job → Status: Completed
    → Item WDG-001: Kind=Widget, Grade=Passed, Status=Completed
 ```
+
+## Phase 23 BOM-Aware Process Validation
+
+Phase 21 introduced `BomLine` — a junction between a parent (assembly) `Kind` and a component `Kind` with a decimal `Quantity`. Phase 3 independently modelled Process step inputs and outputs via typed, quantified Material `Port`s. Phase 23 adds a cross-entity rule that validates the two against each other.
+
+### Rule 12: Process inputs must cover assembly-output BOMs
+
+**When it fires.** `GET /api/processes/{processId}/validate` iterates every effective Material **output** port in the Process. For each output whose `Kind` has one or more `BomLine`s, the validator sums every effective Material **input** port across all steps whose effective `KindId` equals the `BomLine.ComponentKindId`, and compares the sum to the required `Quantity`.
+
+**Effective port resolution.** A `ProcessStep`'s effective port values are the template `Port` values merged with any `ProcessStepPortOverride` (null override = keep template default). The validator uses `ov.KindIdOverride ?? port.KindId`, `ov.QtyRuleModeOverride ?? port.QtyRuleMode`, and `ov.QtyRuleNOverride ?? port.QtyRuleN`.
+
+**Quantity contribution by `QuantityRuleMode`.**
+
+| Mode | Min contribution | Max contribution |
+|---|---|---|
+| `Exactly` | `QtyRuleN` | `QtyRuleN` |
+| `ZeroOrN` | `0` | `QtyRuleN` (conditional) |
+| `Range` | `QtyRuleMin` | `QtyRuleMax` |
+| `Unbounded` | `QtyRuleMin` | unbounded |
+
+Contributions for a given component `Kind` are aggregated into `[totalMin, totalMax?]`. The rule passes when `totalMin ≤ Quantity ≤ totalMax` (or `totalMax` is unbounded and `totalMin ≤ Quantity`).
+
+**Diagnostics.**
+- Error: no input port consumes a BomLine's `ComponentKindId`.
+- Error: the aggregate interval does not cover `BomLine.Quantity`.
+- Warning: a contributing port is `ZeroOrN` — coverage depends on the conditional flow firing.
+- Warning: an output Kind is `SourceType.Make` but has no BomLines at all (coverage cannot be verified).
+
+**Out of scope.** Multi-level (recursive) BOM explosion; non-Material ports; grade-matching within the BOM check.
+
+---
+
+## Phase MVP-01: Multi-Tenant Isolation
+
+### Tenant
+
+The root of the multi-tenancy model. Every `BaseEntity`-derived row carries a `TenantId` foreign reference (not enforced as a DB FK to avoid migration ordering constraints) that pins the row to exactly one tenant.
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | Guid (PK) | Non-sequential |
+| `Subdomain` | string(63), unique | Lowercased on create |
+| `Name` | string(200) | Display name |
+| `Status` | `TenantStatus` enum | `Trial` \| `Active` \| `Suspended` \| `Archived` |
+| `CreatedAt`, `UpdatedAt` | DateTime (UTC) | |
+
+A **Default Tenant** sentinel (`00000000-0000-0000-0000-000000000001`) exists to carry all pre-tenancy rows. The `Phase_MVP01_MultiTenancy` migration backfills every existing `TenantId` column to this value.
+
+### Tenancy enforcement
+
+- **Query filter** (global): applied via reflection to every entity deriving `BaseEntity`. Filter expression:
+  `e => _tenantContext == null || _tenantContext.IsPlatformAdmin || e.TenantId == _tenantContext.CurrentTenantId`.
+  Platform admins bypass the filter for cross-tenant support operations.
+- **SaveChangesInterceptor** (`TenantSaveChangesInterceptor`):
+  - On `Added`, stamps `TenantId = CurrentTenantId` when empty.
+  - On `Modified`, freezes `TenantId` (marks as `IsModified=false`) and throws `InvalidOperationException` if the loaded row's TenantId ≠ current context (defence-in-depth if a platform admin query leaks a row into a regular tenant's change tracker).
+- **JWT claim** `tenant_id` — issued by `AuthController.GenerateJwt`, read by `TenantContextMiddleware` and pushed into `ITenantContext`.
+- **Platform admin claim** `platform_admin: true` — set on `ApplicationUser.IsPlatformAdmin`, gates the `PlatformAdminPolicy` used by `PlatformTenantsController`.
+
+### ApplicationUser additions
+
+| Field | Type | Notes |
+|---|---|---|
+| `TenantId` | `Guid?` | Owning tenant; defaults to `DefaultTenantId` |
+| `IsPlatformAdmin` | `bool` | Grants cross-tenant access via query-filter bypass |
+
+### Platform provisioning API
+
+`PlatformTenantsController` (route `/api/platform/tenants`, protected by `PlatformAdminPolicy`):
+- `GET /` — list all tenants
+- `GET /{id}` — get one
+- `POST /` — create (validates subdomain uniqueness; new tenants start in `Trial`)
+- `PATCH /{id}/status` — change `Status`

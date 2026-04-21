@@ -231,6 +231,12 @@ public class AuthController : ControllerBase
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
+        // Multi-tenancy claims — consumed by TenantContextMiddleware.
+        if (user.TenantId is Guid tenantId)
+            claims.Add(new Claim("tenant_id", tenantId.ToString()));
+        if (user.IsPlatformAdmin)
+            claims.Add(new Claim("platform_admin", "true"));
+
         if (!string.IsNullOrWhiteSpace(user.DisplayName))
             claims.Add(new Claim("display_name", user.DisplayName));
 

@@ -29,7 +29,10 @@
       "Bash(find /c/Users/James/source/repos/Process_Manager -name *.md -type f)",
       "Bash(find /c/Users/James/source/repos/Process_Manager -name *.csproj)",
       "Bash(grep -E \"\\\\.\\(cs\\)$\")",
-      "Bash(find /c/Users/James/source/repos/Process_Manager/src -type f -name DiagramCanvas.razor -o -name *Canvas*.razor)"
+      "Bash(find /c/Users/James/source/repos/Process_Manager/src -type f -name DiagramCanvas.razor -o -name *Canvas*.razor)",
+      "Bash(python -c ' *)",
+      "Bash(sed -i 's/00000000-0000-0000-0000-000000000000/00000000-0000-0000-0000-000000000001/g' 20260421041658_Phase_MVP01_MultiTenancy.cs)",
+      "Read(//c/c/Users/James/source/repos/Process_Manager/src/ProcessManager.Api/Migrations/**)"
     ]
   }
 }

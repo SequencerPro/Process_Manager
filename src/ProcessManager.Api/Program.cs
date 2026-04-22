@@ -35,6 +35,7 @@ var connStr = ToNpgsqlConnectionString(rawConnStr);
 
 builder.Services.AddScoped<ProcessManager.Api.Services.ITenantContext, ProcessManager.Api.Services.TenantContext>();
 builder.Services.AddScoped<ProcessManager.Api.Data.TenantSaveChangesInterceptor>();
+builder.Services.AddSingleton<ProcessManager.Api.Services.JwtTokenService>();
 
 builder.Services.AddDbContext<ProcessManagerDbContext>((sp, options) =>
 {

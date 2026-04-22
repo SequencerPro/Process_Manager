@@ -25,6 +25,8 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
 
     // Multi-tenancy
     public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<TenantOnboardingState> TenantOnboardingStates => Set<TenantOnboardingState>();
+    public DbSet<TenantFeatureFlags> TenantFeatureFlags => Set<TenantFeatureFlags>();
 
     // Phase 1: Type System
     public DbSet<Kind> Kinds => Set<Kind>();
@@ -1701,6 +1703,22 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(t => t.Subdomain).HasMaxLength(63).IsRequired();
             e.Property(t => t.Name).HasMaxLength(200).IsRequired();
             e.Property(t => t.Status).HasConversion<string>().HasMaxLength(20);
+        });
+
+        // --- Tenant Onboarding State (M2) ---
+        modelBuilder.Entity<TenantOnboardingState>(e =>
+        {
+            e.HasKey(s => s.Id);
+            // Exactly one row per tenant.
+            e.HasIndex(s => s.TenantId).IsUnique();
+            e.Property(s => s.Industry).HasConversion<string>().HasMaxLength(20);
+        });
+
+        // --- Tenant Feature Flags (M2) ---
+        modelBuilder.Entity<TenantFeatureFlags>(e =>
+        {
+            e.HasKey(f => f.Id);
+            e.HasIndex(f => f.TenantId).IsUnique();
         });
 
         ApplyTenantQueryFilters(modelBuilder);

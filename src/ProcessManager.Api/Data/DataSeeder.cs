@@ -3247,6 +3247,181 @@ public static class DataSeeder
                 StepExecutionStatus.Completed, stepStart, stepEnd));
         }
     }
+
+    // =========================================================================
+    // M2 — Onboarding sample content
+    // =========================================================================
+
+    /// <summary>IDs of the seeded sample artifacts — returned so the caller can store them on onboarding state.</summary>
+    public record SampleProcessIds(Guid KindId, Guid StepTemplateId, Guid ProcessId);
+
+    /// <summary>Default domain-vocabulary name for a signup industry choice.</summary>
+    public static string ResolveDefaultVocabularyName(OnboardingIndustry industry) => industry switch
+    {
+        OnboardingIndustry.CNC     => "CNC Machining",
+        OnboardingIndustry.PCBA    => "PCB Assembly",
+        OnboardingIndustry.Medical => "Medical Device",
+        _                          => "General Manufacturing"
+    };
+
+    /// <summary>Default "Kind" label for a signup industry choice.</summary>
+    public static string ResolveDefaultKindLabel(OnboardingIndustry industry) => industry switch
+    {
+        OnboardingIndustry.CNC     => "Part",
+        OnboardingIndustry.PCBA    => "Board",
+        OnboardingIndustry.Medical => "Device",
+        _                          => "Part"
+    };
+
+    /// <summary>
+    /// Seed a tiny, runnable sample: one Kind (with default Grade), one StepTemplate
+    /// (input Material port + Inspection prompt + output Material port), one Process
+    /// containing that single step, all in Released state. Returns the IDs so the
+    /// onboarding wizard can deep-link to them.
+    ///
+    /// The <paramref name="tenantId"/> is honoured via the tenant context scope the
+    /// caller has already opened; we still set it explicitly to be robust against
+    /// callers that do not wrap the call in a scope.
+    /// </summary>
+    public static async Task<SampleProcessIds> SeedSampleProcessAsync(
+        ProcessManagerDbContext db,
+        OnboardingIndustry industry,
+        Guid tenantId)
+    {
+        // Industry-specific labels. Codes carry the tenant suffix to avoid clashes
+        // because Code uniqueness is enforced across rows without tenant awareness.
+        var (kindCode, kindName, kindDesc, stepCode, stepName, procCode, procName, inspectLabel, units, min, max, nominal) = industry switch
+        {
+            OnboardingIndustry.CNC => (
+                "SAMPLE-SHAFT", "Sample Shaft", "A demo CNC-turned shaft used by the onboarding wizard.",
+                "SAMPLE-TURN", "Turn Outside Diameter",
+                "SAMPLE-PROC", "Sample Shaft Turning",
+                "Outside diameter (mm)", "mm", 9.95m, 10.05m, 10.00m),
+            OnboardingIndustry.PCBA => (
+                "SAMPLE-PCB", "Sample PCB", "A demo PCB panel used by the onboarding wizard.",
+                "SAMPLE-AOI", "Automated Optical Inspection",
+                "SAMPLE-PROC", "Sample PCB Inspection",
+                "AOI defect count", "defects", 0m, 0m, 0m),
+            OnboardingIndustry.Medical => (
+                "SAMPLE-DEV", "Sample Device", "A demo medical device used by the onboarding wizard.",
+                "SAMPLE-QC", "Final QC Inspection",
+                "SAMPLE-PROC", "Sample Device Final QC",
+                "Leak test pressure (kPa)", "kPa", 98.0m, 102.0m, 100.0m),
+            _ => (
+                "SAMPLE-WIDGET", "Sample Widget", "A demo widget used by the onboarding wizard.",
+                "SAMPLE-INSP", "Widget Inspection",
+                "SAMPLE-PROC", "Sample Widget Inspection",
+                "Widget weight (g)", "g", 49.0m, 51.0m, 50.0m)
+        };
+
+        // Short suffix ensures re-runnability (e.g. dogfood testing) — each call
+        // creates fresh content if existing sample codes are already in the DB.
+        var suffix = tenantId.ToString()[..6].ToUpperInvariant();
+        kindCode  = $"{kindCode}-{suffix}";
+        stepCode  = $"{stepCode}-{suffix}";
+        procCode  = $"{procCode}-{suffix}";
+
+        var now = DateTime.UtcNow;
+
+        // ── Kind + default Grade ─────────────────────────────────────────────
+        var kind = new Kind
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            Code = kindCode, Name = kindName, Description = kindDesc,
+            IsSerialized = false, IsBatchable = true,
+            SourceType = KindSourceType.Make,
+            UnitOfMeasure = "Each"
+        };
+        var gradeNew = new Grade
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            KindId = kind.Id, Code = "NEW", Name = "New", IsDefault = true, SortOrder = 1
+        };
+        var gradePass = new Grade
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            KindId = kind.Id, Code = "PASS", Name = "Passed", IsDefault = false, SortOrder = 2
+        };
+        kind.Grades.Add(gradeNew);
+        kind.Grades.Add(gradePass);
+        db.Kinds.Add(kind);
+
+        // ── StepTemplate with one input port, one output port, one prompt ───
+        var step = new StepTemplate
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            Code = stepCode, Name = stepName,
+            Description = "Sample step seeded by the onboarding wizard. Safe to edit or delete.",
+            Pattern = StepPattern.Transform,
+            Version = 1, IsActive = true,
+            Status = ProcessStatus.Released,
+            IsShared = true,
+            ExpectedDurationMinutes = 5
+        };
+        var inPort = new Port
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            StepTemplateId = step.Id,
+            Name = "Incoming", Direction = PortDirection.Input, PortType = PortType.Material,
+            KindId = kind.Id, GradeId = gradeNew.Id,
+            QtyRuleMode = QuantityRuleMode.Exactly, QtyRuleN = 1,
+            SortOrder = 1
+        };
+        var outPort = new Port
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            StepTemplateId = step.Id,
+            Name = "Inspected", Direction = PortDirection.Output, PortType = PortType.Material,
+            KindId = kind.Id, GradeId = gradePass.Id,
+            QtyRuleMode = QuantityRuleMode.Exactly, QtyRuleN = 1,
+            SortOrder = 1
+        };
+        step.Ports.Add(inPort);
+        step.Ports.Add(outPort);
+
+        // One simple numeric prompt — gives the ExecutionWizard something to render.
+        var prompt = SeederStepBuilder.Numeric(step, 40, inspectLabel, units: units, min: min, max: max, nominal: nominal);
+        prompt.TenantId = tenantId;
+        step.Contents.Add(prompt);
+
+        var setup = SeederStepBuilder.Setup(step, 0,
+            "This is a sample step seeded automatically by onboarding. Modify or delete it once you've explored the wizard.");
+        setup.TenantId = tenantId;
+        step.Contents.Add(setup);
+
+        db.StepTemplates.Add(step);
+
+        // ── Process containing the single step ───────────────────────────────
+        var process = new Process
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            Code = procCode, Name = procName,
+            Description = "Sample process seeded by the onboarding wizard.",
+            Version = 1, IsActive = true,
+            Status = ProcessStatus.Released,
+            RevisionCode = "A", EffectiveDate = now
+        };
+        var processStep = new ProcessStep
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            ProcessId = process.Id,
+            StepTemplateId = step.Id,
+            Sequence = 1
+        };
+        process.ProcessSteps.Add(processStep);
+        db.Processes.Add(process);
+
+        await db.SaveChangesAsync();
+        return new SampleProcessIds(kind.Id, step.Id, process.Id);
+    }
 }
 
 // =============================================================================

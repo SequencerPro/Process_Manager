@@ -2412,4 +2412,43 @@ public class ApiClient
         var r = await _http.PostAsync($"api/floor-plans/{id}/archive", null);
         r.EnsureSuccessStatusCode();
     }
+
+    // ═══════════════════ Onboarding (M2) ═══════════════════
+
+    public Task<List<OnboardingIndustryOptionDto>?> GetOnboardingIndustriesAsync()
+        => _http.GetFromJsonAsync<List<OnboardingIndustryOptionDto>>("api/onboarding/industries", _json);
+
+    public Task<OnboardingStateDto?> GetOnboardingStateAsync()
+        => _http.GetFromJsonAsync<OnboardingStateDto>("api/onboarding/state", _json);
+
+    public async Task<OnboardingStateDto?> UpdateOnboardingStateAsync(UpdateOnboardingStepDto dto)
+    {
+        var r = await _http.PatchAsJsonAsync("api/onboarding/state", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<OnboardingStateDto>(_json);
+    }
+
+    public async Task<OnboardingStateDto?> SkipOnboardingAsync(bool seedSample = true)
+    {
+        var r = await _http.PostAsJsonAsync("api/onboarding/skip", new SkipOnboardingDto(seedSample), _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<OnboardingStateDto>(_json);
+    }
+
+    public async Task<OnboardingStateDto?> SeedOnboardingSampleAsync()
+    {
+        var r = await _http.PostAsync("api/onboarding/seed-sample", null);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<OnboardingStateDto>(_json);
+    }
+
+    public Task<TenantFeatureFlagsDto?> GetTenantFeatureFlagsAsync()
+        => _http.GetFromJsonAsync<TenantFeatureFlagsDto>("api/onboarding/feature-flags", _json);
+
+    public async Task<TenantFeatureFlagsDto?> UpdateTenantFeatureFlagsAsync(TenantFeatureFlagsDto dto)
+    {
+        var r = await _http.PutAsJsonAsync("api/onboarding/feature-flags", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<TenantFeatureFlagsDto>(_json);
+    }
 }

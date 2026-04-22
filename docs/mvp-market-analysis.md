@@ -108,8 +108,8 @@ Based on the MVP definition above, the following represent the prioritized gaps 
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| M1 | Multi-Tenant Isolation (Goal 4) | ⬜ Not started |
-| M2 | Onboarding Wizard (Goal 1) | ⬜ Not started |
+| M1 | Multi-Tenant Isolation (Goal 4) | ✅ Complete (project-plan v3.27, 2026-04-20) |
+| M2 | Onboarding Wizard (Goal 1) | ✅ Complete (project-plan v3.28, 2026-04-21) |
 | M3 | Execution Wizard Polish (Goal 2) | ⬜ Not started |
 | M4 | PFMEA/Control Plan PDF Export (Goal 3) | ⬜ Not started |
 | M5 | Billing Infrastructure (Goal 5) | ⬜ Not started |

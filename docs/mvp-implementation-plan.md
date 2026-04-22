@@ -7,6 +7,8 @@ This document operationalizes the five MVP goals defined in [mvp-market-analysis
 | Version | Date       | Notes |
 |---------|------------|-------|
 | 0.1     | 2026-04-20 | Initial plan — 5 MVP phases (M1–M5), sequencing rationale, task breakdown, test strategy |
+| 0.2     | 2026-04-20 | M1 Multi-Tenant Isolation complete (project-plan v3.27) — progress tracker updated |
+| 0.3     | 2026-04-21 | M2 Onboarding Wizard complete (project-plan v3.28) — public signup + 5-step wizard + feature flags + sample seeding; progress tracker updated; 3 post-MVP market-fit features appended |
 
 ---
 
@@ -375,9 +377,83 @@ Parallelization potential: M3 and M4 can proceed concurrently once M1 is done (d
 | Phase | Status | Version row added | Tests added | Notes |
 |-------|--------|-------------------|-------------|-------|
 | M1 Multi-Tenant Isolation | ✅ Complete | 3.27 (2026-04-20) | 14 `MultiTenancyTests` (508 total, all green) | `Tenant` entity, `TenantId` on BaseEntity, query filter via reflection, `TenantSaveChangesInterceptor`, `ITenantContext`, `TenantContextMiddleware`, JWT `tenant_id` claim, `PlatformTenantsController`, `Phase_MVP01_MultiTenancy` migration |
-| M2 Onboarding Wizard | ⬜ Not started | — | — | — |
+| M2 Onboarding Wizard | ✅ Complete | 3.28 (2026-04-21) | 16 `OnboardingTests` (524 total, all green) | `TenantOnboardingState` + `TenantFeatureFlags` entities, `OnboardingIndustry` enum, `PublicSignupController` + `OnboardingController`, `JwtTokenService` extraction, `DataSeeder.SeedSampleProcessAsync` (industry-specific sample content), `Phase_MVP02_Onboarding` migration, `Signup.razor` + `OnboardingWizard.razor` + `Settings/Modules.razor` Blazor pages, `FeatureFlagService` + `ModuleToggle` shared, NavMenu feature-flag gating |
 | M3 Execution Wizard Polish | ⬜ Not started | — | — | — |
 | M4 PDF Export | ⬜ Not started | — | — | — |
 | M5 Billing Infrastructure | ⬜ Not started | — | — | — |
 
 Legend: ⬜ Not started · 🟨 In progress · ✅ Complete
+
+---
+
+## Post-MVP Market-Fit Feature Proposals
+
+Three features selected to maximise conversion and retention after the five-phase MVP lands. Each is scoped to be deliverable in 1–2 weeks by a single engineer and directly addresses a top-three objection we've seen in the target segments defined in `mvp-market-analysis.md` (small-shop CNC, PCBA contract houses, medical-device OEMs, regulated manufacturing).
+
+### F1 — Mobile-First Operator App (PWA)
+
+**Pain it removes:** Operators on the shop floor often have no desk, no keyboard, and greasy hands. A tablet or phone-first execution surface materially lowers the barrier to adoption for the Participant role and is a recurring sales objection ("will this work on the floor?").
+
+**Scope:**
+- New installable PWA (`/portal/*` routes) served from the existing Blazor app with a manifest and service worker — reuses the existing `ParticipantLayout` so no new auth surface.
+- Offline queue for `PromptResponse`, `PortTransaction` and `StepExecution.Complete` payloads — writes to IndexedDB, drains on reconnect via an `ExecutionSyncService`.
+- Touch-first redesign of `PortalExecutionWizard.razor`: large hit-targets (≥ 48 px), single-panel per phase, swipe navigation, on-screen keyboard helpers for numeric/barcode prompts.
+- Camera prompt type (`PromptType.Photo`) — captures in-browser, uploads to `/api/step-executions/{id}/attachments`, shows inline thumbnail in `StepExecutionDetail`.
+- "Clock in / clock out" check-in per step for timing accuracy without requiring an Execution record.
+
+**Entities / migrations:**
+- `PromptType.Photo` enum value.
+- `StepExecutionAttachment` entity (Id, StepExecutionId, FileName, MimeType, UploadedByUserId, UploadedAt, PromptDefinitionId optional).
+- `Phase_Post_Mobile` EF migration.
+
+**Tests:** `MobileExecutionTests.cs` — offline queue replay correctness, photo upload size guard, PWA manifest served, service worker registration, Participant role cannot escape `/portal/*`.
+
+**Why it ships first:** Directly converts demo-to-trial bookings in CNC/PCBA segments where the evaluator immediately asks "can my guy on the mill do this on a tablet?"
+
+---
+
+### F2 — ROI Dashboard & Audit-Ready Evidence Pack
+
+**Pain it removes:** Sales conversations stall when the buyer can't articulate the savings to their CFO, and renewals stall when quality managers have to prove value at budget review. Auditors (ISO 9001 / AS9100 / FDA 820) separately ask for a packaged evidence bundle that today requires days of screenshotting.
+
+**Scope:**
+- New `/roi` Blazor page (Admin/Engineer) computing on-the-fly ROI metrics over any date range:
+  - Operator hours saved vs. paper (process median time × jobs completed).
+  - Scrap $ avoided (NonConformance Quarantine/Scrap count × average item cost).
+  - Quality-event MTTR improvement (NonConformance open→disposition median) vs. rolling 90-day baseline.
+  - Training compliance % and Expiry-risk heatmap (reuses Phase 16 data).
+- `POST /api/reports/evidence-pack` — generates a single ZIP with: active QMS documents (PDF), last N audit findings + corrective actions (PDF), PFMEA/Control Plan for the selected Process (PDF — reuses M4 renderer), sampled completed Job records (PDF), competency matrix export (CSV), a `manifest.json` describing what's inside and a SHA-256 of each file.
+- Shareable read-only link (`/public/roi/{token}`) — short-lived signed token, renders the headline KPIs only (no drill-down). Lets champions share the number with their CFO without granting logins.
+- `RoiSnapshot` entity captures a point-in-time copy on every Management Review — lets the Management Review page render "before vs. now" next to the current numbers.
+
+**Entities / migrations:**
+- `RoiSnapshot` entity (Id, TenantId, SnapshotAt, Metrics JSON).
+- `EvidencePackRequest` entity (Id, TenantId, ProcessId nullable, DateFrom, DateTo, Status, DownloadUrl, CreatedByUserId, CreatedAt).
+- `Phase_Post_ROI` EF migration.
+
+**Tests:** `RoiReportTests.cs` — metric math correctness on seeded data, evidence-pack ZIP manifest integrity, shareable token expiry, RoiSnapshot auto-capture on Management Review close, cross-tenant isolation of shareable links.
+
+**Why it matters:** Directly attacks the top cited non-technical reason for churn — "we can't prove the value internally." The evidence pack also halves audit-prep time for the regulated segments.
+
+---
+
+### F3 — AI Process Author (GPT-assisted Step Template / PFMEA Drafting)
+
+**Pain it removes:** Authoring the first process, PFMEA, and Control Plan is the #1 reason trials stall after onboarding. Even with the M2 sample seed, the blank page for the second process is intimidating and pushes the champion back to Word.
+
+**Scope:**
+- New `/ai/author` Admin/Engineer page with three modes:
+  - **From description** — free-text prompt ("a 5-axis milling op for a titanium bracket, 3 critical dimensions") → proposed Step Template (name, Description, Pattern, suggested ports, Setup block, numeric prompts with typical limits).
+  - **From existing document** — drag-and-drop Word/PDF/image of a work instruction → extracted step structure + prompts.
+  - **PFMEA assist** — select a Process → pre-fills failure modes for each step by querying a library of industry priors (CNC/PCBA/Medical) already seeded into `RootCauseEntry`.
+- Output is always a **Draft proposal** inserted into the existing builder surfaces — never directly published. The author reviews, edits, and saves through the existing lifecycle.
+- Reuses the existing `McpAuditLog` append-only table to log every generation with input, output, model, and token count — addresses the "who's auditing the AI?" regulated-segment objection.
+- Provider-agnostic via an `IProcessAuthorClient` abstraction; initial implementation uses Anthropic Claude over the existing API key plumbing. OpenAI/Azure swap-in requires no controller changes.
+
+**Entities / migrations:**
+- `ProcessAuthorDraft` entity (Id, TenantId, Kind enum {StepTemplate, Pfmea, ControlPlan}, PayloadJson, Status {Draft/Applied/Discarded}, CreatedByUserId, CreatedAt, AppliedAt nullable).
+- `Phase_Post_AiAuthor` EF migration.
+
+**Tests:** `ProcessAuthorTests.cs` — golden-output unit tests against a stubbed `IProcessAuthorClient`, Draft→Applied state transitions, tenant isolation of drafts, RBAC (Participant cannot call author endpoints), audit-log entry written on every call, reject oversized uploads.
+
+**Why it ships third:** Needs M1+M2 (tenancy and onboarding) and M4 (PFMEA surface area is stable) already shipped. Highest potential upside for trial-to-paid conversion in CNC and PCBA segments, where process authoring is the primary barrier to moving off Word docs.

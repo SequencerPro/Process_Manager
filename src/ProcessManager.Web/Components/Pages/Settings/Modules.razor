@@ -1,0 +1,156 @@
+@page "/settings/modules"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject FeatureFlagService Flags
+
+<PageTitle>Modules — Settings</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="mb-0">Modules</h3>
+        <p class="text-muted small mb-0">Turn advanced surface area on or off for your workspace.</p>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" @onclick="ReloadAsync" disabled="@_loading">
+        <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+    </button>
+</div>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger py-2">
+        <i class="bi bi-exclamation-triangle me-2"></i>@_error
+    </div>
+}
+
+@if (_saved)
+{
+    <div class="alert alert-success py-2">
+        <i class="bi bi-check2-circle me-2"></i>Modules updated. The nav will reflect the change on your next page load.
+    </div>
+}
+
+@if (_model is null)
+{
+    <div class="text-center py-4">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <ModuleToggle Label="Advanced modules"
+                          Description="Master switch — hides Reports, Admin → AI Audit and Webhooks, and other advanced surface area."
+                          Icon="bi-sliders2"
+                          @bind-Value="_model.ShowAdvancedModules" />
+            <hr class="my-3" />
+            <ModuleToggle Label="Quality tools"
+                          Description="PFMEAs, C&amp;E matrices, Control Plans, Non-Conformances, Root-Cause Library, Ishikawa, 5 Whys, MRB."
+                          Icon="bi-shield-check"
+                          @bind-Value="_model.ShowQualityTools" />
+            <hr class="my-3" />
+            <ModuleToggle Label="Production tools"
+                          Description="Production dashboard, Equipment, Maintenance tasks, Factory Design."
+                          Icon="bi-gear-wide"
+                          @bind-Value="_model.ShowProductionTools" />
+            <hr class="my-3" />
+            <ModuleToggle Label="Warehouse tools"
+                          Description="Inventory locations, pick lists, stock movements."
+                          Icon="bi-box-seam"
+                          @bind-Value="_model.ShowWarehouseTools" />
+            <hr class="my-3" />
+            <ModuleToggle Label="Training tools"
+                          Description="Training catalogue, competency matrix."
+                          Icon="bi-mortarboard"
+                          @bind-Value="_model.ShowTrainingTools" />
+        </div>
+        <div class="card-footer d-flex justify-content-end bg-white">
+            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_busy">
+                @if (_busy) { <span class="spinner-border spinner-border-sm me-2"></span> }
+                <i class="bi bi-save me-1"></i>Save changes
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    private FlagsModel? _model;
+    private bool _loading;
+    private bool _busy;
+    private bool _saved;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        _saved = false;
+        try
+        {
+            var current = await Api.GetTenantFeatureFlagsAsync();
+            if (current is not null) _model = FlagsModel.From(current);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_model is null) return;
+        _busy = true;
+        _error = null;
+        _saved = false;
+        try
+        {
+            var updated = await Api.UpdateTenantFeatureFlagsAsync(_model.ToDto());
+            if (updated is not null)
+            {
+                _model = FlagsModel.From(updated);
+                Flags.Set(updated);
+                _saved = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class FlagsModel
+    {
+        public bool ShowAdvancedModules { get; set; }
+        public bool ShowQualityTools { get; set; }
+        public bool ShowProductionTools { get; set; }
+        public bool ShowWarehouseTools { get; set; }
+        public bool ShowTrainingTools { get; set; }
+
+        public static FlagsModel From(TenantFeatureFlagsDto dto) => new()
+        {
+            ShowAdvancedModules = dto.ShowAdvancedModules,
+            ShowQualityTools    = dto.ShowQualityTools,
+            ShowProductionTools = dto.ShowProductionTools,
+            ShowWarehouseTools  = dto.ShowWarehouseTools,
+            ShowTrainingTools   = dto.ShowTrainingTools,
+        };
+
+        public TenantFeatureFlagsDto ToDto() => new(
+            ShowAdvancedModules,
+            ShowQualityTools,
+            ShowProductionTools,
+            ShowWarehouseTools,
+            ShowTrainingTools);
+    }
+}

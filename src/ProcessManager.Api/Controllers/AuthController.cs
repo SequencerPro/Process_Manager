@@ -1,12 +1,9 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
 using ProcessManager.Api.Data;
 using ProcessManager.Api.DTOs;
+using ProcessManager.Api.Services;
 
 namespace ProcessManager.Api.Controllers;
 
@@ -15,12 +12,12 @@ namespace ProcessManager.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly IConfiguration _config;
+    private readonly JwtTokenService _jwt;
 
-    public AuthController(UserManager<ApplicationUser> userManager, IConfiguration config)
+    public AuthController(UserManager<ApplicationUser> userManager, JwtTokenService jwt)
     {
         _userManager = userManager;
-        _config = config;
+        _jwt = jwt;
     }
 
     // ── POST api/auth/login ───────────────────────────────────────────────────
@@ -36,7 +33,7 @@ public class AuthController : ControllerBase
         var roles = await _userManager.GetRolesAsync(user);
         var role = roles.FirstOrDefault() ?? "Engineer";
 
-        var token = GenerateJwt(user, role);
+        var token = _jwt.Generate(user, role);
         return Ok(token);
     }
 
@@ -208,52 +205,6 @@ public class AuthController : ControllerBase
             return BadRequest(result.Errors.Select(e => e.Description));
 
         var roles = await _userManager.GetRolesAsync(user);
-        return Ok(GenerateJwt(user, roles.FirstOrDefault() ?? "Engineer"));
-    }
-
-    // ── Token generation ──────────────────────────────────────────────────────
-
-    private TokenResponseDto GenerateJwt(ApplicationUser user, string role)
-    {
-        var jwtConfig = _config.GetSection("Jwt");
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtConfig["Key"]!));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-        var expiryMinutes = int.Parse(jwtConfig["ExpiryMinutes"] ?? "480");
-        var expiry = DateTime.UtcNow.AddMinutes(expiryMinutes);
-
-        var claims = new List<Claim>
-        {
-            new(ClaimTypes.Name, user.UserName!),
-            new(ClaimTypes.Email, user.Email!),
-            new(ClaimTypes.Role, role),
-            new(JwtRegisteredClaimNames.Sub, user.Id),
-            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-        };
-
-        // Multi-tenancy claims — consumed by TenantContextMiddleware.
-        if (user.TenantId is Guid tenantId)
-            claims.Add(new Claim("tenant_id", tenantId.ToString()));
-        if (user.IsPlatformAdmin)
-            claims.Add(new Claim("platform_admin", "true"));
-
-        if (!string.IsNullOrWhiteSpace(user.DisplayName))
-            claims.Add(new Claim("display_name", user.DisplayName));
-
-        var token = new JwtSecurityToken(
-            issuer: jwtConfig["Issuer"],
-            audience: jwtConfig["Audience"],
-            claims: claims,
-            expires: expiry,
-            signingCredentials: creds
-        );
-
-        return new TokenResponseDto(
-            new JwtSecurityTokenHandler().WriteToken(token),
-            user.UserName!,
-            user.Email!,
-            role,
-            user.DisplayName,
-            expiry);
+        return Ok(_jwt.Generate(user, roles.FirstOrDefault() ?? "Engineer"));
     }
 }

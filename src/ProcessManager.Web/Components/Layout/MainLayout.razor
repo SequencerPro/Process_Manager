@@ -3,6 +3,7 @@
 @inject AuthenticationStateProvider AuthState
 @inject ProcessManager.Web.Services.TokenService TokenSvc
 @inject ProcessManager.Web.Services.VocabularyService Vocab
+@inject ProcessManager.Web.Services.FeatureFlagService Flags
 @inject ApiClient Api
 
 <div class="d-flex vh-100 position-relative flex-column flex-lg-row">
@@ -46,6 +47,11 @@
         if (!Vocab.IsLoaded)
         {
             await Vocab.LoadAsync(Api);
+        }
+
+        if (!Flags.IsLoaded)
+        {
+            await Flags.LoadAsync(Api);
         }
     }
 }

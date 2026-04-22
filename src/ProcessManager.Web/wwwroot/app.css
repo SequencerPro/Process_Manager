@@ -91,6 +91,21 @@ h1:focus {
     color: #b0b0b0;
 }
 
+/* Drill-down nav: when a section is open, hide root-level items so the selected
+   section takes the full sidebar view. Back arrow at top returns to root. */
+.pm-sidebar.pm-drilled .pm-nav-root-item {
+    display: none !important;
+}
+.pm-nav-back button {
+    background: none !important;
+    border: none !important;
+    cursor: pointer;
+}
+.pm-nav-back button:hover {
+    background: #1e1e1e !important;
+    border-radius: 6px;
+}
+
 .valid.modified:not([type=checkbox]) {
     outline: 1px solid #26b050;
 }

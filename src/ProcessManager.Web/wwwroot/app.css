@@ -1190,3 +1190,45 @@ h1:focus {
     .pb-metadata .col-md-4,
     .pb-metadata .col-md-5 { width: 100%; }
 }
+
+/* ══════════════════════════════════════════
+   M3 — Execution Wizard Touch Targets
+   ══════════════════════════════════════════ */
+
+.ewiz-touch-btn {
+    min-height: 44px;
+    min-width: 44px;
+}
+
+@media (pointer: coarse) {
+    .ewiz-touch-btn,
+    .execution-wizard .btn,
+    .execution-wizard .form-check-input,
+    .execution-wizard .form-select,
+    .execution-wizard .form-control {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    .execution-wizard .form-check-input {
+        width: 1.5em;
+        height: 1.5em;
+    }
+
+    .execution-wizard .btn-lg {
+        min-height: 52px;
+        font-size: 1.1rem;
+        padding: .65rem 1.2rem;
+    }
+
+    .execution-wizard .form-control,
+    .execution-wizard .form-select {
+        font-size: 1rem;
+        padding: .5rem .75rem;
+    }
+
+    .execution-wizard .badge {
+        padding: .4em .6em;
+        font-size: .85rem;
+    }
+}

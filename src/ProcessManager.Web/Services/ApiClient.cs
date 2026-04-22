@@ -532,6 +532,13 @@ public class ApiClient
         resp.EnsureSuccessStatusCode();
     }
 
+    public async Task BatchPromptResponsesAsync(Guid stepExecutionId, BatchPromptResponsesDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync(
+            $"api/step-executions/{stepExecutionId}/prompt-responses/batch", dto, _json);
+        resp.EnsureSuccessStatusCode();
+    }
+
     // ═══════════════════ Workorders ═══════════════════
 
     public Task<PaginatedResponse<WorkorderResponseDto>?> GetWorkordersAsync(

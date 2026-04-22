@@ -38,6 +38,9 @@ public class PromptResponse : BaseEntity
     /// <summary>Operator-provided reason for proceeding despite an out-of-range value.</summary>
     public string? OverrideNote { get; set; }
 
+    /// <summary>Client-generated idempotency key for offline sync. Null for legacy saves.</summary>
+    public string? ClientId { get; set; }
+
     /// <summary>When the response was submitted.</summary>
     public DateTime RespondedAt { get; set; } = DateTime.UtcNow;
 

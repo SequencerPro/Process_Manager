@@ -9,6 +9,7 @@ This document operationalizes the five MVP goals defined in [mvp-market-analysis
 | 0.1     | 2026-04-20 | Initial plan — 5 MVP phases (M1–M5), sequencing rationale, task breakdown, test strategy |
 | 0.2     | 2026-04-20 | M1 Multi-Tenant Isolation complete (project-plan v3.27) — progress tracker updated |
 | 0.3     | 2026-04-21 | M2 Onboarding Wizard complete (project-plan v3.28) — public signup + 5-step wizard + feature flags + sample seeding; progress tracker updated; 3 post-MVP market-fit features appended |
+| 0.4     | 2026-04-21 | M3 Execution Wizard Polish partial (project-plan v3.29) — batch prompt responses endpoint, HoldConfirmButton, touch target CSS, unsaved changes guard; 8 tests; 3 new market-fit features appended |
 
 ---
 
@@ -378,7 +379,7 @@ Parallelization potential: M3 and M4 can proceed concurrently once M1 is done (d
 |-------|--------|-------------------|-------------|-------|
 | M1 Multi-Tenant Isolation | ✅ Complete | 3.27 (2026-04-20) | 14 `MultiTenancyTests` (508 total, all green) | `Tenant` entity, `TenantId` on BaseEntity, query filter via reflection, `TenantSaveChangesInterceptor`, `ITenantContext`, `TenantContextMiddleware`, JWT `tenant_id` claim, `PlatformTenantsController`, `Phase_MVP01_MultiTenancy` migration |
 | M2 Onboarding Wizard | ✅ Complete | 3.28 (2026-04-21) | 16 `OnboardingTests` (524 total, all green) | `TenantOnboardingState` + `TenantFeatureFlags` entities, `OnboardingIndustry` enum, `PublicSignupController` + `OnboardingController`, `JwtTokenService` extraction, `DataSeeder.SeedSampleProcessAsync` (industry-specific sample content), `Phase_MVP02_Onboarding` migration, `Signup.razor` + `OnboardingWizard.razor` + `Settings/Modules.razor` Blazor pages, `FeatureFlagService` + `ModuleToggle` shared, NavMenu feature-flag gating |
-| M3 Execution Wizard Polish | ⬜ Not started | — | — | — |
+| M3 Execution Wizard Polish | 🟨 In progress | 3.29 (2026-04-21) | 8 `ExecutionWizardUxTests` (532 total, all green) | Batch prompt responses endpoint with ClientId idempotency, `HoldConfirmButton.razor` component, touch-target CSS audit (`@media (pointer: coarse)` rules), `beforeunload` unsaved-changes guard, phase-navigation dirty-check. Remaining: service worker + IndexedDB offline queue, barcode scanner, photo capture, signature canvas improvements, cross-device testing |
 | M4 PDF Export | ⬜ Not started | — | — | — |
 | M5 Billing Infrastructure | ⬜ Not started | — | — | — |
 
@@ -457,3 +458,74 @@ Three features selected to maximise conversion and retention after the five-phas
 **Tests:** `ProcessAuthorTests.cs` — golden-output unit tests against a stubbed `IProcessAuthorClient`, Draft→Applied state transitions, tenant isolation of drafts, RBAC (Participant cannot call author endpoints), audit-log entry written on every call, reject oversized uploads.
 
 **Why it ships third:** Needs M1+M2 (tenancy and onboarding) and M4 (PFMEA surface area is stable) already shipped. Highest potential upside for trial-to-paid conversion in CNC and PCBA segments, where process authoring is the primary barrier to moving off Word docs.
+
+---
+
+## Additional Market-Fit Feature Proposals (2026-04-21)
+
+Three features selected to address emerging gaps identified during M1–M3 development. Each targets a specific segment or retention driver.
+
+### F4 — Supplier Quality Portal
+
+**Pain it removes:** Contract manufacturers (PCBA, CNC) and medical-device OEMs spend significant time managing incoming inspection results, supplier corrective actions (SCARs), and approved vendor lists in spreadsheets. The existing MRB feature handles internal non-conformances but doesn't give suppliers a self-service surface to respond to SCARs, submit CoCs (Certificates of Conformance), or view their quality performance.
+
+**Scope:**
+- New `SupplierContact` entity linked to `Kind.VendorName` — email, portal access token, notification preferences.
+- `/supplier-portal/{token}` read-only Blazor surface (no login required — signed token URL) showing: open SCARs assigned to them, required response fields (root cause, corrective action, evidence upload), submitted CoC history, their quality scorecard (PPM defect rate, on-time delivery %, response time).
+- `SupplierScorecardService` computing PPM from `NonConformance` records where `Kind.SourceType == Buy` and `Kind.VendorName` matches, on-time from `InventoryTransaction.Receipt` timestamps vs. `Kind.LeadTimeDays`.
+- Admin `/suppliers` page with vendor list, invite flow, scorecard overview, and approved/probation/disqualified status.
+- `POST /api/suppliers/{id}/scar-response` — supplier-facing endpoint to submit SCAR responses (gated by token, not JWT).
+
+**Entities / migrations:**
+- `SupplierContact` (Id, TenantId, VendorName, Email, PortalToken, Status enum {Active/Probation/Disqualified}, InvitedAt, LastAccessAt).
+- `ScarResponse` (Id, TenantId, MrbReviewId, RootCauseDescription, CorrectiveAction, EvidenceFileName, SubmittedAt).
+- `Phase_Post_SupplierPortal` EF migration.
+
+**Tests:** `SupplierPortalTests.cs` — token-based access works without JWT, expired token rejected, SCAR response creates record, scorecard PPM math, vendor filter on NonConformance, cross-tenant isolation of supplier tokens.
+
+**Why it matters:** Supplier quality management is the #1 feature request from the medical-device segment (FDA 820 requires documented supplier controls). Also addresses CNC shops buying raw stock from multiple vendors with no centralized incoming inspection data.
+
+---
+
+### F5 — Real-Time Production Dashboard (SignalR Live Updates)
+
+**Pain it removes:** Production managers and operations leads currently rely on periodic page refreshes to see job status, throughput, and downtime. On a busy shop floor, a 30-second delay between a machine going down and the dashboard reflecting it can cost real money. The existing Dashboard and Production Dashboard pages are static snapshots.
+
+**Scope:**
+- `ProductionHub` SignalR hub at `/hubs/production` broadcasting: job status transitions, step execution completions, downtime start/close events, alert threshold breaches, pick-list status changes.
+- Event publishing via `IProductionEventPublisher` injected into `JobsController`, `StepExecutionsController`, `EquipmentController`, and `AlertsController` — fires hub messages on state transitions.
+- Updated `ProductionDashboard.razor` with live-updating KPI cards (flash animation on change), auto-refreshing WIP board, live downtime timer, and real-time job completion feed.
+- New `FloorStatus.razor` full-screen kiosk-mode page at `/floor-status` — designed for large-screen TVs on the shop floor. Shows: active jobs per workstation (from `FloorPlanWorkstation`), live throughput counter, current downtime events, shift progress bar. No sidebar, no navigation — pure display surface.
+- Configurable refresh interval fallback for environments where WebSocket is blocked (HTTP long-polling via SignalR auto-negotiation).
+
+**Entities / migrations:**
+- No new entities — uses existing domain events. `Phase_Post_SignalR` migration adds optional `LastHeartbeatAt` to `Equipment` for stale-connection detection.
+
+**Tests:** `ProductionHubTests.cs` — hub connection with tenant isolation (hub resolves tenant from JWT), job-status-change broadcasts to correct tenant group, downtime event triggers hub message, kiosk page renders without authentication errors, concurrent connections from same tenant receive same events.
+
+**Why it matters:** "Can I put this on the TV on the floor?" is asked in nearly every demo. Real-time visibility converts Production Dashboard page-refreshers into always-on operational awareness — the stickiest feature for manufacturing environments.
+
+---
+
+### F6 — Multi-Site Process Deployment & Version Sync
+
+**Pain it removes:** Companies with multiple manufacturing sites (common in medical, aerospace, and larger CNC operations) need to maintain consistent processes across locations. Today, a process revised at Site A must be manually recreated at Site B. There's no mechanism for a "golden" process library that propagates changes to satellite sites, nor a way to track which sites are running which version.
+
+**Scope:**
+- `Site` entity (Id, TenantId, Code, Name, Address, TimeZone, IsHeadquarters bool) — each tenant can define multiple sites.
+- `ApplicationUser.SiteId` — users are assigned to a site; `OrgUnit.SiteId` — organizational structure is site-scoped.
+- `ProcessDeployment` entity (Id, ProcessId, SiteId, DeployedVersion, DeployedAt, DeployedByUserId, Status enum {Pending/Active/Superseded/Withdrawn}) — tracks which version of a process is active at which site.
+- `POST /api/processes/{id}/deploy` — creates deployment records for selected sites; if the process has a newer version than currently deployed, marks existing deployment as Superseded.
+- `DeploymentDashboard.razor` at `/deployment` — matrix view (processes × sites) showing deployed version, color-coded for version currency (green = latest, amber = one behind, red = two+ behind or withdrawn).
+- Process lifecycle integration: when a new process version is Released, sites with the previous version are flagged for deployment review. Admins can bulk-deploy or site-by-site.
+- Job creation respects site context: only processes deployed to the user's site appear in the process picker.
+
+**Entities / migrations:**
+- `Site` (Id, TenantId, Code, Name, Address, TimeZone, IsHeadquarters, CreatedAt).
+- `ProcessDeployment` (Id, TenantId, ProcessId, SiteId, DeployedVersion, DeployedAt, DeployedByUserId, Status).
+- `SiteId` nullable FK on `ApplicationUser` and `OrgUnit`.
+- `Phase_Post_MultiSite` EF migration.
+
+**Tests:** `MultiSiteTests.cs` — deployment creates record, re-deploy supersedes previous, job creation filtered to site-deployed processes, deployment dashboard returns correct version matrix, cross-site isolation (site A user cannot see site B deployments), bulk deploy creates records for all selected sites, withdrawn deployment removes process from job picker.
+
+**Why it matters:** Multi-site is the #1 differentiator between "team tool" ($300/mo Starter) and "enterprise platform" ($600+/mo Professional). It's also a natural expansion path — a customer that starts at one site and wants to roll out to two more is the highest-LTV growth motion for manufacturing SaaS.

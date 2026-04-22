@@ -13,6 +13,7 @@
 | 0.7     | 2026-03-08 | Phase 2 additions: PromptDefinition and PromptOption entities; ExecutionData: prompt_definition_id FK, value widened to text, extended DataType enum (Select, MultiSelect, Barcode, Photo, Signature) |
 | 0.9     | 2026-03-20 | OrgUnitMember join entity added (user ↔ OrgUnit many-to-many membership); unique composite index on (user_id, org_unit_id); cascade delete from both sides |
 | 0.8     | 2026-03-16 | Post-Phase-6 additions: `ProcessTimingDto` and `StepTimingDto` (report DTOs — not entities); three DataSeeder methods for manufacturing demo, ISO 9001 QMS documents (QMS-001–QMS-021), and system onboarding training courses (TRN-SYS-001–TRN-SYS-012); no schema changes — all additions populate existing Process/StepTemplate entities with `ProcessRole = Training / QmsDocument` values |
+| 1.0     | 2026-04-21 | M3 schema addition: `PromptResponse.ClientId` nullable string — client-generated idempotency key for offline sync batch replay |
 
 ---
 

@@ -29,6 +29,7 @@ else if (_se.Status == "Completed")
 }
 else
 {
+<div class="execution-wizard">
     <!-- Header progress bar -->
     <div class="position-sticky top-0 bg-white border-bottom shadow-sm py-2 px-3 mb-3" style="z-index:100">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-1">
@@ -575,15 +576,16 @@ else
 
             <div class="d-flex justify-content-between mt-3">
                 <button class="btn btn-outline-secondary" @onclick="() => AdvanceTo(4)">← Back to Execution</button>
-                <button class="btn btn-success btn-lg px-4"
-                        disabled="@(_saving || _openNcs.Any(n => n.DispositionStatus == "Pending"))"
-                        @onclick="CompleteStep">
+                <HoldConfirmButton CssClass="btn btn-success btn-lg px-4"
+                                   Disabled="@(_saving || _openNcs.Any(n => n.DispositionStatus == "Pending"))"
+                                   OnConfirmed="CompleteStep">
                     @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                    Complete Step
-                </button>
+                    <i class="bi bi-check-circle me-1"></i>Hold to Complete Step
+                </HoldConfirmButton>
             </div>
         </div>
     }
+</div>@* execution-wizard *@
 }
 
 <!-- ══ NC Disposition Modal ══ -->
@@ -685,16 +687,31 @@ else
     // UserPicker prompt support
     private List<UserPickerDto> _userPickerList = new();
 
-    protected override Task OnAfterRenderAsync(bool firstRender)
+    // Unsaved changes guard
+    private HashSet<Guid> _dirtyPrompts = new();
+    private bool HasUnsavedChanges => _dirtyPrompts.Any();
+
+    private bool _beforeUnloadRegistered;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // Fire-and-forget so the render pipeline is never blocked — users can interact
-        // with the rest of the page while the 3D model loads in the background.
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("eval",
+                "window.__ewizBeforeUnload = function(e) { e.preventDefault(); e.returnValue = ''; }");
+            _beforeUnloadRegistered = true;
+        }
+
+        if (HasUnsavedChanges && _beforeUnloadRegistered)
+            await JS.InvokeVoidAsync("eval", "window.addEventListener('beforeunload', window.__ewizBeforeUnload)");
+        else if (_beforeUnloadRegistered)
+            await JS.InvokeVoidAsync("eval", "window.removeEventListener('beforeunload', window.__ewizBeforeUnload)");
+
         if (_phase == 4 && _pendingWizardModelViewerInit && !_wizardModelViewerInitialized)
         {
             _pendingWizardModelViewerInit = false;
             _ = InitWizardModelViewer();
         }
-        return Task.CompletedTask;
     }
 
     protected override async Task OnInitializedAsync()
@@ -808,12 +825,18 @@ else
             _pendingWizardModelViewerInit = (_se?.HasStepModel == true) || (_se?.KindModelRefId.HasValue == true);
     }
 
-    private void TryNavigateToPhase(int phase)
+    private async Task TryNavigateToPhase(int phase)
     {
         if (phase <= _phase)
         {
+            if (_phase == 4 && phase != 4 && HasUnsavedChanges)
+            {
+                var confirmed = await JS.InvokeAsync<bool>("confirm",
+                    "You have unsaved changes. Are you sure you want to leave this phase?");
+                if (!confirmed) return;
+            }
             if (_phase == 4 && phase != 4)
-                _ = DestroyWizardModelViewer();
+                await DestroyWizardModelViewer();
             _phase = phase;
             if (phase == 4)
                 _pendingWizardModelViewerInit = (_se?.HasStepModel == true) || (_se?.KindModelRefId.HasValue == true);
@@ -837,7 +860,7 @@ else
     private void SetPromptValue(Guid blockId, string value)
     {
         _promptValues[blockId] = value;
-        // Auto-save prompt responses in background
+        _dirtyPrompts.Add(blockId);
         _ = SavePromptResponse(blockId, value);
     }
 
@@ -853,6 +876,7 @@ else
                         ResponseValue: value,
                         OverrideNote: null)
                 }));
+            _dirtyPrompts.Remove(contentBlockId);
         }
         catch { /* best-effort auto-save */ }
     }
@@ -1072,5 +1096,11 @@ else
     public async ValueTask DisposeAsync()
     {
         await DestroyWizardModelViewer();
+        try
+        {
+            await JS.InvokeVoidAsync("eval",
+                "window.removeEventListener('beforeunload', window.__ewizBeforeUnload)");
+        }
+        catch { }
     }
 }

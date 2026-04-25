@@ -10,6 +10,10 @@ This document operationalizes the five MVP goals defined in [mvp-market-analysis
 | 0.2     | 2026-04-20 | M1 Multi-Tenant Isolation complete (project-plan v3.27) — progress tracker updated |
 | 0.3     | 2026-04-21 | M2 Onboarding Wizard complete (project-plan v3.28) — public signup + 5-step wizard + feature flags + sample seeding; progress tracker updated; 3 post-MVP market-fit features appended |
 | 0.4     | 2026-04-21 | M3 Execution Wizard Polish partial (project-plan v3.29) — batch prompt responses endpoint, HoldConfirmButton, touch target CSS, unsaved changes guard; 8 tests; 3 new market-fit features appended |
+| 0.5     | 2026-04-22 | M4 PFMEA & Control Plan PDF Export complete (project-plan v3.30) — QuestPDF generators, branding controller, PDF endpoints, 12 tests; 3 new market-fit features appended |
+| 0.6     | 2026-04-22 | M5 Billing Infrastructure complete (project-plan v3.31) — Stripe.net integration, TenantSubscription/UsageMetric/BillingEvent entities, BillingController, StripeWebhookController, TenantSuspensionMiddleware, 14 tests; 3 new market-fit features appended |
+| 0.7     | 2026-04-22 | M3 Execution Wizard Polish complete (project-plan v3.32) — service worker, IndexedDB offline queue, SyncStatus component, barcode scanner with camera + keyboard-wedge fallback, photo capture with client-side compression, signature canvas with quadratic curve stroke smoothing, 11 new OfflineQueueTests; 3 new market-fit features appended |
+| 0.8     | 2026-04-22 | F10 Plan-Gated Feature Tiers & Usage Enforcement complete (project-plan v3.33) — PlanEnforcementService, UsageMeteringService, plan limit checks on user/process/job creation, usage metering on job completion and PDF export, feature flag auto-sync on plan change, 14 tests; 3 new market-fit features appended |
 
 ---
 
@@ -379,9 +383,10 @@ Parallelization potential: M3 and M4 can proceed concurrently once M1 is done (d
 |-------|--------|-------------------|-------------|-------|
 | M1 Multi-Tenant Isolation | ✅ Complete | 3.27 (2026-04-20) | 14 `MultiTenancyTests` (508 total, all green) | `Tenant` entity, `TenantId` on BaseEntity, query filter via reflection, `TenantSaveChangesInterceptor`, `ITenantContext`, `TenantContextMiddleware`, JWT `tenant_id` claim, `PlatformTenantsController`, `Phase_MVP01_MultiTenancy` migration |
 | M2 Onboarding Wizard | ✅ Complete | 3.28 (2026-04-21) | 16 `OnboardingTests` (524 total, all green) | `TenantOnboardingState` + `TenantFeatureFlags` entities, `OnboardingIndustry` enum, `PublicSignupController` + `OnboardingController`, `JwtTokenService` extraction, `DataSeeder.SeedSampleProcessAsync` (industry-specific sample content), `Phase_MVP02_Onboarding` migration, `Signup.razor` + `OnboardingWizard.razor` + `Settings/Modules.razor` Blazor pages, `FeatureFlagService` + `ModuleToggle` shared, NavMenu feature-flag gating |
-| M3 Execution Wizard Polish | 🟨 In progress | 3.29 (2026-04-21) | 8 `ExecutionWizardUxTests` (532 total, all green) | Batch prompt responses endpoint with ClientId idempotency, `HoldConfirmButton.razor` component, touch-target CSS audit (`@media (pointer: coarse)` rules), `beforeunload` unsaved-changes guard, phase-navigation dirty-check. Remaining: service worker + IndexedDB offline queue, barcode scanner, photo capture, signature canvas improvements, cross-device testing |
-| M4 PDF Export | ⬜ Not started | — | — | — |
-| M5 Billing Infrastructure | ⬜ Not started | — | — | — |
+| M3 Execution Wizard Polish | ✅ Complete | 3.32 (2026-04-22) | 19 tests: 8 `ExecutionWizardUxTests` + 11 `OfflineQueueTests` (569 total, all green) | Batch prompt responses endpoint with ClientId idempotency, `HoldConfirmButton.razor` component, touch-target CSS audit (`@media (pointer: coarse)` rules), `beforeunload` unsaved-changes guard, phase-navigation dirty-check, `operator-sw.js` service worker (static asset caching, network-first with cache fallback), `operator-sync.js` IndexedDB offline queue (enqueue/flush/sync-on-reconnect, grouped batch submission by stepExecutionId), `SyncStatus.razor` component (online/offline/pending/syncing states in wizard header), `BarcodeScannerModal.razor` (native BarcodeDetector API camera scanning + keyboard-wedge manual entry fallback), `PhotoCapture.razor` (camera capture with Canvas-based client-side JPEG compression, configurable max dimensions/quality), `SignatureCanvas.razor` (pointer-event drawing with quadratic curve interpolation for smooth strokes, clear/export/load support) |
+| M4 PDF Export | ✅ Complete | 3.30 (2026-04-22) | 12 `PdfExportTests` (544 total, all green) | QuestPDF 2024.12.3 Community license, `TenantBranding` entity + `Phase_MVP04_PdfExport` migration, `PfmeaPdfGenerator` (AIAG-4 columns, RPN color coding, DRAFT banner, multi-action rows), `ControlPlanPdfGenerator` (AIAG columns), `GET /api/pfmeas/{id}/pdf` + `GET /api/controlplans/{id}/pdf` endpoints, `TenantBrandingController` (CRUD + logo upload/delete with 2 MB/PNG/JPG/SVG validation), PdfPig-based content assertions |
+| M5 Billing Infrastructure | ✅ Complete | 3.31 (2026-04-22) | 14 `BillingTests` (558 total, all green) | Stripe.net 46.0.0 NuGet package; `TenantSubscription` entity (StripeCustomerId, StripeSubscriptionId, PlanCode, Status, TrialEndsAt, CurrentPeriodEnd, GraceEndsAt, FailedPaymentCount); `UsageMetric` entity (MetricType, Count, PeriodStart, PeriodEnd); `BillingEvent` audit entity (StripeEventId, EventType, Description, RawPayload); `SubscriptionPlan` enum (Trial/Starter/Professional/Enterprise); `SubscriptionStatus` enum (Trial/Active/PastDue/Suspended/Cancelled); `Phase_MVP05_BillingInfrastructure` EF migration; `IStripeService` abstraction with `StripeService` implementation (customer creation, trial subscription, billing portal session, webhook verification); `BillingController` (dashboard, subscription, portal-session, usage, events endpoints — Admin-only); `StripeWebhookController` (AllowAnonymous, signature verification, idempotent event processing, payment succeeded/failed/subscription deleted/updated handlers with grace period logic); `TenantSuspensionMiddleware` (402 Payment Required for suspended tenants on API endpoints, exempts /api/billing + /api/auth/logout + webhook); signup flow creates `TenantSubscription` with 30-day trial on every new tenant; `TestStripeService` stub for integration tests |
+| F10 Plan-Gated Feature Tiers | ✅ Complete | 3.33 (2026-04-22) | 14 `PlanEnforcementTests` (583 total, all green) | `PlanEnforcementService` with code-defined `PlanLimits` per plan (Trial: 3 users/1 process/50 executions/mo, Starter: 25 users/1 site, Professional: 100 users/3 sites/advanced modules, Enterprise: unlimited); `UsageMeteringService` for monthly metric tracking; `BillingController` extended with plan/usage/check endpoints; user/process/job creation gated by plan limits (402 with upgrade prompt); job completion + PDF export increment usage metrics; feature flags auto-synced on plan change via `SyncFeatureFlagsForPlan`; legacy tenants without subscriptions bypass enforcement |
 
 Legend: ⬜ Not started · 🟨 In progress · ✅ Complete
 
@@ -529,3 +534,320 @@ Three features selected to address emerging gaps identified during M1–M3 devel
 **Tests:** `MultiSiteTests.cs` — deployment creates record, re-deploy supersedes previous, job creation filtered to site-deployed processes, deployment dashboard returns correct version matrix, cross-site isolation (site A user cannot see site B deployments), bulk deploy creates records for all selected sites, withdrawn deployment removes process from job picker.
 
 **Why it matters:** Multi-site is the #1 differentiator between "team tool" ($300/mo Starter) and "enterprise platform" ($600+/mo Professional). It's also a natural expansion path — a customer that starts at one site and wants to roll out to two more is the highest-LTV growth motion for manufacturing SaaS.
+
+---
+
+## Additional Market-Fit Feature Proposals (2026-04-22)
+
+Three features selected to close the most critical functional gaps identified during M4 implementation. Each targets a compliance requirement or revenue-driving capability that competitors in the manufacturing QMS space treat as table-stakes.
+
+### F7 — Statistical Process Control (SPC) Charts & Capability Analysis
+
+**Pain it removes:** The system collects numeric measurement data from operator prompts during execution, but offers no statistical analysis. Quality engineers must export to Minitab or Excel to produce X-bar/R charts and Cp/Cpk reports. Every IATF 16949, AS9100, and FDA 820 audit asks for evidence of statistical process control — without it, the system is a data collector, not a quality tool.
+
+**Scope:**
+- `SpcChart` entity (Id, TenantId, ProcessId, ContentBlockId FK → the numeric prompt, ChartType enum {XbarR, XbarS, IndividualMR, P, NP, C, U}, SubgroupSize, ControlLimitSource enum {Calculated, Manual}, UCL/LCL/CL override nullable, TargetCpk, IsActive).
+- `SpcDataPoint` entity (Id, SpcChartId, StepExecutionId, Value decimal, SubgroupIndex, CapturedAt) — populated automatically when a prompt response is saved for a linked content block.
+- Calculation engine: `SpcCalculationService` computing X-bar, R, sigma, UCL/LCL/CL (A2/D3/D4 constants), Cp, Cpk, Pp, Ppk from the latest N subgroups.
+- `SpcController` — chart CRUD, data retrieval with date range, recalculate-limits endpoint, out-of-control detection (Western Electric rules: 1 point beyond 3σ, 2 of 3 beyond 2σ, 4 of 5 beyond 1σ, 8 consecutive on one side).
+- `SpcDashboard.razor` at `/spc` — chart list with Cp/Cpk badges (green ≥ 1.33, amber ≥ 1.0, red < 1.0), inline chart rendering via Chart.js (X-bar and R on stacked axes), out-of-control alerts linked to `ActionItem` creation.
+- `SpcChartDetail.razor` — interactive chart with date range slider, capability histogram overlay, data table, control limit editor, out-of-control point highlighting.
+- Integration hook: `StepExecutionsController` prompt-response save auto-inserts `SpcDataPoint` when the content block has a linked `SpcChart`.
+
+**Entities / migrations:**
+- `SpcChart` (Id, TenantId, ProcessId, ContentBlockId, ChartType, SubgroupSize, ControlLimitSource, UCL, LCL, CL, TargetCpk, IsActive, CreatedAt, UpdatedAt).
+- `SpcDataPoint` (Id, SpcChartId, StepExecutionId, Value, SubgroupIndex, CapturedAt).
+- `Phase_Post_SPC` EF migration.
+
+**Tests:** `SpcTests.cs` — Cp/Cpk calculation correctness on known datasets, control limit computation matches manual A2/D3/D4 values, out-of-control detection (Western Electric rule 1, rule 2, rule 3, rule 4), auto-insert data point on prompt response, chart CRUD, tenant isolation, empty chart returns zeros not errors.
+
+**Why it matters:** SPC is the single most-requested quality feature in manufacturing QMS products. Without it, the system cannot compete for IATF 16949 (automotive) or AS9100 (aerospace) customers. It also makes the existing measurement data immediately actionable — turning the execution wizard from a data entry form into a process improvement tool.
+
+---
+
+### F8 — Calibration & Gauge Management
+
+**Pain it removes:** ISO 9001 clause 7.1.5 requires documented control of monitoring and measuring resources. The existing Control Plan specifies *what* measurement technique to use, but there is no mechanism to track whether the measuring equipment is calibrated, when calibration expires, or which calibration certificates apply. Quality managers maintain separate spreadsheets or standalone calibration tools, creating a data silo that auditors probe in every external audit.
+
+**Scope:**
+- `GaugeType` entity (Id, TenantId, Name, Description, CalibrationIntervalDays, CalibrationMethod) — categories like "Micrometer 0-25mm", "CMM", "Torque Wrench".
+- `Gauge` entity (Id, TenantId, GaugeTypeId, Code unique, SerialNumber, Manufacturer, Model, Location, Status enum {Active/OutForCalibration/Overdue/Retired}, LastCalibrationDate, NextCalibrationDue, AssignedToEquipmentId nullable FK → Equipment).
+- `CalibrationRecord` entity (Id, GaugeId, CalibratedAt, CalibratedByUserId, CertificateNumber, ExternalLabName nullable, Result enum {Pass/Fail/Adjusted}, Notes, CertificateFileName nullable, NextDueDate).
+- `ControlPlanEntry.GaugeTypeId` nullable FK — links "measurement technique" to a specific gauge type, enabling automatic validation that the gauge used in execution is calibrated.
+- `GaugesController` — CRUD for types and gauges, calibration record management, overdue gauge list, calibration certificate upload/download.
+- `CalibrationDashboard.razor` at `/calibration` — KPI cards (total gauges, due in 30 days, overdue, out-for-cal), gauge list with status badges and next-due countdown, create/edit modals, calibration history timeline.
+- `GaugeDetail.razor` — calibration history, certificate viewer, linked Control Plan entries, equipment assignment.
+- Background job: nightly check for gauges due within 7 days → creates `ActionItem` for responsible party.
+- ExecutionWizard integration: when a Control Plan entry links a gauge type, the wizard shows gauge selection dropdown filtered to calibrated gauges of that type; selecting an overdue gauge triggers a warning.
+
+**Entities / migrations:**
+- `GaugeType` (Id, TenantId, Name, Description, CalibrationIntervalDays, CalibrationMethod).
+- `Gauge` (Id, TenantId, GaugeTypeId, Code, SerialNumber, Manufacturer, Model, Location, Status, LastCalibrationDate, NextCalibrationDue, AssignedToEquipmentId).
+- `CalibrationRecord` (Id, GaugeId, CalibratedAt, CalibratedByUserId, CertificateNumber, ExternalLabName, Result, Notes, CertificateFileName, NextDueDate).
+- `GaugeTypeId` nullable FK on `ControlPlanEntry`.
+- `Phase_Post_Calibration` EF migration.
+
+**Tests:** `CalibrationTests.cs` — gauge CRUD, calibration record creation updates gauge status and NextDue, overdue detection, Control Plan gauge type linkage, ExecutionWizard gauge validation, certificate upload/download, gauge code uniqueness, tenant isolation.
+
+**Why it matters:** Calibration management is a mandatory audit checkpoint for every ISO 9001 / AS9100 / FDA 820 certification. Integrating it with the existing Control Plan and execution flow eliminates a standalone tool and closes the audit loop — the system can prove not just *what* was measured, but that the *instrument was calibrated* when the measurement was taken.
+
+---
+
+### F9 — Customer Order Portal & Job Linkage
+
+**Pain it removes:** Contract manufacturers (CNC shops, PCBA houses) receive customer purchase orders via email or ERP, then manually create jobs in the system with no traceability back to the customer order. When the customer asks "where is my order?" or "send me the inspection data for PO 12345," the quality engineer must manually correlate jobs to orders. There is no self-service surface for customers to view order status, download quality evidence, or submit new work requests.
+
+**Scope:**
+- `CustomerAccount` entity (Id, TenantId, Name, Code, ContactEmail, PortalToken, Status enum {Active/Inactive}, RequiredDocuments bitmask {PFMEA/ControlPlan/CoC/FirstArticle}).
+- `CustomerOrder` entity (Id, TenantId, CustomerAccountId, OrderNumber, ReceivedAt, DueDate, Status enum {Received/InProgress/Shipped/Closed/Cancelled}, Notes).
+- `CustomerOrderLine` entity (Id, CustomerOrderId, KindId, Quantity, UnitPrice nullable, JobId nullable FK — links to the manufacturing job).
+- `CertificateOfConformance` entity (Id, TenantId, CustomerOrderId, GeneratedAt, GeneratedByUserId, PdfFileName, SignedByUserId nullable, SignedAt nullable) — auto-generated PDF summarizing inspection results for all jobs linked to the order.
+- `/customer-portal/{token}` Blazor surface (no login required — signed token URL): order list with status, per-order drill-down with job progress, downloadable quality documents (PFMEA PDF, Control Plan PDF, CoC PDF) as configured by `RequiredDocuments`.
+- `CustomerOrdersController` — CRUD, line management with job linkage, status transitions, CoC generation endpoint (composes PDF from linked job inspection data + tenant branding via existing QuestPDF infrastructure).
+- `CustomerList.razor` at `/customers` — account management, invite flow (sends portal URL via email), required documents configuration.
+- `CustomerOrderList.razor` at `/customer-orders` — order management, line-to-job linkage picker, CoC generation button, shipping status.
+- Job creation integration: when creating a job from an order line, `JobsController` auto-populates KindId and links back to CustomerOrderLineId.
+
+**Entities / migrations:**
+- `CustomerAccount` (Id, TenantId, Name, Code, ContactEmail, PortalToken, Status, RequiredDocuments).
+- `CustomerOrder` (Id, TenantId, CustomerAccountId, OrderNumber, ReceivedAt, DueDate, Status, Notes).
+- `CustomerOrderLine` (Id, CustomerOrderId, KindId, Quantity, UnitPrice, JobId).
+- `CertificateOfConformance` (Id, TenantId, CustomerOrderId, GeneratedAt, GeneratedByUserId, PdfFileName, SignedByUserId, SignedAt).
+- `Phase_Post_CustomerPortal` EF migration.
+
+**Tests:** `CustomerOrderTests.cs` — order CRUD, line-to-job linkage, CoC PDF generation returns valid PDF, portal token-based access works without JWT, expired token rejected, order status transitions, customer code uniqueness, tenant isolation, required documents configuration persists, portal shows only linked customer's orders.
+
+**Why it matters:** Customer order management closes the commercial loop: the system now covers the full lifecycle from customer PO → process execution → quality evidence → delivery. The CoC auto-generation feature alone saves hours per shipment for contract manufacturers and directly leverages the M4 PDF infrastructure. The customer portal creates a self-service channel that reduces "where's my order?" support load and positions the product as a supplier quality platform, not just an internal tool.
+
+---
+
+## Additional Market-Fit Feature Proposals (2026-04-22, post-M5)
+
+Three features selected to maximize commercial leverage now that the full MVP (M1–M5) is complete and billing infrastructure is live. Each targets a specific revenue or retention lever tied to the subscription tiers defined in M5.
+
+### F10 — Plan-Gated Feature Tiers & Usage Enforcement
+
+**Pain it removes:** The billing infrastructure (M5) defines four subscription plans (Trial/Starter/Professional/Enterprise) but nothing in the application enforces the limits. A Trial tenant can create unlimited processes, add 50+ users, and run thousands of jobs — there is no technical gate matching the pricing table. This creates a revenue leak where trials never convert because they have no functional reason to upgrade, and paying customers on Starter have no incentive to move to Professional.
+
+**Scope:**
+- `PlanLimits` configuration (code-defined, not DB — changes with product releases): per-plan caps on users (Trial: 3, Starter: 25, Professional: 100, Enterprise: unlimited), processes (Trial: 1, Starter: unlimited), sites (Starter: 1, Professional: 3), executions/month (Trial: 50, Starter/Professional/Enterprise: unlimited), advanced modules (Trial/Starter: off, Professional/Enterprise: on).
+- `PlanEnforcementService` — checks current tenant's subscription plan against `PlanLimits` for a given resource action. Returns `PlanCheckResult` (Allowed, AtLimit with upgrade prompt, Blocked with reason).
+- `PlanEnforcementMiddleware` or controller-level attribute `[RequiresPlan(SubscriptionPlan.Professional)]` — validates before resource creation actions (user invite, process create, job create).
+- `UsageMeteringService` — increments `UsageMetric` row for `JobExecutions` on every `Job.Complete` transition, `ActiveUsers` on daily unique login, `PdfExports` on every PDF endpoint hit.
+- Upgrade prompt UI: when a user hits a plan limit, show a contextual modal ("You've reached the 3-user limit on Trial. Upgrade to Starter for up to 25 users.") with a link to `/billing`.
+- `TenantFeatureFlags` integration: Professional plan auto-enables `ShowAdvancedModules`, `ShowProductionTools`, `ShowWarehouseTools`, `ShowTrainingTools`.
+- Admin `/settings/plan` page showing current plan limits, usage against limits, and upgrade button.
+
+**Entities / migrations:**
+- No new entities — extends `TenantSubscription` and `UsageMetric` from M5. `Phase_Post_PlanTiers` migration adds `MaxUsers` and `MaxProcesses` computed columns to `TenantSubscription` (nullable — null means unlimited).
+
+**Tests:** `PlanEnforcementTests.cs` — Trial tenant blocked from creating 4th user, Starter tenant can create 25th user, Professional tenant auto-enables advanced modules, usage metering increments on job completion, upgrade prompt returned in 402 response body, Enterprise plan has no limits, plan change propagates feature flags.
+
+**Why it matters:** Without enforcement, the pricing tiers are fictional and trials never convert. This feature is the single most direct revenue driver — it turns the billing infrastructure from a payment collector into a growth engine. Every manufacturing SaaS competitor gates features by tier; without it, the product appears either free or overpriced.
+
+---
+
+### F11 — Scheduled Reports & Email Digest (Automated Reporting)
+
+**Pain it removes:** Quality managers and operations leads currently must log in to the system and navigate to specific dashboards to get status updates. In manufacturing environments, many decision-makers are in meetings, on the floor, or travelling — they need key metrics pushed to them, not pulled. Competitors like MasterControl and ETQ offer scheduled email reports, and the absence of this feature is flagged in every enterprise evaluation.
+
+**Scope:**
+- `ReportSchedule` entity (Id, TenantId, Name, ReportType enum {DailyDigest, WeeklyQualityReview, MonthlyKpiSummary, OverdueActionItems, TrialExpiryReminder}, RecipientEmails JSON array, CronExpression, IsActive, LastRunAt, NextRunAt, TimeZone, CreatedByUserId).
+- `ReportTemplate` — code-defined templates for each report type, composed from existing controller data:
+  - **Daily Digest**: open jobs count, completed yesterday, overdue action items, new non-conformances, equipment downtime.
+  - **Weekly Quality Review**: NC trend (opened/closed), RPN histogram shift, overdue CAPA summary, training compliance delta.
+  - **Monthly KPI Summary**: throughput, yield, DPMO, MTTR, top 5 root causes, SPC out-of-control count, management review action completion rate.
+  - **Overdue Action Items**: list of all overdue items with assignee, days overdue, source.
+  - **Trial Expiry Reminder**: days remaining, usage summary, upgrade CTA (sent to tenant admin 7 days and 1 day before trial ends).
+- `ReportGenerationService` (BackgroundService) — runs every minute, checks for due schedules, generates HTML email body from template + live data, sends via `IEmailSender` abstraction.
+- `IEmailSender` abstraction with `SmtpEmailSender` (default) and `SendGridEmailSender` implementations — configured via `Email:Provider` in appsettings.
+- `ReportSchedulesController` — CRUD, activate/deactivate, preview (returns HTML body without sending), send-now.
+- `ReportScheduleList.razor` at `/reports/schedules` — manage schedules, preview modal, recipient management.
+- Integration with M5 billing: Trial expiry reminder auto-created on signup, sends 7-day and 1-day warnings to admin email.
+
+**Entities / migrations:**
+- `ReportSchedule` (Id, TenantId, Name, ReportType, RecipientEmails, CronExpression, IsActive, LastRunAt, NextRunAt, TimeZone, CreatedByUserId).
+- `ReportDelivery` (Id, ReportScheduleId, SentAt, RecipientCount, Status enum {Sent/Failed}, ErrorMessage nullable).
+- `Phase_Post_ScheduledReports` EF migration.
+
+**Tests:** `ScheduledReportTests.cs` ��� schedule CRUD, daily digest contains expected sections, trial expiry reminder sent at correct intervals, deactivated schedule not executed, send-now delivers immediately, recipient validation, tenant isolation of schedules, preview returns HTML without sending, report delivery logged.
+
+**Why it matters:** Scheduled reports are a table-stakes enterprise feature and the #1 request from operations managers who are the budget holders. The trial expiry reminder directly drives conversion by creating urgency. The weekly quality review email keeps the product top-of-mind for quality managers who might otherwise forget to log in — reducing passive churn.
+
+---
+
+### F12 — API Key Self-Service & Developer Portal
+
+**Pain it removes:** The system has a rich REST API and MCP server, but external integration requires either sharing JWT credentials (insecure) or direct database access (unsupported). Contract manufacturers and larger shops need to connect the system to their ERP (SAP, Oracle, JobBoss), MES, or BI tools (Power BI, Tableau). Today, there is no self-service way to create API keys, no rate limiting, no usage tracking per key, and no documentation portal. Every competitor in the manufacturing QMS space offers API keys — without them, the system is a walled garden.
+
+**Scope:**
+- `TenantApiKey` entity (Id, TenantId, Name, HashedKey SHA-256, Prefix first 8 chars for identification, Scopes JSON array of allowed endpoint patterns, RateLimitPerMinute default 60, IsActive, LastUsedAt, CreatedByUserId, CreatedAt, ExpiresAt nullable).
+- `ApiKeyAuthenticationHandler` — custom ASP.NET authentication scheme reading `X-Api-Key` header, validates hash against DB, checks scope, enforces rate limit via in-memory sliding window (per key), sets tenant context from key's TenantId.
+- `ApiKeysController` (Admin-only) — create (returns plain key once, stores hash), list (shows prefix + last used + scopes), revoke, update scopes/rate limit.
+- `/settings/api-keys` Blazor page — create key modal (shows key once with copy button and warning), key list with scope editor, revoke confirmation, usage stats (calls last 24h from `UsageMetric`).
+- API documentation page at `/api-docs` — auto-generated from Swagger/OpenAPI spec, styled for external developers, includes authentication instructions, example curl commands, webhook setup guide.
+- Rate limiting middleware for API key requests — returns 429 Too Many Requests with `Retry-After` header.
+- `UsageMetric` integration: every API key request increments `ApiCalls` metric, tagged with key prefix for per-key breakdown.
+
+**Entities / migrations:**
+- `TenantApiKey` (Id, TenantId, Name, HashedKey, Prefix, Scopes, RateLimitPerMinute, IsActive, LastUsedAt, CreatedByUserId, CreatedAt, ExpiresAt).
+- `Phase_Post_ApiKeys` EF migration.
+
+**Tests:** `ApiKeyTests.cs` — key creation returns plain key, subsequent calls use hashed lookup, revoked key returns 401, expired key returns 401, rate limit returns 429, scope enforcement blocks out-of-scope endpoints, API key sets correct tenant context, key list does not expose hash, concurrent requests within rate limit succeed, usage metric incremented per request.
+
+**Why it matters:** API keys are the gateway to the integration ecosystem that drives enterprise adoption and stickiness. Once a customer connects the system to their ERP, switching costs increase dramatically — this is the #1 retention lever for the Professional and Enterprise tiers. It also enables a partner ecosystem where system integrators can build on top of the platform, creating a network effect that no competitor in the small-shop manufacturing QMS space has achieved.
+
+---
+
+## Additional Market-Fit Feature Proposals (2026-04-22, post-M3 completion)
+
+Three features selected to exploit the newly-completed offline-capable execution surface (M3) and maximize the competitive gap in shop-floor usability that no incumbent manufacturing QMS offers.
+
+### F13 — Offline-First Operator Shift Handover
+
+**Pain it removes:** At shift changes, outgoing operators verbally relay in-progress job state to incoming operators — which steps are done, which measurements were flagged, which materials were consumed. This verbal handover fails silently when details are forgotten, and the incoming operator discovers problems mid-step. The existing execution wizard tracks per-step state but provides no structured handover summary.
+
+**Scope:**
+- `ShiftHandover` entity (Id, TenantId, OutgoingUserId, IncomingUserId, ShiftEndAt, ShiftStartAt, Status enum {Draft/Submitted/Acknowledged}, Notes, CreatedAt).
+- `ShiftHandoverItem` entity (Id, ShiftHandoverId, StepExecutionId, ItemType enum {InProgress/FlaggedValue/PendingNC/MaterialShortage/EquipmentIssue}, Summary auto-generated, AcknowledgedByIncoming bool).
+- `POST /api/shift-handovers/generate` — auto-populates handover items from all in-progress step executions assigned to the outgoing user: open NCs, flagged measurements (out-of-range values), pending pick-list lines, equipment downtime events.
+- `ShiftHandover.razor` at `/shift-handover` — outgoing operator reviews generated items, adds free-text notes, submits. Incoming operator sees handover on login, acknowledges each item with checkbox.
+- IndexedDB persistence via `operator-sync.js` — handover can be drafted offline during shift overlap when connectivity is spotty.
+- Push notification integration: incoming operator receives a browser notification when a handover is submitted for them.
+
+**Entities / migrations:**
+- `ShiftHandover` (Id, TenantId, OutgoingUserId, IncomingUserId, ShiftEndAt, ShiftStartAt, Status, Notes, CreatedAt).
+- `ShiftHandoverItem` (Id, ShiftHandoverId, StepExecutionId, ItemType, Summary, AcknowledgedByIncoming).
+- `Phase_Post_ShiftHandover` EF migration.
+
+**Tests:** `ShiftHandoverTests.cs` — auto-generation populates correct items from in-progress work, handover acknowledges item-by-item, submitted handover visible to incoming user, offline-drafted handover syncs on reconnect, cross-tenant isolation, only assigned incoming user can acknowledge.
+
+**Why it matters:** Shift handover is the #1 source of quality escapes in 24/7 manufacturing operations. No competitor offers a structured digital handover — this feature alone differentiates the execution wizard from paper-based and legacy QMS systems. It also drives daily active usage by making the system the mandatory touchpoint at every shift change.
+
+---
+
+### F14 — Voice-Activated Measurement Entry
+
+**Pain it removes:** Operators wearing gloves (CNC coolant, cleanroom PPE, chemical handling) cannot type measurements on a tablet. They must remove gloves, enter the value, re-glove — adding 15–30 seconds per measurement on a step with 10+ prompts. The M3 touch-target improvements help but don't solve the gloved-hands problem. Voice entry eliminates the physical interaction entirely.
+
+**Scope:**
+- `VoiceInput.razor` shared component using the Web Speech API (`SpeechRecognition` interface) via JS interop.
+- Integration into `ExecutionWizardContent.razor` Phase 4: each `NumericEntry` prompt gains a microphone button that activates continuous speech recognition.
+- `voice-input.js` JS module: starts recognition, filters for numeric patterns (regex extraction of decimal numbers from spoken text), confirms the parsed value with a spoken readback via `SpeechSynthesis`, auto-submits to the prompt value on confirmation.
+- Noise cancellation hint via `SpeechRecognition.continuous = false` and `interimResults = true` — shows live transcription so the operator can see what was heard before it's committed.
+- Fallback: if Web Speech API is unavailable (Firefox, some Android WebViews), the mic button is hidden and standard input remains.
+- Language configuration per tenant via `TenantBranding.SpeechLocale` (default `en-US`).
+- Audit trail: `PromptResponse.EntryMethod` enum extension (Manual/Barcode/Voice) — stored alongside the response value for traceability.
+
+**Entities / migrations:**
+- `EntryMethod` enum (Manual/Barcode/Voice/Photo) on `PromptResponse`.
+- `SpeechLocale` nullable string on `TenantBranding`.
+- `Phase_Post_VoiceInput` EF migration.
+
+**Tests:** `VoiceInputTests.cs` — EntryMethod persisted correctly on prompt response, SpeechLocale round-trip on TenantBranding, numeric extraction from spoken text (JS unit tests), fallback hides mic button when API unavailable, voice-entered values pass same validation as manual entry.
+
+**Why it matters:** Hands-free data entry is the killer feature for shop-floor adoption in the CNC and medical-device segments where PPE is mandatory. No manufacturing QMS competitor offers voice input — this is a genuine first-mover advantage. It also dramatically reduces measurement entry time, making the system measurably faster than paper for the first time.
+
+---
+
+### F15 — Geo-Fenced Execution & Location-Aware Job Assignment
+
+**Pain it removes:** Multi-site tenants (Professional plan) and large single-site operations need to ensure that operators execute jobs only when physically present at the correct workstation or area. Today, an operator could complete a step from the break room or even off-site — there is no location verification. For regulated environments (FDA 820, AS9100), location evidence strengthens the audit record. For operations managers, location data enables real-time workforce visibility.
+
+**Scope:**
+- `WorkstationGeofence` entity (Id, FloorPlanWorkstationId FK, Latitude, Longitude, RadiusMeters default 50, IsEnforced bool) — links to the existing Phase 22 `FloorPlanWorkstation`.
+- `StepExecution.StartLatitude`/`StartLongitude`/`LocationAccuracyMeters` nullable fields — captured on step start via Geolocation API.
+- `location-check.js` JS module: requests `navigator.geolocation.getCurrentPosition` with high accuracy, returns coordinates to Blazor via JS interop.
+- ExecutionWizard integration: on step start, if the step's assigned workstation has an enforced geofence, verify the operator's location is within radius. If outside, show a warning (soft enforcement) or block execution (hard enforcement based on `IsEnforced`).
+- `LocationDashboard.razor` at `/floor-status/locations` — real-time view of operator positions overlaid on the floor plan canvas (reuses `factory-canvas.js`), showing which operators are at which workstations.
+- `JobAssignmentService` enhancement: when an operator requests work via MyWork/Portal, geo-filter to only show jobs assigned to workstations within their current proximity.
+- Privacy controls: location is only captured during active step execution, never in background. `TenantFeatureFlags.EnableLocationTracking` toggle. Location data auto-purged after configurable retention period (default 90 days).
+
+**Entities / migrations:**
+- `WorkstationGeofence` (Id, FloorPlanWorkstationId, Latitude, Longitude, RadiusMeters, IsEnforced).
+- `StartLatitude`, `StartLongitude`, `LocationAccuracyMeters` nullable on `StepExecution`.
+- `EnableLocationTracking` on `TenantFeatureFlags`.
+- `Phase_Post_Geofence` EF migration.
+
+**Tests:** `GeofenceTests.cs` — geofence CRUD, location within radius passes check, location outside radius triggers warning/block, enforced vs. soft enforcement behavior, step execution captures coordinates, location data respects tenant isolation, feature flag toggle enables/disables location capture, privacy purge removes old location data.
+
+**Why it matters:** Location verification is a growing regulatory expectation in pharmaceutical and medical-device manufacturing (FDA 21 CFR Part 11 electronic records). It's also the bridge between the existing Floor Plan (Phase 22) and real-time operations — turning the static floor plan into a live operational dashboard. For multi-site Professional-tier customers, geo-fencing ensures process discipline across locations without manual supervisor oversight.
+
+---
+
+## Additional Market-Fit Feature Proposals (2026-04-22, post-F10 completion)
+
+Three features selected to maximize the commercial impact of the newly-enforced plan tiers (F10). Each directly drives trial-to-paid conversion, reduces churn, or unlocks a new revenue stream by leveraging the plan enforcement infrastructure.
+
+### F16 — In-App Upgrade Flow & Self-Service Plan Management
+
+**Pain it removes:** The billing infrastructure (M5) and plan enforcement (F10) can block users at limits and show upgrade prompts, but there is no in-app mechanism to actually change plans. Admins must contact support or navigate to the Stripe billing portal — a context switch that kills conversion momentum. Every SaaS product with self-service revenue needs a frictionless upgrade path directly from the limit-reached modal.
+
+**Scope:**
+- `PlanSelectionPage.razor` at `/billing/plans` — side-by-side plan comparison card layout (Trial/Starter/Professional/Enterprise) showing: feature matrix (users, processes, sites, executions, modules), current plan highlighted, "Current Plan" badge, upgrade/downgrade CTAs. Responsive for tablet.
+- `UpgradeModal.razor` shared component — triggered by 402 plan-limit responses anywhere in the app. Shows the contextual limit ("You've reached 3 users on Trial"), the next plan's benefits, and a "Upgrade Now" button that navigates to `/billing/plans` or directly creates a Stripe Checkout session.
+- `POST /api/billing/checkout-session` endpoint — creates a Stripe Checkout Session for the selected plan, returns the session URL for client-side redirect. Pre-fills tenant email and applies any active promotional coupon.
+- `POST /api/billing/change-plan` endpoint — handles plan downgrades by updating the `TenantSubscription.PlanCode` at period end (via Stripe subscription schedule), immediately syncs feature flags via `SyncFeatureFlagsForPlan`.
+- `BillingController` extended with plan change history endpoint (`GET /api/billing/plan-changes`) for audit trail.
+- Downgrade safeguard: when switching to a lower plan, check if current usage exceeds the target plan's limits (e.g., 50 users on Professional → Starter allows 25). Show a warning listing what will be affected but don't block — enforce at next resource creation.
+- Promotional coupon support: `TenantSubscription.CouponCode` nullable field, applied at checkout session creation.
+
+**Entities / migrations:**
+- `CouponCode` nullable string on `TenantSubscription`.
+- `PlanChangeLog` entity (Id, TenantId, FromPlan, ToPlan, ChangedAt, ChangedByUserId, Reason nullable).
+- `Phase_Post_UpgradeFlow` EF migration.
+
+**Tests:** `UpgradeFlowTests.cs` — checkout session creation returns valid URL, plan change updates subscription, downgrade warning triggered when usage exceeds target limits, feature flags synced on plan change, coupon code applied at checkout, plan change logged in audit, non-admin cannot change plan, concurrent plan changes are idempotent.
+
+**Why it matters:** The upgrade flow is the revenue bridge between F10's enforcement gates and actual payment. Without it, every 402 response is a dead end that drives frustration instead of conversion. Self-service plan changes reduce support load and enable impulse upgrades — the user hits the wall, sees the upgrade modal, and converts in under 60 seconds. This is the single highest-ROI feature for post-MVP revenue.
+
+---
+
+### F17 — Tenant Admin Dashboard & Usage Analytics
+
+**Pain it removes:** Tenant admins (the buyer persona) have no visibility into how their team uses the system. They can't answer "are we getting value from this?" at renewal time, can't identify underutilized features to drive adoption, and can't proactively manage their plan limits before hitting a wall. The existing Dashboard page shows operational KPIs (jobs, throughput) but nothing about subscription health, user activity, or feature adoption.
+
+**Scope:**
+- `TenantDashboard.razor` at `/admin/dashboard` (Admin-only) — single-page admin overview with:
+  - **Plan & Usage section**: current plan badge, usage bars for each metered resource (users/processes/executions) against plan limits (from `PlanEnforcementService`), days remaining in trial/billing period, payment status indicator.
+  - **User Activity section**: active users last 7/30 days (from daily `ActiveUsers` usage metric), last-login list (top 10 most recent + top 10 most stale), role distribution pie chart.
+  - **Feature Adoption section**: feature flags enabled vs. available for current plan, module-level usage (which NavMenu sections are visited — tracked via lightweight `PageView` metric), recommendation cards ("You have Production Tools enabled but haven't created any Equipment — get started →").
+  - **Quick Actions**: invite user, upgrade plan, manage billing, toggle modules.
+- `GET /api/admin/dashboard` endpoint — aggregates subscription, usage metrics, user activity, and feature flag data into a single `TenantAdminDashboardDto`.
+- `UsageMetricType.PageViews` enum extension — lightweight client-side tracking via a `PageViewService` that increments a metric on each Blazor navigation (grouped by module: Quality/Production/Warehouse/Training/Reports/Admin).
+- `UserActivitySummary` computed from `ApplicationUser.LastLoginAt` (new nullable field) — updated on each successful login in `AuthController.Login`.
+
+**Entities / migrations:**
+- `LastLoginAt` nullable DateTime on `ApplicationUser`.
+- `PageViews` value added to `UsageMetricType` enum.
+- `Phase_Post_TenantDashboard` EF migration.
+
+**Tests:** `TenantDashboardTests.cs` — dashboard returns correct plan limits, user count matches reality, active user count computed from login timestamps, feature adoption recommendations generated for unused modules, page view metric incremented, non-admin cannot access dashboard, cross-tenant isolation of dashboard data.
+
+**Why it matters:** The admin dashboard is the retention surface — it's what the buyer sees when deciding whether to renew. By showing concrete usage data and adoption metrics, it arms the internal champion with the evidence they need to justify the subscription at budget review. The feature adoption recommendations also drive engagement by surfacing unused capabilities, reducing the "we only use 20% of it" churn objection.
+
+---
+
+### F18 — Team & Role-Based Seat Management
+
+**Pain it removes:** The current user management is a flat list — admins can create users with roles (Admin/Engineer/Participant) but there's no concept of seat allocation, team grouping, or role-based billing. When a Starter plan allows 25 users, the admin can't see how seats are distributed across roles, can't reserve seats for specific roles, and has no visibility into which users are actually active vs. consuming a seat but never logging in. The OrgUnit structure (Phase 12) provides organizational hierarchy but doesn't connect to billing seats.
+
+**Scope:**
+- `SeatAllocation` entity (Id, TenantId, Role string, AllocatedCount int, UsedCount computed) — per-role seat pools within the overall plan user limit. Admin allocates e.g. 5 Admin + 5 Engineer + 15 Participant = 25 on Starter.
+- `UserStatus` enum extension on `ApplicationUser`: Active/Invited/Deactivated. Deactivated users don't count toward seat limit but retain data. Invited users count toward limit but haven't accepted yet.
+- `SeatManagement.razor` at `/admin/seats` — visual seat allocation interface showing: total seats (from plan), allocated per role (editable sliders), used per role, available per role, list of deactivated users (re-activate button), list of invited-but-pending users.
+- `POST /api/admin/seats/allocate` — sets role-based seat allocations. Validates total doesn't exceed plan limit.
+- `PATCH /api/auth/users/{id}/deactivate` — sets `UserStatus = Deactivated`, revokes active sessions (by blacklisting JWT jti), frees the seat. User data preserved.
+- `PATCH /api/auth/users/{id}/reactivate` — checks seat availability for user's role before reactivating.
+- `AuthController.Register` extended: checks role-specific seat allocation (not just total user count) before creating user.
+- `PlanEnforcementService.CheckAsync(PlanResource.Users)` enhanced: considers both total plan limit AND per-role seat allocation.
+- Seat utilization report: `GET /api/admin/seats/utilization` — returns per-role breakdown with last-login data, enabling admin to identify and deactivate dormant seats.
+
+**Entities / migrations:**
+- `SeatAllocation` (Id, TenantId, Role, AllocatedCount).
+- `UserStatus` enum (Active/Invited/Deactivated) on `ApplicationUser` (default Active).
+- `Phase_Post_SeatManagement` EF migration.
+
+**Tests:** `SeatManagementTests.cs` — seat allocation respects plan limit, role-specific seat check blocks over-allocated role, deactivation frees seat, reactivation checks availability, deactivated user cannot login, seat utilization report returns correct counts, total allocation cannot exceed plan limit, cross-tenant seat isolation.
+
+**Why it matters:** Seat management transforms the flat user limit from a blunt gate into a flexible resource that admins can actively manage. It directly reduces "I hit the user limit but half my users are inactive" support tickets — the #1 billing-related complaint in SaaS products with per-seat pricing. It also creates a natural upsell trigger: when seat utilization is high across all roles, the admin sees the constraint and is primed to upgrade. For Professional-tier customers with 100 seats, role-based allocation is a governance feature that IT departments expect.

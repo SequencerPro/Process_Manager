@@ -1231,4 +1231,25 @@ h1:focus {
         padding: .4em .6em;
         font-size: .85rem;
     }
+
+    .execution-wizard .signature-canvas-container canvas {
+        min-height: 160px;
+    }
+
+    .execution-wizard .photo-capture .btn {
+        min-height: 52px;
+        font-size: 1.05rem;
+    }
+}
+
+/* Signature canvas responsive sizing */
+.signature-canvas-container canvas {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Sync status pill */
+.sync-status {
+    font-size: .8rem;
+    white-space: nowrap;
 }

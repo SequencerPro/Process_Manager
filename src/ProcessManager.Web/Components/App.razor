@@ -48,6 +48,19 @@
         };
     </script>
 
+    <!-- Operator execution: offline sync, barcode, photo, signature -->
+    <script src="js/operator-sync.js?v=1"></script>
+    <script src="js/barcode-scanner.js?v=1"></script>
+    <script src="js/photo-capture.js?v=1"></script>
+    <script src="js/signature-pad.js?v=1"></script>
+
+    <!-- Service worker registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/operator-sw.js').catch(function () { });
+        }
+    </script>
+
     <script src="_framework/blazor.web.js" defer></script>
 </body>
 

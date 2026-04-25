@@ -38,6 +38,7 @@ else
                 <span class="text-muted small ms-2 d-none d-sm-inline">@(string.IsNullOrEmpty(_se.JobCode) ? "" : $"Job {_se.JobCode}")</span>
             </div>
             <div class="d-flex gap-2 align-items-center">
+                <SyncStatus />
                 @* ── Mobile compact phase indicator ── *@
                 @{
                     var mobileLabel = _phase switch { 1 => "Setup", 2 => "Safety", 3 => "Reference", 4 => "Execution", _ => "Sign-off" };
@@ -356,13 +357,23 @@ else
                                         </div>
                                     }
                                 }
-                                else if (block.PromptType is "TextEntry" or "Scan")
+                                else if (block.PromptType == "Scan")
                                 {
                                     <div class="input-group">
-                                        @if (block.PromptType == "Scan")
-                                        {
-                                            <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
-                                        }
+                                        <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+                                        <input type="text" class="form-control"
+                                               value="@GetPromptValue(block.Id)"
+                                               @oninput="e => SetPromptValue(block.Id, e.Value?.ToString() ?? string.Empty)"
+                                               placeholder="@block.Label" />
+                                        <button class="btn btn-outline-primary" @onclick="() => OpenBarcodeScanner(block.Id)"
+                                                title="Scan with camera">
+                                            <i class="bi bi-camera"></i>
+                                        </button>
+                                    </div>
+                                }
+                                else if (block.PromptType == "TextEntry")
+                                {
+                                    <div class="input-group">
                                         <input type="text" class="form-control"
                                                value="@GetPromptValue(block.Id)"
                                                @oninput="e => SetPromptValue(block.Id, e.Value?.ToString() ?? string.Empty)"
@@ -550,6 +561,18 @@ else
                 </div>
             }
 
+            <!-- Photo Evidence -->
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Photo Evidence</label>
+                <PhotoCapture OnCaptured="HandlePhotoCaptured" ButtonLabel="Capture Photo Evidence" />
+            </div>
+
+            <!-- Operator Signature -->
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Operator Signature</label>
+                <SignatureCanvas @ref="_signatureCanvas" Width="600" Height="180" LineWidth="3" />
+            </div>
+
             <!-- Notes -->
             <div class="mb-3">
                 <label class="form-label fw-semibold">Operator Notes</label>
@@ -587,6 +610,9 @@ else
     }
 </div>@* execution-wizard *@
 }
+
+<!-- ══ Barcode Scanner Modal ══ -->
+<BarcodeScannerModal @ref="_barcodeScanner" OnScanned="HandleBarcodeScanned" />
 
 <!-- ══ NC Disposition Modal ══ -->
 @if (_showNcModal)
@@ -687,6 +713,16 @@ else
     // UserPicker prompt support
     private List<UserPickerDto> _userPickerList = new();
 
+    // Barcode scanner
+    private BarcodeScannerModal? _barcodeScanner;
+    private Guid _barcodeScanTargetBlockId;
+
+    // Signature canvas
+    private SignatureCanvas? _signatureCanvas;
+
+    // Photo capture
+    private string? _capturedPhotoBase64;
+
     // Unsaved changes guard
     private HashSet<Guid> _dirtyPrompts = new();
     private bool HasUnsavedChanges => _dirtyPrompts.Any();
@@ -735,6 +771,7 @@ else
             await LoadNonConformances();
             await LoadPickList();
             _userPickerList = await Api.GetUserPickerListAsync() ?? new();
+            try { await JS.InvokeVoidAsync("OperatorSync.setApiBase", _apiBaseUrl); } catch { }
         }
         catch (Exception ex) { _error = ex.Message; }
         finally { _loading = false; }
@@ -999,6 +1036,23 @@ else
         }
         catch (Exception ex) { _ncError = ex.Message; }
         finally { _ncSaving = false; }
+    }
+
+    private async Task OpenBarcodeScanner(Guid blockId)
+    {
+        _barcodeScanTargetBlockId = blockId;
+        if (_barcodeScanner is not null)
+            await _barcodeScanner.Open();
+    }
+
+    private void HandleBarcodeScanned(string value)
+    {
+        SetPromptValue(_barcodeScanTargetBlockId, value);
+    }
+
+    private void HandlePhotoCaptured(PhotoCapture.PhotoResult? result)
+    {
+        _capturedPhotoBase64 = result?.Base64;
     }
 
     private async Task CompleteStep()

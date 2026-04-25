@@ -1,0 +1,74 @@
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="signature-canvas-container">
+    <canvas id="@_canvasId" width="@Width" height="@Height"
+            style="width:100%;border:2px solid #dee2e6;border-radius:6px;background:#fff;cursor:crosshair">
+    </canvas>
+    <div class="d-flex justify-content-between align-items-center mt-1">
+        <span class="text-muted small">Sign above</span>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="Clear" title="Clear signature">
+            <i class="bi bi-eraser me-1"></i>Clear
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int Width { get; set; } = 600;
+    [Parameter] public int Height { get; set; } = 200;
+    [Parameter] public int LineWidth { get; set; } = 3;
+    [Parameter] public string StrokeColor { get; set; } = "#000000";
+    [Parameter] public EventCallback<string?> OnChanged { get; set; }
+
+    private string _canvasId = $"sig-canvas-{Guid.NewGuid():N}";
+    private bool _initialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _initialized = await JS.InvokeAsync<bool>("SignaturePad.init", _canvasId, null,
+                new { lineWidth = LineWidth, strokeColor = StrokeColor });
+        }
+    }
+
+    public async Task Clear()
+    {
+        if (_initialized)
+            await JS.InvokeVoidAsync("SignaturePad.clear", _canvasId);
+        await OnChanged.InvokeAsync(null);
+    }
+
+    public async Task<bool> IsEmpty()
+    {
+        if (!_initialized) return true;
+        return await JS.InvokeAsync<bool>("SignaturePad.isEmpty", _canvasId);
+    }
+
+    public async Task<string?> GetBase64()
+    {
+        if (!_initialized) return null;
+        return await JS.InvokeAsync<string?>("SignaturePad.toBase64", _canvasId);
+    }
+
+    public async Task<string?> GetDataUrl()
+    {
+        if (!_initialized) return null;
+        return await JS.InvokeAsync<string?>("SignaturePad.toDataUrl", _canvasId, "image/png");
+    }
+
+    public async Task Load(string dataUrl)
+    {
+        if (_initialized)
+            await JS.InvokeVoidAsync("SignaturePad.loadFromDataUrl", _canvasId, dataUrl);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_initialized)
+        {
+            try { await JS.InvokeVoidAsync("SignaturePad.destroy", _canvasId); } catch { }
+        }
+    }
+}

@@ -27,6 +27,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<TenantOnboardingState> TenantOnboardingStates => Set<TenantOnboardingState>();
     public DbSet<TenantFeatureFlags> TenantFeatureFlags => Set<TenantFeatureFlags>();
+    public DbSet<TenantBranding> TenantBrandings => Set<TenantBranding>();
 
     // Phase 1: Type System
     public DbSet<Kind> Kinds => Set<Kind>();
@@ -144,6 +145,14 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<FloorPlanWorkstationProcess> FloorPlanWorkstationProcesses => Set<FloorPlanWorkstationProcess>();
     public DbSet<FloorPlanWorkstationTool> FloorPlanWorkstationTools => Set<FloorPlanWorkstationTool>();
     public DbSet<FloorPlanInventoryLocation> FloorPlanInventoryLocations => Set<FloorPlanInventoryLocation>();
+
+    // M5: Billing Infrastructure
+    public DbSet<TenantSubscription> TenantSubscriptions => Set<TenantSubscription>();
+    public DbSet<UsageMetric> UsageMetrics => Set<UsageMetric>();
+    public DbSet<BillingEvent> BillingEvents => Set<BillingEvent>();
+
+    // F16: Upgrade Flow
+    public DbSet<PlanChangeLog> PlanChangeLogs => Set<PlanChangeLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1719,6 +1728,59 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
         {
             e.HasKey(f => f.Id);
             e.HasIndex(f => f.TenantId).IsUnique();
+        });
+
+        // --- Tenant Branding (M4) ---
+        modelBuilder.Entity<TenantBranding>(e =>
+        {
+            e.HasKey(b => b.Id);
+            e.HasIndex(b => b.TenantId).IsUnique();
+            e.Property(b => b.LogoFileName).HasMaxLength(500);
+            e.Property(b => b.PrimaryColorHex).HasMaxLength(7);
+            e.Property(b => b.CompanyName).HasMaxLength(200);
+            e.Property(b => b.FooterText).HasMaxLength(500);
+        });
+
+        // --- Tenant Subscription (M5) ---
+        modelBuilder.Entity<TenantSubscription>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.HasIndex(s => s.TenantId).IsUnique();
+            e.Property(s => s.StripeCustomerId).HasMaxLength(100);
+            e.Property(s => s.StripeSubscriptionId).HasMaxLength(100);
+            e.Property(s => s.PlanCode).HasConversion<string>().HasMaxLength(20);
+            e.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(s => s.LastStripeEventId).HasMaxLength(100);
+            e.Property(s => s.CouponCode).HasMaxLength(100);
+        });
+
+        // --- Usage Metric (M5) ---
+        modelBuilder.Entity<UsageMetric>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.HasIndex(m => new { m.TenantId, m.MetricType, m.PeriodStart }).IsUnique();
+            e.Property(m => m.MetricType).HasConversion<string>().HasMaxLength(30);
+        });
+
+        // --- Billing Event (M5) ---
+        modelBuilder.Entity<BillingEvent>(e =>
+        {
+            e.HasKey(b => b.Id);
+            e.HasIndex(b => b.StripeEventId).IsUnique();
+            e.Property(b => b.StripeEventId).HasMaxLength(100).IsRequired();
+            e.Property(b => b.EventType).HasConversion<string>().HasMaxLength(30);
+            e.Property(b => b.Description).HasMaxLength(500);
+        });
+
+        // --- Plan Change Log (F16) ---
+        modelBuilder.Entity<PlanChangeLog>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.HasIndex(p => p.TenantId);
+            e.Property(p => p.FromPlan).HasConversion<string>().HasMaxLength(20);
+            e.Property(p => p.ToPlan).HasConversion<string>().HasMaxLength(20);
+            e.Property(p => p.ChangedByUserId).HasMaxLength(450);
+            e.Property(p => p.Reason).HasMaxLength(500);
         });
 
         ApplyTenantQueryFilters(modelBuilder);

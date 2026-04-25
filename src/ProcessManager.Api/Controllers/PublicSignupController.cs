@@ -124,6 +124,18 @@ public class PublicSignupController : ControllerBase
             };
             _db.TenantFeatureFlags.Add(flags);
 
+            // Billing subscription (trial)
+            var trialDays = 30;
+            var subscription = new TenantSubscription
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenant.Id,
+                PlanCode = SubscriptionPlan.Trial,
+                Status = SubscriptionStatus.Trial,
+                TrialEndsAt = DateTime.UtcNow.AddDays(trialDays)
+            };
+            _db.TenantSubscriptions.Add(subscription);
+
             // Onboarding state
             var state = new TenantOnboardingState
             {

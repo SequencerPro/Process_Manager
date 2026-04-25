@@ -7,6 +7,8 @@ using Microsoft.IdentityModel.Tokens;
 using ProcessManager.Api.Data;
 using ProcessManager.Api.Services;
 
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ── Database ──────────────────────────────────────────────────────────────────
@@ -36,6 +38,9 @@ var connStr = ToNpgsqlConnectionString(rawConnStr);
 builder.Services.AddScoped<ProcessManager.Api.Services.ITenantContext, ProcessManager.Api.Services.TenantContext>();
 builder.Services.AddScoped<ProcessManager.Api.Data.TenantSaveChangesInterceptor>();
 builder.Services.AddSingleton<ProcessManager.Api.Services.JwtTokenService>();
+builder.Services.AddSingleton<ProcessManager.Api.Services.IStripeService, ProcessManager.Api.Services.StripeService>();
+builder.Services.AddScoped<ProcessManager.Api.Services.IPlanEnforcementService, ProcessManager.Api.Services.PlanEnforcementService>();
+builder.Services.AddScoped<ProcessManager.Api.Services.IUsageMeteringService, ProcessManager.Api.Services.UsageMeteringService>();
 
 builder.Services.AddDbContext<ProcessManagerDbContext>((sp, options) =>
 {
@@ -172,6 +177,7 @@ app.UseStaticFiles();
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseMiddleware<ProcessManager.Api.Middleware.TenantContextMiddleware>();
+app.UseMiddleware<ProcessManager.Api.Middleware.TenantSuspensionMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 

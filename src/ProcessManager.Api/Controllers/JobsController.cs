@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Api.Data;
 using ProcessManager.Api.DTOs;
+using ProcessManager.Api.Services;
 using ProcessManager.Domain.Entities;
 using ProcessManager.Domain.Enums;
 
@@ -15,8 +16,15 @@ namespace ProcessManager.Api.Controllers;
 public class JobsController : ControllerBase
 {
     private readonly ProcessManagerDbContext _db;
+    private readonly IPlanEnforcementService _planEnforcement;
+    private readonly IUsageMeteringService _usageMetering;
 
-    public JobsController(ProcessManagerDbContext db) => _db = db;
+    public JobsController(ProcessManagerDbContext db, IPlanEnforcementService planEnforcement, IUsageMeteringService usageMetering)
+    {
+        _db = db;
+        _planEnforcement = planEnforcement;
+        _usageMetering = usageMetering;
+    }
 
     // ───── Job CRUD ─────
 
@@ -75,6 +83,10 @@ public class JobsController : ControllerBase
     {
         if (await _db.Jobs.AnyAsync(j => j.Code == dto.Code))
             return Conflict($"A Job with code '{dto.Code}' already exists.");
+
+        var planCheck = await _planEnforcement.CheckAsync(PlanResource.MonthlyExecutions);
+        if (planCheck.Outcome == PlanCheckOutcome.Blocked)
+            return StatusCode(402, new { error = "Plan limit reached", message = planCheck.Message, suggestedUpgrade = planCheck.SuggestedUpgrade?.ToString() });
 
         var process = await _db.Processes
             .Include(p => p.ProcessSteps)
@@ -370,6 +382,8 @@ public class JobsController : ControllerBase
         }
 
         await _db.SaveChangesAsync();
+
+        await _usageMetering.IncrementAsync(UsageMetricType.JobExecutions);
 
         // ── Workorder auto-progression: create successor jobs when applicable ─────
         if (job.WorkorderId.HasValue)

@@ -16,8 +16,13 @@ namespace ProcessManager.Api.Controllers;
 public class ProcessesController : ControllerBase
 {
     private readonly ProcessManagerDbContext _db;
+    private readonly IPlanEnforcementService _planEnforcement;
 
-    public ProcessesController(ProcessManagerDbContext db) => _db = db;
+    public ProcessesController(ProcessManagerDbContext db, IPlanEnforcementService planEnforcement)
+    {
+        _db = db;
+        _planEnforcement = planEnforcement;
+    }
 
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<ProcessSummaryResponseDto>>> GetAll(
@@ -103,6 +108,10 @@ public class ProcessesController : ControllerBase
     {
         if (await _db.Processes.AnyAsync(p => p.Code == dto.Code))
             return Conflict($"A Process with code '{dto.Code}' already exists.");
+
+        var planCheck = await _planEnforcement.CheckAsync(PlanResource.Processes);
+        if (planCheck.Outcome == PlanCheckOutcome.Blocked)
+            return StatusCode(402, new { error = "Plan limit reached", message = planCheck.Message, suggestedUpgrade = planCheck.SuggestedUpgrade?.ToString() });
 
         var processRole = Enum.TryParse<ProcessRole>(dto.ProcessRole, ignoreCase: true, out var parsedRole)
             ? parsedRole

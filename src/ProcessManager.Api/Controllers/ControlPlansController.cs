@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Api.Data;
 using ProcessManager.Api.DTOs;
+using ProcessManager.Api.Services;
 using ProcessManager.Domain.Entities;
 using ProcessManager.Domain.Enums;
 
@@ -14,7 +15,13 @@ namespace ProcessManager.Api.Controllers;
 public class ControlPlansController : ControllerBase
 {
     private readonly ProcessManagerDbContext _db;
-    public ControlPlansController(ProcessManagerDbContext db) => _db = db;
+    private readonly IUsageMeteringService _usageMetering;
+
+    public ControlPlansController(ProcessManagerDbContext db, IUsageMeteringService usageMetering)
+    {
+        _db = db;
+        _usageMetering = usageMetering;
+    }
 
     // ─── ControlPlan CRUD ─────────────────────────────────────────────────
 
@@ -211,6 +218,24 @@ public class ControlPlansController : ControllerBase
 
         var result = await LoadControlPlan(controlPlanId);
         return Ok(MapToDto(result!));
+    }
+
+    // ─── PDF Export ──────────────────────────────────────────────────────
+
+    [HttpGet("{id:guid}/pdf")]
+    public async Task<IActionResult> ExportPdf(Guid id)
+    {
+        var cp = await LoadControlPlan(id);
+        if (cp is null) return NotFound();
+
+        var dto = MapToDto(cp);
+        var branding = await _db.TenantBrandings.FirstOrDefaultAsync();
+        var pdfBytes = Services.ControlPlanPdfGenerator.Generate(dto, branding);
+
+        await _usageMetering.IncrementAsync(UsageMetricType.PdfExports);
+
+        return File(pdfBytes, "application/pdf",
+            $"ControlPlan-{cp.Code.Replace(" ", "_")}.pdf");
     }
 
     // ─── CSV Export ───────────────────────────────────────────────────────

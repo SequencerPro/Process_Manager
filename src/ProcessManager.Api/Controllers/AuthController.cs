@@ -13,11 +13,13 @@ public class AuthController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly JwtTokenService _jwt;
+    private readonly IPlanEnforcementService _planEnforcement;
 
-    public AuthController(UserManager<ApplicationUser> userManager, JwtTokenService jwt)
+    public AuthController(UserManager<ApplicationUser> userManager, JwtTokenService jwt, IPlanEnforcementService planEnforcement)
     {
         _userManager = userManager;
         _jwt = jwt;
+        _planEnforcement = planEnforcement;
     }
 
     // ── POST api/auth/login ───────────────────────────────────────────────────
@@ -66,6 +68,10 @@ public class AuthController : ControllerBase
     {
         if (dto.Role != "Admin" && dto.Role != "Engineer" && dto.Role != "Participant")
             return BadRequest("Role must be 'Admin', 'Engineer', or 'Participant'.");
+
+        var planCheck = await _planEnforcement.CheckAsync(PlanResource.Users);
+        if (planCheck.Outcome == PlanCheckOutcome.Blocked)
+            return StatusCode(402, new { error = "Plan limit reached", message = planCheck.Message, suggestedUpgrade = planCheck.SuggestedUpgrade?.ToString() });
 
         var user = new ApplicationUser
         {

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using ProcessManager.Api.Data;
+using ProcessManager.Api.Services;
 using ProcessManager.Domain.Entities;
 
 namespace ProcessManager.Tests;
@@ -39,7 +40,10 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
                 ["Jwt:Key"] = TestJwtKey,
                 ["Jwt:Issuer"] = TestIssuer,
                 ["Jwt:Audience"] = TestAudience,
-                ["Jwt:ExpiryMinutes"] = "60"
+                ["Jwt:ExpiryMinutes"] = "60",
+                ["Stripe:Prices:Starter"] = "price_test_starter",
+                ["Stripe:Prices:Professional"] = "price_test_professional",
+                ["Stripe:Prices:Enterprise"] = "price_test_enterprise"
             });
         });
 
@@ -57,6 +61,13 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>
                 options.UseInMemoryDatabase(_dbName);
                 options.AddInterceptors(sp.GetRequiredService<TenantSaveChangesInterceptor>());
             });
+
+            // Replace Stripe service with a test stub
+            var stripeDescriptor = services.SingleOrDefault(
+                d => d.ServiceType == typeof(IStripeService));
+            if (stripeDescriptor is not null)
+                services.Remove(stripeDescriptor);
+            services.AddSingleton<IStripeService, TestStripeService>();
 
             // Override JWT validation parameters to use the known test key
             // (PostConfigure ensures this runs after Program.cs configures JWT)

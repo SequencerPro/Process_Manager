@@ -1,0 +1,401 @@
+@page "/settings/billing"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject ToastService Toast
+@inject NavigationManager Nav
+
+<PageTitle>Billing — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-credit-card me-2 text-primary"></i>Billing &amp; Subscription</h3>
+        <p class="text-muted small mb-0 d-none d-md-block">Manage your plan, usage, and payment details</p>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+        <p class="text-muted mt-2">Loading billing info…</p>
+    </div>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+else
+{
+    <div class="row g-4">
+
+        <!-- Subscription Status -->
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-shield-check me-2 text-primary"></i>Subscription Status
+                </div>
+                <div class="card-body">
+                    @if (_dashboard?.Subscription is { } sub)
+                    {
+                        <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
+                            <span class="fs-5 fw-bold">@PlanLabel(sub.PlanCode)</span>
+                            <span class="badge @StatusBadgeClass(sub.Status) fs-6">@sub.Status</span>
+                            @if (sub.Status == SubscriptionStatus.Trial && sub.TrialEndsAt.HasValue)
+                            {
+                                var daysLeft = (int)Math.Ceiling((sub.TrialEndsAt.Value - DateTime.UtcNow).TotalDays);
+                                <span class="badge bg-warning text-dark">
+                                    @(daysLeft > 0 ? $"Trial: {daysLeft} day{(daysLeft == 1 ? "" : "s")} left" : "Trial expired")
+                                </span>
+                            }
+                            @if (sub.CurrentPeriodEnd.HasValue)
+                            {
+                                <span class="text-muted small">Renews @sub.CurrentPeriodEnd.Value.ToString("MMM d, yyyy")</span>
+                            }
+                            @if (sub.GraceEndsAt.HasValue && sub.Status == SubscriptionStatus.PastDue)
+                            {
+                                <span class="badge bg-danger">Grace period ends @sub.GraceEndsAt.Value.ToString("MMM d")</span>
+                            }
+                        </div>
+                        <button class="btn btn-outline-secondary btn-sm"
+                                @onclick="OpenStripePortal"
+                                disabled="@(_portalBusy || sub.StripeCustomerId is null)">
+                            @if (_portalBusy)
+                            {
+                                <span class="spinner-border spinner-border-sm me-1"></span>
+                            }
+                            <i class="bi bi-box-arrow-up-right me-1"></i>Manage Billing on Stripe
+                        </button>
+                        @if (sub.StripeCustomerId is null)
+                        {
+                            <span class="text-muted small ms-2">Available after first payment</span>
+                        }
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">No active subscription found.</p>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Plan Usage -->
+        @if (_usage is not null)
+        {
+            <div class="col-12 col-lg-6">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header fw-semibold">
+                        <i class="bi bi-bar-chart me-2 text-primary"></i>Current Usage
+                    </div>
+                    <div class="card-body">
+                        @UsageMeter("Users", _usage.CurrentUsers, _usage.Limits.MaxUsers, "bi-people")
+                        @UsageMeter("Processes", _usage.CurrentProcesses, _usage.Limits.MaxProcesses, "bi-diagram-3")
+                        @UsageMeter("Monthly Executions", _usage.CurrentMonthlyExecutions, _usage.Limits.MaxMonthlyExecutions, "bi-play-circle")
+                        <div class="mt-2">
+                            <span class="badge @((_usage.Limits.AdvancedModulesEnabled) ? "bg-success" : "bg-secondary")">
+                                <i class="bi @(_usage.Limits.AdvancedModulesEnabled ? "bi-check-circle" : "bi-x-circle") me-1"></i>
+                                Advanced Modules @(_usage.Limits.AdvancedModulesEnabled ? "Enabled" : "Disabled")
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Plan Comparison -->
+        @if (_plans is not null)
+        {
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header fw-semibold">
+                        <i class="bi bi-layers me-2 text-primary"></i>Available Plans
+                    </div>
+                    <div class="card-body">
+                        @if (_downgradeWarnings is not null)
+                        {
+                            <div class="alert alert-warning mb-3">
+                                <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Downgrade Warning</div>
+                                <p class="mb-2 small">Your current usage exceeds the limits of the selected plan:</p>
+                                <ul class="mb-2 small">
+                                    @foreach (var w in _downgradeWarnings)
+                                    {
+                                        <li>@w.Resource: using @w.CurrentUsage, target limit is @w.TargetLimit</li>
+                                    }
+                                </ul>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-warning" @onclick="ConfirmDowngrade" disabled="@_planChangeBusy">
+                                        @if (_planChangeBusy) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                        Confirm Downgrade Anyway
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" @onclick="CancelDowngrade">Cancel</button>
+                                </div>
+                            </div>
+                        }
+
+                        <div class="row g-3">
+                            @foreach (var plan in _plans)
+                            {
+                                <div class="col-6 col-md-3">
+                                    <div class="card h-100 @(plan.IsCurrent ? "border-success" : "")">
+                                        <div class="card-body d-flex flex-column">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h6 class="fw-bold mb-0">@plan.Name</h6>
+                                                @if (plan.IsCurrent)
+                                                {
+                                                    <span class="badge bg-success">Current</span>
+                                                }
+                                            </div>
+                                            <div class="text-primary fw-semibold small mb-3">@plan.PriceLabel</div>
+                                            <ul class="list-unstyled small text-muted flex-grow-1 mb-3">
+                                                <li><i class="bi bi-people me-1"></i>@(plan.MaxUsers.HasValue ? $"{plan.MaxUsers} users" : "Unlimited users")</li>
+                                                <li><i class="bi bi-diagram-3 me-1"></i>@(plan.MaxProcesses.HasValue ? $"{plan.MaxProcesses} processes" : "Unlimited processes")</li>
+                                                <li><i class="bi bi-play-circle me-1"></i>@(plan.MaxMonthlyExecutions.HasValue ? $"{plan.MaxMonthlyExecutions} exec/mo" : "Unlimited exec")</li>
+                                                <li>
+                                                    @if (plan.AdvancedModulesEnabled)
+                                                    {
+                                                        <i class="bi bi-check-circle-fill text-success me-1"></i><span class="text-success">Advanced modules</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <i class="bi bi-x-circle text-muted me-1"></i><span>Advanced modules</span>
+                                                    }
+                                                </li>
+                                            </ul>
+                                            @if (!plan.IsCurrent)
+                                            {
+                                                @if (plan.Plan == SubscriptionPlan.Enterprise)
+                                                {
+                                                    <a href="mailto:sales@processmanager.app" class="btn btn-outline-secondary btn-sm w-100">Contact Sales</a>
+                                                }
+                                                else if (plan.Plan == SubscriptionPlan.Trial)
+                                                {
+                                                    <button class="btn btn-outline-secondary btn-sm w-100" disabled>Free Trial</button>
+                                                }
+                                                else
+                                                {
+                                                    <button class="btn btn-primary btn-sm w-100"
+                                                            @onclick="() => HandlePlanChangeAsync(plan)"
+                                                            disabled="@(_planChangeBusy || _pendingTargetPlan.HasValue)">
+                                                        @if (_planChangeBusy && _pendingTargetPlan == plan.Plan)
+                                                        {
+                                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                                        }
+                                                        @(IsUpgrade(plan.Plan) ? "Upgrade" : "Downgrade")
+                                                    </button>
+                                                }
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Billing Events -->
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-clock-history me-2 text-primary"></i>Recent Billing Events
+                </div>
+                @if (_dashboard?.RecentEvents is { Count: > 0 } events)
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 small">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Event</th>
+                                    <th class="col-hide-mobile">Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var ev in events)
+                                {
+                                    <tr>
+                                        <td class="align-middle text-nowrap">@ev.ProcessedAt.ToString("MMM d, yyyy")</td>
+                                        <td class="align-middle"><span class="badge bg-secondary">@ev.EventType.ToString()</span></td>
+                                        <td class="align-middle col-hide-mobile text-muted">@ev.Description</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="card-body text-center text-muted small py-4">
+                        <i class="bi bi-inbox fs-3 d-block mb-2 text-secondary"></i>No billing events yet.
+                    </div>
+                }
+            </div>
+        </div>
+
+    </div>
+}
+
+@code {
+    private BillingDashboardDto? _dashboard;
+    private PlanUsageSummaryDto? _usage;
+    private List<PlanComparisonDto>? _plans;
+    private bool _loading = true;
+    private string? _error;
+    private bool _portalBusy;
+    private bool _planChangeBusy;
+    private SubscriptionPlan? _pendingTargetPlan;
+    private List<DowngradeWarningItem>? _downgradeWarnings;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Show success toast when returning from Stripe checkout
+        if (Nav.Uri.Contains("upgraded=true"))
+            Toast.ShowSuccess("Plan upgraded successfully! Welcome to your new plan.");
+
+        try
+        {
+            await Task.WhenAll(LoadDashboardAsync(), LoadUsageAsync(), LoadPlansAsync());
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadDashboardAsync()
+    {
+        try { _dashboard = await Api.GetBillingDashboardAsync(); }
+        catch (Exception ex) { _error = $"Failed to load billing info: {ex.Message}"; }
+    }
+
+    private async Task LoadUsageAsync()
+    {
+        try { _usage = await Api.GetPlanUsageAsync(); }
+        catch { /* non-fatal */ }
+    }
+
+    private async Task LoadPlansAsync()
+    {
+        try { _plans = await Api.GetPlanComparisonAsync(); }
+        catch { /* non-fatal */ }
+    }
+
+    private async Task OpenStripePortal()
+    {
+        _portalBusy = true;
+        try
+        {
+            var result = await Api.CreatePortalSessionAsync(
+                new CreatePortalSessionDto(Nav.Uri));
+            if (result?.Url is not null)
+                Nav.NavigateTo(result.Url, forceLoad: true);
+        }
+        catch (Exception ex) { Toast.ShowError($"Could not open Stripe portal: {ex.Message}"); }
+        finally { _portalBusy = false; }
+    }
+
+    private async Task HandlePlanChangeAsync(PlanComparisonDto plan)
+    {
+        _pendingTargetPlan = plan.Plan;
+        _downgradeWarnings = null;
+
+        if (!IsUpgrade(plan.Plan))
+        {
+            // Check if downgrade is safe first
+            try
+            {
+                var check = await Api.GetDowngradeCheckAsync(plan.Plan);
+                if (check?.HasExcessUsage == true)
+                {
+                    _downgradeWarnings = check.Warnings;
+                    return; // Show inline warning, user must confirm
+                }
+            }
+            catch (Exception ex) { Toast.ShowError(ex.Message); _pendingTargetPlan = null; return; }
+        }
+
+        await ExecutePlanChangeAsync(plan.Plan);
+    }
+
+    private async Task ConfirmDowngrade()
+    {
+        if (_pendingTargetPlan is null) return;
+        await ExecutePlanChangeAsync(_pendingTargetPlan.Value);
+    }
+
+    private void CancelDowngrade()
+    {
+        _pendingTargetPlan = null;
+        _downgradeWarnings = null;
+    }
+
+    private async Task ExecutePlanChangeAsync(SubscriptionPlan targetPlan)
+    {
+        _planChangeBusy = true;
+        try
+        {
+            var currentSub = _dashboard?.Subscription;
+            if (currentSub?.StripeSubscriptionId is not null)
+            {
+                // Already has a Stripe subscription — change plan directly
+                var result = await Api.ChangePlanAsync(new ChangePlanDto(targetPlan, null));
+                Toast.ShowSuccess($"Plan changed to {result?.ToPlan}.");
+                _downgradeWarnings = null;
+                _pendingTargetPlan = null;
+                await Task.WhenAll(LoadDashboardAsync(), LoadUsageAsync(), LoadPlansAsync());
+            }
+            else
+            {
+                // No Stripe subscription yet — go to checkout
+                var successUrl = Nav.BaseUri.TrimEnd('/') + "/settings/billing?upgraded=true";
+                var cancelUrl = Nav.BaseUri.TrimEnd('/') + "/settings/billing";
+                var session = await Api.CreateCheckoutSessionAsync(
+                    new CreateCheckoutSessionDto(targetPlan, successUrl, cancelUrl, null));
+                if (session?.Url is not null)
+                    Nav.NavigateTo(session.Url, forceLoad: true);
+            }
+        }
+        catch (Exception ex) { Toast.ShowError($"Plan change failed: {ex.Message}"); }
+        finally { _planChangeBusy = false; }
+    }
+
+    private bool IsUpgrade(SubscriptionPlan target)
+    {
+        var current = _dashboard?.Subscription?.PlanCode ?? SubscriptionPlan.Trial;
+        return (int)target > (int)current;
+    }
+
+    private static RenderFragment UsageMeter(string label, int current, int? max, string icon) => __builder =>
+    {
+        var pct = max.HasValue && max.Value > 0 ? Math.Min(100, current * 100 / max.Value) : 100;
+        var barClass = max is null ? "bg-success" : pct >= 100 ? "bg-danger" : pct >= 80 ? "bg-warning" : "bg-success";
+        <div class="mb-3">
+            <div class="d-flex justify-content-between small mb-1">
+                <span><i class="bi @icon me-1"></i>@label</span>
+                <span class="text-muted">@current @(max.HasValue ? $"/ {max}" : "/ Unlimited")</span>
+            </div>
+            <div class="progress" style="height: 8px">
+                <div class="progress-bar @barClass" style="width: @(max.HasValue ? $"{pct}%" : "100%")"></div>
+            </div>
+        </div>;
+    };
+
+    private static string PlanLabel(SubscriptionPlan plan) => plan switch
+    {
+        SubscriptionPlan.Trial => "Free Trial",
+        SubscriptionPlan.Starter => "Starter",
+        SubscriptionPlan.Professional => "Professional",
+        SubscriptionPlan.Enterprise => "Enterprise",
+        _ => plan.ToString()
+    };
+
+    private static string StatusBadgeClass(SubscriptionStatus status) => status switch
+    {
+        SubscriptionStatus.Active => "bg-success",
+        SubscriptionStatus.Trial => "bg-secondary",
+        SubscriptionStatus.PastDue => "bg-warning text-dark",
+        SubscriptionStatus.Suspended or SubscriptionStatus.Cancelled => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

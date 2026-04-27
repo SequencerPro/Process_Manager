@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Components.Forms;
 using ProcessManager.Api.DTOs;
 using ProcessManager.Domain.Enums;
+using ProcessManager.Domain.Entities;
 
 namespace ProcessManager.Web.Services;
 
@@ -2457,5 +2458,81 @@ public class ApiClient
         var r = await _http.PutAsJsonAsync("api/onboarding/feature-flags", dto, _json);
         r.EnsureSuccessStatusCode();
         return await r.Content.ReadFromJsonAsync<TenantFeatureFlagsDto>(_json);
+    }
+
+    // ═══════════════════ Billing ═══════════════════
+
+    public Task<BillingDashboardDto?> GetBillingDashboardAsync()
+        => _http.GetFromJsonAsync<BillingDashboardDto>("api/billing", _json);
+
+    public Task<TenantSubscriptionDto?> GetSubscriptionAsync()
+        => _http.GetFromJsonAsync<TenantSubscriptionDto>("api/billing/subscription", _json);
+
+    public Task<PlanUsageSummaryDto?> GetPlanUsageAsync()
+        => _http.GetFromJsonAsync<PlanUsageSummaryDto>("api/billing/plan", _json);
+
+    public Task<List<PlanComparisonDto>?> GetPlanComparisonAsync()
+        => _http.GetFromJsonAsync<List<PlanComparisonDto>>("api/billing/plans", _json);
+
+    public async Task<CheckoutSessionResultDto?> CreateCheckoutSessionAsync(CreateCheckoutSessionDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/billing/checkout-session", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<CheckoutSessionResultDto>(_json);
+    }
+
+    public async Task<ChangePlanResultDto?> ChangePlanAsync(ChangePlanDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/billing/change-plan", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ChangePlanResultDto>(_json);
+    }
+
+    public async Task<PortalSessionResultDto?> CreatePortalSessionAsync(CreatePortalSessionDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/billing/portal-session", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PortalSessionResultDto>(_json);
+    }
+
+    public Task<DowngradeCheckDto?> GetDowngradeCheckAsync(SubscriptionPlan plan)
+        => _http.GetFromJsonAsync<DowngradeCheckDto>($"api/billing/downgrade-check/{plan}", _json);
+
+    public Task<List<BillingEventDto>?> GetBillingEventsAsync(int limit = 20)
+        => _http.GetFromJsonAsync<List<BillingEventDto>>($"api/billing/events?limit={limit}", _json);
+
+    // ═══════════════════ Tenant Branding ═══════════════════
+
+    public Task<TenantBrandingResponseDto?> GetTenantBrandingAsync()
+        => _http.GetFromJsonAsync<TenantBrandingResponseDto>("api/tenant-branding", _json);
+
+    public async Task<TenantBrandingResponseDto?> UpdateTenantBrandingAsync(UpdateTenantBrandingDto dto)
+    {
+        var r = await _http.PutAsJsonAsync("api/tenant-branding", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<TenantBrandingResponseDto>(_json);
+    }
+
+    public async Task<TenantBrandingResponseDto?> UploadTenantLogoAsync(IBrowserFile file)
+    {
+        using var ms = new MemoryStream();
+        await file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).CopyToAsync(ms);
+        ms.Position = 0;
+
+        using var content = new MultipartFormDataContent();
+        var sc = new StreamContent(ms);
+        sc.Headers.ContentType = new MediaTypeHeaderValue(
+            string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType);
+        content.Add(sc, "file", file.Name);
+
+        var resp = await _http.PostAsync("api/tenant-branding/logo", content);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<TenantBrandingResponseDto>(_json);
+    }
+
+    public async Task DeleteTenantLogoAsync()
+    {
+        var resp = await _http.DeleteAsync("api/tenant-branding/logo");
+        resp.EnsureSuccessStatusCode();
     }
 }

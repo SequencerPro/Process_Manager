@@ -1,0 +1,247 @@
+@page "/settings/branding"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject ToastService Toast
+
+<PageTitle>Branding — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-palette me-2 text-primary"></i>Tenant Branding</h3>
+        <p class="text-muted small mb-0 d-none d-md-block">Customize your company name, logo, and colors</p>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5">
+        <div class="spinner-border text-primary"></div>
+    </div>
+}
+else
+{
+    <div class="row g-4">
+
+        <!-- Brand Settings -->
+        <div class="col-12 col-lg-7">
+            <div class="card shadow-sm">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-type me-2 text-primary"></i>Brand Settings
+                </div>
+                <div class="card-body">
+                    <EditForm Model="_form" OnValidSubmit="SaveBranding">
+                        <DataAnnotationsValidator />
+
+                        <div class="pm-input-group mb-3">
+                            <label><i class="bi bi-building me-1"></i>Company Name <span class="text-danger">*</span></label>
+                            <InputText class="form-control" @bind-Value="_form.CompanyName" placeholder="Your Company" />
+                            <ValidationMessage For="() => _form.CompanyName" />
+                        </div>
+
+                        <div class="pm-input-group mb-3">
+                            <label><i class="bi bi-palette me-1"></i>Primary Color</label>
+                            <div class="input-group">
+                                <input type="color"
+                                       class="form-control form-control-color"
+                                       style="max-width: 50px; padding: 2px;"
+                                       value="@(_form.PrimaryColorHex ?? "#f97316")"
+                                       @onchange="OnColorPickerChange" />
+                                <InputText class="form-control"
+                                           @bind-Value="_form.PrimaryColorHex"
+                                           placeholder="#f97316"
+                                           maxlength="7" />
+                            </div>
+                            <ValidationMessage For="() => _form.PrimaryColorHex" />
+                            <div class="form-text">Hex format, e.g. #f97316. Leave blank to use the default orange.</div>
+                        </div>
+
+                        <div class="pm-input-group mb-3">
+                            <label><i class="bi bi-card-text me-1"></i>Footer Text</label>
+                            <InputTextArea class="form-control" @bind-Value="_form.FooterText"
+                                          rows="2" placeholder="Optional footer message on PDFs and reports" />
+                            <ValidationMessage For="() => _form.FooterText" />
+                        </div>
+
+                        <button type="submit" class="btn btn-primary" disabled="@_saving">
+                            @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            <i class="bi bi-check-lg me-1"></i>Save Settings
+                        </button>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logo -->
+        <div class="col-12 col-lg-5">
+            <div class="card shadow-sm h-100">
+                <div class="card-header fw-semibold">
+                    <i class="bi bi-image me-2 text-primary"></i>Company Logo
+                </div>
+                <div class="card-body d-flex flex-column">
+                    @if (_branding?.LogoFileName is not null)
+                    {
+                        <div class="mb-3 text-center">
+                            <img src="@Api.GetImageUrl($"uploads/logos/{_branding.LogoFileName}")"
+                                 alt="Company Logo"
+                                 class="img-fluid rounded border"
+                                 style="max-height: 120px; max-width: 100%; object-fit: contain;" />
+                        </div>
+
+                        @if (_confirmDeleteLogo)
+                        {
+                            <div class="alert alert-warning py-2 mb-2">
+                                <div class="small fw-semibold mb-2">Remove this logo?</div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-danger" @onclick="DeleteLogo" disabled="@_deletingLogo">
+                                        @if (_deletingLogo) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                        Yes, Remove
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" @onclick="() => _confirmDeleteLogo = false">Cancel</button>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <button class="btn btn-outline-danger btn-sm mb-3" @onclick="() => _confirmDeleteLogo = true">
+                                <i class="bi bi-trash me-1"></i>Remove Logo
+                            </button>
+                        }
+                    }
+                    else
+                    {
+                        <div class="text-center text-muted py-3 mb-3">
+                            <i class="bi bi-image fs-2 d-block mb-1"></i>
+                            <span class="small">No logo uploaded</span>
+                        </div>
+                    }
+
+                    <div class="mt-auto">
+                        <label class="form-label small fw-semibold">
+                            @(_branding?.LogoFileName is not null ? "Replace Logo" : "Upload Logo")
+                        </label>
+                        <InputFile OnChange="HandleLogoUpload"
+                                   accept="image/png,image/jpeg,image/svg+xml"
+                                   class="form-control form-control-sm"
+                                   disabled="@_uploadingLogo" />
+                        @if (_uploadingLogo)
+                        {
+                            <div class="small text-muted mt-1">
+                                <span class="spinner-border spinner-border-sm me-1"></span>Uploading…
+                            </div>
+                        }
+                        <div class="form-text">PNG, JPG, or SVG — max 5 MB</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+}
+
+@code {
+    private TenantBrandingResponseDto? _branding;
+    private BrandingForm _form = new();
+    private bool _loading = true;
+    private bool _saving;
+    private bool _uploadingLogo;
+    private bool _deletingLogo;
+    private bool _confirmDeleteLogo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _branding = await Api.GetTenantBrandingAsync();
+            if (_branding is not null)
+            {
+                _form.CompanyName = _branding.CompanyName;
+                _form.PrimaryColorHex = _branding.PrimaryColorHex;
+                _form.FooterText = _branding.FooterText;
+            }
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load branding: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveBranding()
+    {
+        _saving = true;
+        try
+        {
+            _branding = await Api.UpdateTenantBrandingAsync(
+                new UpdateTenantBrandingDto(_form.CompanyName!, _form.PrimaryColorHex, _form.FooterText));
+            Toast.ShowSuccess("Branding saved.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Save failed: {ex.Message}");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task HandleLogoUpload(InputFileChangeEventArgs e)
+    {
+        _uploadingLogo = true;
+        try
+        {
+            _branding = await Api.UploadTenantLogoAsync(e.File);
+            Toast.ShowSuccess("Logo uploaded.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Upload failed: {ex.Message}");
+        }
+        finally
+        {
+            _uploadingLogo = false;
+        }
+    }
+
+    private async Task DeleteLogo()
+    {
+        _deletingLogo = true;
+        try
+        {
+            await Api.DeleteTenantLogoAsync();
+            _branding = _branding! with { LogoFileName = null };
+            _confirmDeleteLogo = false;
+            Toast.ShowSuccess("Logo removed.");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Delete failed: {ex.Message}");
+        }
+        finally
+        {
+            _deletingLogo = false;
+        }
+    }
+
+    private void OnColorPickerChange(ChangeEventArgs e)
+    {
+        _form.PrimaryColorHex = e.Value?.ToString();
+    }
+
+    private class BrandingForm
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(200, MinimumLength = 1)]
+        public string CompanyName { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.StringLength(7)]
+        public string? PrimaryColorHex { get; set; }
+
+        [System.ComponentModel.DataAnnotations.StringLength(500)]
+        public string? FooterText { get; set; }
+    }
+}

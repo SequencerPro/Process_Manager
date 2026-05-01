@@ -578,4 +578,226 @@ public partial class McpController
 
         return sb.ToString();
     }
+
+    // ── Phase 17: Standards Conformance ──────────────────────────────────
+
+    private async Task<string> ToolGetConformanceStatus(JsonElement args)
+    {
+        var standardFilter = GetStringArg(args, "standard");
+        var clauseFilter   = GetStringArg(args, "clause_number");
+
+        var query = _db.StandardsClauses
+            .Include(c => c.EvidenceLinks)
+            .Include(c => c.Findings)
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(standardFilter) &&
+            Enum.TryParse<ConformanceStandard>(standardFilter, true, out var std))
+            query = query.Where(c => c.Standard == std);
+
+        if (!string.IsNullOrEmpty(clauseFilter))
+            query = query.Where(c => c.ClauseNumber == clauseFilter);
+
+        var clauses = await query
+            .OrderBy(c => c.Standard)
+            .ThenBy(c => c.ClauseNumber)
+            .ToListAsync();
+
+        if (!clauses.Any())
+            return "No standards clauses found matching the criteria.";
+
+        var covered = 0; var partial = 0; var gap = 0; var majorFinding = 0;
+        var openMajors = new List<(string Clause, string Title, string FindingDesc)>();
+
+        foreach (var c in clauses)
+        {
+            var hasOpenMajor = c.Findings.Any(f =>
+                f.FindingType == FindingType.MajorNonconformance && f.Status != FindingStatus.Closed);
+
+            if (hasOpenMajor)
+            {
+                majorFinding++;
+                foreach (var f in c.Findings.Where(f =>
+                    f.FindingType == FindingType.MajorNonconformance && f.Status != FindingStatus.Closed))
+                    openMajors.Add((c.ClauseNumber, c.Title, f.Description));
+            }
+            else if (!c.EvidenceLinks.Any())
+                gap++;
+            else if (c.Findings.Any(f =>
+                (f.FindingType == FindingType.MinorNonconformance || f.FindingType == FindingType.Observation)
+                && f.Status != FindingStatus.Closed))
+                partial++;
+            else
+                covered++;
+        }
+
+        var nextAudit = await _db.Audits
+            .Where(a => a.Status == AuditStatus.Planned && a.PlannedDate >= DateTime.UtcNow)
+            .OrderBy(a => a.PlannedDate)
+            .Select(a => (DateTime?)a.PlannedDate)
+            .FirstOrDefaultAsync();
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Conformance Status ({clauses.Count} clauses)\n");
+        sb.AppendLine($"- **Covered:** {covered}");
+        sb.AppendLine($"- **Partial Coverage:** {partial}");
+        sb.AppendLine($"- **Gap (no evidence):** {gap}");
+        sb.AppendLine($"- **Open Major Findings:** {majorFinding}");
+        sb.AppendLine($"- **Next Planned Audit:** {(nextAudit.HasValue ? nextAudit.Value.ToString("yyyy-MM-dd") : "None scheduled")}");
+
+        if (openMajors.Any())
+        {
+            sb.AppendLine("\n### Open Major Findings\n");
+            sb.AppendLine("| Clause | Title | Finding |");
+            sb.AppendLine("|--------|-------|---------|");
+            foreach (var (clause, title, desc) in openMajors)
+                sb.AppendLine($"| {clause} | {title} | {desc[..Math.Min(80, desc.Length)]} |");
+        }
+
+        return sb.ToString();
+    }
+
+    // ── Phase 24: SPC & Capability Analysis ─────────────────────────────
+
+    private async Task<string> ToolGetSpcStatus(JsonElement args)
+    {
+        var processIdStr = GetStringArg(args, "process_id");
+        var oocOnly = GetStringArg(args, "ooc_only");
+
+        var query = _db.SpcCharts
+            .Include(c => c.Process)
+            .Include(c => c.DataPoints)
+            .Where(c => c.IsActive)
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(processIdStr) && Guid.TryParse(processIdStr, out var pid))
+            query = query.Where(c => c.ProcessId == pid);
+
+        var charts = await query.OrderBy(c => c.Process.Name).ThenBy(c => c.Name).ToListAsync();
+
+        if (!charts.Any())
+            return "No active SPC charts found.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## SPC Status ({charts.Count} active charts)\n");
+        sb.AppendLine("| Chart | Process | Type | Points | Cpk | OOC |");
+        sb.AppendLine("|-------|---------|------|--------|-----|-----|");
+
+        var spcService = new Services.SpcCalculationService();
+        var oocTotal = 0;
+
+        foreach (var c in charts)
+        {
+            var values = c.DataPoints.OrderBy(d => d.SubgroupIndex).Select(d => d.Value).ToList();
+            string cpkStr = "—", oocStr = "0";
+
+            if (values.Count >= c.SubgroupSize)
+            {
+                var result = spcService.Calculate(values, c.SubgroupSize, c.LSL, c.USL);
+                cpkStr = result.Cpk.HasValue ? result.Cpk.Value.ToString("F2") : "—";
+                oocStr = result.OutOfControlPoints.Count.ToString();
+                oocTotal += result.OutOfControlPoints.Count;
+            }
+
+            var skipRow = string.Equals(oocOnly, "true", StringComparison.OrdinalIgnoreCase)
+                          && oocStr == "0";
+            if (skipRow) continue;
+
+            sb.AppendLine($"| {c.Name} | {c.Process.Name} | {c.ChartType} | {values.Count} | {cpkStr} | {oocStr} |");
+        }
+
+        sb.AppendLine($"\n**Total charts with OOC points:** {charts.Count(c => c.DataPoints.Count > 0)}");
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolGetProcessCapability(JsonElement args)
+    {
+        var chartIdStr = GetStringArg(args, "chart_id");
+        if (string.IsNullOrEmpty(chartIdStr) || !Guid.TryParse(chartIdStr, out var chartId))
+            return "Error: chart_id is required (GUID).";
+
+        var chart = await _db.SpcCharts
+            .Include(c => c.Process)
+            .Include(c => c.DataPoints)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == chartId);
+
+        if (chart is null)
+            return "Error: SPC chart not found.";
+
+        var values = chart.DataPoints.OrderBy(d => d.SubgroupIndex).Select(d => d.Value).ToList();
+        if (values.Count < chart.SubgroupSize)
+            return $"Error: Need at least {chart.SubgroupSize} data points (have {values.Count}).";
+
+        var spcService = new Services.SpcCalculationService();
+        var result = spcService.Calculate(values, chart.SubgroupSize, chart.LSL, chart.USL);
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Process Capability: {chart.Name}\n");
+        sb.AppendLine($"- **Process:** {chart.Process.Name}");
+        sb.AppendLine($"- **Chart Type:** {chart.ChartType}");
+        sb.AppendLine($"- **Subgroup Size:** {chart.SubgroupSize}");
+        sb.AppendLine($"- **Total Points:** {result.TotalPoints}");
+        sb.AppendLine($"- **Subgroup Count:** {result.SubgroupCount}");
+
+        sb.AppendLine($"\n### Central Tendency & Dispersion\n");
+        sb.AppendLine($"- **X-bar (Grand Mean):** {result.XBar}");
+        sb.AppendLine($"- **R-bar (Average Range):** {result.RBar}");
+        sb.AppendLine($"- **Estimated σ (within):** {result.StdDev}");
+
+        sb.AppendLine($"\n### Control Limits\n");
+        sb.AppendLine($"| Metric | UCL | CL | LCL |");
+        sb.AppendLine($"|--------|-----|----|----|");
+        sb.AppendLine($"| X-bar | {result.UCL} | {result.CL} | {result.LCL} |");
+        sb.AppendLine($"| Range | {result.RangeUCL} | {result.RangeCL} | {result.RangeLCL} |");
+
+        if (chart.LSL.HasValue || chart.USL.HasValue)
+        {
+            sb.AppendLine($"\n### Specification Limits\n");
+            if (chart.LSL.HasValue) sb.AppendLine($"- **LSL:** {chart.LSL}");
+            if (chart.USL.HasValue) sb.AppendLine($"- **USL:** {chart.USL}");
+        }
+
+        sb.AppendLine($"\n### Capability Indices\n");
+        sb.AppendLine($"| Index | Value | Assessment |");
+        sb.AppendLine($"|-------|-------|------------|");
+        if (result.Cp.HasValue)
+            sb.AppendLine($"| Cp | {result.Cp.Value:F4} | {CapabilityAssessment(result.Cp.Value)} |");
+        if (result.Cpk.HasValue)
+            sb.AppendLine($"| Cpk | {result.Cpk.Value:F4} | {CapabilityAssessment(result.Cpk.Value)} |");
+        if (result.Pp.HasValue)
+            sb.AppendLine($"| Pp | {result.Pp.Value:F4} | {CapabilityAssessment(result.Pp.Value)} |");
+        if (result.Ppk.HasValue)
+            sb.AppendLine($"| Ppk | {result.Ppk.Value:F4} | {CapabilityAssessment(result.Ppk.Value)} |");
+
+        if (!result.Cp.HasValue && !result.Cpk.HasValue)
+            sb.AppendLine("*Specification limits not set — capability indices unavailable.*");
+
+        if (result.OutOfControlPoints.Any())
+        {
+            sb.AppendLine($"\n### Out-of-Control Points ({result.OutOfControlPoints.Count})\n");
+            sb.AppendLine("| Subgroup | Value | Rule |");
+            sb.AppendLine("|----------|-------|------|");
+            foreach (var ooc in result.OutOfControlPoints.Take(20))
+                sb.AppendLine($"| {ooc.SubgroupIndex} | {ooc.Value:F4} | {ooc.Rule} |");
+        }
+        else
+        {
+            sb.AppendLine("\n**Process is in statistical control — no Nelson rule violations.**");
+        }
+
+        return sb.ToString();
+    }
+
+    private static string CapabilityAssessment(decimal value) => value switch
+    {
+        >= 2.0m => "Excellent (Six Sigma)",
+        >= 1.67m => "Very Good",
+        >= 1.33m => "Good (minimum for new processes)",
+        >= 1.0m => "Marginal (minimum for existing processes)",
+        _ => "Poor — process improvement needed"
+    };
 }

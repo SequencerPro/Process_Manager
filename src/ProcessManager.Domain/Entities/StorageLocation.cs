@@ -24,6 +24,9 @@ public class StorageLocation : BaseEntity
     /// <summary>Lowest-level bin position.</summary>
     public string? Bin { get; set; }
 
+    /// <summary>Barcode label for location scanning. Unique if set.</summary>
+    public string? Barcode { get; set; }
+
     /// <summary>Optional parent location for hierarchy.</summary>
     public Guid? ParentId { get; set; }
 

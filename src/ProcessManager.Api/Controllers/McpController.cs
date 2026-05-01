@@ -46,7 +46,7 @@ public partial class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "3.0";
+    private const string ServerVersion   = "3.1";
 
     public McpController(ProcessManagerDbContext db, IWebhookEventPublisher? webhooks = null)
     {
@@ -261,6 +261,25 @@ public partial class McpController : ControllerBase
                         ("user_id", "string", "Optional filter by user ID"),
                         ("action", "string", "Optional filter: Read, Create, Update, or Delete"),
                         ("top", "number", "Number of entries to return (default 50, max 200)"))),
+
+            // ── Phase 17: Standards Conformance ─────────────────────────
+            Tool("get_conformance_status",
+                 "Get the standards conformance status: clause coverage summary (Covered/Partial/Gap/OpenMajorFinding counts), list of open Major findings with clause reference, and next planned audit date. Requires authentication.",
+                 Schema(
+                     ("standard", "string", "Optional: Iso9001_2015 or As9100RevD — leave empty for all standards"),
+                     ("clause_number", "string", "Optional: filter to a specific clause number (e.g. 8.5.2)"))),
+
+            // ── Phase 24: SPC & Capability Analysis ─────────────────────
+            Tool("get_spc_status",
+                 "Get a summary of active SPC control charts with their current capability indices (Cp, Cpk) and out-of-control counts. Useful for identifying processes drifting out of control. Requires authentication.",
+                 Schema(
+                     ("process_id", "string", "Optional: filter to a specific process by GUID"),
+                     ("ooc_only", "string", "If 'true', only return charts with out-of-control points"))),
+
+            Tool("get_process_capability",
+                 "Get detailed process capability analysis for a specific SPC chart: X-bar, R-bar, control limits, Cp, Cpk, Pp, Ppk, and Nelson rule violations. Requires authentication.",
+                 Schema(
+                     ("chart_id", "string", "GUID of the SPC chart to analyse"))),
         }
     };
 
@@ -371,6 +390,10 @@ public partial class McpController : ControllerBase
                 "transition_job"                 => await ToolTransitionJob(args),
                 // Audit log
                 "list_mcp_audit_log"             => await ToolListMcpAuditLog(args),
+                "get_conformance_status"         => await ToolGetConformanceStatus(args),
+                // SPC
+                "get_spc_status"                 => await ToolGetSpcStatus(args),
+                "get_process_capability"         => await ToolGetProcessCapability(args),
                 _                               => null
             };
 

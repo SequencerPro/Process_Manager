@@ -2535,4 +2535,187 @@ public class ApiClient
         var resp = await _http.DeleteAsync("api/tenant-branding/logo");
         resp.EnsureSuccessStatusCode();
     }
+
+    // ═══════════════════ Phase 17: Standards Conformance ═══════════════════
+
+    public Task<List<StandardsClauseSummaryDto>?> GetStandardsClausesAsync(string? standard = null)
+        => _http.GetFromJsonAsync<List<StandardsClauseSummaryDto>>(
+            $"api/standards-clauses?standard={E(standard)}", _json);
+
+    public Task<StandardsClauseDto?> GetStandardsClauseAsync(Guid id)
+        => _http.GetFromJsonAsync<StandardsClauseDto>($"api/standards-clauses/{id}", _json);
+
+    public Task<ConformanceDashboardDto?> GetConformanceDashboardAsync(string? standard = null)
+        => _http.GetFromJsonAsync<ConformanceDashboardDto>(
+            $"api/standards-clauses/dashboard?standard={E(standard)}", _json);
+
+    public Task<List<ClauseEvidenceLinkDto>?> GetClauseEvidenceLinksAsync(Guid clauseId)
+        => _http.GetFromJsonAsync<List<ClauseEvidenceLinkDto>>(
+            $"api/standards-clauses/{clauseId}/evidence", _json);
+
+    public async Task<ClauseEvidenceLinkDto?> AddClauseEvidenceLinkAsync(Guid clauseId, CreateClauseEvidenceLinkDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/standards-clauses/{clauseId}/evidence", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ClauseEvidenceLinkDto>(_json);
+    }
+
+    public async Task DeleteClauseEvidenceLinkAsync(Guid clauseId, Guid linkId)
+    {
+        var resp = await _http.DeleteAsync($"api/standards-clauses/{clauseId}/evidence/{linkId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<PaginatedResponse<AuditProgramSummaryDto>?> GetAuditProgramsAsync(
+        string? status = null, int? year = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<AuditProgramSummaryDto>>(
+            $"api/audit-programs?status={E(status)}&year={year}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<AuditProgramDto?> GetAuditProgramAsync(Guid id)
+        => _http.GetFromJsonAsync<AuditProgramDto>($"api/audit-programs/{id}", _json);
+
+    public async Task<AuditProgramDto?> CreateAuditProgramAsync(CreateAuditProgramDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/audit-programs", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditProgramDto>(_json);
+    }
+
+    public async Task<AuditProgramDto?> UpdateAuditProgramAsync(Guid id, UpdateAuditProgramDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/audit-programs/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditProgramDto>(_json);
+    }
+
+    public async Task<AuditProgramDto?> ActivateAuditProgramAsync(Guid id)
+    {
+        var resp = await _http.PostAsync($"api/audit-programs/{id}/activate", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditProgramDto>(_json);
+    }
+
+    public async Task<AuditProgramDto?> CloseAuditProgramAsync(Guid id)
+    {
+        var resp = await _http.PostAsync($"api/audit-programs/{id}/close", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditProgramDto>(_json);
+    }
+
+    public async Task DeleteAuditProgramAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/audit-programs/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<PaginatedResponse<AuditSummaryDto>?> GetAuditsAsync(
+        Guid? programId = null, string? status = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<AuditSummaryDto>>(
+            $"api/audits?programId={programId}&status={E(status)}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<AuditDto?> GetAuditAsync(Guid id)
+        => _http.GetFromJsonAsync<AuditDto>($"api/audits/{id}", _json);
+
+    public async Task<AuditDto?> CreateAuditAsync(CreateAuditDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/audits", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditDto>(_json);
+    }
+
+    public async Task<AuditDto?> UpdateAuditAsync(Guid id, UpdateAuditDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/audits/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditDto>(_json);
+    }
+
+    public async Task<AuditDto?> StartAuditAsync(Guid id)
+    {
+        var resp = await _http.PostAsync($"api/audits/{id}/start", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditDto>(_json);
+    }
+
+    public async Task<AuditDto?> CompleteAuditAsync(Guid id)
+    {
+        var resp = await _http.PostAsync($"api/audits/{id}/complete", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditDto>(_json);
+    }
+
+    public Task<List<AuditFindingDto>?> GetAuditFindingsAsync(Guid auditId)
+        => _http.GetFromJsonAsync<List<AuditFindingDto>>(
+            $"api/audits/{auditId}/findings", _json);
+
+    public async Task<AuditFindingDto?> AddAuditFindingAsync(Guid auditId, CreateAuditFindingDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/audits/{auditId}/findings", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditFindingDto>(_json);
+    }
+
+    public async Task<AuditFindingDto?> RaiseCorrectiveActionAsync(Guid auditId, Guid findingId)
+    {
+        var resp = await _http.PostAsync($"api/audits/{auditId}/findings/{findingId}/raise-ca", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditFindingDto>(_json);
+    }
+
+    public async Task<AuditFindingDto?> CloseAuditFindingAsync(Guid auditId, Guid findingId, CloseAuditFindingDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/audits/{auditId}/findings/{findingId}/close", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditFindingDto>(_json);
+    }
+
+    // ── Phase 24: SPC & Capability Analysis ─────────────────────────────────
+
+    public Task<PaginatedResponse<SpcChartSummaryDto>?> GetSpcChartsAsync(
+        Guid? processId = null, bool? active = null, int page = 1, int pageSize = 25)
+    {
+        var url = $"api/spc?page={page}&pageSize={pageSize}";
+        if (processId.HasValue) url += $"&processId={processId}";
+        if (active.HasValue) url += $"&active={active}";
+        return _http.GetFromJsonAsync<PaginatedResponse<SpcChartSummaryDto>>(url, _json);
+    }
+
+    public Task<SpcChartDto?> GetSpcChartAsync(Guid id)
+        => _http.GetFromJsonAsync<SpcChartDto>($"api/spc/{id}", _json);
+
+    public async Task<SpcChartDto?> CreateSpcChartAsync(CreateSpcChartDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/spc", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<SpcChartDto>(_json);
+    }
+
+    public async Task<SpcChartDto?> UpdateSpcChartAsync(Guid id, UpdateSpcChartDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/spc/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<SpcChartDto>(_json);
+    }
+
+    public async Task DeleteSpcChartAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/spc/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<List<SpcDataPointDto>?> GetSpcDataPointsAsync(Guid chartId)
+        => _http.GetFromJsonAsync<List<SpcDataPointDto>>($"api/spc/{chartId}/data-points", _json);
+
+    public async Task<SpcDataPointDto?> AddSpcDataPointAsync(Guid chartId, AddSpcDataPointDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/spc/{chartId}/data-points", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<SpcDataPointDto>(_json);
+    }
+
+    public Task<SpcCalculationResultDto?> CalculateSpcAsync(Guid chartId)
+        => _http.GetFromJsonAsync<SpcCalculationResultDto>($"api/spc/{chartId}/calculate", _json);
+
+    public Task<List<SpcChartSummaryDto>?> GetSpcDashboardAsync()
+        => _http.GetFromJsonAsync<List<SpcChartSummaryDto>>("api/spc/dashboard", _json);
 }

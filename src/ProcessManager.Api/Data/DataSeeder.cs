@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using ProcessManager.Domain.Entities;
 using ProcessManager.Domain.Enums;
 
@@ -3212,6 +3213,241 @@ public static class DataSeeder
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Phase 17 — Standards Conformance: clause register + auto-link seeder
+    // ═══════════════════════════════════════════════════════════════════════
+
+    public static async Task SeedStandardsClausesAsync(ProcessManagerDbContext db)
+    {
+        if (db.StandardsClauses.Any(c => c.ClauseNumber == "4.1")) return;
+
+        var now = DateTime.UtcNow;
+        var clauses = new List<StandardsClause>();
+
+        void Add(ConformanceStandard std, string number, string title, string summary, bool as9100Only = false)
+        {
+            clauses.Add(new StandardsClause
+            {
+                Id = Guid.NewGuid(), CreatedAt = now, UpdatedAt = now,
+                Standard = std, ClauseNumber = number, Title = title,
+                RequirementSummary = summary, IsAs9100Addition = as9100Only
+            });
+        }
+
+        var iso = ConformanceStandard.Iso9001_2015;
+
+        // ── ISO 9001:2015 clauses 4–10 ──────────────────────────────────
+        Add(iso, "4.1", "Understanding the Organization and Its Context",
+            "Determine external and internal issues relevant to the QMS purpose and strategic direction.");
+        Add(iso, "4.2", "Understanding the Needs and Expectations of Interested Parties",
+            "Determine interested parties relevant to the QMS and their requirements.");
+        Add(iso, "4.3", "Determining the Scope of the QMS",
+            "Determine the boundaries and applicability of the QMS, considering internal/external issues and interested party requirements.");
+        Add(iso, "4.4", "Quality Management System and Its Processes",
+            "Establish, implement, maintain and continually improve the QMS including needed processes and their interactions.");
+
+        Add(iso, "5.1", "Leadership and Commitment",
+            "Top management shall demonstrate leadership and commitment to the QMS, ensuring quality policy, objectives, resources, and continual improvement.");
+        Add(iso, "5.2", "Quality Policy",
+            "Top management shall establish, implement and maintain a quality policy appropriate to the organization's purpose and context.");
+        Add(iso, "5.3", "Organizational Roles, Responsibilities and Authorities",
+            "Top management shall ensure responsibilities and authorities for relevant roles are assigned, communicated and understood.");
+
+        Add(iso, "6.1", "Actions to Address Risks and Opportunities",
+            "Plan actions to address risks and opportunities related to the QMS, integrate them into QMS processes, and evaluate their effectiveness.");
+        Add(iso, "6.2", "Quality Objectives and Planning to Achieve Them",
+            "Establish quality objectives at relevant functions, levels and processes; plan how to achieve them.");
+        Add(iso, "6.3", "Planning of Changes",
+            "When changes to the QMS are needed, carry them out in a planned manner considering purpose, integrity, resources and responsibilities.");
+
+        Add(iso, "7.1", "Resources",
+            "Determine and provide resources needed for the QMS including people, infrastructure, environment, monitoring/measuring resources, and organizational knowledge.");
+        Add(iso, "7.1.5", "Monitoring and Measuring Resources",
+            "Determine and provide resources needed to ensure valid and reliable monitoring and measurement results, including calibration.");
+        Add(iso, "7.1.6", "Organizational Knowledge",
+            "Determine the knowledge necessary for the operation of processes and achievement of conformity of products and services.");
+        Add(iso, "7.2", "Competence",
+            "Determine necessary competence of persons doing work affecting QMS performance, ensure they are competent, and retain documented information as evidence.");
+        Add(iso, "7.3", "Awareness",
+            "Ensure persons doing work under the organization's control are aware of the quality policy, objectives, their contribution, and implications of not conforming.");
+        Add(iso, "7.4", "Communication",
+            "Determine internal and external communications relevant to the QMS including what, when, with whom, how, and who communicates.");
+        Add(iso, "7.5", "Documented Information",
+            "The QMS shall include documented information required by the standard and determined by the organization as necessary for QMS effectiveness.");
+
+        Add(iso, "8.1", "Operational Planning and Control",
+            "Plan, implement, and control processes needed to meet requirements for provision of products and services.");
+        Add(iso, "8.2", "Requirements for Products and Services",
+            "Determine and review requirements related to products and services, including customer communication and changes to requirements.");
+        Add(iso, "8.3", "Design and Development of Products and Services",
+            "Establish, implement and maintain a design and development process, including planning, inputs, controls, outputs, and changes.");
+        Add(iso, "8.4", "Control of Externally Provided Processes, Products and Services",
+            "Ensure externally provided processes, products and services conform to requirements through evaluation, selection, monitoring and re-evaluation of external providers.");
+        Add(iso, "8.5", "Production and Service Provision",
+            "Implement production and service provision under controlled conditions including documented information, monitoring, infrastructure, competent persons, validation, and traceability.");
+        Add(iso, "8.5.1", "Control of Production and Service Provision",
+            "Implement controlled conditions for production and service provision including availability of documented information defining characteristics.");
+        Add(iso, "8.5.2", "Identification and Traceability",
+            "Use suitable means to identify outputs and their status with respect to monitoring and measurement requirements throughout production and service provision.");
+        Add(iso, "8.5.3", "Property Belonging to Customers or External Providers",
+            "Exercise care with property belonging to customers or external providers while under the organization's control or use.");
+        Add(iso, "8.5.4", "Preservation",
+            "Preserve the outputs during production and service provision to ensure conformity to requirements.");
+        Add(iso, "8.5.5", "Post-Delivery Activities",
+            "Meet requirements for post-delivery activities associated with products and services.");
+        Add(iso, "8.5.6", "Control of Changes",
+            "Review and control changes for production or service provision to ensure continuing conformity with requirements.");
+        Add(iso, "8.6", "Release of Products and Services",
+            "Implement planned arrangements to verify that product and service requirements have been met, retaining documented information on release.");
+        Add(iso, "8.7", "Control of Nonconforming Outputs",
+            "Ensure outputs that do not conform to requirements are identified and controlled to prevent unintended use or delivery.");
+
+        Add(iso, "9.1", "Monitoring, Measurement, Analysis and Evaluation",
+            "Determine what needs to be monitored and measured, and the methods for analysis and evaluation to ensure valid results.");
+        Add(iso, "9.1.2", "Customer Satisfaction",
+            "Monitor customers' perceptions of the degree to which their needs and expectations have been fulfilled.");
+        Add(iso, "9.1.3", "Analysis and Evaluation",
+            "Analyse and evaluate appropriate data and information arising from monitoring and measurement.");
+        Add(iso, "9.2", "Internal Audit",
+            "Conduct internal audits at planned intervals to provide information on whether the QMS conforms to requirements and is effectively implemented and maintained.");
+        Add(iso, "9.3", "Management Review",
+            "Top management shall review the QMS at planned intervals to ensure its continuing suitability, adequacy, effectiveness and alignment with strategic direction.");
+
+        Add(iso, "10.1", "General — Improvement",
+            "Determine and select opportunities for improvement and implement necessary actions to meet customer requirements and enhance satisfaction.");
+        Add(iso, "10.2", "Nonconformity and Corrective Action",
+            "React to nonconformities, evaluate the need for action to eliminate the cause, implement action needed, review effectiveness, and update risks/opportunities.");
+        Add(iso, "10.3", "Continual Improvement",
+            "Continually improve the suitability, adequacy and effectiveness of the QMS considering analysis, evaluation, and management review outputs.");
+
+        // ── AS9100 Rev D additions ──────────────────────────────────────
+        var as9 = ConformanceStandard.As9100RevD;
+
+        Add(as9, "8.1.1", "Operational Risk Management",
+            "Plan, implement and control a process for managing operational risks to achieve applicable requirements.", true);
+        Add(as9, "8.1.2", "Configuration Management",
+            "Plan, implement and control a configuration management process appropriate to the organization and its products.", true);
+        Add(as9, "8.1.3", "Product Safety",
+            "Plan, implement and control processes needed to assure product safety during the product life cycle.", true);
+        Add(as9, "8.1.4", "Prevention of Counterfeit Parts",
+            "Plan, implement and control processes appropriate to the organization and its products for the prevention of counterfeit or suspect counterfeit part use.", true);
+        Add(as9, "8.4.3", "Information for External Providers (AS9100)",
+            "Communicate applicable requirements to external providers including approval of products, processes, methods, equipment, and release; competence and qualifications of personnel; QMS requirements.", true);
+        Add(as9, "8.5.1.3", "Production Process Verification",
+            "Implement production process verification activities to ensure that the production process is capable of producing parts that meet requirements.", true);
+        Add(as9, "8.5.2.1", "Identification and Traceability — AS9100",
+            "Maintain identification of configuration of products and services to identify any differences between actual configuration and required configuration.", true);
+        Add(as9, "8.5.4.1", "Preservation — AS9100",
+            "Include provisions for handling, packaging, and prevention of damage and deterioration as applicable to the products.", true);
+        Add(as9, "8.5.5.1", "Post-Delivery — AS9100",
+            "Collection and analysis of in-service data, actions from data including investigation and reporting, and communication with interested parties.", true);
+        Add(as9, "8.7.1", "Nonconforming Outputs — AS9100",
+            "Additional requirements: timely reporting of delivered nonconforming products; disposition by authorized personnel; use-as-is and repair concession by customer when required.", true);
+
+        db.StandardsClauses.AddRange(clauses);
+        await db.SaveChangesAsync();
+
+        // ── Auto-link QMS documents to their governing clauses ──────────
+        await SeedClauseEvidenceLinksAsync(db, clauses);
+    }
+
+    private static async Task SeedClauseEvidenceLinksAsync(
+        ProcessManagerDbContext db,
+        List<StandardsClause> clauses)
+    {
+        var clauseMap = clauses.ToDictionary(c => c.ClauseNumber, c => c.Id);
+        var links = new List<ClauseEvidenceLink>();
+        var now = DateTime.UtcNow;
+
+        var qmsDocs = await db.Processes
+            .Where(p => p.ProcessRole == ProcessRole.QmsDocument && p.Status == ProcessStatus.Released)
+            .Select(p => new { p.Id, p.Code })
+            .ToListAsync();
+
+        var qmsMap = qmsDocs.ToDictionary(d => d.Code, d => d.Id);
+
+        void Link(string clauseNumber, ClauseEvidenceEntityType entityType, Guid entityId, string? note = null)
+        {
+            if (!clauseMap.ContainsKey(clauseNumber)) return;
+            links.Add(new ClauseEvidenceLink
+            {
+                Id = Guid.NewGuid(), CreatedAt = now, UpdatedAt = now,
+                ClauseId = clauseMap[clauseNumber],
+                EntityType = entityType,
+                EntityId = entityId,
+                EvidenceNote = note,
+                IsAutoLinked = true
+            });
+        }
+
+        void LinkQms(string clauseNumber, string qmsCode, string? note = null)
+        {
+            if (qmsMap.TryGetValue(qmsCode, out var id))
+                Link(clauseNumber, ClauseEvidenceEntityType.QmsDocument, id, note);
+        }
+
+        // Auto-link seeded QMS documents to clauses
+        LinkQms("4.1", "QMS-001", "Defines QMS scope and organizational context");
+        LinkQms("4.2", "QMS-004", "Quality Manual covers interested party requirements");
+        LinkQms("5.2", "QMS-002", "Quality Policy document");
+        LinkQms("6.1", "QMS-005", "Risk Management procedure");
+        LinkQms("6.2", "QMS-003", "Quality Objectives document");
+        LinkQms("7.1.5", "QMS-008", "Calibration procedure");
+        LinkQms("7.2", "QMS-007", "Competence and Training procedure");
+        LinkQms("7.3", "QMS-007", "Awareness — covered by training procedure");
+        LinkQms("7.5", "QMS-006", "Document Control procedure");
+        LinkQms("8.2", "QMS-009", "Customer Communication procedure");
+        LinkQms("8.2", "QMS-010", "Requirements Review procedure");
+        LinkQms("8.3", "QMS-011", "Design and Development procedure");
+        LinkQms("8.4", "QMS-012", "Supplier Control procedure");
+        LinkQms("8.5", "QMS-013", "Production Planning procedure");
+        LinkQms("8.6", "QMS-014", "Inspection and Testing procedure");
+        LinkQms("8.7", "QMS-016", "Nonconformance Control procedure");
+        LinkQms("9.1.2", "QMS-017", "Customer Satisfaction procedure");
+        LinkQms("9.2", "QMS-018", "Internal Audit procedure");
+        LinkQms("9.3", "QMS-019", "Management Review procedure");
+        LinkQms("10.2", "QMS-020", "Corrective Action procedure");
+
+        // Auto-link released manufacturing processes to clause 8.5
+        var mfgProcesses = await db.Processes
+            .Where(p => p.ProcessRole == ProcessRole.ManufacturingProcess && p.Status == ProcessStatus.Released)
+            .Select(p => p.Id)
+            .ToListAsync();
+
+        foreach (var pid in mfgProcesses)
+            Link("8.5", ClauseEvidenceEntityType.Process, pid);
+
+        // Auto-link control plans to clause 8.6
+        var controlPlans = await db.ControlPlans
+            .Select(c => c.Id)
+            .ToListAsync();
+
+        foreach (var cpId in controlPlans)
+            Link("8.6", ClauseEvidenceEntityType.ControlPlan, cpId);
+
+        // Auto-link non-conformances to clause 8.7
+        var ncs = await db.NonConformances
+            .Select(n => n.Id)
+            .ToListAsync();
+
+        foreach (var ncId in ncs)
+            Link("8.7", ClauseEvidenceEntityType.NonConformance, ncId);
+
+        // Auto-link management reviews to clause 9.3
+        var reviews = await db.ManagementReviews
+            .Select(r => r.Id)
+            .ToListAsync();
+
+        foreach (var rId in reviews)
+            Link("9.3", ClauseEvidenceEntityType.ManagementReview, rId);
+
+        if (links.Count > 0)
+        {
+            db.ClauseEvidenceLinks.AddRange(links);
+            await db.SaveChangesAsync();
+        }
+    }
 
     private static DateTime Utc(int daysOffset) =>
         DateTime.UtcNow.AddDays(daysOffset);

@@ -41,3 +41,6 @@ Desktop.ini
 
 ## User secrets
 secrets.json
+
+## Claude Code agent worktrees (local only)
+.claude/worktrees/

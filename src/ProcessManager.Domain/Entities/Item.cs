@@ -11,6 +11,9 @@ public class Item : BaseEntity
     /// <summary>Unique serial number for serialized items.</summary>
     public string? SerialNumber { get; set; }
 
+    /// <summary>Barcode label value (may differ from SerialNumber). Unique if set.</summary>
+    public string? Barcode { get; set; }
+
     /// <summary>What this item is.</summary>
     public Guid KindId { get; set; }
 

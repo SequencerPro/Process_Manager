@@ -1,0 +1,149 @@
+@page "/conformance"
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Conformance Dashboard — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-shield-check me-2 text-success"></i>Conformance Dashboard</h3>
+        <p class="text-muted small mb-0 d-none d-md-block">Standards coverage, open findings, and audit status at a glance</p>
+    </div>
+    <div class="d-flex gap-2">
+        <select class="form-select form-select-sm" style="width:auto" @onchange="OnStandardFilter">
+            <option value="">All Standards</option>
+            <option value="Iso9001_2015">ISO 9001:2015</option>
+            <option value="As9100RevD">AS9100 Rev D</option>
+        </select>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="LoadData" disabled="@_loading">
+            <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+        </button>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_dashboard is not null)
+{
+    @* ── KPI Cards ── *@
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="card shadow-sm text-center">
+                <div class="card-body py-3">
+                    <div class="fs-2 fw-bold text-success">@_dashboard.CoveredCount</div>
+                    <div class="small text-muted">Covered</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card shadow-sm text-center">
+                <div class="card-body py-3">
+                    <div class="fs-2 fw-bold text-warning">@_dashboard.PartialCount</div>
+                    <div class="small text-muted">Partial Coverage</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card shadow-sm text-center">
+                <div class="card-body py-3">
+                    <div class="fs-2 fw-bold text-secondary">@_dashboard.GapCount</div>
+                    <div class="small text-muted">Gap (No Evidence)</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card shadow-sm text-center">
+                <div class="card-body py-3">
+                    <div class="fs-2 fw-bold text-danger">@_dashboard.OpenMajorFindingCount</div>
+                    <div class="small text-muted">Open Major Findings</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ── Summary bar ── *@
+    <div class="card shadow-sm mb-4">
+        <div class="card-body py-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span class="small text-muted">@_dashboard.TotalClauses total clauses</span>
+            <span class="small">
+                <span class="badge bg-warning text-dark me-1">@_dashboard.OpenMinorFindingCount Minor</span>
+                open findings
+            </span>
+            <span class="small text-muted">
+                Next Audit: @(_dashboard.NextAuditDate.HasValue ? _dashboard.NextAuditDate.Value.ToString("MMM d, yyyy") : "None scheduled")
+            </span>
+        </div>
+    </div>
+
+    @* ── Clause Coverage Heatmap ── *@
+    <div class="card shadow-sm">
+        <div class="card-header fw-semibold">
+            <i class="bi bi-grid-3x3-gap me-2"></i>Clause Coverage
+        </div>
+        <div class="card-body">
+            <div class="d-flex flex-wrap gap-1">
+                @foreach (var clause in _dashboard.Clauses)
+                {
+                    <button class="btn btn-sm @CoverageBadge(clause.CoverageStatus) position-relative"
+                            style="min-width:60px; font-size:.7rem"
+                            title="@clause.ClauseNumber — @clause.Title (@clause.CoverageStatus)"
+                            @onclick='() => Nav.NavigateTo($"conformance/clauses?clause={clause.Id}")'>
+                        @clause.ClauseNumber
+                        @if (clause.EvidenceLinkCount > 0)
+                        {
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-info" style="font-size:.55rem">
+                                @clause.EvidenceLinkCount
+                            </span>
+                        }
+                    </button>
+                }
+            </div>
+            <div class="d-flex gap-3 mt-3 small text-muted">
+                <span><span class="badge bg-success">&nbsp;</span> Covered</span>
+                <span><span class="badge bg-warning text-dark">&nbsp;</span> Partial</span>
+                <span><span class="badge bg-secondary">&nbsp;</span> Gap</span>
+                <span><span class="badge bg-danger">&nbsp;</span> Major Finding</span>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ConformanceDashboardDto? _dashboard;
+    private bool _loading = true;
+    private string? _standardFilter;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            _dashboard = await Api.GetConformanceDashboardAsync(_standardFilter);
+        }
+        catch { }
+        _loading = false;
+    }
+
+    private async Task OnStandardFilter(ChangeEventArgs e)
+    {
+        _standardFilter = e.Value?.ToString();
+        await LoadData();
+    }
+
+    private static string CoverageBadge(string status) => status switch
+    {
+        "Covered" => "btn-success",
+        "PartialCoverage" => "btn-warning",
+        "Gap" => "btn-outline-secondary",
+        "OpenMajorFinding" => "btn-danger",
+        _ => "btn-outline-secondary"
+    };
+}

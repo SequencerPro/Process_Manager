@@ -1,0 +1,275 @@
+@page "/spc"
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>SPC Dashboard — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-graph-up me-2 text-primary"></i>SPC Dashboard</h3>
+        <p class="text-muted small mb-0 d-none d-md-block">Active control charts, capability indices, and out-of-control indicators</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-primary" @onclick="() => _showCreate = true">
+            <i class="bi bi-plus-lg me-1"></i>New Chart
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="LoadData" disabled="@_loading">
+            <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+        </button>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_charts is not null)
+{
+    @* ── KPI Cards ── *@
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="card shadow-sm text-center">
+                <div class="card-body py-3">
+                    <div class="fs-2 fw-bold text-primary">@_charts.Count</div>
+                    <div class="small text-muted">Active Charts</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card shadow-sm text-center">
+                <div class="card-body py-3">
+                    <div class="fs-2 fw-bold text-danger">@_oocCount</div>
+                    <div class="small text-muted">Out-of-Control</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card shadow-sm text-center">
+                <div class="card-body py-3">
+                    <div class="fs-2 fw-bold @(_worstCpk.HasValue && _worstCpk < 1.0m ? "text-danger" : _worstCpk.HasValue && _worstCpk < 1.33m ? "text-warning" : "text-success")">
+                        @(_worstCpk.HasValue ? _worstCpk.Value.ToString("F2") : "—")
+                    </div>
+                    <div class="small text-muted">Worst Cpk</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card shadow-sm text-center">
+                <div class="card-body py-3">
+                    <div class="fs-2 fw-bold text-muted">@_totalDataPoints</div>
+                    <div class="small text-muted">Total Data Points</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ── Charts Table ── *@
+    @if (_charts.Count == 0)
+    {
+        <div class="text-center text-muted py-5">
+            <i class="bi bi-graph-up fs-1 d-block mb-2"></i>
+            No active SPC charts. Create one to start monitoring process capability.
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Chart Name</th>
+                            <th class="col-hide-mobile">Process</th>
+                            <th>Type</th>
+                            <th class="text-end">Points</th>
+                            <th class="text-end">Cpk</th>
+                            <th class="text-end col-hide-mobile">OOC</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in _charts)
+                        {
+                            <tr class="@(c.OutOfControlCount > 0 ? "table-danger" : "")">
+                                <td>
+                                    <a href="spc/@c.Id" class="text-decoration-none fw-semibold">@c.Name</a>
+                                </td>
+                                <td class="col-hide-mobile text-muted">@c.ProcessName</td>
+                                <td><span class="badge bg-secondary">@c.ChartType</span></td>
+                                <td class="text-end">@c.DataPointCount</td>
+                                <td class="text-end">
+                                    @if (c.Cpk.HasValue)
+                                    {
+                                        <span class="badge @(c.Cpk < 1.0m ? "bg-danger" : c.Cpk < 1.33m ? "bg-warning text-dark" : "bg-success")">
+                                            @c.Cpk.Value.ToString("F2")
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td class="text-end col-hide-mobile">
+                                    @if (c.OutOfControlCount > 0)
+                                    {
+                                        <span class="badge bg-danger">@c.OutOfControlCount</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-success"><i class="bi bi-check-circle"></i></span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <a href="spc/@c.Id" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+@* ── Create Chart Modal ── *@
+@if (_showCreate)
+{
+    <div class="modal d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">New SPC Chart</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showCreate = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input class="form-control" @bind="_createName" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Process</label>
+                        <select class="form-select" @bind="_createProcessId">
+                            <option value="">Select a process…</option>
+                            @if (_processes is not null)
+                            {
+                                @foreach (var p in _processes)
+                                {
+                                    <option value="@p.Id">@p.Code — @p.Name</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Chart Type</label>
+                        <select class="form-select" @bind="_createChartType">
+                            <option value="XbarR">X-bar R</option>
+                            <option value="XbarS">X-bar S</option>
+                            <option value="IndividualMR">Individual / Moving Range</option>
+                            <option value="P">P Chart</option>
+                            <option value="C">C Chart</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Subgroup Size</label>
+                            <input type="number" class="form-control" min="2" max="10" @bind="_createSubgroupSize" />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">LSL (optional)</label>
+                            <input type="number" step="any" class="form-control" @bind="_createLsl" />
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label">USL (optional)</label>
+                            <input type="number" step="any" class="form-control" @bind="_createUsl" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showCreate = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="CreateChart" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Create
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<SpcChartSummaryDto>? _charts;
+    private List<ProcessSummaryResponseDto>? _processes;
+    private bool _loading = true;
+    private bool _showCreate;
+    private bool _saving;
+
+    private string _createName = "";
+    private string _createProcessId = "";
+    private string _createChartType = "XbarR";
+    private int _createSubgroupSize = 5;
+    private decimal? _createLsl;
+    private decimal? _createUsl;
+
+    private int _oocCount;
+    private decimal? _worstCpk;
+    private int _totalDataPoints;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            _charts = await Api.GetSpcDashboardAsync();
+            _processes = (await Api.GetProcessesAsync(pageSize: 200))?.Items;
+
+            if (_charts is not null)
+            {
+                _oocCount = _charts.Count(c => c.OutOfControlCount > 0);
+                _totalDataPoints = _charts.Sum(c => c.DataPointCount);
+                var withCpk = _charts.Where(c => c.Cpk.HasValue).ToList();
+                _worstCpk = withCpk.Any() ? withCpk.Min(c => c.Cpk!.Value) : null;
+            }
+        }
+        catch { /* best-effort */ }
+        _loading = false;
+    }
+
+    private async Task CreateChart()
+    {
+        if (string.IsNullOrWhiteSpace(_createName) || !Guid.TryParse(_createProcessId, out var processId))
+            return;
+
+        _saving = true;
+        try
+        {
+            var dto = new CreateSpcChartDto(
+                processId,
+                Guid.NewGuid(),
+                _createName,
+                _createChartType,
+                _createSubgroupSize,
+                "Calculated",
+                null, null, null, null, null, null, null,
+                _createLsl, _createUsl);
+
+            var created = await Api.CreateSpcChartAsync(dto);
+            if (created is not null)
+            {
+                Nav.NavigateTo($"spc/{created.Id}");
+            }
+        }
+        catch { /* best-effort */ }
+        _saving = false;
+        _showCreate = false;
+    }
+}

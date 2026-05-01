@@ -154,6 +154,22 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     // F16: Upgrade Flow
     public DbSet<PlanChangeLog> PlanChangeLogs => Set<PlanChangeLog>();
 
+    // Phase 17: Standards Conformance Management
+    public DbSet<StandardsClause> StandardsClauses => Set<StandardsClause>();
+    public DbSet<ClauseEvidenceLink> ClauseEvidenceLinks => Set<ClauseEvidenceLink>();
+    public DbSet<AuditProgram> AuditPrograms => Set<AuditProgram>();
+    public DbSet<Audit> Audits => Set<Audit>();
+    public DbSet<AuditFinding> AuditFindings => Set<AuditFinding>();
+
+    // F7: Statistical Process Control
+    public DbSet<SpcChart> SpcCharts => Set<SpcChart>();
+    public DbSet<SpcDataPoint> SpcDataPoints => Set<SpcDataPoint>();
+
+    // Phase 21: Automatic Inventory Tracking
+    public DbSet<Workstation> Workstations => Set<Workstation>();
+    public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+    public DbSet<ScanEvent> ScanEvents => Set<ScanEvent>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -1781,6 +1797,213 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(p => p.ToPlan).HasConversion<string>().HasMaxLength(20);
             e.Property(p => p.ChangedByUserId).HasMaxLength(450);
             e.Property(p => p.Reason).HasMaxLength(500);
+        });
+
+        // --- StandardsClause (Phase 17) ---
+        modelBuilder.Entity<StandardsClause>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.HasIndex(c => new { c.Standard, c.ClauseNumber }).IsUnique();
+            e.Property(c => c.Standard).HasConversion<string>().HasMaxLength(20);
+            e.Property(c => c.ClauseNumber).HasMaxLength(20).IsRequired();
+            e.Property(c => c.Title).HasMaxLength(200).IsRequired();
+            e.Property(c => c.RequirementSummary).HasMaxLength(2000);
+        });
+
+        // --- ClauseEvidenceLink (Phase 17) ---
+        modelBuilder.Entity<ClauseEvidenceLink>(e =>
+        {
+            e.HasKey(l => l.Id);
+            e.HasIndex(l => new { l.ClauseId, l.EntityType, l.EntityId }).IsUnique();
+            e.Property(l => l.EntityType).HasConversion<string>().HasMaxLength(30);
+            e.Property(l => l.EvidenceNote).HasMaxLength(1000);
+
+            e.HasOne(l => l.Clause)
+                .WithMany(c => c.EvidenceLinks)
+                .HasForeignKey(l => l.ClauseId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- AuditProgram (Phase 17) ---
+        modelBuilder.Entity<AuditProgram>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            e.Property(p => p.Standard).HasConversion<string>().HasMaxLength(20);
+            e.Property(p => p.LeadAuditor).HasMaxLength(200);
+            e.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
+        });
+
+        // --- Audit (Phase 17) ---
+        modelBuilder.Entity<Audit>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.AuditType).HasConversion<string>().HasMaxLength(30);
+            e.Property(a => a.Scope).HasMaxLength(2000);
+            e.Property(a => a.LeadAuditor).HasMaxLength(200);
+            e.Property(a => a.Status).HasConversion<string>().HasMaxLength(20);
+
+            e.HasOne(a => a.Program)
+                .WithMany(p => p.Audits)
+                .HasForeignKey(a => a.ProgramId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- AuditFinding (Phase 17) ---
+        modelBuilder.Entity<AuditFinding>(e =>
+        {
+            e.HasKey(f => f.Id);
+            e.Property(f => f.FindingType).HasConversion<string>().HasMaxLength(30);
+            e.Property(f => f.Description).HasMaxLength(2000).IsRequired();
+            e.Property(f => f.ObjectiveEvidence).HasMaxLength(2000);
+            e.Property(f => f.Status).HasConversion<string>().HasMaxLength(30);
+            e.Property(f => f.ClosureNotes).HasMaxLength(2000);
+
+            e.HasOne(f => f.Audit)
+                .WithMany(a => a.Findings)
+                .HasForeignKey(f => f.AuditId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(f => f.Clause)
+                .WithMany(c => c.Findings)
+                .HasForeignKey(f => f.ClauseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(f => f.ActionItem)
+                .WithMany()
+                .HasForeignKey(f => f.ActionItemId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // --- SpcChart ---
+        modelBuilder.Entity<SpcChart>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.Name).HasMaxLength(200).IsRequired();
+            e.Property(c => c.ChartType).HasConversion<string>().HasMaxLength(20);
+            e.Property(c => c.ControlLimitSource).HasConversion<string>().HasMaxLength(20);
+            e.Property(c => c.UCL).HasColumnType("decimal(18,6)");
+            e.Property(c => c.LCL).HasColumnType("decimal(18,6)");
+            e.Property(c => c.CL).HasColumnType("decimal(18,6)");
+            e.Property(c => c.RangeUCL).HasColumnType("decimal(18,6)");
+            e.Property(c => c.RangeLCL).HasColumnType("decimal(18,6)");
+            e.Property(c => c.RangeCL).HasColumnType("decimal(18,6)");
+            e.Property(c => c.TargetCpk).HasColumnType("decimal(18,6)");
+            e.Property(c => c.LSL).HasColumnType("decimal(18,6)");
+            e.Property(c => c.USL).HasColumnType("decimal(18,6)");
+
+            e.HasOne(c => c.Process)
+                .WithMany()
+                .HasForeignKey(c => c.ProcessId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- SpcDataPoint ---
+        modelBuilder.Entity<SpcDataPoint>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.Property(d => d.Value).HasColumnType("decimal(18,6)");
+
+            e.HasOne(d => d.SpcChart)
+                .WithMany(c => c.DataPoints)
+                .HasForeignKey(d => d.SpcChartId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(d => d.StepExecution)
+                .WithMany()
+                .HasForeignKey(d => d.StepExecutionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(d => new { d.SpcChartId, d.SubgroupIndex });
+        });
+
+        // --- Workstation ---
+        modelBuilder.Entity<Workstation>(e =>
+        {
+            e.HasKey(w => w.Id);
+            e.HasIndex(w => w.Code).IsUnique();
+            e.Property(w => w.Code).HasMaxLength(50).IsRequired();
+            e.Property(w => w.Name).HasMaxLength(200).IsRequired();
+            e.Property(w => w.Description).HasMaxLength(2000);
+            e.Property(w => w.IsActive).HasDefaultValue(true);
+
+            e.HasOne(w => w.FixedLocation)
+                .WithMany()
+                .HasForeignKey(w => w.FixedLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- ApiKey ---
+        modelBuilder.Entity<ApiKey>(e =>
+        {
+            e.HasKey(k => k.Id);
+            e.HasIndex(k => k.KeyHash).IsUnique();
+            e.Property(k => k.KeyHash).HasMaxLength(128).IsRequired();
+            e.Property(k => k.KeyPrefix).HasMaxLength(8).IsRequired();
+            e.Property(k => k.Name).HasMaxLength(200).IsRequired();
+            e.Property(k => k.CreatedByUserId).HasMaxLength(450).IsRequired();
+            e.Property(k => k.IsActive).HasDefaultValue(true);
+
+            e.HasOne(k => k.Workstation)
+                .WithMany(w => w.ApiKeys)
+                .HasForeignKey(k => k.WorkstationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- ScanEvent (append-only, not BaseEntity) ---
+        modelBuilder.Entity<ScanEvent>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.Property(s => s.ScannedBarcode).HasMaxLength(500).IsRequired();
+            e.Property(s => s.Result).HasConversion<string>().HasMaxLength(30);
+            e.Property(s => s.ErrorMessage).HasMaxLength(2000);
+
+            e.HasOne(s => s.Workstation)
+                .WithMany()
+                .HasForeignKey(s => s.WorkstationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(s => s.ApiKey)
+                .WithMany()
+                .HasForeignKey(s => s.ApiKeyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(s => s.Item)
+                .WithMany()
+                .HasForeignKey(s => s.ItemId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(s => s.Transaction)
+                .WithMany()
+                .HasForeignKey(s => s.TransactionId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasQueryFilter(s =>
+                _tenantContext == null
+                || _tenantContext.IsPlatformAdmin
+                || s.TenantId == _tenantContext.CurrentTenantId);
+
+            e.HasIndex(s => s.WorkstationId);
+            e.HasIndex(s => s.ScannedAt);
+        });
+
+        // --- Barcode unique indexes on Item, Kind, StorageLocation ---
+        modelBuilder.Entity<Item>(e2 =>
+        {
+            e2.HasIndex(i => i.Barcode).IsUnique().HasFilter(null);
+        });
+        modelBuilder.Entity<Kind>(e2 =>
+        {
+            e2.HasIndex(k => k.Barcode).IsUnique().HasFilter(null);
+            e2.Property(k => k.Barcode).HasMaxLength(200);
+        });
+        modelBuilder.Entity<StorageLocation>(e2 =>
+        {
+            e2.HasIndex(sl => sl.Barcode).IsUnique().HasFilter(null);
+            e2.Property(sl => sl.Barcode).HasMaxLength(200);
         });
 
         ApplyTenantQueryFilters(modelBuilder);

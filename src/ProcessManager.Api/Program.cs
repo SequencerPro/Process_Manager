@@ -41,6 +41,7 @@ builder.Services.AddSingleton<ProcessManager.Api.Services.JwtTokenService>();
 builder.Services.AddSingleton<ProcessManager.Api.Services.IStripeService, ProcessManager.Api.Services.StripeService>();
 builder.Services.AddScoped<ProcessManager.Api.Services.IPlanEnforcementService, ProcessManager.Api.Services.PlanEnforcementService>();
 builder.Services.AddScoped<ProcessManager.Api.Services.IUsageMeteringService, ProcessManager.Api.Services.UsageMeteringService>();
+builder.Services.AddSingleton<ProcessManager.Api.Services.ISpcCalculationService, ProcessManager.Api.Services.SpcCalculationService>();
 
 builder.Services.AddDbContext<ProcessManagerDbContext>((sp, options) =>
 {
@@ -245,6 +246,7 @@ try
         await DataSeeder.SeedAsync(db);
         await DataSeeder.SeedQmsDocumentsAsync(db);
         await DataSeeder.SeedTrainingDocumentsAsync(db);
+        await DataSeeder.SeedStandardsClausesAsync(db);
     }
 }
 catch (Exception ex)

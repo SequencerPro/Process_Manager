@@ -7,5 +7,6 @@ public enum InventoryReferenceType
 {
     Job,
     PickList,
-    ManualAdjustment
+    ManualAdjustment,
+    Workstation
 }

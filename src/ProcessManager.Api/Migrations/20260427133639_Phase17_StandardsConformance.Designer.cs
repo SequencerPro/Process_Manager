@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ProcessManager.Api.Data;
@@ -11,9 +12,11 @@ using ProcessManager.Api.Data;
 namespace ProcessManager.Api.Migrations
 {
     [DbContext(typeof(ProcessManagerDbContext))]
-    partial class ProcessManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260427133639_Phase17_StandardsConformance")]
+    partial class Phase17_StandardsConformance
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4163,133 +4166,6 @@ namespace ProcessManager.Api.Migrations
                     b.ToTable("RunChartWidgets");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.SpcChart", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal?>("CL")
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<string>("ChartType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<Guid>("ContentBlockId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ControlLimitSource")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal?>("LCL")
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<decimal?>("LSL")
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<Guid>("ProcessId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal?>("RangeCL")
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<decimal?>("RangeLCL")
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<decimal?>("RangeUCL")
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<int>("SubgroupSize")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal?>("TargetCpk")
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal?>("UCL")
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<decimal?>("USL")
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProcessId");
-
-                    b.ToTable("SpcCharts");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.SpcDataPoint", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CapturedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("SpcChartId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("StepExecutionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("SubgroupIndex")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("text");
-
-                    b.Property<decimal>("Value")
-                        .HasColumnType("decimal(18,6)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("StepExecutionId");
-
-                    b.HasIndex("SpcChartId", "SubgroupIndex");
-
-                    b.ToTable("SpcDataPoints");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.StandardsClause", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6557,36 +6433,6 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("StepTemplate");
                 });
 
-            modelBuilder.Entity("ProcessManager.Domain.Entities.SpcChart", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.Process", "Process")
-                        .WithMany()
-                        .HasForeignKey("ProcessId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Process");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.SpcDataPoint", b =>
-                {
-                    b.HasOne("ProcessManager.Domain.Entities.SpcChart", "SpcChart")
-                        .WithMany("DataPoints")
-                        .HasForeignKey("SpcChartId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ProcessManager.Domain.Entities.StepExecution", "StepExecution")
-                        .WithMany()
-                        .HasForeignKey("StepExecutionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("SpcChart");
-
-                    b.Navigation("StepExecution");
-                });
-
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepExecution", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.Equipment", "Equipment")
@@ -6974,11 +6820,6 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Contents");
 
                     b.Navigation("PortOverrides");
-                });
-
-            modelBuilder.Entity("ProcessManager.Domain.Entities.SpcChart", b =>
-                {
-                    b.Navigation("DataPoints");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.StandardsClause", b =>

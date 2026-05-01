@@ -1,0 +1,223 @@
+@page "/audit-programs"
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Audit Programmes — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-clipboard-check me-2 text-info"></i>Audit Programmes</h3>
+        <p class="text-muted small mb-0 d-none d-md-block">Plan, manage, and close internal and external audit programmes</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" @onclick="LoadData" disabled="@_loading">
+            <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+        </button>
+        <button class="btn btn-sm btn-primary" @onclick="() => _showCreate = true">
+            <i class="bi bi-plus-lg me-1"></i>New Programme
+        </button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Status</label>
+                <select class="form-select form-select-sm" @onchange="OnStatusFilter">
+                    <option value="">All statuses</option>
+                    <option value="Planning">Planning</option>
+                    <option value="Active">Active</option>
+                    <option value="Closed">Closed</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-1">Year</label>
+                <input type="number" class="form-control form-control-sm" placeholder="e.g. 2026"
+                       @onchange="OnYearFilter" value="@_yearFilter" />
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_programs?.Items is not null && _programs.Items.Any())
+{
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th>Name</th>
+                    <th class="col-hide-mobile">Standard</th>
+                    <th class="text-center" style="width:70px">Year</th>
+                    <th class="col-hide-mobile">Lead Auditor</th>
+                    <th class="text-center" style="width:90px">Audits</th>
+                    <th class="text-center" style="width:100px">Status</th>
+                    <th style="width:100px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in _programs.Items)
+                {
+                    <tr>
+                        <td class="fw-semibold">
+                            <a href="audit-programs/@p.Id" class="text-decoration-none">@p.Name</a>
+                        </td>
+                        <td class="col-hide-mobile small">@FormatStandard(p.Standard)</td>
+                        <td class="text-center">@p.Year</td>
+                        <td class="col-hide-mobile small">@p.LeadAuditor</td>
+                        <td class="text-center">
+                            <span class="badge bg-primary rounded-pill">@p.AuditCount</span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge @StatusBadge(p.Status)">@p.Status</span>
+                        </td>
+                        <td class="text-end">
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" @onclick='() => Nav.NavigateTo($"audit-programs/{p.Id}")'>
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                @if (p.Status == "Planning")
+                                {
+                                    <button class="btn btn-outline-success" title="Activate" @onclick="() => Activate(p.Id)">
+                                        <i class="bi bi-play-fill"></i>
+                                    </button>
+                                }
+                                @if (p.Status == "Active")
+                                {
+                                    <button class="btn btn-outline-secondary" title="Close" @onclick="() => Close(p.Id)">
+                                        <i class="bi bi-check-circle"></i>
+                                    </button>
+                                }
+                                @if (p.AuditCount == 0)
+                                {
+                                    <button class="btn btn-outline-danger" title="Delete" @onclick="() => Delete(p.Id, p.Name)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+else
+{
+    <div class="text-muted text-center py-5">No audit programmes found. Create one to get started.</div>
+}
+
+@* ── Create Modal ── *@
+@if (_showCreate)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">New Audit Programme</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showCreate = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input class="form-control" @bind="_createName" placeholder="e.g. 2026 Internal Audit Programme" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Standard</label>
+                        <select class="form-select" @bind="_createStandard">
+                            <option value="Iso9001_2015">ISO 9001:2015</option>
+                            <option value="As9100RevD">AS9100 Rev D</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Year</label>
+                        <input type="number" class="form-control" @bind="_createYear" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Lead Auditor</label>
+                        <input class="form-control" @bind="_createLeadAuditor" placeholder="Name" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showCreate = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="CreateProgram"
+                            disabled="@(string.IsNullOrWhiteSpace(_createName) || string.IsNullOrWhiteSpace(_createLeadAuditor))">
+                        Create
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResponse<AuditProgramSummaryDto>? _programs;
+    private bool _loading = true;
+    private string? _statusFilter;
+    private int? _yearFilter;
+
+    private bool _showCreate;
+    private string _createName = "";
+    private string _createStandard = "Iso9001_2015";
+    private int _createYear = DateTime.UtcNow.Year;
+    private string _createLeadAuditor = "";
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try { _programs = await Api.GetAuditProgramsAsync(_statusFilter, _yearFilter); } catch { }
+        _loading = false;
+    }
+
+    private async Task OnStatusFilter(ChangeEventArgs e) { _statusFilter = e.Value?.ToString(); await LoadData(); }
+    private async Task OnYearFilter(ChangeEventArgs e)
+    {
+        _yearFilter = int.TryParse(e.Value?.ToString(), out var y) ? y : null;
+        await LoadData();
+    }
+
+    private async Task CreateProgram()
+    {
+        try
+        {
+            var dto = new CreateAuditProgramDto(_createName, _createStandard, _createYear, _createLeadAuditor);
+            var result = await Api.CreateAuditProgramAsync(dto);
+            _showCreate = false;
+            if (result is not null) Nav.NavigateTo($"audit-programs/{result.Id}");
+        }
+        catch { }
+    }
+
+    private async Task Activate(Guid id) { try { await Api.ActivateAuditProgramAsync(id); await LoadData(); } catch { } }
+    private async Task Close(Guid id) { try { await Api.CloseAuditProgramAsync(id); await LoadData(); } catch { } }
+    private async Task Delete(Guid id, string name)
+    {
+        try { await Api.DeleteAuditProgramAsync(id); await LoadData(); } catch { }
+    }
+
+    private static string StatusBadge(string s) => s switch
+    {
+        "Planning" => "bg-secondary",
+        "Active" => "bg-success",
+        "Closed" => "bg-dark",
+        _ => "bg-secondary"
+    };
+
+    private static string FormatStandard(string s) => s switch
+    {
+        "Iso9001_2015" => "ISO 9001:2015",
+        "As9100RevD" => "AS9100 Rev D",
+        _ => s
+    };
+}

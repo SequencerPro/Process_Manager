@@ -1,0 +1,277 @@
+@page "/spc/{Id:guid}"
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>SPC Chart — Process Manager</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_chart is null)
+{
+    <div class="text-center py-5 text-muted">Chart not found.</div>
+}
+else
+{
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="spc">SPC Dashboard</a></li>
+            <li class="breadcrumb-item active" aria-current="page">@_chart.Name</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
+        <div>
+            <h3 class="mb-0"><i class="bi bi-graph-up me-2 text-primary"></i>@_chart.Name</h3>
+            <p class="text-muted small mb-0">
+                Process: <strong>@_chart.ProcessName</strong> &middot;
+                Type: <span class="badge bg-secondary">@_chart.ChartType</span> &middot;
+                Subgroup Size: @_chart.SubgroupSize
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="Recalculate" disabled="@_calculating">
+                <i class="bi bi-calculator me-1"></i>Recalculate
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="LoadData" disabled="@_loading">
+                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+            </button>
+        </div>
+    </div>
+
+    @* ── Spec Limits ── *@
+    <div class="card shadow-sm mb-4">
+        <div class="card-body py-2 d-flex flex-wrap gap-4">
+            @if (_chart.LSL.HasValue)
+            {
+                <span class="small"><strong>LSL:</strong> @_chart.LSL.Value.ToString("F4")</span>
+            }
+            @if (_chart.USL.HasValue)
+            {
+                <span class="small"><strong>USL:</strong> @_chart.USL.Value.ToString("F4")</span>
+            }
+            @if (_chart.CL.HasValue)
+            {
+                <span class="small"><strong>CL:</strong> @_chart.CL.Value.ToString("F4")</span>
+            }
+            @if (_chart.UCL.HasValue)
+            {
+                <span class="small"><strong>UCL:</strong> @_chart.UCL.Value.ToString("F4")</span>
+            }
+            @if (_chart.LCL.HasValue)
+            {
+                <span class="small"><strong>LCL:</strong> @_chart.LCL.Value.ToString("F4")</span>
+            }
+            <span class="small text-muted"><strong>Limits Source:</strong> @_chart.ControlLimitSource</span>
+            <span class="small text-muted"><strong>Data Points:</strong> @_chart.DataPointCount</span>
+        </div>
+    </div>
+
+    @* ── Capability Indices ── *@
+    @if (_calcResult is not null)
+    {
+        <div class="row g-3 mb-4">
+            <div class="col-md-2 col-4">
+                <div class="card shadow-sm text-center">
+                    <div class="card-body py-2">
+                        <div class="fs-4 fw-bold">@_calcResult.XBar.ToString("F4")</div>
+                        <div class="small text-muted">X-bar</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2 col-4">
+                <div class="card shadow-sm text-center">
+                    <div class="card-body py-2">
+                        <div class="fs-4 fw-bold">@_calcResult.RBar.ToString("F4")</div>
+                        <div class="small text-muted">R-bar</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2 col-4">
+                <div class="card shadow-sm text-center">
+                    <div class="card-body py-2">
+                        <div class="fs-4 fw-bold">@_calcResult.StdDev.ToString("F4")</div>
+                        <div class="small text-muted">Est. Sigma</div>
+                    </div>
+                </div>
+            </div>
+            @if (_calcResult.Cp.HasValue)
+            {
+                <div class="col-md-2 col-4">
+                    <div class="card shadow-sm text-center">
+                        <div class="card-body py-2">
+                            <div class="fs-4 fw-bold @CpkClass(_calcResult.Cp.Value)">@_calcResult.Cp.Value.ToString("F2")</div>
+                            <div class="small text-muted">Cp</div>
+                        </div>
+                    </div>
+                </div>
+            }
+            @if (_calcResult.Cpk.HasValue)
+            {
+                <div class="col-md-2 col-4">
+                    <div class="card shadow-sm text-center">
+                        <div class="card-body py-2">
+                            <div class="fs-4 fw-bold @CpkClass(_calcResult.Cpk.Value)">@_calcResult.Cpk.Value.ToString("F2")</div>
+                            <div class="small text-muted">Cpk</div>
+                        </div>
+                    </div>
+                </div>
+            }
+            @if (_calcResult.Ppk.HasValue)
+            {
+                <div class="col-md-2 col-4">
+                    <div class="card shadow-sm text-center">
+                        <div class="card-body py-2">
+                            <div class="fs-4 fw-bold @CpkClass(_calcResult.Ppk.Value)">@_calcResult.Ppk.Value.ToString("F2")</div>
+                            <div class="small text-muted">Ppk</div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ── Control Limits (calculated) ── *@
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-light fw-semibold"><i class="bi bi-rulers me-2"></i>Calculated Control Limits</div>
+            <div class="card-body py-2 d-flex flex-wrap gap-4">
+                <span class="small"><strong>UCL:</strong> @_calcResult.UCL.ToString("F4")</span>
+                <span class="small"><strong>CL:</strong> @_calcResult.CL.ToString("F4")</span>
+                <span class="small"><strong>LCL:</strong> @_calcResult.LCL.ToString("F4")</span>
+                <span class="small text-muted">|</span>
+                <span class="small"><strong>Range UCL:</strong> @_calcResult.RangeUCL.ToString("F4")</span>
+                <span class="small"><strong>Range CL:</strong> @_calcResult.RangeCL.ToString("F4")</span>
+                <span class="small"><strong>Range LCL:</strong> @_calcResult.RangeLCL.ToString("F4")</span>
+                <span class="small text-muted">|</span>
+                <span class="small"><strong>Subgroups:</strong> @_calcResult.SubgroupCount</span>
+                <span class="small"><strong>Total Points:</strong> @_calcResult.TotalPoints</span>
+            </div>
+        </div>
+
+        @* ── Out-of-Control Points ── *@
+        @if (_calcResult.OutOfControlPoints.Any())
+        {
+            <div class="card shadow-sm border-danger mb-4">
+                <div class="card-header bg-danger text-white fw-semibold">
+                    <i class="bi bi-exclamation-triangle me-2"></i>Out-of-Control Points (@_calcResult.OutOfControlPoints.Count)
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Subgroup</th>
+                                <th>Value</th>
+                                <th>Rule</th>
+                                <th class="col-hide-mobile">Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var ooc in _calcResult.OutOfControlPoints)
+                            {
+                                <tr>
+                                    <td>@ooc.SubgroupIndex</td>
+                                    <td>@ooc.Value.ToString("F4")</td>
+                                    <td><span class="badge bg-danger">@FormatRule(ooc.Rule)</span></td>
+                                    <td class="col-hide-mobile small text-muted">@ooc.Description</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-success mb-4">
+                <i class="bi bi-check-circle me-2"></i>Process is in statistical control — no Nelson rule violations detected.
+            </div>
+        }
+    }
+
+    @* ── Data Points Table ── *@
+    <div class="card shadow-sm">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <span class="fw-semibold"><i class="bi bi-table me-2"></i>Data Points</span>
+        </div>
+        @if (_dataPoints is null || _dataPoints.Count == 0)
+        {
+            <div class="card-body text-center text-muted py-4">
+                No data points recorded yet.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>#</th>
+                            <th>Value</th>
+                            <th>Subgroup</th>
+                            <th class="col-hide-mobile">Captured</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var dp in _dataPoints.TakeLast(100))
+                        {
+                            <tr>
+                                <td class="text-muted small">@dp.SubgroupIndex</td>
+                                <td>@dp.Value.ToString("F4")</td>
+                                <td>@dp.SubgroupIndex</td>
+                                <td class="col-hide-mobile text-muted small">@dp.CapturedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private SpcChartDto? _chart;
+    private SpcCalculationResultDto? _calcResult;
+    private List<SpcDataPointDto>? _dataPoints;
+    private bool _loading = true;
+    private bool _calculating;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            _chart = await Api.GetSpcChartAsync(Id);
+            _dataPoints = await Api.GetSpcDataPointsAsync(Id);
+            try { _calcResult = await Api.CalculateSpcAsync(Id); } catch { /* not enough data */ }
+        }
+        catch { /* best-effort */ }
+        _loading = false;
+    }
+
+    private async Task Recalculate()
+    {
+        _calculating = true;
+        try { _calcResult = await Api.CalculateSpcAsync(Id); } catch { /* not enough data */ }
+        _calculating = false;
+    }
+
+    private static string CpkClass(decimal cpk)
+        => cpk < 1.0m ? "text-danger" : cpk < 1.33m ? "text-warning" : "text-success";
+
+    private static string FormatRule(string rule) => rule switch
+    {
+        "Rule1_BeyondThreeSigma" => "Rule 1: >3σ",
+        "Rule2_TwoOfThreeBeyondTwoSigma" => "Rule 2: 2/3 >2σ",
+        "Rule3_FourOfFiveBeyondOneSigma" => "Rule 3: 4/5 >1σ",
+        "Rule4_EightConsecutiveOneSide" => "Rule 4: 8 same side",
+        _ => rule
+    };
+}

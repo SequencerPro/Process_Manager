@@ -174,6 +174,10 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<SupplierEvaluation> SupplierEvaluations => Set<SupplierEvaluation>();
 
+    // Phase 27: CAPA Workflow
+    public DbSet<CapaRecord> CapaRecords => Set<CapaRecord>();
+    public DbSet<CapaStep> CapaSteps => Set<CapaStep>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -2039,6 +2043,48 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Cascade);
 
             e.HasIndex(ev => new { ev.SupplierId, ev.EvaluationDate });
+        });
+
+        // --- CapaRecord ---
+        modelBuilder.Entity<CapaRecord>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.HasIndex(c => c.Code).IsUnique();
+            e.Property(c => c.Code).HasMaxLength(50).IsRequired();
+            e.Property(c => c.Type).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.SourceType).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.Status).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.ProblemStatement).HasMaxLength(4000).IsRequired();
+            e.Property(c => c.ContainmentAction).HasMaxLength(4000);
+            e.Property(c => c.RootCauseAnalysisType).HasMaxLength(30);
+            e.Property(c => c.PermanentCorrectiveAction).HasMaxLength(4000);
+            e.Property(c => c.PreventiveAction).HasMaxLength(4000);
+            e.Property(c => c.VerificationMethod).HasMaxLength(4000);
+            e.Property(c => c.VerifiedByUserId).HasMaxLength(450);
+            e.Property(c => c.EffectivenessVerifiedByUserId).HasMaxLength(450);
+            e.Property(c => c.OwnerUserId).HasMaxLength(450).IsRequired();
+            e.Property(c => c.OwnerDisplayName).HasMaxLength(200);
+            e.Property(c => c.TeamMemberIds).HasMaxLength(4000);
+            e.HasIndex(c => c.Status);
+            e.HasIndex(c => c.OwnerUserId);
+        });
+
+        // --- CapaStep ---
+        modelBuilder.Entity<CapaStep>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.Property(s => s.StepType).HasMaxLength(50).IsRequired();
+            e.Property(s => s.CompletedByUserId).HasMaxLength(450);
+            e.Property(s => s.CompletedByDisplayName).HasMaxLength(200);
+            e.Property(s => s.Notes).HasMaxLength(4000);
+            e.Property(s => s.AttachmentFileName).HasMaxLength(500);
+
+            e.HasOne(s => s.CapaRecord)
+                .WithMany(c => c.Steps)
+                .HasForeignKey(s => s.CapaRecordId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(s => s.CapaRecordId);
         });
 
         ApplyTenantQueryFilters(modelBuilder);

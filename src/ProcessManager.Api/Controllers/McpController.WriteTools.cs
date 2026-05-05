@@ -898,4 +898,69 @@ public partial class McpController
 
         return sb.ToString();
     }
+
+    private async Task<string> ToolGetCapaStatus(JsonElement args)
+    {
+        var statusFilter = GetStringArg(args, "status");
+        var typeFilter = GetStringArg(args, "type");
+
+        var query = _db.CapaRecords.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrEmpty(statusFilter) && Enum.TryParse<CapaStatus>(statusFilter, true, out var st))
+            query = query.Where(c => c.Status == st);
+
+        if (!string.IsNullOrEmpty(typeFilter) && Enum.TryParse<CapaType>(typeFilter, true, out var tp))
+            query = query.Where(c => c.Type == tp);
+
+        var all = await query.ToListAsync();
+
+        if (!all.Any())
+            return "No CAPA records found matching the criteria.";
+
+        var open = all.Where(c => c.Status != CapaStatus.Closed).ToList();
+        var closed = all.Where(c => c.Status == CapaStatus.Closed).ToList();
+        var overdue = open.Where(c => c.VerificationDueDate.HasValue && c.VerificationDueDate.Value < DateTime.UtcNow).ToList();
+
+        var avgDaysToClose = closed.Any()
+            ? closed.Average(c => (c.ClosedAt!.Value - c.CreatedAt).TotalDays)
+            : 0;
+
+        var effectivenessVerified = closed.Count(c => c.EffectivenessVerifiedAt.HasValue);
+        var effectivenessRate = closed.Any() ? (double)effectivenessVerified / closed.Count * 100 : 0;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## CAPA Status Summary\n");
+        sb.AppendLine($"**Total:** {all.Count} | **Open:** {open.Count} | **Overdue:** {overdue.Count} | **Closed:** {closed.Count}");
+        sb.AppendLine($"**Avg Days to Close:** {avgDaysToClose:F1} | **Effectiveness Rate:** {effectivenessRate:F1}%\n");
+
+        var byStatus = all.GroupBy(c => c.Status.ToString()).OrderBy(g => g.Key);
+        sb.AppendLine("### By Status\n");
+        sb.AppendLine("| Status | Count |");
+        sb.AppendLine("|--------|-------|");
+        foreach (var g in byStatus)
+            sb.AppendLine($"| {g.Key} | {g.Count()} |");
+
+        var bySource = all.GroupBy(c => c.SourceType.ToString()).OrderByDescending(g => g.Count());
+        sb.AppendLine("\n### By Source Type\n");
+        sb.AppendLine("| Source | Count |");
+        sb.AppendLine("|--------|-------|");
+        foreach (var g in bySource)
+            sb.AppendLine($"| {g.Key} | {g.Count()} |");
+
+        if (overdue.Any())
+        {
+            sb.AppendLine($"\n### Overdue CAPAs ({overdue.Count})\n");
+            sb.AppendLine("| Code | Type | Problem | Due Date | Owner |");
+            sb.AppendLine("|------|------|---------|----------|-------|");
+            foreach (var c in overdue.OrderBy(c => c.VerificationDueDate).Take(10))
+            {
+                var problem = c.ProblemStatement.Length > 40
+                    ? c.ProblemStatement[..40] + "..."
+                    : c.ProblemStatement;
+                sb.AppendLine($"| `{c.Code}` | {c.Type} | {problem} | {c.VerificationDueDate:yyyy-MM-dd} | {c.OwnerDisplayName} |");
+            }
+        }
+
+        return sb.ToString();
+    }
 }

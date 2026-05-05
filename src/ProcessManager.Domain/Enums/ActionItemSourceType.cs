@@ -9,5 +9,6 @@ public enum ActionItemSourceType
     PfmeaAction,
     AuditFinding,
     ManagementReview,
-    CompetencyExpiry
+    CompetencyExpiry,
+    Capa
 }

@@ -294,6 +294,13 @@ public partial class McpController : ControllerBase
                  Schema(
                      ("status", "string", "Optional: filter by supplier status (Pending/Approved/Conditional/Suspended/Inactive)"),
                      ("top", "number", "Number of suppliers to return (default 20, max 50)"))),
+
+            // ── Phase 27: CAPA Workflow ──────────────────────────────────
+            Tool("get_capa_status",
+                 "Get a summary of CAPA (Corrective and Preventive Action) records: open/overdue/closed counts, average days to close, source type breakdown, effectiveness rate, and overdue CAPAs list. Useful for monitoring corrective action programme health. Requires authentication.",
+                 Schema(
+                     ("status", "string", "Optional: filter by CAPA status (Open/Containment/RootCauseAnalysis/Implementation/Verification/EffectivenessReview/Closed)"),
+                     ("type", "string", "Optional: filter by CAPA type (Corrective/Preventive)"))),
         }
     };
 
@@ -412,6 +419,8 @@ public partial class McpController : ControllerBase
                 "get_workstation_status"          => await ToolGetWorkstationStatus(args),
                 // Phase 25: Supplier Quality
                 "get_supplier_quality_status"     => await ToolGetSupplierQualityStatus(args),
+                // Phase 27: CAPA
+                "get_capa_status"                => await ToolGetCapaStatus(args),
                 _                               => null
             };
 

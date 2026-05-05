@@ -189,6 +189,12 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     // Phase 29: OEE Dashboard
     public DbSet<ShiftDefinition> ShiftDefinitions => Set<ShiftDefinition>();
 
+    // Phase 32: Change Management & ECO Workflow
+    public DbSet<ChangeOrder> ChangeOrders => Set<ChangeOrder>();
+    public DbSet<ChangeOrderImpact> ChangeOrderImpacts => Set<ChangeOrderImpact>();
+    public DbSet<ChangeOrderApprover> ChangeOrderApprovers => Set<ChangeOrderApprover>();
+    public DbSet<ChangeOrderTask> ChangeOrderTasks => Set<ChangeOrderTask>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -2187,6 +2193,75 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(s => s.Code).IsUnique();
             e.Property(s => s.Code).HasMaxLength(20).IsRequired();
             e.Property(s => s.Name).HasMaxLength(100).IsRequired();
+        });
+
+        // --- ChangeOrder (Phase 32: Change Management & ECO) ---
+        modelBuilder.Entity<ChangeOrder>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.HasIndex(c => c.Code).IsUnique();
+            e.Property(c => c.Code).HasMaxLength(50).IsRequired();
+            e.Property(c => c.Title).HasMaxLength(500).IsRequired();
+            e.Property(c => c.Description).HasMaxLength(4000);
+            e.Property(c => c.Justification).HasMaxLength(4000);
+            e.Property(c => c.RejectionReason).HasMaxLength(4000);
+            e.Property(c => c.Type).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.Priority).HasConversion<string>().HasMaxLength(20);
+            e.Property(c => c.Status).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.RequestedByUserId).HasMaxLength(450);
+            e.Property(c => c.RequestedByDisplayName).HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<ChangeOrderImpact>(e =>
+        {
+            e.HasKey(i => i.Id);
+            e.Property(i => i.AffectedEntityType).HasConversion<string>().HasMaxLength(30);
+            e.Property(i => i.AffectedEntityName).HasMaxLength(200);
+            e.Property(i => i.ImpactDescription).HasMaxLength(4000);
+            e.Property(i => i.MitigationPlan).HasMaxLength(4000);
+
+            e.HasOne(i => i.ChangeOrder)
+                .WithMany(c => c.Impacts)
+                .HasForeignKey(i => i.ChangeOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(i => i.ChangeOrderId);
+        });
+
+        modelBuilder.Entity<ChangeOrderApprover>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.UserId).HasMaxLength(450).IsRequired();
+            e.Property(a => a.DisplayName).HasMaxLength(200);
+            e.Property(a => a.Role).HasMaxLength(100);
+            e.Property(a => a.Decision).HasConversion<string>().HasMaxLength(20);
+            e.Property(a => a.Comments).HasMaxLength(4000);
+
+            e.HasOne(a => a.ChangeOrder)
+                .WithMany(c => c.Approvers)
+                .HasForeignKey(a => a.ChangeOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(a => a.ChangeOrderId);
+        });
+
+        modelBuilder.Entity<ChangeOrderTask>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Title).HasMaxLength(500).IsRequired();
+            e.Property(t => t.Description).HasMaxLength(4000);
+            e.Property(t => t.AssigneeUserId).HasMaxLength(450);
+            e.Property(t => t.AssigneeDisplayName).HasMaxLength(200);
+            e.Property(t => t.Status).HasConversion<string>().HasMaxLength(30);
+            e.Property(t => t.CompletedByUserId).HasMaxLength(450);
+            e.Property(t => t.Notes).HasMaxLength(4000);
+
+            e.HasOne(t => t.ChangeOrder)
+                .WithMany(c => c.Tasks)
+                .HasForeignKey(t => t.ChangeOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(t => t.ChangeOrderId);
         });
 
         ApplyTenantQueryFilters(modelBuilder);

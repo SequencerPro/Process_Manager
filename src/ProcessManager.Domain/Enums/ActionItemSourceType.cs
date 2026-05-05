@@ -10,5 +10,6 @@ public enum ActionItemSourceType
     AuditFinding,
     ManagementReview,
     CompetencyExpiry,
-    Capa
+    Capa,
+    ChangeOrder
 }

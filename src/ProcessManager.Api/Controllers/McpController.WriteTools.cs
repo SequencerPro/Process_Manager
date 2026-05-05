@@ -1169,4 +1169,91 @@ public partial class McpController
 
         return sb.ToString();
     }
+
+    private async Task<string> ToolGetChangeOrderStatus(JsonElement args)
+    {
+        var statusStr = GetStringArg(args, "status");
+        var typeStr = GetStringArg(args, "type");
+        var priorityStr = GetStringArg(args, "priority");
+
+        var query = _db.ChangeOrders
+            .Include(c => c.Impacts)
+            .Include(c => c.Approvers)
+            .Include(c => c.Tasks)
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(statusStr) && Enum.TryParse<ChangeOrderStatus>(statusStr, true, out var st))
+            query = query.Where(c => c.Status == st);
+
+        if (!string.IsNullOrEmpty(typeStr) && Enum.TryParse<ChangeOrderType>(typeStr, true, out var tp))
+            query = query.Where(c => c.Type == tp);
+
+        if (!string.IsNullOrEmpty(priorityStr) && Enum.TryParse<ChangeOrderPriority>(priorityStr, true, out var pr))
+            query = query.Where(c => c.Priority == pr);
+
+        var all = await query.ToListAsync();
+
+        var open = all.Where(c => c.Status != ChangeOrderStatus.Closed && c.Status != ChangeOrderStatus.Rejected).ToList();
+        var closed = all.Where(c => c.Status == ChangeOrderStatus.Closed).ToList();
+        var rejected = all.Where(c => c.Status == ChangeOrderStatus.Rejected).ToList();
+
+        var avgDaysToClose = closed.Any()
+            ? closed.Average(c => (c.ClosedAt!.Value - c.CreatedAt).TotalDays)
+            : 0;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## Change Order (ECO) Status Summary\n");
+        sb.AppendLine($"**Total Open:** {open.Count} | **Total Closed:** {closed.Count} | **Total Rejected:** {rejected.Count}");
+        sb.AppendLine($"**Average Days to Close:** {avgDaysToClose:F1}\n");
+
+        var byStatus = all.GroupBy(c => c.Status.ToString()).OrderByDescending(g => g.Count());
+        if (byStatus.Any())
+        {
+            sb.AppendLine("### By Status\n");
+            sb.AppendLine("| Status | Count |");
+            sb.AppendLine("|--------|-------|");
+            foreach (var g in byStatus)
+                sb.AppendLine($"| {g.Key} | {g.Count()} |");
+        }
+
+        var byType = all.GroupBy(c => c.Type.ToString()).OrderByDescending(g => g.Count());
+        if (byType.Any())
+        {
+            sb.AppendLine("\n### By Type\n");
+            sb.AppendLine("| Type | Count |");
+            sb.AppendLine("|------|-------|");
+            foreach (var g in byType)
+                sb.AppendLine($"| {g.Key} | {g.Count()} |");
+        }
+
+        var byPriority = all.GroupBy(c => c.Priority.ToString()).OrderByDescending(g => g.Count());
+        if (byPriority.Any())
+        {
+            sb.AppendLine("\n### By Priority\n");
+            sb.AppendLine("| Priority | Count |");
+            sb.AppendLine("|----------|-------|");
+            foreach (var g in byPriority)
+                sb.AppendLine($"| {g.Key} | {g.Count()} |");
+        }
+
+        var overdue = open
+            .Where(c => c.TargetImplementationDate.HasValue && c.TargetImplementationDate.Value < DateTime.UtcNow)
+            .OrderBy(c => c.TargetImplementationDate)
+            .Take(10)
+            .ToList();
+
+        if (overdue.Any())
+        {
+            sb.AppendLine("\n### Overdue ECOs\n");
+            sb.AppendLine("| Code | Title | Priority | Status | Target Date | Days Overdue |");
+            sb.AppendLine("|------|-------|----------|--------|-------------|-------------|");
+            foreach (var c in overdue)
+            {
+                var daysOverdue = (DateTime.UtcNow - c.TargetImplementationDate!.Value).TotalDays;
+                sb.AppendLine($"| `{c.Code}` | {c.Title} | {c.Priority} | {c.Status} | {c.TargetImplementationDate:yyyy-MM-dd} | {daysOverdue:F0} |");
+            }
+        }
+
+        return sb.ToString();
+    }
 }

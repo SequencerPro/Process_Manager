@@ -46,7 +46,7 @@ public partial class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "3.8";
+    private const string ServerVersion   = "3.9";
 
     public McpController(ProcessManagerDbContext db, IWebhookEventPublisher? webhooks = null)
     {
@@ -323,6 +323,14 @@ public partial class McpController : ControllerBase
                      ("equipment_id", "string", "Optional: filter to a specific equipment GUID"),
                      ("days", "string", "Optional: number of days to look back (default 7)"),
                      ("target_oee", "string", "Optional: target OEE percentage (default 85)"))),
+
+            // ── Phase 32: Change Management & ECO ─────────────────────────────
+            Tool("get_change_order_status",
+                 "Get change order (ECO) status summary: open/closed/rejected counts, average days to close, breakdown by status/type/priority, and overdue ECOs. Useful for monitoring engineering change control programme health (AS9100 8.5.6, IATF 16949 8.5.6). Requires authentication.",
+                 Schema(
+                     ("status", "string", "Optional: filter by ECO status (Draft/ImpactAnalysis/Approval/Implementation/Verification/Closed/Rejected)"),
+                     ("type", "string", "Optional: filter by ECO type (DesignChange/ProcessChange/DocumentChange/SupplierChange/DeviationRequest)"),
+                     ("priority", "string", "Optional: filter by priority (Routine/Urgent/Emergency)"))),
         }
     };
 
@@ -449,6 +457,8 @@ public partial class McpController : ControllerBase
                 "get_msa_status"                 => await ToolGetMsaStatus(args),
                 // Phase 29: OEE
                 "get_oee_status"                 => await ToolGetOeeStatus(args),
+                // Phase 32: Change Management & ECO
+                "get_change_order_status"        => await ToolGetChangeOrderStatus(args),
                 _                               => null
             };
 

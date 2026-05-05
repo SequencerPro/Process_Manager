@@ -178,6 +178,14 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<CapaRecord> CapaRecords => Set<CapaRecord>();
     public DbSet<CapaStep> CapaSteps => Set<CapaStep>();
 
+    // Phase 28: Calibration Management
+    public DbSet<CalibrationRecord> CalibrationRecords => Set<CalibrationRecord>();
+    public DbSet<CalibrationSchedule> CalibrationSchedules => Set<CalibrationSchedule>();
+
+    // Phase 26: Measurement System Analysis (MSA/GR&R)
+    public DbSet<GageStudy> GageStudies => Set<GageStudy>();
+    public DbSet<GageStudyMeasurement> GageStudyMeasurements => Set<GageStudyMeasurement>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -2085,6 +2093,88 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Cascade);
 
             e.HasIndex(s => s.CapaRecordId);
+        });
+
+        // --- CalibrationRecord ---
+        modelBuilder.Entity<CalibrationRecord>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.CalibrationType).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.Result).HasConversion<string>().HasMaxLength(20);
+            e.Property(c => c.CertificateNumber).HasMaxLength(100);
+            e.Property(c => c.CertificateFileName).HasMaxLength(500);
+            e.Property(c => c.PerformedBy).HasMaxLength(200);
+            e.Property(c => c.StandardsUsed).HasMaxLength(500);
+            e.Property(c => c.TemperatureHumidity).HasMaxLength(200);
+            e.Property(c => c.AsFoundReading).HasMaxLength(500);
+            e.Property(c => c.AsLeftReading).HasMaxLength(500);
+            e.Property(c => c.Uncertainty).HasColumnType("decimal(18,6)");
+            e.Property(c => c.Notes).HasMaxLength(4000);
+
+            e.HasOne(c => c.Equipment)
+                .WithMany()
+                .HasForeignKey(c => c.EquipmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(c => c.EquipmentId);
+            e.HasIndex(c => c.NextDueDate);
+        });
+
+        // --- CalibrationSchedule ---
+        modelBuilder.Entity<CalibrationSchedule>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.Property(s => s.IntervalAdjustmentMethod).HasConversion<string>().HasMaxLength(30);
+            e.HasIndex(s => s.EquipmentId).IsUnique();
+
+            e.HasOne(s => s.Equipment)
+                .WithMany()
+                .HasForeignKey(s => s.EquipmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- GageStudy ---
+        modelBuilder.Entity<GageStudy>(e =>
+        {
+            e.HasKey(g => g.Id);
+            e.Property(g => g.Name).HasMaxLength(200).IsRequired();
+            e.Property(g => g.StudyType).HasConversion<string>().HasMaxLength(30);
+            e.Property(g => g.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(g => g.CharacteristicName).HasMaxLength(200);
+            e.Property(g => g.Tolerance).HasColumnType("decimal(18,6)");
+            e.Property(g => g.LSL).HasColumnType("decimal(18,6)");
+            e.Property(g => g.USL).HasColumnType("decimal(18,6)");
+            e.Property(g => g.GrrPercent).HasColumnType("decimal(18,4)");
+            e.Property(g => g.AcceptanceDecision).HasMaxLength(30);
+
+            e.HasOne(g => g.Equipment)
+                .WithMany()
+                .HasForeignKey(g => g.EquipmentId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(g => g.Process)
+                .WithMany()
+                .HasForeignKey(g => g.ProcessId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasIndex(g => g.EquipmentId);
+            e.HasIndex(g => g.Status);
+        });
+
+        // --- GageStudyMeasurement ---
+        modelBuilder.Entity<GageStudyMeasurement>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.Property(m => m.OperatorId).HasMaxLength(100).IsRequired();
+            e.Property(m => m.MeasuredValue).HasColumnType("decimal(18,6)");
+            e.HasIndex(m => new { m.GageStudyId, m.PartNumber, m.OperatorId, m.TrialNumber }).IsUnique();
+
+            e.HasOne(m => m.GageStudy)
+                .WithMany(g => g.Measurements)
+                .HasForeignKey(m => m.GageStudyId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         ApplyTenantQueryFilters(modelBuilder);

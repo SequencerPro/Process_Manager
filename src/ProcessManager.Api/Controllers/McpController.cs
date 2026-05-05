@@ -46,7 +46,7 @@ public partial class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "3.3";
+    private const string ServerVersion   = "3.6";
 
     public McpController(ProcessManagerDbContext db, IWebhookEventPublisher? webhooks = null)
     {
@@ -301,6 +301,20 @@ public partial class McpController : ControllerBase
                  Schema(
                      ("status", "string", "Optional: filter by CAPA status (Open/Containment/RootCauseAnalysis/Implementation/Verification/EffectivenessReview/Closed)"),
                      ("type", "string", "Optional: filter by CAPA type (Corrective/Preventive)"))),
+
+            // ── Phase 28: Calibration Management ────────────────────────
+            Tool("get_calibration_status",
+                 "Get calibration status summary: due/overdue equipment counts, pass/fail/limited record breakdown, overdue recall list, and upcoming calibrations. Useful for monitoring measurement system compliance (ISO 9001 7.1.5.2). Requires authentication.",
+                 Schema(
+                     ("equipment_id", "string", "Optional: filter to a specific equipment GUID"),
+                     ("include_history", "string", "If 'true', include last 5 calibration records per equipment"))),
+
+            // ── Phase 26: Measurement System Analysis (MSA/GR&R) ─────────
+            Tool("get_msa_status",
+                 "Get measurement system analysis (MSA/GR&R) status summary: total studies, acceptance breakdown (acceptable/marginal/unacceptable by %GRR), worst-performing gages, and in-progress studies. Useful for monitoring measurement system capability (IATF 16949 7.1.5.1.1). Requires authentication.",
+                 Schema(
+                     ("status", "string", "Optional: filter by study status (Draft/InProgress/Complete)"),
+                     ("equipment_id", "string", "Optional: filter to a specific equipment GUID"))),
         }
     };
 
@@ -421,6 +435,10 @@ public partial class McpController : ControllerBase
                 "get_supplier_quality_status"     => await ToolGetSupplierQualityStatus(args),
                 // Phase 27: CAPA
                 "get_capa_status"                => await ToolGetCapaStatus(args),
+                // Phase 28: Calibration
+                "get_calibration_status"         => await ToolGetCalibrationStatus(args),
+                // Phase 26: MSA/GR&R
+                "get_msa_status"                 => await ToolGetMsaStatus(args),
                 _                               => null
             };
 

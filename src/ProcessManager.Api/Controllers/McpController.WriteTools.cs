@@ -899,6 +899,95 @@ public partial class McpController
         return sb.ToString();
     }
 
+    private async Task<string> ToolGetCalibrationStatus(JsonElement args)
+    {
+        var equipmentIdStr = GetStringArg(args, "equipment_id");
+        var includeHistory = GetStringArg(args, "include_history")?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
+
+        var now = DateTime.UtcNow;
+
+        var schedulesQuery = _db.CalibrationSchedules
+            .Include(s => s.Equipment)
+            .Where(s => s.IsActive);
+
+        if (!string.IsNullOrEmpty(equipmentIdStr) && Guid.TryParse(equipmentIdStr, out var eqId))
+            schedulesQuery = schedulesQuery.Where(s => s.EquipmentId == eqId);
+
+        var schedules = await schedulesQuery.ToListAsync();
+
+        var recordsQuery = _db.CalibrationRecords
+            .Include(r => r.Equipment)
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(equipmentIdStr) && Guid.TryParse(equipmentIdStr, out var eqId2))
+            recordsQuery = recordsQuery.Where(r => r.EquipmentId == eqId2);
+
+        var allRecords = await recordsQuery.OrderByDescending(r => r.CalibrationDate).ToListAsync();
+
+        if (!schedules.Any() && !allRecords.Any())
+            return "No calibration schedules or records found.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## Calibration Status Summary\n");
+
+        // Record stats
+        var passCount = allRecords.Count(r => r.Result == Domain.Enums.CalibrationResult.Pass);
+        var failCount = allRecords.Count(r => r.Result == Domain.Enums.CalibrationResult.Fail);
+        var limitedCount = allRecords.Count(r => r.Result == Domain.Enums.CalibrationResult.Limited);
+        sb.AppendLine($"**Total Records:** {allRecords.Count} | **Pass:** {passCount} | **Fail:** {failCount} | **Limited:** {limitedCount}");
+        sb.AppendLine($"**Active Schedules:** {schedules.Count}\n");
+
+        // Compute due/overdue per schedule
+        var recalls = new List<(string Code, string Name, DateTime NextDue, int DaysUntil, string? LastResult)>();
+        foreach (var s in schedules)
+        {
+            var lastRecord = allRecords.FirstOrDefault(r => r.EquipmentId == s.EquipmentId);
+            var nextDue = lastRecord?.NextDueDate ?? now;
+            var daysUntil = (int)(nextDue - now).TotalDays;
+            recalls.Add((s.Equipment.Code, s.Equipment.Name, nextDue, daysUntil, lastRecord?.Result.ToString()));
+        }
+
+        var overdue = recalls.Where(r => r.DaysUntil < 0).OrderBy(r => r.DaysUntil).ToList();
+        var due = recalls.Where(r => r.DaysUntil >= 0 && r.DaysUntil <= 30).OrderBy(r => r.DaysUntil).ToList();
+
+        sb.AppendLine($"**Overdue:** {overdue.Count} | **Due within 30 days:** {due.Count}\n");
+
+        if (overdue.Any())
+        {
+            sb.AppendLine("### Overdue Calibrations\n");
+            sb.AppendLine("| Equipment | Name | Next Due | Days Overdue | Last Result |");
+            sb.AppendLine("|-----------|------|----------|--------------|-------------|");
+            foreach (var r in overdue.Take(15))
+                sb.AppendLine($"| `{r.Code}` | {r.Name} | {r.NextDue:yyyy-MM-dd} | {Math.Abs(r.DaysUntil)} | {r.LastResult ?? "—"} |");
+        }
+
+        if (due.Any())
+        {
+            sb.AppendLine("\n### Due Within 30 Days\n");
+            sb.AppendLine("| Equipment | Name | Next Due | Days Until Due | Last Result |");
+            sb.AppendLine("|-----------|------|----------|----------------|-------------|");
+            foreach (var r in due.Take(15))
+                sb.AppendLine($"| `{r.Code}` | {r.Name} | {r.NextDue:yyyy-MM-dd} | {r.DaysUntil} | {r.LastResult ?? "—"} |");
+        }
+
+        if (includeHistory && allRecords.Any())
+        {
+            var grouped = allRecords.GroupBy(r => r.EquipmentId).Take(10);
+            sb.AppendLine("\n### Recent Calibration History\n");
+            foreach (var g in grouped)
+            {
+                var eq = g.First().Equipment;
+                sb.AppendLine($"\n**{eq.Code}** ({eq.Name}):");
+                sb.AppendLine("| Date | Type | Result | Certificate |");
+                sb.AppendLine("|------|------|--------|-------------|");
+                foreach (var r in g.Take(5))
+                    sb.AppendLine($"| {r.CalibrationDate:yyyy-MM-dd} | {r.CalibrationType} | {r.Result} | {r.CertificateNumber ?? "—"} |");
+            }
+        }
+
+        return sb.ToString();
+    }
+
     private async Task<string> ToolGetCapaStatus(JsonElement args)
     {
         var statusFilter = GetStringArg(args, "status");
@@ -958,6 +1047,66 @@ public partial class McpController
                     ? c.ProblemStatement[..40] + "..."
                     : c.ProblemStatement;
                 sb.AppendLine($"| `{c.Code}` | {c.Type} | {problem} | {c.VerificationDueDate:yyyy-MM-dd} | {c.OwnerDisplayName} |");
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    // ─── Phase 26: MSA/GR&R ──────────────────────────────────────────────────
+
+    private async Task<string> ToolGetMsaStatus(JsonElement args)
+    {
+        var statusStr = GetStringArg(args, "status");
+        var equipmentIdStr = GetStringArg(args, "equipment_id");
+
+        var query = _db.GageStudies
+            .Include(g => g.Equipment)
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(statusStr) && Enum.TryParse<Domain.Enums.GageStudyStatus>(statusStr, true, out var status))
+            query = query.Where(g => g.Status == status);
+
+        if (!string.IsNullOrEmpty(equipmentIdStr) && Guid.TryParse(equipmentIdStr, out var eqId))
+            query = query.Where(g => g.EquipmentId == eqId);
+
+        var studies = await query.OrderByDescending(g => g.CreatedAt).ToListAsync();
+
+        if (!studies.Any())
+            return "No gage studies found.";
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("## MSA/GR&R Status Summary\n");
+
+        var total = studies.Count;
+        var complete = studies.Count(s => s.Status == Domain.Enums.GageStudyStatus.Complete);
+        var inProgress = studies.Count(s => s.Status == Domain.Enums.GageStudyStatus.InProgress);
+        var draft = studies.Count(s => s.Status == Domain.Enums.GageStudyStatus.Draft);
+
+        sb.AppendLine($"**Total Studies:** {total} | **Complete:** {complete} | **In Progress:** {inProgress} | **Draft:** {draft}\n");
+
+        var completed = studies.Where(s => s.Status == Domain.Enums.GageStudyStatus.Complete && s.GrrPercent.HasValue).ToList();
+        if (completed.Any())
+        {
+            var acceptable = completed.Count(s => s.GrrPercent < 10);
+            var marginal = completed.Count(s => s.GrrPercent >= 10 && s.GrrPercent < 30);
+            var unacceptable = completed.Count(s => s.GrrPercent >= 30);
+
+            sb.AppendLine("### Acceptance Breakdown\n");
+            sb.AppendLine($"| Category | Count | Criteria |");
+            sb.AppendLine($"|----------|-------|----------|");
+            sb.AppendLine($"| Acceptable | {acceptable} | %GRR < 10% |");
+            sb.AppendLine($"| Marginal | {marginal} | 10% ≤ %GRR < 30% |");
+            sb.AppendLine($"| Unacceptable | {unacceptable} | %GRR ≥ 30% |");
+
+            var worst = completed.OrderByDescending(s => s.GrrPercent).Take(5).ToList();
+            if (worst.Any())
+            {
+                sb.AppendLine("\n### Worst Performing Studies\n");
+                sb.AppendLine("| Study | Equipment | Characteristic | %GRR | ndc | Decision |");
+                sb.AppendLine("|-------|-----------|----------------|------|-----|----------|");
+                foreach (var s in worst)
+                    sb.AppendLine($"| {s.Name} | {s.Equipment?.Code ?? "—"} | {s.CharacteristicName ?? "—"} | {s.GrrPercent:F1}% | {s.Ndc} | {s.AcceptanceDecision} |");
             }
         }
 

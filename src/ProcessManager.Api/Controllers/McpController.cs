@@ -46,7 +46,7 @@ public partial class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "3.1";
+    private const string ServerVersion   = "3.3";
 
     public McpController(ProcessManagerDbContext db, IWebhookEventPublisher? webhooks = null)
     {
@@ -280,6 +280,20 @@ public partial class McpController : ControllerBase
                  "Get detailed process capability analysis for a specific SPC chart: X-bar, R-bar, control limits, Cp, Cpk, Pp, Ppk, and Nelson rule violations. Requires authentication.",
                  Schema(
                      ("chart_id", "string", "GUID of the SPC chart to analyse"))),
+
+            // ── Phase 21: Automatic Inventory Tracking ──────────────────
+            Tool("get_workstation_status",
+                 "Get all active workstations with their fixed locations, API key count, and last scan time. Useful for monitoring scanner health and workstation utilisation. Requires authentication.",
+                 Schema(
+                     ("active_only", "string", "If 'true' (default), only return active workstations"),
+                     ("workstation_code", "string", "Optional: filter to a specific workstation by code"))),
+
+            // ── Phase 25: Supplier Quality Management ────────────────────
+            Tool("get_supplier_quality_status",
+                 "Get a summary of supplier quality: status breakdown (Approved/Conditional/Suspended), at-risk suppliers, average evaluation scores, and suppliers with open non-conformances. Useful for supplier performance monitoring. Requires authentication.",
+                 Schema(
+                     ("status", "string", "Optional: filter by supplier status (Pending/Approved/Conditional/Suspended/Inactive)"),
+                     ("top", "number", "Number of suppliers to return (default 20, max 50)"))),
         }
     };
 
@@ -394,6 +408,10 @@ public partial class McpController : ControllerBase
                 // SPC
                 "get_spc_status"                 => await ToolGetSpcStatus(args),
                 "get_process_capability"         => await ToolGetProcessCapability(args),
+                // Phase 21: Workstations
+                "get_workstation_status"          => await ToolGetWorkstationStatus(args),
+                // Phase 25: Supplier Quality
+                "get_supplier_quality_status"     => await ToolGetSupplierQualityStatus(args),
                 _                               => null
             };
 

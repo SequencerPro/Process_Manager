@@ -2718,4 +2718,116 @@ public class ApiClient
 
     public Task<List<SpcChartSummaryDto>?> GetSpcDashboardAsync()
         => _http.GetFromJsonAsync<List<SpcChartSummaryDto>>("api/spc/dashboard", _json);
+
+    // ── Phase 21: Automatic Inventory Tracking ─────────────────────────────
+
+    public Task<PaginatedResponse<WorkstationSummaryDto>?> GetWorkstationsAsync(string? search = null, bool? active = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<WorkstationSummaryDto>>(
+            $"api/admin/workstations?search={E(search)}&active={active}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<WorkstationResponseDto?> GetWorkstationAsync(Guid id)
+        => _http.GetFromJsonAsync<WorkstationResponseDto>($"api/admin/workstations/{id}", _json);
+
+    public async Task<WorkstationResponseDto?> CreateWorkstationAsync(CreateWorkstationDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/admin/workstations", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<WorkstationResponseDto>(_json);
+    }
+
+    public async Task<WorkstationResponseDto?> UpdateWorkstationAsync(Guid id, UpdateWorkstationDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/admin/workstations/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<WorkstationResponseDto>(_json);
+    }
+
+    public async Task DeleteWorkstationAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/admin/workstations/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<PaginatedResponse<ApiKeyResponseDto>?> GetApiKeysAsync(Guid? workstationId = null, bool? active = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<ApiKeyResponseDto>>(
+            $"api/admin/api-keys?workstationId={workstationId}&active={active}&page={page}&pageSize={pageSize}", _json);
+
+    public async Task<ApiKeyCreatedDto?> CreateApiKeyAsync(CreateApiKeyDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/admin/api-keys", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ApiKeyCreatedDto>(_json);
+    }
+
+    public async Task<ApiKeyResponseDto?> UpdateApiKeyAsync(Guid id, UpdateApiKeyDto dto)
+    {
+        var resp = await _http.PatchAsJsonAsync($"api/admin/api-keys/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ApiKeyResponseDto>(_json);
+    }
+
+    public async Task DeleteApiKeyAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/admin/api-keys/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<PaginatedResponse<ScanEventResponseDto>?> GetScanEventsAsync(Guid? workstationId = null, string? result = null, string? barcode = null, DateTime? dateFrom = null, DateTime? dateTo = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<ScanEventResponseDto>>(
+            $"api/warehouse/scan-events?workstationId={workstationId}&result={E(result)}&barcode={E(barcode)}&dateFrom={dateFrom:o}&dateTo={dateTo:o}&page={page}&pageSize={pageSize}", _json);
+
+    // ── Phase 25: Supplier Quality Management ────────────────────────────────
+
+    public Task<PaginatedResponse<SupplierSummaryDto>?> GetSuppliersAsync(string? search = null, string? status = null, bool? active = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<SupplierSummaryDto>>(
+            $"api/suppliers?search={E(search)}&status={E(status)}&active={active}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<SupplierResponseDto?> GetSupplierAsync(Guid id)
+        => _http.GetFromJsonAsync<SupplierResponseDto>($"api/suppliers/{id}", _json);
+
+    public async Task<SupplierResponseDto?> CreateSupplierAsync(CreateSupplierDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/suppliers", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<SupplierResponseDto>(_json);
+    }
+
+    public async Task<SupplierResponseDto?> UpdateSupplierAsync(Guid id, UpdateSupplierDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/suppliers/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<SupplierResponseDto>(_json);
+    }
+
+    public async Task<SupplierResponseDto?> UpdateSupplierStatusAsync(Guid id, UpdateSupplierStatusDto dto)
+    {
+        var resp = await _http.PatchAsJsonAsync($"api/suppliers/{id}/status", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<SupplierResponseDto>(_json);
+    }
+
+    public async Task DeleteSupplierAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/suppliers/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<List<SupplierEvaluationResponseDto>?> GetSupplierEvaluationsAsync(Guid supplierId)
+        => _http.GetFromJsonAsync<List<SupplierEvaluationResponseDto>>($"api/suppliers/{supplierId}/evaluations", _json);
+
+    public async Task<SupplierEvaluationResponseDto?> AddSupplierEvaluationAsync(Guid supplierId, CreateSupplierEvaluationDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/suppliers/{supplierId}/evaluations", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<SupplierEvaluationResponseDto>(_json);
+    }
+
+    public async Task DeleteSupplierEvaluationAsync(Guid supplierId, Guid evalId)
+    {
+        var resp = await _http.DeleteAsync($"api/suppliers/{supplierId}/evaluations/{evalId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<SupplierQualityDashboardDto?> GetSupplierQualityDashboardAsync()
+        => _http.GetFromJsonAsync<SupplierQualityDashboardDto>("api/suppliers/dashboard", _json);
 }

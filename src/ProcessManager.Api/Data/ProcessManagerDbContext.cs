@@ -170,6 +170,10 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
     public DbSet<ScanEvent> ScanEvents => Set<ScanEvent>();
 
+    // Phase 25: Supplier Quality Management
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+    public DbSet<SupplierEvaluation> SupplierEvaluations => Set<SupplierEvaluation>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -2004,6 +2008,37 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
         {
             e2.HasIndex(sl => sl.Barcode).IsUnique().HasFilter(null);
             e2.Property(sl => sl.Barcode).HasMaxLength(200);
+        });
+
+        // --- Supplier ---
+        modelBuilder.Entity<Supplier>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.HasIndex(s => s.Code).IsUnique();
+            e.Property(s => s.Code).HasMaxLength(50).IsRequired();
+            e.Property(s => s.Name).HasMaxLength(200).IsRequired();
+            e.Property(s => s.Status).HasConversion<string>().HasMaxLength(30);
+            e.Property(s => s.ContactName).HasMaxLength(200);
+            e.Property(s => s.ContactEmail).HasMaxLength(200);
+            e.Property(s => s.ContactPhone).HasMaxLength(50);
+            e.Property(s => s.Address).HasMaxLength(500);
+            e.Property(s => s.Notes).HasMaxLength(4000);
+            e.Property(s => s.IsActive).HasDefaultValue(true);
+        });
+
+        // --- SupplierEvaluation ---
+        modelBuilder.Entity<SupplierEvaluation>(e =>
+        {
+            e.HasKey(ev => ev.Id);
+            e.Property(ev => ev.EvaluatedByUserId).HasMaxLength(450);
+            e.Property(ev => ev.Notes).HasMaxLength(4000);
+
+            e.HasOne(ev => ev.Supplier)
+                .WithMany(s => s.Evaluations)
+                .HasForeignKey(ev => ev.SupplierId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(ev => new { ev.SupplierId, ev.EvaluationDate });
         });
 
         ApplyTenantQueryFilters(modelBuilder);

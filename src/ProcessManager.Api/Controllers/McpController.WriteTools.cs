@@ -800,4 +800,102 @@ public partial class McpController
         >= 1.0m => "Marginal (minimum for existing processes)",
         _ => "Poor — process improvement needed"
     };
+
+    // ── Phase 21: Automatic Inventory Tracking ────────────────────────────
+
+    private async Task<string> ToolGetWorkstationStatus(JsonElement args)
+    {
+        var activeOnly = GetStringArg(args, "active_only");
+        var wsCode = GetStringArg(args, "workstation_code");
+
+        var query = _db.Workstations
+            .Include(w => w.FixedLocation)
+            .Include(w => w.ApiKeys)
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (string.IsNullOrEmpty(activeOnly) || string.Equals(activeOnly, "true", StringComparison.OrdinalIgnoreCase))
+            query = query.Where(w => w.IsActive);
+
+        if (!string.IsNullOrEmpty(wsCode))
+            query = query.Where(w => w.Code.ToLower() == wsCode.Trim().ToLower());
+
+        var workstations = await query.OrderBy(w => w.Code).ToListAsync();
+
+        if (!workstations.Any())
+            return "No workstations found matching the criteria.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Workstation Status ({workstations.Count} workstations)\n");
+        sb.AppendLine("| Code | Name | Location | API Keys | Active | Last Scan |");
+        sb.AppendLine("|------|------|----------|----------|--------|-----------|");
+
+        foreach (var ws in workstations)
+        {
+            var lastScan = await _db.ScanEvents
+                .Where(s => s.WorkstationId == ws.Id)
+                .OrderByDescending(s => s.ScannedAt)
+                .Select(s => (DateTime?)s.ScannedAt)
+                .FirstOrDefaultAsync();
+
+            var lastScanStr = lastScan.HasValue ? lastScan.Value.ToString("yyyy-MM-dd HH:mm") : "Never";
+            sb.AppendLine($"| {ws.Code} | {ws.Name} | {ws.FixedLocation.Code} | {ws.ApiKeys.Count} | {(ws.IsActive ? "Yes" : "No")} | {lastScanStr} |");
+        }
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolGetSupplierQualityStatus(JsonElement args)
+    {
+        var statusFilter = GetStringArg(args, "status");
+        var topStr = args.TryGetProperty("top", out var tp) ? tp.GetString()?.Trim() : null;
+        var top = int.TryParse(topStr, out var t) && t > 0 ? Math.Min(t, 50) : 20;
+
+        var query = _db.Suppliers
+            .Include(s => s.Evaluations)
+            .AsNoTracking()
+            .Where(s => s.IsActive);
+
+        if (!string.IsNullOrEmpty(statusFilter) && Enum.TryParse<SupplierStatus>(statusFilter, true, out var st))
+            query = query.Where(s => s.Status == st);
+
+        var suppliers = await query.OrderBy(s => s.Code).Take(top).ToListAsync();
+
+        if (!suppliers.Any())
+            return "No suppliers found matching the criteria.";
+
+        var allActive = await _db.Suppliers.AsNoTracking().Where(s => s.IsActive).ToListAsync();
+        var approved = allActive.Count(s => s.Status == SupplierStatus.Approved);
+        var conditional = allActive.Count(s => s.Status == SupplierStatus.Conditional);
+        var suspended = allActive.Count(s => s.Status == SupplierStatus.Suspended);
+        var pending = allActive.Count(s => s.Status == SupplierStatus.Pending);
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Supplier Quality Status\n");
+        sb.AppendLine($"**Total Active:** {allActive.Count} | **Approved:** {approved} | **Conditional:** {conditional} | **Suspended:** {suspended} | **Pending:** {pending}\n");
+
+        sb.AppendLine($"### Suppliers ({suppliers.Count})\n");
+        sb.AppendLine("| Code | Name | Status | Evaluations | Latest Score |");
+        sb.AppendLine("|------|------|--------|-------------|--------------|");
+
+        foreach (var s in suppliers)
+        {
+            var latest = s.Evaluations.OrderByDescending(e => e.EvaluationDate).FirstOrDefault();
+            var scoreStr = latest != null ? latest.OverallScore.ToString() : "—";
+            sb.AppendLine($"| `{s.Code}` | {s.Name} | **{s.Status}** | {s.Evaluations.Count} | {scoreStr} |");
+        }
+
+        var atRisk = allActive
+            .Where(s => s.Status == SupplierStatus.Conditional || s.Status == SupplierStatus.Suspended)
+            .ToList();
+
+        if (atRisk.Any())
+        {
+            sb.AppendLine($"\n### At-Risk Suppliers ({atRisk.Count})\n");
+            foreach (var s in atRisk.Take(10))
+                sb.AppendLine($"- **{s.Code}** ({s.Name}) — Status: {s.Status}");
+        }
+
+        return sb.ToString();
+    }
 }

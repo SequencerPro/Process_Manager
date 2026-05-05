@@ -1112,4 +1112,61 @@ public partial class McpController
 
         return sb.ToString();
     }
+
+    private async Task<string> ToolGetOeeStatus(JsonElement args)
+    {
+        var equipmentIdStr = GetStringArg(args, "equipment_id");
+        var daysStr = GetStringArg(args, "days");
+        var targetStr = GetStringArg(args, "target_oee");
+
+        var days = 7;
+        if (!string.IsNullOrEmpty(daysStr) && int.TryParse(daysStr, out var d) && d > 0)
+            days = Math.Min(d, 90);
+
+        var targetOee = 85m;
+        if (!string.IsNullOrEmpty(targetStr) && decimal.TryParse(targetStr, out var t) && t > 0)
+            targetOee = t;
+
+        Guid? equipmentId = null;
+        if (!string.IsNullOrEmpty(equipmentIdStr) && Guid.TryParse(equipmentIdStr, out var eqId))
+            equipmentId = eqId;
+
+        var fromDate = DateTime.UtcNow.Date.AddDays(-days);
+        var toDate = DateTime.UtcNow.Date;
+
+        var oeeService = HttpContext.RequestServices.GetRequiredService<ProcessManager.Api.Services.IOeeCalculationService>();
+        var dashboard = await oeeService.GetDashboardAsync(fromDate, toDate, equipmentId, targetOee);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## OEE Status Summary\n");
+        sb.AppendLine($"**Period:** {fromDate:yyyy-MM-dd} to {toDate:yyyy-MM-dd} ({days} days)");
+        sb.AppendLine($"**Equipment Monitored:** {dashboard.EquipmentCount} | **Target OEE:** {dashboard.TargetOee}%");
+        sb.AppendLine($"**Average OEE:** {dashboard.AverageOee:F1}% | **Below Target:** {dashboard.EquipmentBelowTarget}\n");
+        sb.AppendLine($"| Metric | Average |");
+        sb.AppendLine($"|--------|---------|");
+        sb.AppendLine($"| Availability | {dashboard.AverageAvailability:F1}% |");
+        sb.AppendLine($"| Performance | {dashboard.AveragePerformance:F1}% |");
+        sb.AppendLine($"| Quality | {dashboard.AverageQuality:F1}% |");
+        sb.AppendLine($"| **OEE** | **{dashboard.AverageOee:F1}%** |");
+
+        if (dashboard.EquipmentSnapshots.Any())
+        {
+            sb.AppendLine("\n### Equipment OEE (Latest Shift)\n");
+            sb.AppendLine("| Equipment | Name | OEE | Availability | Performance | Quality |");
+            sb.AppendLine("|-----------|------|-----|--------------|-------------|---------|");
+            foreach (var s in dashboard.EquipmentSnapshots.Take(15))
+                sb.AppendLine($"| `{s.EquipmentCode}` | {s.EquipmentName} | {s.OeePct:F1}% | {s.AvailabilityPct:F1}% | {s.PerformancePct:F1}% | {s.QualityPct:F1}% |");
+        }
+
+        if (dashboard.TopLossCategories.Any())
+        {
+            sb.AppendLine("\n### Top Loss Categories (Pareto)\n");
+            sb.AppendLine("| Category | Type | Minutes Lost | % of Total | Occurrences |");
+            sb.AppendLine("|----------|------|-------------|------------|-------------|");
+            foreach (var l in dashboard.TopLossCategories.Take(10))
+                sb.AppendLine($"| {l.Category} | {l.Type} | {l.MinutesLost:F0} | {l.PercentOfTotal:F1}% | {l.Occurrences} |");
+        }
+
+        return sb.ToString();
+    }
 }

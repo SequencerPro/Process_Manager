@@ -43,6 +43,7 @@ builder.Services.AddSingleton<ProcessManager.Api.Services.IStripeService, Proces
 builder.Services.AddScoped<ProcessManager.Api.Services.IPlanEnforcementService, ProcessManager.Api.Services.PlanEnforcementService>();
 builder.Services.AddScoped<ProcessManager.Api.Services.IUsageMeteringService, ProcessManager.Api.Services.UsageMeteringService>();
 builder.Services.AddSingleton<ProcessManager.Api.Services.ISpcCalculationService, ProcessManager.Api.Services.SpcCalculationService>();
+builder.Services.AddScoped<ProcessManager.Api.Services.IOeeCalculationService, ProcessManager.Api.Services.OeeCalculationService>();
 
 builder.Services.AddDbContext<ProcessManagerDbContext>((sp, options) =>
 {

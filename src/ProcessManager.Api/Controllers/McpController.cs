@@ -46,7 +46,7 @@ public partial class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "3.6";
+    private const string ServerVersion   = "3.8";
 
     public McpController(ProcessManagerDbContext db, IWebhookEventPublisher? webhooks = null)
     {
@@ -315,6 +315,14 @@ public partial class McpController : ControllerBase
                  Schema(
                      ("status", "string", "Optional: filter by study status (Draft/InProgress/Complete)"),
                      ("equipment_id", "string", "Optional: filter to a specific equipment GUID"))),
+
+            // ── Phase 29: OEE Dashboard ────────────────────────────────────
+            Tool("get_oee_status",
+                 "Get OEE (Overall Equipment Effectiveness) summary: average OEE/availability/performance/quality percentages across active equipment, equipment below target, top loss categories (Pareto of downtime reasons). Useful for monitoring production efficiency and identifying improvement opportunities. Requires authentication.",
+                 Schema(
+                     ("equipment_id", "string", "Optional: filter to a specific equipment GUID"),
+                     ("days", "string", "Optional: number of days to look back (default 7)"),
+                     ("target_oee", "string", "Optional: target OEE percentage (default 85)"))),
         }
     };
 
@@ -439,6 +447,8 @@ public partial class McpController : ControllerBase
                 "get_calibration_status"         => await ToolGetCalibrationStatus(args),
                 // Phase 26: MSA/GR&R
                 "get_msa_status"                 => await ToolGetMsaStatus(args),
+                // Phase 29: OEE
+                "get_oee_status"                 => await ToolGetOeeStatus(args),
                 _                               => null
             };
 

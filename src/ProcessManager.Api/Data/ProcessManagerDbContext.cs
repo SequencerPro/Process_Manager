@@ -186,6 +186,9 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<GageStudy> GageStudies => Set<GageStudy>();
     public DbSet<GageStudyMeasurement> GageStudyMeasurements => Set<GageStudyMeasurement>();
 
+    // Phase 29: OEE Dashboard
+    public DbSet<ShiftDefinition> ShiftDefinitions => Set<ShiftDefinition>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -2175,6 +2178,15 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany(g => g.Measurements)
                 .HasForeignKey(m => m.GageStudyId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- ShiftDefinition (Phase 29: OEE) ---
+        modelBuilder.Entity<ShiftDefinition>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.HasIndex(s => s.Code).IsUnique();
+            e.Property(s => s.Code).HasMaxLength(20).IsRequired();
+            e.Property(s => s.Name).HasMaxLength(100).IsRequired();
         });
 
         ApplyTenantQueryFilters(modelBuilder);

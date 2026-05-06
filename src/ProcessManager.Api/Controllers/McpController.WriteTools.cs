@@ -1256,4 +1256,91 @@ public partial class McpController
 
         return sb.ToString();
     }
+
+    // ── Phase 34: Customer Complaint Management ─────────────────────────────
+
+    private async Task<string> ToolGetComplaintStatus(JsonElement args)
+    {
+        var statusStr = GetStringArg(args, "status");
+        var categoryStr = GetStringArg(args, "category");
+        var severityStr = GetStringArg(args, "severity");
+
+        var query = _db.CustomerComplaints
+            .Include(c => c.Investigations)
+            .Include(c => c.Responses)
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(statusStr) && Enum.TryParse<ComplaintStatus>(statusStr, true, out var st))
+            query = query.Where(c => c.Status == st);
+
+        if (!string.IsNullOrEmpty(categoryStr) && Enum.TryParse<ComplaintCategory>(categoryStr, true, out var cat))
+            query = query.Where(c => c.Category == cat);
+
+        if (!string.IsNullOrEmpty(severityStr) && Enum.TryParse<ComplaintSeverity>(severityStr, true, out var sev))
+            query = query.Where(c => c.Severity == sev);
+
+        var all = await query.ToListAsync();
+
+        var open = all.Where(c => c.Status != ComplaintStatus.Closed).ToList();
+        var closed = all.Where(c => c.Status == ComplaintStatus.Closed && c.ClosedAt.HasValue).ToList();
+        var overdue = open.Where(c => c.ResponseDueDate.HasValue && c.ResponseDueDate < DateTime.UtcNow).ToList();
+
+        var avgDaysToClose = closed.Any()
+            ? closed.Average(c => (c.ClosedAt!.Value - c.CreatedAt).TotalDays)
+            : 0;
+
+        var withSatisfaction = all.Where(c => c.CustomerSatisfied.HasValue).ToList();
+        var satisfactionRate = withSatisfaction.Any()
+            ? (decimal)withSatisfaction.Count(c => c.CustomerSatisfied == true) / withSatisfaction.Count * 100
+            : 0m;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## Customer Complaint Status Summary\n");
+        sb.AppendLine($"**Total Open:** {open.Count} | **Total Overdue:** {overdue.Count} | **Total Closed:** {closed.Count}");
+        sb.AppendLine($"**Average Days to Close:** {avgDaysToClose:F1} | **Customer Satisfaction Rate:** {satisfactionRate:F1}%\n");
+
+        var byStatus = all.GroupBy(c => c.Status.ToString()).OrderByDescending(g => g.Count());
+        if (byStatus.Any())
+        {
+            sb.AppendLine("### By Status\n");
+            sb.AppendLine("| Status | Count |");
+            sb.AppendLine("|--------|-------|");
+            foreach (var g in byStatus)
+                sb.AppendLine($"| {g.Key} | {g.Count()} |");
+        }
+
+        var byCategory = all.GroupBy(c => c.Category.ToString()).OrderByDescending(g => g.Count());
+        if (byCategory.Any())
+        {
+            sb.AppendLine("\n### By Category\n");
+            sb.AppendLine("| Category | Count |");
+            sb.AppendLine("|----------|-------|");
+            foreach (var g in byCategory)
+                sb.AppendLine($"| {g.Key} | {g.Count()} |");
+        }
+
+        var bySeverity = all.GroupBy(c => c.Severity.ToString()).OrderByDescending(g => g.Count());
+        if (bySeverity.Any())
+        {
+            sb.AppendLine("\n### By Severity\n");
+            sb.AppendLine("| Severity | Count |");
+            sb.AppendLine("|----------|-------|");
+            foreach (var g in bySeverity)
+                sb.AppendLine($"| {g.Key} | {g.Count()} |");
+        }
+
+        if (overdue.Any())
+        {
+            sb.AppendLine("\n### Overdue Complaints (Response Past Due)\n");
+            sb.AppendLine("| Code | Customer | Severity | Status | Due Date | Days Overdue |");
+            sb.AppendLine("|------|----------|----------|--------|----------|-------------|");
+            foreach (var c in overdue.OrderBy(c => c.ResponseDueDate).Take(10))
+            {
+                var daysOverdue = (DateTime.UtcNow - c.ResponseDueDate!.Value).TotalDays;
+                sb.AppendLine($"| `{c.Code}` | {c.CustomerName} | {c.Severity} | {c.Status} | {c.ResponseDueDate:yyyy-MM-dd} | {daysOverdue:F0} |");
+            }
+        }
+
+        return sb.ToString();
+    }
 }

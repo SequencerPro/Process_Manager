@@ -11,5 +11,6 @@ public enum ActionItemSourceType
     ManagementReview,
     CompetencyExpiry,
     Capa,
-    ChangeOrder
+    ChangeOrder,
+    CustomerComplaint
 }

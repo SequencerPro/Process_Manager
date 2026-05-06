@@ -195,6 +195,11 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ChangeOrderApprover> ChangeOrderApprovers => Set<ChangeOrderApprover>();
     public DbSet<ChangeOrderTask> ChangeOrderTasks => Set<ChangeOrderTask>();
 
+    // Phase 34: Customer Complaint Management
+    public DbSet<CustomerComplaint> CustomerComplaints => Set<CustomerComplaint>();
+    public DbSet<ComplaintInvestigation> ComplaintInvestigations => Set<ComplaintInvestigation>();
+    public DbSet<ComplaintResponse> ComplaintResponses => Set<ComplaintResponse>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -2262,6 +2267,59 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Cascade);
 
             e.HasIndex(t => t.ChangeOrderId);
+        });
+
+        // --- CustomerComplaint (Phase 34: Customer Complaint Management) ---
+        modelBuilder.Entity<CustomerComplaint>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.HasIndex(c => c.Code).IsUnique();
+            e.Property(c => c.Code).HasMaxLength(20).IsRequired();
+            e.Property(c => c.CustomerName).HasMaxLength(200).IsRequired();
+            e.Property(c => c.CustomerReference).HasMaxLength(200);
+            e.Property(c => c.LotNumber).HasMaxLength(100);
+            e.Property(c => c.Category).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.Severity).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.Description).HasMaxLength(4000).IsRequired();
+            e.Property(c => c.Status).HasConversion<string>().HasMaxLength(40);
+            e.Property(c => c.OwnerUserId).HasMaxLength(450).IsRequired();
+            e.Property(c => c.OwnerDisplayName).HasMaxLength(200);
+
+            e.HasIndex(c => c.Status);
+            e.HasIndex(c => c.Severity);
+            e.HasIndex(c => c.Category);
+        });
+
+        modelBuilder.Entity<ComplaintInvestigation>(e =>
+        {
+            e.HasKey(i => i.Id);
+            e.Property(i => i.InvestigationType).HasConversion<string>().HasMaxLength(30);
+            e.Property(i => i.Findings).HasMaxLength(4000).IsRequired();
+            e.Property(i => i.InvestigatedByUserId).HasMaxLength(450).IsRequired();
+            e.Property(i => i.InvestigatedByDisplayName).HasMaxLength(200);
+
+            e.HasOne<CustomerComplaint>()
+                .WithMany(c => c.Investigations)
+                .HasForeignKey(i => i.CustomerComplaintId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(i => i.CustomerComplaintId);
+        });
+
+        modelBuilder.Entity<ComplaintResponse>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.ResponseType).HasConversion<string>().HasMaxLength(30);
+            e.Property(r => r.Content).HasMaxLength(4000).IsRequired();
+            e.Property(r => r.SentByUserId).HasMaxLength(450).IsRequired();
+            e.Property(r => r.SentByDisplayName).HasMaxLength(200);
+
+            e.HasOne<CustomerComplaint>()
+                .WithMany(c => c.Responses)
+                .HasForeignKey(r => r.CustomerComplaintId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(r => r.CustomerComplaintId);
         });
 
         ApplyTenantQueryFilters(modelBuilder);

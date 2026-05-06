@@ -46,7 +46,7 @@ public partial class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "3.9";
+    private const string ServerVersion   = "4.0";
 
     public McpController(ProcessManagerDbContext db, IWebhookEventPublisher? webhooks = null)
     {
@@ -331,6 +331,14 @@ public partial class McpController : ControllerBase
                      ("status", "string", "Optional: filter by ECO status (Draft/ImpactAnalysis/Approval/Implementation/Verification/Closed/Rejected)"),
                      ("type", "string", "Optional: filter by ECO type (DesignChange/ProcessChange/DocumentChange/SupplierChange/DeviationRequest)"),
                      ("priority", "string", "Optional: filter by priority (Routine/Urgent/Emergency)"))),
+
+            // ── Phase 34: Customer Complaint Management ──────────────────────
+            Tool("get_complaint_status",
+                 "Get customer complaint status summary: open/overdue/closed counts, average days to close, customer satisfaction rate, breakdown by status/category/severity, and overdue complaints. Useful for monitoring voice of customer and complaint handling programme health (ISO 9001 9.1.2, FDA 21 CFR 820.198, IATF 16949 10.2.5). Requires authentication.",
+                 Schema(
+                     ("status", "string", "Optional: filter by complaint status (New/UnderInvestigation/ContainmentInPlace/RootCauseIdentified/CorrectiveActionImplemented/ResponseSent/Closed)"),
+                     ("category", "string", "Optional: filter by category (ProductDefect/Packaging/Delivery/Documentation/Service/Regulatory)"),
+                     ("severity", "string", "Optional: filter by severity (Cosmetic/Minor/Major/Critical)"))),
         }
     };
 
@@ -459,6 +467,8 @@ public partial class McpController : ControllerBase
                 "get_oee_status"                 => await ToolGetOeeStatus(args),
                 // Phase 32: Change Management & ECO
                 "get_change_order_status"        => await ToolGetChangeOrderStatus(args),
+                // Phase 34: Customer Complaint Management
+                "get_complaint_status"           => await ToolGetComplaintStatus(args),
                 _                               => null
             };
 

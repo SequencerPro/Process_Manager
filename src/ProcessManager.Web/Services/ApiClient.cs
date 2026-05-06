@@ -2830,4 +2830,63 @@ public class ApiClient
 
     public Task<SupplierQualityDashboardDto?> GetSupplierQualityDashboardAsync()
         => _http.GetFromJsonAsync<SupplierQualityDashboardDto>("api/suppliers/dashboard", _json);
+
+    // ── Customer Complaints (Phase 34) ──────────────────────────────────────
+
+    public Task<PaginatedResponse<CustomerComplaintSummaryDto>?> GetComplaintsAsync(string? search = null, string? status = null, string? category = null, string? severity = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<CustomerComplaintSummaryDto>>(
+            $"api/complaints?search={E(search)}&status={E(status)}&category={E(category)}&severity={E(severity)}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<CustomerComplaintResponseDto?> GetComplaintAsync(Guid id)
+        => _http.GetFromJsonAsync<CustomerComplaintResponseDto>($"api/complaints/{id}", _json);
+
+    public async Task<CustomerComplaintResponseDto?> CreateComplaintAsync(CreateCustomerComplaintDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/complaints", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<CustomerComplaintResponseDto>(_json);
+    }
+
+    public async Task<CustomerComplaintResponseDto?> UpdateComplaintAsync(Guid id, UpdateCustomerComplaintDto dto)
+    {
+        var resp = await _http.PatchAsJsonAsync($"api/complaints/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<CustomerComplaintResponseDto>(_json);
+    }
+
+    public async Task DeleteComplaintAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/complaints/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<CustomerComplaintResponseDto?> TransitionComplaintStatusAsync(Guid id, TransitionComplaintStatusDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/complaints/{id}/transition", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<CustomerComplaintResponseDto>(_json);
+    }
+
+    public Task<List<ComplaintInvestigationResponseDto>?> GetComplaintInvestigationsAsync(Guid complaintId)
+        => _http.GetFromJsonAsync<List<ComplaintInvestigationResponseDto>>($"api/complaints/{complaintId}/investigations", _json);
+
+    public async Task<ComplaintInvestigationResponseDto?> AddComplaintInvestigationAsync(Guid complaintId, CreateComplaintInvestigationDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/complaints/{complaintId}/investigations", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ComplaintInvestigationResponseDto>(_json);
+    }
+
+    public Task<List<ComplaintResponseResponseDto>?> GetComplaintResponsesAsync(Guid complaintId)
+        => _http.GetFromJsonAsync<List<ComplaintResponseResponseDto>>($"api/complaints/{complaintId}/responses", _json);
+
+    public async Task<ComplaintResponseResponseDto?> AddComplaintResponseAsync(Guid complaintId, CreateComplaintResponseDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/complaints/{complaintId}/responses", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ComplaintResponseResponseDto>(_json);
+    }
+
+    public Task<ComplaintDashboardDto?> GetComplaintDashboardAsync()
+        => _http.GetFromJsonAsync<ComplaintDashboardDto>("api/complaints/dashboard", _json);
 }

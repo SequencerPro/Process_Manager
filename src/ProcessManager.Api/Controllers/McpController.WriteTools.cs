@@ -1343,4 +1343,83 @@ public partial class McpController
 
         return sb.ToString();
     }
+
+    // ── Phase 35: Cost of Quality ─────────────────────────────────────────────
+
+    private async Task<string> ToolGetCostOfQuality(JsonElement args)
+    {
+        var categoryStr   = args.TryGetProperty("category",    out var c) ? c.GetString()?.Trim() : null;
+        var sourceTypeStr = args.TryGetProperty("source_type", out var s) ? s.GetString()?.Trim() : null;
+        var daysStr       = args.TryGetProperty("days",        out var d) ? d.GetString()?.Trim() : null;
+
+        var query = _db.QualityCosts.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(categoryStr) && Enum.TryParse<QualityCostCategory>(categoryStr, true, out var cat))
+            query = query.Where(q => q.CostCategory == cat);
+
+        if (!string.IsNullOrWhiteSpace(sourceTypeStr) && Enum.TryParse<QualityCostSourceType>(sourceTypeStr, true, out var st))
+            query = query.Where(q => q.SourceType == st);
+
+        if (int.TryParse(daysStr, out var days) && days > 0)
+            query = query.Where(q => q.RecordedAt >= DateTime.UtcNow.AddDays(-days));
+
+        var all = await query.ToListAsync();
+
+        if (!all.Any())
+            return "No quality cost entries found matching the specified filters.";
+
+        var now          = DateTime.UtcNow;
+        var monthStart   = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var quarterMonth = ((now.Month - 1) / 3) * 3 + 1;
+        var quarterStart = new DateTime(now.Year, quarterMonth, 1, 0, 0, 0, DateTimeKind.Utc);
+        var yearStart    = new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var totalMonth   = all.Where(q => q.RecordedAt >= monthStart).Sum(q => q.Amount);
+        var totalQuarter = all.Where(q => q.RecordedAt >= quarterStart).Sum(q => q.Amount);
+        var totalYear    = all.Where(q => q.RecordedAt >= yearStart).Sum(q => q.Amount);
+        var totalAll     = all.Sum(q => q.Amount);
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Cost of Quality Summary ({all.Count} entries)\n");
+        sb.AppendLine("| Period | Total Cost |");
+        sb.AppendLine("|--------|-----------|");
+        sb.AppendLine($"| This Month | ${totalMonth:N2} |");
+        sb.AppendLine($"| This Quarter | ${totalQuarter:N2} |");
+        sb.AppendLine($"| This Year | ${totalYear:N2} |");
+        sb.AppendLine($"| All Time | ${totalAll:N2} |");
+
+        var byCategory = all.GroupBy(q => q.CostCategory.ToString()).OrderByDescending(g => g.Sum(q => q.Amount));
+        sb.AppendLine("\n### PAF Category Breakdown\n");
+        sb.AppendLine("| Category | Total Cost | % of Total | Entry Count |");
+        sb.AppendLine("|----------|-----------|-----------|------------|");
+        foreach (var g in byCategory)
+        {
+            var pct = totalAll > 0 ? (g.Sum(q => q.Amount) / totalAll * 100) : 0;
+            sb.AppendLine($"| {g.Key} | ${g.Sum(q => q.Amount):N2} | {pct:F1}% | {g.Count()} |");
+        }
+
+        var bySource = all.GroupBy(q => q.SourceType.ToString()).OrderByDescending(g => g.Sum(q => q.Amount));
+        sb.AppendLine("\n### By Source Type\n");
+        sb.AppendLine("| Source Type | Total Cost | Entry Count |");
+        sb.AppendLine("|-----------|-----------|------------|");
+        foreach (var g in bySource)
+            sb.AppendLine($"| {g.Key} | ${g.Sum(q => q.Amount):N2} | {g.Count()} |");
+
+        var topDrivers = all
+            .Where(q => q.KindName is not null)
+            .GroupBy(q => q.KindName!)
+            .OrderByDescending(g => g.Sum(q => q.Amount))
+            .Take(10);
+
+        if (topDrivers.Any())
+        {
+            sb.AppendLine("\n### Top Cost Drivers by Product\n");
+            sb.AppendLine("| Product | Total Cost | Entry Count |");
+            sb.AppendLine("|---------|-----------|------------|");
+            foreach (var g in topDrivers)
+                sb.AppendLine($"| {g.Key} | ${g.Sum(q => q.Amount):N2} | {g.Count()} |");
+        }
+
+        return sb.ToString();
+    }
 }

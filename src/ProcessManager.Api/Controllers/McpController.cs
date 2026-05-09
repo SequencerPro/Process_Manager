@@ -46,7 +46,7 @@ public partial class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "4.0";
+    private const string ServerVersion   = "4.1";
 
     public McpController(ProcessManagerDbContext db, IWebhookEventPublisher? webhooks = null)
     {
@@ -339,6 +339,14 @@ public partial class McpController : ControllerBase
                      ("status", "string", "Optional: filter by complaint status (New/UnderInvestigation/ContainmentInPlace/RootCauseIdentified/CorrectiveActionImplemented/ResponseSent/Closed)"),
                      ("category", "string", "Optional: filter by category (ProductDefect/Packaging/Delivery/Documentation/Service/Regulatory)"),
                      ("severity", "string", "Optional: filter by severity (Cosmetic/Minor/Major/Critical)"))),
+
+            // ── Phase 35: Cost of Quality (CoQ) ──────────────────────────────
+            Tool("get_cost_of_quality",
+                 "Get Cost of Quality (CoQ) summary: total costs this month/quarter/year, PAF (Prevention-Appraisal-Failure) category breakdown, source type breakdown, 12-month trend, and top cost drivers by product. Useful for quality economics reporting, management review input (ISO 9001 9.3), and justifying improvement investments (IATF 16949 6.1.2.1). Requires authentication.",
+                 Schema(
+                     ("category", "string", "Optional: filter by PAF category (Prevention/Appraisal/InternalFailure/ExternalFailure)"),
+                     ("source_type", "string", "Optional: filter by source type (Manual/Scrap/Rework/Warranty/InspectionLabor/ExternalFailure/PreventionCost/AppraisalCost/CustomerComplaint/Capa)"),
+                     ("days", "string", "Optional: number of days to look back (default all time)"))),
         }
     };
 
@@ -469,6 +477,8 @@ public partial class McpController : ControllerBase
                 "get_change_order_status"        => await ToolGetChangeOrderStatus(args),
                 // Phase 34: Customer Complaint Management
                 "get_complaint_status"           => await ToolGetComplaintStatus(args),
+                // Phase 35: Cost of Quality
+                "get_cost_of_quality"            => await ToolGetCostOfQuality(args),
                 _                               => null
             };
 

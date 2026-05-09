@@ -200,6 +200,10 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ComplaintInvestigation> ComplaintInvestigations => Set<ComplaintInvestigation>();
     public DbSet<ComplaintResponse> ComplaintResponses => Set<ComplaintResponse>();
 
+    // Phase 35: Cost of Quality (CoQ)
+    public DbSet<QualityCost> QualityCosts => Set<QualityCost>();
+    public DbSet<QualityCostRule> QualityCostRules => Set<QualityCostRule>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -2320,6 +2324,37 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Cascade);
 
             e.HasIndex(r => r.CustomerComplaintId);
+        });
+
+        // --- QualityCost (Phase 35: Cost of Quality) ---
+        modelBuilder.Entity<QualityCost>(e =>
+        {
+            e.HasKey(q => q.Id);
+            e.Property(q => q.SourceType).HasConversion<string>().HasMaxLength(30);
+            e.Property(q => q.SourceEntityCode).HasMaxLength(100);
+            e.Property(q => q.Amount).HasColumnType("decimal(18,2)");
+            e.Property(q => q.Currency).HasMaxLength(10).HasDefaultValue("USD");
+            e.Property(q => q.CostCategory).HasConversion<string>().HasMaxLength(30);
+            e.Property(q => q.KindName).HasMaxLength(200);
+            e.Property(q => q.Description).HasMaxLength(2000);
+            e.Property(q => q.RecordedByUserId).HasMaxLength(450).IsRequired();
+            e.Property(q => q.RecordedByDisplayName).HasMaxLength(200);
+
+            e.HasIndex(q => q.SourceEntityId);
+            e.HasIndex(q => q.CostCategory);
+            e.HasIndex(q => q.RecordedAt);
+        });
+
+        modelBuilder.Entity<QualityCostRule>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.TriggerEvent).HasConversion<string>().HasMaxLength(40);
+            e.Property(r => r.DefaultCategory).HasConversion<string>().HasMaxLength(30);
+            e.Property(r => r.DefaultSourceType).HasConversion<string>().HasMaxLength(30);
+            e.Property(r => r.DefaultAmount).HasColumnType("decimal(18,2)");
+            e.Property(r => r.Description).HasMaxLength(500);
+
+            e.HasIndex(r => r.TriggerEvent);
         });
 
         ApplyTenantQueryFilters(modelBuilder);

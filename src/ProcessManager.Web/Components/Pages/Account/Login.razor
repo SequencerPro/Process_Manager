@@ -6,18 +6,28 @@
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Authentication.Cookies
+@using ProcessManager.Api.DTOs
 @inject IHttpContextAccessor HttpContextAccessor
 @inject NavigationManager Nav
 @inject IConfiguration Config
 
-<PageTitle>Sign In — Process Manager</PageTitle>
+<PageTitle>Sign In — @(_branding?.CompanyName ?? "Process Manager")</PageTitle>
 
+<!-- branding-debug: logoFileName=@(_branding?.LogoFileName ?? "<null>") logoDataUrlPresent=@(_branding?.LogoDataUrl is not null) brandingFetched=@(_branding is not null) brandingFetchError=@(_brandingError ?? "<none>") -->
 <div class="d-flex justify-content-center align-items-center" style="min-height: 100vh; background: #f8f9fa;">
     <div class="card shadow-sm" style="width: 380px;">
         <div class="card-body p-4">
             <div class="text-center mb-4">
-                <i class="bi bi-gear-wide-connected fs-1 text-primary"></i>
-                <h4 class="mt-2 mb-0">Process Manager</h4>
+                @if (!string.IsNullOrWhiteSpace(_logoUrl))
+                {
+                    <img src="@_logoUrl" alt="@(_branding?.CompanyName ?? "Logo")"
+                         style="max-height: 64px; max-width: 200px; object-fit: contain;" />
+                }
+                else
+                {
+                    <i class="bi bi-gear-wide-connected fs-1 text-primary"></i>
+                }
+                <h4 class="mt-2 mb-0">@(_branding?.CompanyName ?? "Process Manager")</h4>
                 <p class="text-muted small">Sign in to continue</p>
             </div>
 
@@ -56,6 +66,83 @@
     private LoginInput Input { get; set; } = new();
 
     private string? ErrorMessage { get; set; }
+
+    private PublicTenantBrandingDto? _branding;
+    private string? _logoUrl;
+    private string? _brandingError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Tell the browser never to cache this page so the next visit (e.g.
+        // after the admin updates branding and logs out) always re-renders
+        // with fresh data. Without this, an updated company name / logo can
+        // appear stuck on whatever the browser cached previously.
+        var ctx = HttpContextAccessor.HttpContext;
+        if (ctx is not null && !ctx.Response.HasStarted)
+        {
+            ctx.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+            ctx.Response.Headers["Pragma"] = "no-cache";
+            ctx.Response.Headers["Expires"] = "0";
+        }
+
+        // Best-effort: fetch the tenant's public branding so we can display
+        // their logo and company name on the sign-in card. Any failure (no
+        // subdomain, API down, no tenant match) is swallowed and the page
+        // falls back to the generic "Process Manager" mark.
+        try
+        {
+            var apiBase = Config["ApiBaseUrl"] ?? "http://localhost:5100";
+            var subdomain = ExtractSubdomain(Nav.Uri);
+            using var http = new HttpClient { BaseAddress = new Uri(apiBase) };
+            // ?t=ticks busts any intermediary HTTP cache that might serve a
+            // stale branding response between updates.
+            var cacheBust = $"t={DateTime.UtcNow.Ticks}";
+            var url = string.IsNullOrEmpty(subdomain)
+                ? $"api/tenant-branding/public?{cacheBust}"
+                : $"api/tenant-branding/public?subdomain={Uri.EscapeDataString(subdomain)}&{cacheBust}";
+            _branding = await http.GetFromJsonAsync<PublicTenantBrandingDto>(url);
+
+            // Prefer the inline data URL the API embeds (no second fetch needed
+            // and works regardless of cross-origin / service-worker behaviour).
+            // Fall back to a constructed absolute URL if the logo is too big to
+            // inline or the data URL is otherwise missing.
+            if (!string.IsNullOrWhiteSpace(_branding?.LogoDataUrl))
+            {
+                _logoUrl = _branding.LogoDataUrl;
+            }
+            else if (_branding is { LogoFileName: { Length: > 0 } file })
+            {
+                _logoUrl = $"{apiBase.TrimEnd('/')}/uploads/logos/{file}";
+            }
+        }
+        catch (Exception ex)
+        {
+            // Silently fall back to defaults in the UI, but stash the error
+            // in the page's HTML comment so we can diagnose if the logo
+            // doesn't show up.
+            _brandingError = ex.GetType().Name + ": " + ex.Message;
+        }
+    }
+
+    private static string? ExtractSubdomain(string uri)
+    {
+        try
+        {
+            var host = new Uri(uri).Host;
+            // Skip dev hosts and bare IPs / single-label names.
+            if (host.Equals("localhost", StringComparison.OrdinalIgnoreCase)) return null;
+            if (System.Net.IPAddress.TryParse(host, out _)) return null;
+
+            var parts = host.Split('.');
+            // Need at least 3 labels (e.g. "acme.example.com") to consider the
+            // first label a tenant subdomain. "example.com" alone has no tenant.
+            return parts.Length >= 3 ? parts[0] : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 
     private async Task HandleLogin()
     {

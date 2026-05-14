@@ -4,6 +4,7 @@
 @inject ProcessManager.Web.Services.TokenService TokenSvc
 @inject ProcessManager.Web.Services.VocabularyService Vocab
 @inject ProcessManager.Web.Services.FeatureFlagService Flags
+@inject ProcessManager.Web.Services.BrandingService Branding
 @inject ApiClient Api
 
 <div class="d-flex vh-100 position-relative flex-column flex-lg-row">
@@ -53,6 +54,11 @@
         if (!Flags.IsLoaded)
         {
             await Flags.LoadAsync(Api);
+        }
+
+        if (!Branding.IsLoaded)
+        {
+            await Branding.LoadAsync(Api);
         }
     }
 }

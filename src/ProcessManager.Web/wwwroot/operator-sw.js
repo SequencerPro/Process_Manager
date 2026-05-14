@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pm-operator-v1';
+const CACHE_NAME = 'pm-operator-v2';
 const STATIC_ASSETS = [
     '/',
     '/app.css',
@@ -26,6 +26,13 @@ self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
     if (event.request.method !== 'GET') return;
+
+    // Skip cross-origin requests entirely. The SW only caches first-party
+    // assets for offline mode; cross-origin resources (CDN scripts, the
+    // tenant branding logo served by the API, etc.) must go straight to
+    // the network so we don't manufacture a 503 when our fetch fails.
+    if (url.origin !== self.location.origin) return;
+
     if (url.pathname.startsWith('/api/')) return;
     if (url.pathname.startsWith('/_blazor')) return;
 

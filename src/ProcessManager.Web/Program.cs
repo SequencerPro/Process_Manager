@@ -28,6 +28,7 @@ builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<VocabularyService>();
 builder.Services.AddScoped<FeatureFlagService>();
+builder.Services.AddScoped<BrandingService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>

@@ -2831,6 +2831,56 @@ public class ApiClient
     public Task<SupplierQualityDashboardDto?> GetSupplierQualityDashboardAsync()
         => _http.GetFromJsonAsync<SupplierQualityDashboardDto>("api/suppliers/dashboard", _json);
 
+    // ── Gage Studies (Phase 26) ─────────────────────────────────────────────
+
+    public Task<PaginatedResponse<GageStudySummaryDto>?> GetGageStudiesAsync(string? status = null, Guid? equipmentId = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<GageStudySummaryDto>>(
+            $"api/gage-studies?status={E(status)}&equipmentId={equipmentId}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<GageStudyResponseDto?> GetGageStudyAsync(Guid id)
+        => _http.GetFromJsonAsync<GageStudyResponseDto>($"api/gage-studies/{id}", _json);
+
+    public async Task<GageStudyResponseDto?> CreateGageStudyAsync(CreateGageStudyDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/gage-studies", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<GageStudyResponseDto>(_json);
+    }
+
+    public async Task DeleteGageStudyAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/gage-studies/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<GageStudyDashboardDto?> GetGageStudyDashboardAsync()
+        => _http.GetFromJsonAsync<GageStudyDashboardDto>("api/gage-studies/dashboard", _json);
+
+    // ── CAPA (Phase 27) ─────────────────────────────────────────────────────
+
+    public Task<PaginatedResponse<CapaRecordSummaryDto>?> GetCapasAsync(string? search = null, string? status = null, string? type = null, string? sourceType = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<CapaRecordSummaryDto>>(
+            $"api/capas?search={E(search)}&status={E(status)}&type={E(type)}&sourceType={E(sourceType)}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<CapaRecordResponseDto?> GetCapaAsync(Guid id)
+        => _http.GetFromJsonAsync<CapaRecordResponseDto>($"api/capas/{id}", _json);
+
+    public async Task<CapaRecordResponseDto?> CreateCapaAsync(CreateCapaRecordDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/capas", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<CapaRecordResponseDto>(_json);
+    }
+
+    public async Task DeleteCapaAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/capas/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<CapaDashboardDto?> GetCapaDashboardAsync()
+        => _http.GetFromJsonAsync<CapaDashboardDto>("api/capas/dashboard", _json);
+
     // ── Customer Complaints (Phase 34) ──────────────────────────────────────
 
     public Task<PaginatedResponse<CustomerComplaintSummaryDto>?> GetComplaintsAsync(string? search = null, string? status = null, string? category = null, string? severity = null, int page = 1, int pageSize = 25)

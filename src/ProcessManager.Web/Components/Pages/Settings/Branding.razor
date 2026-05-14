@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @inject ApiClient Api
 @inject ToastService Toast
+@inject BrandingService BrandingCache
 
 <PageTitle>Branding — Process Manager</PageTitle>
 
@@ -177,6 +178,7 @@ else
         {
             _branding = await Api.UpdateTenantBrandingAsync(
                 new UpdateTenantBrandingDto(_form.CompanyName!, _form.PrimaryColorHex, _form.FooterText));
+            BrandingCache.Set(_branding);
             Toast.ShowSuccess("Branding saved.");
         }
         catch (Exception ex)
@@ -195,6 +197,7 @@ else
         try
         {
             _branding = await Api.UploadTenantLogoAsync(e.File);
+            BrandingCache.Set(_branding);
             Toast.ShowSuccess("Logo uploaded.");
         }
         catch (Exception ex)
@@ -214,6 +217,7 @@ else
         {
             await Api.DeleteTenantLogoAsync();
             _branding = _branding! with { LogoFileName = null };
+            BrandingCache.Set(_branding);
             _confirmDeleteLogo = false;
             Toast.ShowSuccess("Logo removed.");
         }

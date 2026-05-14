@@ -15,11 +15,16 @@ public class PfmeasController : ControllerBase
 {
     private readonly ProcessManagerDbContext _db;
     private readonly IUsageMeteringService _usageMetering;
+    private readonly IWebHostEnvironment _env;
 
-    public PfmeasController(ProcessManagerDbContext db, IUsageMeteringService usageMetering)
+    public PfmeasController(
+        ProcessManagerDbContext db,
+        IUsageMeteringService usageMetering,
+        IWebHostEnvironment env)
     {
         _db = db;
         _usageMetering = usageMetering;
+        _env = env;
     }
 
     // ─── PFMEA CRUD ────────────────────────────────────────────────────────
@@ -356,7 +361,8 @@ public class PfmeasController : ControllerBase
 
         var dto = MapToDto(pfmea);
         var branding = await _db.TenantBrandings.FirstOrDefaultAsync();
-        var pdfBytes = Services.PfmeaPdfGenerator.Generate(dto, branding);
+        var logoBytes = await TenantLogoLoader.LoadAsync(_env, branding);
+        var pdfBytes = Services.PfmeaPdfGenerator.Generate(dto, branding, logoBytes);
 
         await _usageMetering.IncrementAsync(UsageMetricType.PdfExports);
 

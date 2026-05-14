@@ -78,7 +78,14 @@ public class SuppliersController : ControllerBase
 
         if (supplier is null) return NotFound();
 
-        return MapToDto(supplier, 0, 0);
+        var counts = await GetSupplierMrbCounts(new List<Guid> { id });
+        counts.TryGetValue(id, out var ncCount);
+
+        var openMrbCount = await _db.MrbReviews
+            .CountAsync(m => m.SupplierCaused
+                && (m.Status == MrbStatus.Draft || m.Status == MrbStatus.UnderReview));
+
+        return MapToDto(supplier, ncCount, openMrbCount);
     }
 
     // ── Create ────────────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@ namespace ProcessManager.Api.Services;
 
 public static class ControlPlanPdfGenerator
 {
-    public static byte[] Generate(ControlPlanResponseDto cp, TenantBranding? branding)
+    public static byte[] Generate(ControlPlanResponseDto cp, TenantBranding? branding, byte[]? logoBytes = null)
     {
         var isDraft = cp.IsStale;
         var companyName = branding?.CompanyName ?? "Process Manager";
@@ -25,7 +25,7 @@ public static class ControlPlanPdfGenerator
                 page.DefaultTextStyle(x => x.FontSize(7));
 
                 page.Header().Element(header =>
-                    ComposeHeader(header, cp, companyName, primaryColor));
+                    ComposeHeader(header, cp, companyName, primaryColor, logoBytes));
 
                 page.Content().Element(content =>
                     ComposeContent(content, cp, isDraft));
@@ -39,17 +39,25 @@ public static class ControlPlanPdfGenerator
     }
 
     private static void ComposeHeader(IContainer container, ControlPlanResponseDto cp,
-        string companyName, string primaryColor)
+        string companyName, string primaryColor, byte[]? logoBytes)
     {
         container.Column(col =>
         {
             col.Item().Row(row =>
             {
-                row.RelativeItem().Column(left =>
+                row.RelativeItem().Row(left =>
                 {
-                    left.Item().Text(companyName).Bold().FontSize(12);
-                    left.Item().Text("Control Plan")
-                        .Bold().FontSize(10).FontColor(primaryColor);
+                    if (logoBytes is { Length: > 0 })
+                    {
+                        left.AutoItem().PaddingRight(8).MaxHeight(40).MaxWidth(80)
+                            .Image(logoBytes).FitArea();
+                    }
+                    left.RelativeItem().Column(text =>
+                    {
+                        text.Item().Text(companyName).Bold().FontSize(12);
+                        text.Item().Text("Control Plan")
+                            .Bold().FontSize(10).FontColor(primaryColor);
+                    });
                 });
 
                 row.RelativeItem().AlignRight().Column(right =>

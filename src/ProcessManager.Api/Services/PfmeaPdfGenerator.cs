@@ -8,7 +8,7 @@ namespace ProcessManager.Api.Services;
 
 public static class PfmeaPdfGenerator
 {
-    public static byte[] Generate(PfmeaResponseDto pfmea, TenantBranding? branding)
+    public static byte[] Generate(PfmeaResponseDto pfmea, TenantBranding? branding, byte[]? logoBytes = null)
     {
         var isDraft = pfmea.IsStale;
         var companyName = branding?.CompanyName ?? "Process Manager";
@@ -25,7 +25,7 @@ public static class PfmeaPdfGenerator
                 page.DefaultTextStyle(x => x.FontSize(7));
 
                 page.Header().Element(header =>
-                    ComposeHeader(header, pfmea, companyName, primaryColor));
+                    ComposeHeader(header, pfmea, companyName, primaryColor, logoBytes));
 
                 page.Content().Element(content =>
                     ComposeContent(content, pfmea, isDraft));
@@ -39,17 +39,25 @@ public static class PfmeaPdfGenerator
     }
 
     private static void ComposeHeader(IContainer container, PfmeaResponseDto pfmea,
-        string companyName, string primaryColor)
+        string companyName, string primaryColor, byte[]? logoBytes)
     {
         container.Column(col =>
         {
             col.Item().Row(row =>
             {
-                row.RelativeItem().Column(left =>
+                row.RelativeItem().Row(left =>
                 {
-                    left.Item().Text(companyName).Bold().FontSize(12);
-                    left.Item().Text("Process Failure Mode and Effects Analysis (PFMEA)")
-                        .Bold().FontSize(10).FontColor(primaryColor);
+                    if (logoBytes is { Length: > 0 })
+                    {
+                        left.AutoItem().PaddingRight(8).MaxHeight(40).MaxWidth(80)
+                            .Image(logoBytes).FitArea();
+                    }
+                    left.RelativeItem().Column(text =>
+                    {
+                        text.Item().Text(companyName).Bold().FontSize(12);
+                        text.Item().Text("Process Failure Mode and Effects Analysis (PFMEA)")
+                            .Bold().FontSize(10).FontColor(primaryColor);
+                    });
                 });
 
                 row.RelativeItem().AlignRight().Column(right =>

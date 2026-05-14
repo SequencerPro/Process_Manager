@@ -16,11 +16,16 @@ public class ControlPlansController : ControllerBase
 {
     private readonly ProcessManagerDbContext _db;
     private readonly IUsageMeteringService _usageMetering;
+    private readonly IWebHostEnvironment _env;
 
-    public ControlPlansController(ProcessManagerDbContext db, IUsageMeteringService usageMetering)
+    public ControlPlansController(
+        ProcessManagerDbContext db,
+        IUsageMeteringService usageMetering,
+        IWebHostEnvironment env)
     {
         _db = db;
         _usageMetering = usageMetering;
+        _env = env;
     }
 
     // ─── ControlPlan CRUD ─────────────────────────────────────────────────
@@ -230,7 +235,8 @@ public class ControlPlansController : ControllerBase
 
         var dto = MapToDto(cp);
         var branding = await _db.TenantBrandings.FirstOrDefaultAsync();
-        var pdfBytes = Services.ControlPlanPdfGenerator.Generate(dto, branding);
+        var logoBytes = await TenantLogoLoader.LoadAsync(_env, branding);
+        var pdfBytes = Services.ControlPlanPdfGenerator.Generate(dto, branding, logoBytes);
 
         await _usageMetering.IncrementAsync(UsageMetricType.PdfExports);
 

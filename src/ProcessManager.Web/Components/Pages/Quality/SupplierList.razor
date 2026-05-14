@@ -5,6 +5,7 @@
 @using ProcessManager.Api.DTOs
 @inject ApiClient Api
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Suppliers — Process Manager</PageTitle>
 
@@ -239,13 +240,19 @@
         _loading = true;
         StateHasChanged();
 
-        bool? activeFilter = null;
-        if (_statusFilter == "Inactive") activeFilter = false;
-        else if (!string.IsNullOrEmpty(_statusFilter)) activeFilter = null;
+        try
+        {
+            bool? activeFilter = null;
+            if (_statusFilter == "Inactive") activeFilter = false;
+            else if (!string.IsNullOrEmpty(_statusFilter)) activeFilter = null;
 
-        _result = await Api.GetSuppliersAsync(_search, _statusFilter, activeFilter, _page);
-        _dashboard = await Api.GetSupplierQualityDashboardAsync();
-        _loading = false;
+            _result = await Api.GetSuppliersAsync(_search, _statusFilter, activeFilter, _page);
+            _dashboard = await Api.GetSupplierQualityDashboardAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task OnSearchKeyUp(KeyboardEventArgs e) { if (e.Key == "Enter") { _page = 1; await LoadData(); } }
@@ -305,8 +312,17 @@
 
     private async Task DeleteSupplier(SupplierSummaryDto sup)
     {
-        await Api.DeleteSupplierAsync(sup.Id);
-        await LoadData();
+        if (!await JS.InvokeAsync<bool>("confirm", $"Deactivate supplier '{sup.Name}'? This will set them to Inactive."))
+            return;
+        try
+        {
+            await Api.DeleteSupplierAsync(sup.Id);
+            await LoadData();
+        }
+        catch (HttpRequestException ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Delete failed: {ex.Message}");
+        }
     }
 
     private static string StatusBadge(string status) => status switch

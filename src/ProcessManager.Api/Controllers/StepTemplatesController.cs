@@ -908,6 +908,23 @@ public class StepTemplatesController : ControllerBase
         if (step.Status != ProcessStatus.PendingApproval)
             return BadRequest($"Only PendingApproval step templates can be approved (current: {step.Status}).");
 
+        // Phase 36.1 — Server-side maturity gate.
+        // Block approval when the template has any blocking (Fail-level) maturity rules.
+        // Mirrors the client-side warning so the API can't be bypassed.
+        var maturity = MaturityScoringService.Evaluate(step);
+        if (maturity.HasBlockingErrors)
+        {
+            var failingRules = maturity.Rules
+                .Where(r => r.Outcome == MaturityRuleOutcome.Fail)
+                .Select(r => $"{r.RuleId}: {r.Description}")
+                .ToList();
+            return UnprocessableEntity(new ApiError(
+                Title: "Maturity gate failed",
+                Detail: "Step template cannot be approved while blocking maturity rules are failing.",
+                Status: StatusCodes.Status422UnprocessableEntity,
+                Errors: new Dictionary<string, string[]> { ["maturity"] = failingRules.ToArray() }));
+        }
+
         // Supersede prior Released version with same code
         var priorReleased = await _db.StepTemplates
             .Where(s => s.Code == step.Code && s.Status == ProcessStatus.Released && s.Id != step.Id)

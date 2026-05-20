@@ -53,13 +53,16 @@
         // Sync local copy so we can track which are new
         var incoming = ToastSvc.Toasts.ToList();
 
-        // Start a timer for any newly added toast
+        // Start a timer for any newly added toast.
+        // Timer callbacks run on a thread-pool thread, so dispatch the dismiss
+        // (which mutates ToastService state and triggers a render) back onto
+        // the Blazor synchronization context.
         foreach (var toast in incoming.Where(t => !_timers.ContainsKey(t.Id)))
         {
             var id = toast.Id;
             var timer = new Timer(_ =>
             {
-                ToastSvc.Dismiss(id);
+                _ = InvokeAsync(() => ToastSvc.Dismiss(id));
             }, null, toast.DurationMs, Timeout.Infinite);
             _timers[id] = timer;
         }

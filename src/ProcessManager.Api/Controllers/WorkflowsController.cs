@@ -125,87 +125,13 @@ public class WorkflowsController : ControllerBase
 
         if (workflow is null) return NotFound();
 
-        var errors = new List<string>();
-        var warnings = new List<string>();
-
-        // Rule 12: At least one entry point
-        if (!workflow.WorkflowProcesses.Any(wp => wp.IsEntryPoint))
-            errors.Add("Workflow must have at least one entry point.");
-
-        // Rule 14: GradeBased links require conditions
-        foreach (var link in workflow.WorkflowLinks.Where(l => l.RoutingType == RoutingType.GradeBased))
-        {
-            if (!link.Conditions.Any())
-            {
-                var srcName = link.SourceWorkflowProcess?.Process?.Name ?? link.SourceWorkflowProcessId.ToString();
-                var tgtName = link.TargetWorkflowProcess?.Process?.Name ?? link.TargetWorkflowProcessId.ToString();
-                errors.Add($"GradeBased link '{srcName}' → '{tgtName}' has no conditions.");
-            }
-        }
-
-        // Rule 15: Process interface compatibility (warning) — skip terminal nodes
-        foreach (var link in workflow.WorkflowLinks)
-        {
-            // Skip compatibility check for links to/from terminal nodes
-            if (link.SourceWorkflowProcess?.IsTerminalNode == true ||
-                link.TargetWorkflowProcess?.IsTerminalNode == true)
-                continue;
-
-            var srcProcess = link.SourceWorkflowProcess?.Process;
-            var tgtProcess = link.TargetWorkflowProcess?.Process;
-            if (srcProcess?.ProcessSteps == null || tgtProcess?.ProcessSteps == null)
-                continue;
-
-            var lastStep = srcProcess.ProcessSteps.OrderByDescending(ps => ps.Sequence).FirstOrDefault();
-            var firstStep = tgtProcess.ProcessSteps.OrderBy(ps => ps.Sequence).FirstOrDefault();
-            if (lastStep?.StepTemplate?.Ports == null || firstStep?.StepTemplate?.Ports == null)
-                continue;
-
-            var outputKinds = lastStep.StepTemplate.Ports
-                .Where(p => p.Direction == PortDirection.Output)
-                .Select(p => p.KindId)
-                .ToHashSet();
-
-            var inputKinds = firstStep.StepTemplate.Ports
-                .Where(p => p.Direction == PortDirection.Input)
-                .Select(p => p.KindId)
-                .ToHashSet();
-
-            if (!outputKinds.Intersect(inputKinds).Any())
-            {
-                warnings.Add($"Link '{srcProcess.Name}' → '{tgtProcess.Name}': " +
-                    "source output Kinds do not match target input Kinds.");
-            }
-        }
-
-        // Check for unreachable nodes (no incoming links and not entry points)
-        // Terminal nodes are expected to only have incoming links, so skip them
-        var hasIncoming = workflow.WorkflowLinks
-            .Select(l => l.TargetWorkflowProcessId)
-            .ToHashSet();
-        foreach (var wp in workflow.WorkflowProcesses)
-        {
-            if (!wp.IsEntryPoint && !wp.IsTerminalNode && !hasIncoming.Contains(wp.Id))
-            {
-                var name = wp.Process?.Name ?? wp.ProcessId?.ToString() ?? "Unknown";
-                warnings.Add($"Process '{name}' " +
-                    "is not an entry point and has no incoming links (unreachable).");
-            }
-        }
-
-        // Terminal nodes should have at least one incoming link
-        foreach (var wp in workflow.WorkflowProcesses.Where(wp => wp.IsTerminalNode))
-        {
-            if (!hasIncoming.Contains(wp.Id))
-            {
-                warnings.Add("Terminal 'End' node has no incoming links.");
-            }
-        }
-
+        // Phase 36.1 — delegate to Domain validator so /validate, releases,
+        // and unit tests all share one rule set.
+        var result = ProcessManager.Domain.Services.WorkflowStructuralValidator.Validate(workflow);
         return new WorkflowValidationResultDto(
-            !errors.Any(),
-            errors,
-            warnings);
+            result.IsValid,
+            result.Errors.ToList(),
+            result.Warnings.ToList());
     }
 
     // ───────────────────── WorkflowProcess sub-resources ─────────────────────

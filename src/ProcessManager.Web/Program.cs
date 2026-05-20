@@ -29,6 +29,9 @@ builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<VocabularyService>();
 builder.Services.AddScoped<FeatureFlagService>();
 builder.Services.AddScoped<BrandingService>();
+// Phase 36.2 — builder draft autosave (localStorage-backed via IJSRuntime).
+builder.Services.AddScoped<IBuilderDraftStore, LocalStorageBuilderDraftStore>();
+builder.Services.AddScoped<BuilderDraftService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>

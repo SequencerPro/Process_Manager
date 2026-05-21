@@ -394,6 +394,56 @@ public class StepTemplatesController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Phase 36.3 (T3.6) — promote a private/inline step template (IsShared=false)
+    /// into the shared library so other processes can reuse it. Only Draft
+    /// templates can be promoted; released templates already have a stable
+    /// identity and should be revisioned instead.
+    /// </summary>
+    [Authorize(Roles = "Admin,Engineer")]
+    [HttpPost("{id:guid}/promote-to-shared")]
+    public async Task<ActionResult<StepTemplateResponseDto>> PromoteToShared(
+        Guid id, PromoteInlineStepTemplateDto? dto)
+    {
+        var step = await _db.StepTemplates
+            .Include(s => s.Ports).ThenInclude(p => p.Kind)
+            .Include(s => s.Ports).ThenInclude(p => p.Grade)
+            .Include(s => s.Images)
+            .Include(s => s.Contents)
+            .Include(s => s.StepModel)
+            .Include(s => s.KindModelRef)
+            .FirstOrDefaultAsync(s => s.Id == id);
+
+        if (step is null) return NotFound();
+
+        if (step.IsShared)
+            return BadRequest("Step template is already in the shared library.");
+
+        if (step.Status != ProcessStatus.Draft)
+            return BadRequest(
+                $"Only Draft step templates can be promoted (current: {step.Status}). " +
+                "Released templates already have a stable identity — create a new revision instead.");
+
+        // If the caller supplied a new Code, ensure it doesn't collide with any
+        // other template before we make the change.
+        if (!string.IsNullOrWhiteSpace(dto?.Code) && dto.Code != step.Code)
+        {
+            var newCode = dto.Code.Trim();
+            if (await _db.StepTemplates.AnyAsync(s => s.Code == newCode && s.Id != step.Id))
+                return Conflict($"A StepTemplate with code '{newCode}' already exists.");
+            step.Code = newCode;
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto?.Name) && dto.Name != step.Name)
+            step.Name = dto.Name.Trim();
+
+        step.IsShared = true;
+        step.Version++;
+
+        await _db.SaveChangesAsync();
+        return MapToDto(step);
+    }
+
     // ──────────── StepTemplateContent sub-resources ────────────
 
     [HttpGet("{id:guid}/content")]
@@ -614,6 +664,13 @@ public class StepTemplatesController : ControllerBase
         return MapStepTemplateContentToDto(block);
     }
 
+    /// <summary>
+    /// Atomically reorder all content blocks for a step template.
+    /// Phase 36.3 (T3.4) — the request must contain exactly the set of content
+    /// block IDs that exist on the template, in the desired new order. Partial
+    /// reorders are rejected with 400 so we can never end up with gaps or
+    /// duplicate SortOrder values mid-drag.
+    /// </summary>
     [Authorize(Roles = "Admin,Engineer")]
     [HttpPut("{id:guid}/content/reorder")]
     public async Task<IActionResult> ReorderContent(
@@ -626,11 +683,31 @@ public class StepTemplatesController : ControllerBase
             .Where(c => c.StepTemplateId == id)
             .ToListAsync();
 
-        for (int i = 0; i < dto.OrderedIds.Count; i++)
+        var requestedIds = dto.OrderedIds ?? new List<Guid>();
+
+        // Duplicate IDs in the request → 400.
+        if (requestedIds.Count != requestedIds.Distinct().Count())
+            return BadRequest("Reorder list contains duplicate ids.");
+
+        // Mismatch with the actual block set on the template → 400. This is
+        // the protection against the gap/duplicate bug from the prior N-PATCH
+        // approach: caller must send the full ordered list.
+        var existingIds = blocks.Select(b => b.Id).ToHashSet();
+        if (requestedIds.Count != existingIds.Count ||
+            !requestedIds.All(existingIds.Contains))
         {
-            var block = blocks.FirstOrDefault(c => c.Id == dto.OrderedIds[i]);
-            if (block is not null) block.SortOrder = i;
+            return BadRequest(
+                "Reorder list must contain exactly the set of content block ids belonging to this step template.");
         }
+
+        // Two-phase update keeps a unique-index on (StepTemplateId, SortOrder)
+        // safe even if one is added in the future: first negate, then assign.
+        foreach (var b in blocks) b.SortOrder = -b.SortOrder - 1;
+        await _db.SaveChangesAsync();
+
+        var byId = blocks.ToDictionary(b => b.Id);
+        for (var i = 0; i < requestedIds.Count; i++)
+            byId[requestedIds[i]].SortOrder = i;
 
         await _db.SaveChangesAsync();
         return NoContent();

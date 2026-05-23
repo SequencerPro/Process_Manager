@@ -199,7 +199,10 @@ public class OfflineQueueTests : IntegrationTestBase
         var path = Path.Combine(FindWebRoot(), "operator-sw.js");
         Assert.True(File.Exists(path), "operator-sw.js should exist in wwwroot");
         var content = File.ReadAllText(path);
-        Assert.Contains("pm-operator-v1", content);
+        // Version-agnostic: the cache name is bumped on each SW change
+        // (pm-operator-v1, v2, ...). Assert the stable prefix so a routine
+        // cache bump doesn't break this test.
+        Assert.Contains("pm-operator-v", content);
         Assert.Contains("self.addEventListener", content);
     }
 

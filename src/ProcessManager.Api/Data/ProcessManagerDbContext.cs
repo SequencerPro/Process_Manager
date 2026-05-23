@@ -57,6 +57,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Item> Items => Set<Item>();
     public DbSet<Batch> Batches => Set<Batch>();
     public DbSet<StepExecution> StepExecutions => Set<StepExecution>();
+    public DbSet<StepExecutionPhaseEvent> StepExecutionPhaseEvents => Set<StepExecutionPhaseEvent>();
     public DbSet<PortTransaction> PortTransactions => Set<PortTransaction>();
     public DbSet<ExecutionData> ExecutionData => Set<ExecutionData>();
     public DbSet<PromptResponse> PromptResponses => Set<PromptResponse>();
@@ -750,6 +751,21 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(se => se.ProcessStepId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- StepExecutionPhaseEvent (Phase 36.4) ---
+        modelBuilder.Entity<StepExecutionPhaseEvent>(e =>
+        {
+            e.HasKey(pe => pe.Id);
+            e.Property(pe => pe.Phase).HasConversion<string>().HasMaxLength(20);
+            e.Property(pe => pe.OperatorUserId).HasMaxLength(450);
+            e.HasIndex(pe => pe.StepExecutionId);
+            e.Ignore(pe => pe.Duration);
+
+            e.HasOne(pe => pe.StepExecution)
+                .WithMany()
+                .HasForeignKey(pe => pe.StepExecutionId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // --- PortTransaction ---

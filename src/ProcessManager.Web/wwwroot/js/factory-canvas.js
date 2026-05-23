@@ -11,11 +11,132 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // ---------------------------------------------------------------------------
 // Private state — one entry per container instance
 // ---------------------------------------------------------------------------
 const instances = new Map();
+
+// Cache loaded CAD/glTF groups by URL so re-tidies / re-selects don't refetch.
+const modelCache = new Map();
+
+// occt-import-js (OpenCascade WASM) for client-side STEP/IGES fallback when the
+// server hasn't produced a converted glb yet. The global is loaded in App.razor.
+let occtReady = null;
+async function getOcct() {
+    if (!occtReady) {
+        occtReady = (async () => {
+            let retries = 0;
+            while (typeof window.occtimportjs === 'undefined' && retries < 50) {
+                await new Promise(r => setTimeout(r, 100));
+                retries++;
+            }
+            if (typeof window.occtimportjs === 'undefined')
+                throw new Error('occt-import-js not loaded.');
+            return await window.occtimportjs({
+                locateFile: (f) => `https://cdn.jsdelivr.net/npm/occt-import-js@0.0.23/dist/${f}`
+            });
+        })();
+    }
+    return occtReady;
+}
+
+function extOf(url) {
+    const clean = (url || '').split('?')[0];
+    const dot = clean.lastIndexOf('.');
+    return dot >= 0 ? clean.slice(dot + 1).toLowerCase() : '';
+}
+
+/**
+ * Load a 3D model from a URL into a THREE.Group, choosing the loader by
+ * extension. STEP/IGES are tessellated via occt-import-js. Cached by URL.
+ */
+async function loadModelGroup(url) {
+    if (modelCache.has(url)) return modelCache.get(url).clone();
+
+    const ext = extOf(url);
+    let group;
+
+    if (ext === 'glb' || ext === 'gltf') {
+        const loader = new GLTFLoader();
+        const gltf = await loader.loadAsync(url);
+        group = gltf.scene;
+    } else if (ext === 'stl') {
+        const geo = await new STLLoader().loadAsync(url);
+        geo.computeVertexNormals();
+        group = new THREE.Group();
+        group.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x90a4ae, metalness: 0.3, roughness: 0.5 })));
+    } else if (ext === 'obj') {
+        group = await new OBJLoader().loadAsync(url);
+    } else if (ext === 'step' || ext === 'stp' || ext === 'iges' || ext === 'igs') {
+        group = await loadStepGroup(url, ext);
+    } else {
+        throw new Error(`Unsupported model format: .${ext}`);
+    }
+
+    modelCache.set(url, group);
+    return group.clone();
+}
+
+async function loadStepGroup(url, ext) {
+    const occt = await getOcct();
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`Model download failed: HTTP ${resp.status}`);
+    const buffer = new Uint8Array(await resp.arrayBuffer());
+    const isIges = ext === 'iges' || ext === 'igs';
+    const result = (isIges && typeof occt.ReadIgesFile === 'function')
+        ? occt.ReadIgesFile(buffer, null)
+        : occt.ReadStepFile(buffer, null);
+    if (!result.meshes || result.meshes.length === 0)
+        throw new Error('CAD file contained no geometry.');
+
+    const group = new THREE.Group();
+    const toF32 = (a) => a instanceof Float32Array ? a : new Float32Array(a);
+    const toU32 = (a) => a instanceof Uint32Array ? a : new Uint32Array(a);
+    for (const mesh of result.meshes) {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(toF32(mesh.attributes.position.array), 3));
+        if (mesh.attributes.normal) geo.setAttribute('normal', new THREE.Float32BufferAttribute(toF32(mesh.attributes.normal.array), 3));
+        else geo.computeVertexNormals();
+        if (mesh.index) geo.setIndex(new THREE.BufferAttribute(toU32(mesh.index.array), 1));
+        const mat = mesh.color
+            ? new THREE.MeshStandardMaterial({ color: new THREE.Color(mesh.color[0], mesh.color[1], mesh.color[2]), metalness: 0.3, roughness: 0.45 })
+            : new THREE.MeshStandardMaterial({ color: 0x90a4ae, metalness: 0.3, roughness: 0.5 });
+        group.add(new THREE.Mesh(geo, mat));
+    }
+    return group;
+}
+
+/**
+ * Scale/orient a loaded model to sit on its footprint, then apply the
+ * user's fit transform (scale multiplier, yaw degrees, offsets).
+ */
+function fitModelToFootprint(group, el) {
+    const box = new THREE.Box3().setFromObject(group);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+
+    // Base scale: fit the larger horizontal dimension to ~90% of the footprint.
+    const footprint = Math.max(el.width || 200, el.height || 200) * 0.9;
+    const maxDim = Math.max(size.x, size.z, 1);
+    const baseScale = footprint / maxDim;
+    const userScale = el.modelScale && el.modelScale > 0 ? el.modelScale : 1;
+    const s = baseScale * userScale;
+
+    group.scale.setScalar(s);
+    // Re-center horizontally and rest on the ground (y=0), then apply offsets.
+    group.position.set(
+        -center.x * s + (el.modelOffsetX || 0),
+        -box.min.y * s + (el.modelOffsetZ || 0),
+        -center.z * s + (el.modelOffsetY || 0)
+    );
+    group.rotation.y = -((el.modelYaw || 0) * Math.PI) / 180;
+}
 
 function uid() {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -313,13 +434,15 @@ function buildWorkstation(group, el, colors, h) {
     const w = el.width || 200;
     const d = el.height || 200;
 
-    // Main machine body
+    // Primitive cube body — always built; acts as the placeholder while a CAD
+    // model loads and the permanent representation when none is attached.
     const bodyGeo = new THREE.BoxGeometry(w * 0.9, h, d * 0.9);
     const bodyMat = new THREE.MeshStandardMaterial({ color: colors.base, roughness: 0.4, metalness: 0.3 });
     const body = new THREE.Mesh(bodyGeo, bodyMat);
     body.position.y = h / 2;
     body.castShadow = true;
     body.receiveShadow = true;
+    body.userData._placeholder = true;
     group.add(body);
 
     // Control panel (small box on top)
@@ -328,6 +451,7 @@ function buildWorkstation(group, el, colors, h) {
     const panel = new THREE.Mesh(panelGeo, panelMat);
     panel.position.set(0, h + 10, d * 0.3);
     panel.castShadow = true;
+    panel.userData._placeholder = true;
     group.add(panel);
 
     // Status light (green sphere)
@@ -335,9 +459,31 @@ function buildWorkstation(group, el, colors, h) {
     const lightMat = new THREE.MeshStandardMaterial({ color: 0x4caf50, emissive: 0x2e7d32, emissiveIntensity: 0.5 });
     const statusLight = new THREE.Mesh(lightGeo, lightMat);
     statusLight.position.set(w * 0.2, h + 20, d * 0.3);
+    statusLight.userData._placeholder = true;
     group.add(statusLight);
 
     addLabel(group, el.label || 'Workstation', h + 50, colors.select);
+
+    // If a web-ready CAD model is attached, swap the cube for the real model.
+    if (el.modelUrl) {
+        loadModelGroup(el.modelUrl)
+            .then(modelGroup => {
+                // Remove placeholder primitives (keep the label sprite).
+                const toRemove = group.children.filter(c => c.userData && c.userData._placeholder);
+                for (const c of toRemove) {
+                    group.remove(c);
+                    if (c.geometry) c.geometry.dispose();
+                    if (c.material) c.material.dispose();
+                }
+                fitModelToFootprint(modelGroup, el);
+                modelGroup.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+                modelGroup.userData._cadModel = true;
+                group.add(modelGroup);
+            })
+            .catch(err => {
+                console.warn(`[Factory3D] Model load failed for '${el.id}', keeping cube:`, err.message);
+            });
+    }
 }
 
 function buildInventory(group, el, colors, h) {
@@ -883,6 +1029,79 @@ function deleteSelectedInternal(inst) {
 }
 
 // ---------------------------------------------------------------------------
+// Material flow overlay (Phase 37)
+// ---------------------------------------------------------------------------
+
+// Deterministic colour per Kind id so the same material is consistent across runs.
+function kindColor(kindId) {
+    let hash = 0;
+    const s = kindId || '';
+    for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) & 0xffffffff;
+    const hue = Math.abs(hash) % 360;
+    return new THREE.Color(`hsl(${hue}, 70%, 55%)`);
+}
+
+/**
+ * Draw flow arrows from source inventory locations to consuming workstations.
+ * @param {string} containerId
+ * @param {string} flowsJson  JSON array of { kindId, fromPoint:{x,y}, toPoint:{x,y}, onHandQuantity, distanceM }
+ */
+export function setMaterialFlows(containerId, flowsJson) {
+    const inst = instances.get(containerId);
+    if (!inst) return;
+    clearMaterialFlows(containerId);
+
+    const flows = JSON.parse(flowsJson || '[]');
+    const flowGroup = new THREE.Group();
+    flowGroup.userData._isFlowOverlay = true;
+
+    for (const f of flows) {
+        const from = new THREE.Vector3(f.fromPoint.x, 0, f.fromPoint.y);
+        const to = new THREE.Vector3(f.toPoint.x, 0, f.toPoint.y);
+        const dist = from.distanceTo(to);
+        if (dist < 1) continue;
+
+        const color = kindColor(f.kindId);
+        // Arc the path upward so overlapping flows are distinguishable.
+        const mid = from.clone().lerp(to, 0.5);
+        mid.y = Math.min(dist * 0.25, 1200);
+        const curve = new THREE.QuadraticBezierCurve3(from, mid, to);
+
+        // Thickness scales gently with quantity (min radius keeps empties visible).
+        const radius = 8 + Math.min((f.onHandQuantity || 0) * 0.5, 30);
+        const tube = new THREE.Mesh(
+            new THREE.TubeGeometry(curve, 24, radius, 8, false),
+            new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.25, transparent: true, opacity: 0.8 })
+        );
+        flowGroup.add(tube);
+
+        // Arrow head at the destination.
+        const dir = to.clone().sub(curve.getPoint(0.9)).normalize();
+        const cone = new THREE.Mesh(
+            new THREE.ConeGeometry(radius * 2.2, radius * 5, 12),
+            new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.3 })
+        );
+        cone.position.copy(to);
+        cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        flowGroup.add(cone);
+    }
+
+    inst.scene.add(flowGroup);
+    inst.flowGroup = flowGroup;
+}
+
+export function clearMaterialFlows(containerId) {
+    const inst = instances.get(containerId);
+    if (!inst || !inst.flowGroup) return;
+    inst.scene.remove(inst.flowGroup);
+    inst.flowGroup.traverse(c => {
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+    });
+    inst.flowGroup = null;
+}
+
+// ---------------------------------------------------------------------------
 // Exported API (matches the contract FactoryDesignEditor.razor expects)
 // ---------------------------------------------------------------------------
 
@@ -911,6 +1130,32 @@ export function updateLayout(containerId, layoutJson) {
 
     for (const el of inst.layout.elements) createMesh(inst, el);
     inst.selectedId = null;
+}
+
+/**
+ * Merge new properties into an existing element (e.g. modelUrl, modelScale,
+ * label) and rebuild just that element's mesh. Used after model upload/convert
+ * /transform so the canvas reflects backend changes without a full reload.
+ */
+export function updateElement(containerId, elementJson) {
+    const inst = instances.get(containerId);
+    if (!inst) return;
+    const patch = JSON.parse(elementJson);
+    const el = inst.layout.elements.find(e => e.id === patch.id);
+    if (!el) return;
+    Object.assign(el, patch);
+
+    const old = inst.meshMap.get(el.id);
+    if (old) {
+        inst.scene.remove(old);
+        old.traverse(c => {
+            if (c.geometry) c.geometry.dispose();
+            if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); }
+        });
+        inst.meshMap.delete(el.id);
+    }
+    createMesh(inst, el);
+    if (inst.selectedId === el.id) setSelection(inst, el.id);
 }
 
 export function getLayoutJson(containerId) {

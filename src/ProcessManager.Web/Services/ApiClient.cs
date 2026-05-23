@@ -2421,6 +2421,131 @@ public class ApiClient
         r.EnsureSuccessStatusCode();
     }
 
+    // ── Phase 37: Workstation placements ──
+
+    public async Task<Guid?> CreateFloorPlanWorkstationAsync(Guid floorPlanId, string placementId,
+        Guid? equipmentId = null, Guid? orgUnitId = null, Guid? storageLocationId = null)
+    {
+        var dto = new FloorPlanWorkstationCreateDto(placementId, equipmentId, orgUnitId, storageLocationId);
+        var r = await _http.PostAsJsonAsync($"api/floor-plans/{floorPlanId}/workstations", dto, _json);
+        if (!r.IsSuccessStatusCode) return null;
+        var result = await r.Content.ReadFromJsonAsync<JsonElement>(_json);
+        return result.GetProperty("id").GetGuid();
+    }
+
+    public async Task UpdateFloorPlanWorkstationAsync(Guid floorPlanId, Guid wsId,
+        Guid? equipmentId, Guid? orgUnitId, Guid? storageLocationId)
+    {
+        var dto = new FloorPlanWorkstationUpdateDto(equipmentId, orgUnitId, storageLocationId);
+        var r = await _http.PutAsJsonAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}", dto, _json);
+        r.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteFloorPlanWorkstationAsync(Guid floorPlanId, Guid wsId)
+    {
+        var r = await _http.DeleteAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}");
+        if (r.StatusCode != System.Net.HttpStatusCode.NotFound) r.EnsureSuccessStatusCode();
+    }
+
+    // ── Phase 37: Workstation processes ──
+
+    public async Task AddWorkstationProcessAsync(Guid floorPlanId, Guid wsId, Guid processId, int sortOrder = 0)
+    {
+        var dto = new FloorPlanWorkstationProcessCreateDto(processId, sortOrder);
+        var r = await _http.PostAsJsonAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}/processes", dto, _json);
+        r.EnsureSuccessStatusCode();
+    }
+
+    public async Task RemoveWorkstationProcessAsync(Guid floorPlanId, Guid wsId, Guid procLinkId)
+    {
+        var r = await _http.DeleteAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}/processes/{procLinkId}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    // ── Phase 37: Workstation CAD model ──
+
+    public async Task<FloorPlanWorkstationModelDto?> UploadWorkstationModelAsync(Guid floorPlanId, Guid wsId, IBrowserFile file)
+    {
+        using var content = new MultipartFormDataContent();
+        using var stream = file.OpenReadStream(maxAllowedSize: 200 * 1024 * 1024); // 200 MB for heavy CAD assemblies
+        var fileContent = new StreamContent(stream);
+        var mime = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType;
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(mime);
+        content.Add(fileContent, "File", file.Name);
+        var r = await _http.PostAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}/model", content);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(_json);
+    }
+
+    public async Task<FloorPlanWorkstationModelDto?> ConvertWorkstationModelAsync(Guid floorPlanId, Guid wsId)
+    {
+        var r = await _http.PostAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}/model/convert", null);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(_json);
+    }
+
+    public async Task<FloorPlanWorkstationModelDto?> UpdateWorkstationModelTransformAsync(
+        Guid floorPlanId, Guid wsId, double scale, double yaw, double offsetX, double offsetY, double offsetZ)
+    {
+        var dto = new FloorPlanWorkstationModelTransformDto(scale, yaw, offsetX, offsetY, offsetZ);
+        var r = await _http.PutAsJsonAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}/model/transform", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(_json);
+    }
+
+    public async Task DeleteWorkstationModelAsync(Guid floorPlanId, Guid wsId)
+    {
+        var r = await _http.DeleteAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}/model");
+        if (r.StatusCode != System.Net.HttpStatusCode.NotFound) r.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Relative URL the canvas can fetch to render the web-ready model.</summary>
+    public string WorkstationModelUrl(Guid floorPlanId, Guid wsId, bool converted)
+        => $"api/floor-plans/{floorPlanId}/workstations/{wsId}/model/download?converted={converted.ToString().ToLowerInvariant()}";
+
+    // ── Phase 37: Inventory locations ──
+
+    public async Task<Guid?> AddInventoryLocationAsync(Guid floorPlanId, string placementId, Guid storageLocationId)
+    {
+        var dto = new FloorPlanInventoryLocationCreateDto(placementId, storageLocationId);
+        var r = await _http.PostAsJsonAsync($"api/floor-plans/{floorPlanId}/inventory-locations", dto, _json);
+        if (!r.IsSuccessStatusCode) return null;
+        var result = await r.Content.ReadFromJsonAsync<JsonElement>(_json);
+        return result.GetProperty("id").GetGuid();
+    }
+
+    public async Task RemoveInventoryLocationAsync(Guid floorPlanId, Guid locId)
+    {
+        var r = await _http.DeleteAsync($"api/floor-plans/{floorPlanId}/inventory-locations/{locId}");
+        if (r.StatusCode != System.Net.HttpStatusCode.NotFound) r.EnsureSuccessStatusCode();
+    }
+
+    public async Task<Guid?> AddLocationDesignationAsync(Guid floorPlanId, Guid locId, Guid kindId)
+    {
+        var dto = new FloorPlanLocationDesignationCreateDto(kindId);
+        var r = await _http.PostAsJsonAsync($"api/floor-plans/{floorPlanId}/inventory-locations/{locId}/designations", dto, _json);
+        if (!r.IsSuccessStatusCode) return null;
+        var result = await r.Content.ReadFromJsonAsync<JsonElement>(_json);
+        return result.GetProperty("id").GetGuid();
+    }
+
+    public async Task RemoveLocationDesignationAsync(Guid floorPlanId, Guid locId, Guid designationId)
+    {
+        var r = await _http.DeleteAsync($"api/floor-plans/{floorPlanId}/inventory-locations/{locId}/designations/{designationId}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    // ── Phase 37: Material flow analysis ──
+
+    public async Task<MaterialFlowResultDto?> AnalyseMaterialFlowAsync(
+        Guid floorPlanId, ProcessManager.Domain.Services.MaterialFlowMode mode, bool includeEmpty = false)
+    {
+        var dto = new MaterialFlowRequestDto(mode, includeEmpty);
+        var r = await _http.PostAsJsonAsync($"api/floor-plans/{floorPlanId}/analyse-material-flow", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MaterialFlowResultDto>(_json);
+    }
+
     // ═══════════════════ Onboarding (M2) ═══════════════════
 
     public Task<List<OnboardingIndustryOptionDto>?> GetOnboardingIndustriesAsync()

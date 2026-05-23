@@ -4,7 +4,14 @@
 @inject ApiClient Api
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject IConfiguration Config
 @implements IAsyncDisposable
+@using System.Text.Json
+@using System.Text.Json.Nodes
+@using ProcessManager.Domain.Services
+@using ProcessManager.Domain.Entities
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
 
 <PageTitle>Floor Plan Editor — Process Manager</PageTitle>
 
@@ -30,6 +37,41 @@ else
             <span class="fw-semibold">@_plan.Name</span>
             <span class="badge @StatusBadge(_plan.Status)">@_plan.Status</span>
             <span class="text-muted small">v@(_plan.Version)</span>
+
+            <!-- Material flow toggle -->
+            <div class="vr mx-1"></div>
+            <button class="btn btn-sm @(_flowVisible ? "btn-info" : "btn-outline-info")" @onclick="ToggleFlow">
+                <i class="bi bi-diagram-3 me-1"></i>Material Flow
+            </button>
+            @if (_flowVisible)
+            {
+                <select class="form-select form-select-sm" style="width:auto" value="@_flowMode"
+                        @onchange="OnFlowModeChanged">
+                    <option value="Live">Live (on-hand stock)</option>
+                    <option value="Designed">Designed (designations)</option>
+                </select>
+                @if (_flowMode == MaterialFlowMode.Live)
+                {
+                    <div class="form-check form-check-inline small">
+                        <input class="form-check-input" type="checkbox" id="incEmpty"
+                               checked="@_includeEmpty" @onchange="OnIncludeEmptyChanged" />
+                        <label class="form-check-label" for="incEmpty">Include empty</label>
+                    </div>
+                }
+                @if (_flowResult is not null)
+                {
+                    <span class="badge bg-light text-dark border" title="Total weighted travel distance">
+                        Spaghetti: @(Math.Round(_flowResult.TotalTravelDistanceMm / 1000.0, 1)) m
+                    </span>
+                    @if (_flowResult.Unresolved.Count > 0)
+                    {
+                        <span class="badge bg-danger" title="Requirements with no source">
+                            @_flowResult.Unresolved.Count unresolved
+                        </span>
+                    }
+                }
+            }
+
             <div class="ms-auto d-flex gap-1 flex-wrap">
                 @if (_plan.Status == FloorPlanStatus.Draft)
                 {
@@ -72,40 +114,69 @@ else
                     <div class="position-absolute bottom-0 start-0 end-0 bg-dark bg-opacity-75 text-white small px-3 py-1 d-flex justify-content-between" style="z-index:10">
                         <span>@_statusMessage</span>
                         <span class="d-none d-md-inline text-white-50 me-3">Orbit: drag · Pan: right-drag · Zoom: scroll</span>
-                        <span>v@(_plan.Version) · @_plan.Workstations.Count workstations · @_plan.InventoryLocations.Count locations</span>
+                        <span>v@(_plan.Version) · @_plan.Workstations.Count stations · @_plan.InventoryLocations.Count locations</span>
                     </div>
                 }
             </div>
 
             <!-- Properties panel (right) -->
-            <div class="border-start bg-white p-3" style="width:280px;flex-shrink:0;overflow-y:auto">
+            <div class="border-start bg-white p-3" style="width:320px;flex-shrink:0;overflow-y:auto">
                 <small class="text-muted fw-semibold text-uppercase" style="font-size:.65rem;letter-spacing:.08em">Properties</small>
+
                 @if (_selectedElementId is null)
                 {
-                    <p class="text-muted small mt-2">Select an element on the canvas to view its properties.</p>
-                    <hr />
-                    <small class="text-muted fw-semibold text-uppercase" style="font-size:.65rem">Floor Plan</small>
-                    <div class="mt-2 small">
-                        <div class="mb-1"><strong>Code:</strong> @_plan.Code</div>
-                        <div class="mb-1"><strong>Name:</strong> @_plan.Name</div>
-                        <div class="mb-1"><strong>Workstations:</strong> @_plan.Workstations.Count</div>
-                        <div class="mb-1"><strong>Inventory Locations:</strong> @_plan.InventoryLocations.Count</div>
-                    </div>
+                    <p class="text-muted small mt-2">Select an element on the canvas to configure it.</p>
+                    @if (_flowVisible && _flowResult is not null && _flowResult.Unresolved.Count > 0)
+                    {
+                        <hr />
+                        <small class="text-danger fw-semibold text-uppercase" style="font-size:.65rem">Unresolved Material</small>
+                        <ul class="small mt-1 ps-3">
+                            @foreach (var u in _flowResult.Unresolved)
+                            {
+                                <li><strong>@u.KindCode</strong> @u.KindName — <span class="text-muted">@u.Reason.Replace('_', ' ')</span></li>
+                            }
+                        </ul>
+                    }
+                }
+                else if (_selectedWorkstation is not null)
+                {
+                    @RenderWorkstationPanel(_selectedWorkstation)
+                }
+                else if (_selectedInventory is not null)
+                {
+                    @RenderInventoryPanel(_selectedInventory)
                 }
                 else
                 {
+                    <!-- Element placed on the canvas but not yet a semantic entity -->
                     <div class="mt-2 small">
-                        <div class="mb-2"><strong>Selected:</strong> @_selectedElementId</div>
-                        <p class="text-muted">Element properties editing will be available in the full canvas implementation.</p>
+                        <div class="mb-2"><strong>Selected:</strong> <code>@_selectedElementId</code></div>
+                        @if (_selectedElementType == "inventory")
+                        {
+                            <p class="text-muted">Link this placement to a storage location to activate it.</p>
+                            <label class="form-label small mb-1">Storage location</label>
+                            <select class="form-select form-select-sm" @onchange="OnLinkInventoryLocation">
+                                <option value="">— choose —</option>
+                                @foreach (var l in _locations)
+                                {
+                                    <option value="@l.Id">@l.Code — @l.Name</option>
+                                }
+                            </select>
+                        }
+                        else if (_selectedElementType == "workstation")
+                        {
+                            <p class="text-muted">Linking this workstation…</p>
+                        }
+                        else
+                        {
+                            <p class="text-muted">This element type has no extra properties.</p>
+                        }
                     </div>
                 }
             </div>
         </div>
     </div>
 }
-
-@using ProcessManager.Domain.Entities
-@using Microsoft.AspNetCore.Authorization
 
 @code {
     [Parameter] public Guid Id { get; set; }
@@ -114,11 +185,38 @@ else
     private bool _loading = true;
     private bool _saving;
     private string? _selectedElementId;
+    private string? _selectedElementType;
     private string _activeTool = "select";
     private string _statusMessage = "Ready";
     private IJSObjectReference? _module;
     private DotNetObjectReference<FactoryDesignEditor>? _dotNetRef;
     private bool _canvasInitialized;
+    private string _apiBaseUrl = "";
+
+    // Element id → type, parsed from the layout so we can resolve a selection.
+    private readonly Dictionary<string, string> _elementTypes = new();
+
+    // Lookups
+    private List<ProcessSummaryResponseDto> _processes = new();
+    private List<EquipmentSummaryDto> _equipment = new();
+    private List<OrgUnitResponseDto> _orgUnits = new();
+    private List<StorageLocationResponseDto> _locations = new();
+    private List<KindResponseDto> _kinds = new();
+
+    // Material flow state
+    private bool _flowVisible;
+    private MaterialFlowMode _flowMode = MaterialFlowMode.Live;
+    private bool _includeEmpty;
+    private MaterialFlowResultDto? _flowResult;
+
+    // Picker bindings
+    private Guid? _processToAdd;
+    private Guid? _designationKindToAdd;
+
+    private FloorPlanWorkstationDto? _selectedWorkstation =>
+        _selectedElementId is null ? null : _plan?.Workstations.FirstOrDefault(w => w.PlacementId == _selectedElementId);
+    private FloorPlanInventoryLocationDto? _selectedInventory =>
+        _selectedElementId is null ? null : _plan?.InventoryLocations.FirstOrDefault(l => l.PlacementId == _selectedElementId);
 
     private static readonly (string icon, string label, string type)[] _paletteItems = new[]
     {
@@ -134,12 +232,48 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        _apiBaseUrl = (Config["ApiBaseUrl"] ?? "http://localhost:5100").TrimEnd('/');
         try
         {
             _plan = await Api.GetFloorPlanAsync(Id);
+            ParseElementTypes();
+            await LoadLookups();
         }
         catch { }
         _loading = false;
+    }
+
+    private async Task LoadLookups()
+    {
+        try
+        {
+            var procs = await Api.GetProcessesAsync(pageSize: 200);
+            _processes = procs?.Items ?? new();
+            var equip = await Api.GetEquipmentAsync(pageSize: 200);
+            _equipment = equip?.Items ?? new();
+            var orgs = await Api.GetOrgUnitsAsync(pageSize: 200);
+            _orgUnits = orgs?.Items ?? new();
+            var locs = await Api.GetWarehouseLocationsAsync(pageSize: 200);
+            _locations = locs?.Items ?? new();
+            var kinds = await Api.GetKindsAsync(pageSize: 200);
+            _kinds = kinds?.Items ?? new();
+        }
+        catch { }
+    }
+
+    private void ParseElementTypes()
+    {
+        _elementTypes.Clear();
+        if (_plan is null) return;
+        try
+        {
+            using var doc = JsonDocument.Parse(_plan.LayoutJson);
+            if (doc.RootElement.TryGetProperty("elements", out var els))
+                foreach (var el in els.EnumerateArray())
+                    if (el.TryGetProperty("id", out var idp) && el.TryGetProperty("type", out var tp))
+                        _elementTypes[idp.GetString()!] = (tp.GetString() ?? "").ToLowerInvariant();
+        }
+        catch { }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -150,7 +284,7 @@ else
             {
                 _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/factory-canvas.js");
                 _dotNetRef = DotNetObjectReference.Create(this);
-                await _module.InvokeVoidAsync("initCanvas", "factory-canvas", _dotNetRef, _plan.LayoutJson);
+                await _module.InvokeVoidAsync("initCanvas", "factory-canvas", _dotNetRef, BuildLayoutWithModels());
                 _canvasInitialized = true;
             }
             catch (Exception ex)
@@ -161,14 +295,58 @@ else
         }
     }
 
+    /// <summary>
+    /// Inject modelUrl + transform into workstation elements so the canvas can
+    /// render attached CAD models on first load.
+    /// </summary>
+    private string BuildLayoutWithModels()
+    {
+        if (_plan is null) return "{}";
+        try
+        {
+            var node = JsonNode.Parse(_plan.LayoutJson)!;
+            var elements = node["elements"]?.AsArray();
+            if (elements is not null)
+            {
+                foreach (var el in elements)
+                {
+                    if (el is null) continue;
+                    var id = el["id"]?.GetValue<string>();
+                    if (id is null) continue;
+                    var ws = _plan.Workstations.FirstOrDefault(w => w.PlacementId == id);
+                    if (ws?.Model is { HasRenderableModel: true })
+                    {
+                        var url = ModelUrlFor(ws);
+                        if (url is not null)
+                        {
+                            el["modelUrl"] = url;
+                            el["modelScale"] = ws.Model.Scale;
+                            el["modelYaw"] = ws.Model.Yaw;
+                            el["modelOffsetX"] = ws.Model.OffsetX;
+                            el["modelOffsetY"] = ws.Model.OffsetY;
+                            el["modelOffsetZ"] = ws.Model.OffsetZ;
+                        }
+                    }
+                }
+            }
+            return node.ToJsonString();
+        }
+        catch { return _plan.LayoutJson; }
+    }
+
+    private string? ModelUrlFor(FloorPlanWorkstationDto ws)
+    {
+        if (ws.Model is null || !ws.Model.HasRenderableModel) return null;
+        var converted = ws.Model.ConversionStatus == ModelConversionStatus.Converted;
+        return $"{_apiBaseUrl}/api/floor-plans/{Id}/workstations/{ws.Id}/model/download?converted={converted.ToString().ToLowerInvariant()}";
+    }
+
     private async Task SetTool(string tool)
     {
         _activeTool = tool;
         _statusMessage = $"Tool: {tool}";
         if (_module is not null && _canvasInitialized)
-        {
             await _module.InvokeVoidAsync("setActiveTool", "factory-canvas", tool);
-        }
     }
 
     private async Task Save()
@@ -177,17 +355,15 @@ else
         _saving = true;
         try
         {
-            // Get the current layout from the JS canvas, not from the stale _plan object
             var layoutJson = _plan.LayoutJson;
             if (_module is not null && _canvasInitialized)
-            {
                 layoutJson = await _module.InvokeAsync<string>("getLayoutJson", "factory-canvas");
-            }
 
             var version = await Api.SaveFloorPlanLayoutAsync(Id, layoutJson);
             if (version.HasValue)
             {
                 _plan = await Api.GetFloorPlanAsync(Id);
+                ParseElementTypes();
                 _statusMessage = $"Saved — v{version}";
             }
         }
@@ -209,22 +385,433 @@ else
         _plan = await Api.GetFloorPlanAsync(Id);
     }
 
+    // ── Canvas callbacks ──
+
     [JSInvokable]
     public Task OnElementSelected(string elementId)
     {
         _selectedElementId = elementId;
+        _elementTypes.TryGetValue(elementId, out var t);
+        _selectedElementType = t;
         StateHasChanged();
         return Task.CompletedTask;
     }
 
     [JSInvokable]
-    public Task OnElementChanged(string elementJson)
+    public async Task OnElementChanged(string elementJson)
     {
-        // Element was created, moved, or resized on the canvas — mark dirty
         _statusMessage = "Unsaved changes";
+        try
+        {
+            using var doc = JsonDocument.Parse(elementJson);
+            var root = doc.RootElement;
+            var id = root.GetProperty("id").GetString()!;
+            var type = root.TryGetProperty("type", out var tp) ? (tp.GetString() ?? "").ToLowerInvariant() : "";
+            var deleted = root.TryGetProperty("_deleted", out var dp) && dp.GetBoolean();
+
+            if (deleted)
+            {
+                _elementTypes.Remove(id);
+                await DeleteBackingEntity(id, type);
+            }
+            else
+            {
+                _elementTypes[id] = type;
+                // Auto-create a workstation entity on placement (all fields optional).
+                if (type == "workstation" && _plan?.Workstations.All(w => w.PlacementId != id) == true)
+                {
+                    await Api.CreateFloorPlanWorkstationAsync(Id, id);
+                    _plan = await Api.GetFloorPlanAsync(Id);
+                }
+                // Inventory placements are linked explicitly via the panel (they
+                // require a storage location), so nothing auto-creates here.
+            }
+        }
+        catch (Exception ex) { _statusMessage = $"Sync error: {ex.Message}"; }
         StateHasChanged();
-        return Task.CompletedTask;
     }
+
+    private async Task DeleteBackingEntity(string placementId, string type)
+    {
+        if (_plan is null) return;
+        if (type == "workstation")
+        {
+            var ws = _plan.Workstations.FirstOrDefault(w => w.PlacementId == placementId);
+            if (ws is not null) await Api.DeleteFloorPlanWorkstationAsync(Id, ws.Id);
+        }
+        else if (type == "inventory")
+        {
+            var loc = _plan.InventoryLocations.FirstOrDefault(l => l.PlacementId == placementId);
+            if (loc is not null) await Api.RemoveInventoryLocationAsync(Id, loc.Id);
+        }
+        _plan = await Api.GetFloorPlanAsync(Id);
+    }
+
+    // ── Inventory linking ──
+
+    private async Task OnLinkInventoryLocation(ChangeEventArgs e)
+    {
+        if (_selectedElementId is null || _plan is null) return;
+        if (!Guid.TryParse(e.Value?.ToString(), out var locId)) return;
+        await Api.AddInventoryLocationAsync(Id, _selectedElementId, locId);
+        _plan = await Api.GetFloorPlanAsync(Id);
+        StateHasChanged();
+    }
+
+    // ── Workstation: equipment / org / location ──
+
+    private async Task UpdateWorkstationLinks(FloorPlanWorkstationDto ws, Guid? equip, Guid? org, Guid? loc)
+    {
+        await Api.UpdateFloorPlanWorkstationAsync(Id, ws.Id, equip, org, loc);
+        _plan = await Api.GetFloorPlanAsync(Id);
+        StateHasChanged();
+    }
+
+    // ── Workstation: processes ──
+
+    private async Task AddProcess(FloorPlanWorkstationDto ws)
+    {
+        if (_processToAdd is null) return;
+        await Api.AddWorkstationProcessAsync(Id, ws.Id, _processToAdd.Value);
+        _processToAdd = null;
+        _plan = await Api.GetFloorPlanAsync(Id);
+        await RefreshFlowIfVisible();
+        StateHasChanged();
+    }
+
+    private async Task RemoveProcess(FloorPlanWorkstationDto ws, Guid procLinkId)
+    {
+        await Api.RemoveWorkstationProcessAsync(Id, ws.Id, procLinkId);
+        _plan = await Api.GetFloorPlanAsync(Id);
+        await RefreshFlowIfVisible();
+        StateHasChanged();
+    }
+
+    // ── Workstation: CAD model ──
+
+    private async Task OnModelFileSelected(InputFileChangeEventArgs e, FloorPlanWorkstationDto ws)
+    {
+        try
+        {
+            _statusMessage = "Uploading model…";
+            StateHasChanged();
+            var model = await Api.UploadWorkstationModelAsync(Id, ws.Id, e.File);
+            _plan = await Api.GetFloorPlanAsync(Id);
+            await PushModelToCanvas(ws.Id);
+            _statusMessage = model?.ConversionStatus == ModelConversionStatus.Pending
+                ? "Model uploaded — conversion required (STEP/IGES)."
+                : "Model uploaded.";
+        }
+        catch (Exception ex) { _statusMessage = $"Upload failed: {ex.Message}"; }
+        StateHasChanged();
+    }
+
+    private async Task ConvertModel(FloorPlanWorkstationDto ws)
+    {
+        try
+        {
+            _statusMessage = "Converting (STEP→glTF)…";
+            StateHasChanged();
+            var model = await Api.ConvertWorkstationModelAsync(Id, ws.Id);
+            _plan = await Api.GetFloorPlanAsync(Id);
+            await PushModelToCanvas(ws.Id);
+            _statusMessage = model?.ConversionStatus == ModelConversionStatus.Converted
+                ? "Conversion complete."
+                : $"Conversion failed: {model?.ConversionError}";
+        }
+        catch (Exception ex) { _statusMessage = $"Convert failed: {ex.Message}"; }
+        StateHasChanged();
+    }
+
+    private async Task UpdateModelTransform(FloorPlanWorkstationDto ws, double? scale = null, double? yaw = null)
+    {
+        var m = ws.Model;
+        if (m is null) return;
+        await Api.UpdateWorkstationModelTransformAsync(Id, ws.Id,
+            scale ?? m.Scale, yaw ?? m.Yaw, m.OffsetX, m.OffsetY, m.OffsetZ);
+        _plan = await Api.GetFloorPlanAsync(Id);
+        await PushModelToCanvas(ws.Id);
+        StateHasChanged();
+    }
+
+    private async Task DeleteModel(FloorPlanWorkstationDto ws)
+    {
+        await Api.DeleteWorkstationModelAsync(Id, ws.Id);
+        _plan = await Api.GetFloorPlanAsync(Id);
+        // Clear the model from the canvas element (reverts to cube).
+        if (_module is not null && _canvasInitialized)
+            await _module.InvokeVoidAsync("updateElement", "factory-canvas",
+                JsonSerializer.Serialize(new { id = ws.PlacementId, modelUrl = (string?)null }));
+        StateHasChanged();
+    }
+
+    private async Task PushModelToCanvas(Guid wsId)
+    {
+        if (_module is null || !_canvasInitialized || _plan is null) return;
+        var ws = _plan.Workstations.FirstOrDefault(w => w.Id == wsId);
+        if (ws is null) return;
+        var url = ModelUrlFor(ws);
+        var patch = new
+        {
+            id = ws.PlacementId,
+            modelUrl = url,
+            modelScale = ws.Model?.Scale ?? 1.0,
+            modelYaw = ws.Model?.Yaw ?? 0.0,
+            modelOffsetX = ws.Model?.OffsetX ?? 0.0,
+            modelOffsetY = ws.Model?.OffsetY ?? 0.0,
+            modelOffsetZ = ws.Model?.OffsetZ ?? 0.0,
+        };
+        await _module.InvokeVoidAsync("updateElement", "factory-canvas", JsonSerializer.Serialize(patch));
+    }
+
+    // ── Inventory: designations ──
+
+    private async Task AddDesignation(FloorPlanInventoryLocationDto loc)
+    {
+        if (_designationKindToAdd is null) return;
+        await Api.AddLocationDesignationAsync(Id, loc.Id, _designationKindToAdd.Value);
+        _designationKindToAdd = null;
+        _plan = await Api.GetFloorPlanAsync(Id);
+        await RefreshFlowIfVisible();
+        StateHasChanged();
+    }
+
+    private async Task RemoveDesignation(FloorPlanInventoryLocationDto loc, Guid designationId)
+    {
+        await Api.RemoveLocationDesignationAsync(Id, loc.Id, designationId);
+        _plan = await Api.GetFloorPlanAsync(Id);
+        await RefreshFlowIfVisible();
+        StateHasChanged();
+    }
+
+    private async Task UnlinkInventory(FloorPlanInventoryLocationDto loc)
+    {
+        await Api.RemoveInventoryLocationAsync(Id, loc.Id);
+        _plan = await Api.GetFloorPlanAsync(Id);
+        StateHasChanged();
+    }
+
+    // ── Material flow ──
+
+    private async Task ToggleFlow()
+    {
+        _flowVisible = !_flowVisible;
+        if (_flowVisible) await RunFlow();
+        else
+        {
+            _flowResult = null;
+            if (_module is not null && _canvasInitialized)
+                await _module.InvokeVoidAsync("clearMaterialFlows", "factory-canvas");
+        }
+    }
+
+    private async Task OnFlowModeChanged(ChangeEventArgs e)
+    {
+        _flowMode = Enum.TryParse<MaterialFlowMode>(e.Value?.ToString(), out var m) ? m : MaterialFlowMode.Live;
+        await RunFlow();
+    }
+
+    private async Task OnIncludeEmptyChanged(ChangeEventArgs e)
+    {
+        _includeEmpty = e.Value is bool b && b;
+        await RunFlow();
+    }
+
+    private async Task RefreshFlowIfVisible()
+    {
+        if (_flowVisible) await RunFlow();
+    }
+
+    private async Task RunFlow()
+    {
+        try
+        {
+            _statusMessage = $"Analysing material flow ({_flowMode})…";
+            StateHasChanged();
+            // Save current layout first so server-side positions match the canvas.
+            if (_module is not null && _canvasInitialized)
+            {
+                var layout = await _module.InvokeAsync<string>("getLayoutJson", "factory-canvas");
+                await Api.SaveFloorPlanLayoutAsync(Id, layout);
+            }
+
+            _flowResult = await Api.AnalyseMaterialFlowAsync(Id, _flowMode, _includeEmpty);
+            if (_module is not null && _canvasInitialized && _flowResult is not null)
+            {
+                var payload = _flowResult.Flows.Select(f => new
+                {
+                    kindId = f.KindId.ToString(),
+                    onHandQuantity = f.OnHandQuantity,
+                    distanceM = f.DistanceM,
+                    fromPoint = new { x = f.FromPoint.X, y = f.FromPoint.Y },
+                    toPoint = new { x = f.ToPoint.X, y = f.ToPoint.Y },
+                });
+                await _module.InvokeVoidAsync("setMaterialFlows", "factory-canvas", JsonSerializer.Serialize(payload));
+            }
+            _statusMessage = $"Flow: {_flowResult?.Flows.Count ?? 0} routes, {_flowResult?.Unresolved.Count ?? 0} unresolved.";
+        }
+        catch (Exception ex) { _statusMessage = $"Flow analysis failed: {ex.Message}"; }
+        StateHasChanged();
+    }
+
+    private static Guid? ParseGuid(object? v) =>
+        Guid.TryParse(v?.ToString(), out var g) ? g : (Guid?)null;
+
+    // ── Property panels ──
+
+    private RenderFragment RenderWorkstationPanel(FloorPlanWorkstationDto ws) => @<div class="mt-2 small">
+        <div class="mb-2"><strong>Workstation</strong> <code class="ms-1">@ws.PlacementId</code></div>
+
+        <label class="form-label small mb-1">Equipment</label>
+        <select class="form-select form-select-sm mb-2" value="@ws.EquipmentId"
+                @onchange="e => UpdateWorkstationLinks(ws, ParseGuid(e.Value), ws.OrgUnitId, ws.StorageLocationId)">
+            <option value="">— none —</option>
+            @foreach (var eq in _equipment)
+            {
+                <option value="@eq.Id">@eq.Code — @eq.Name</option>
+            }
+        </select>
+
+        <label class="form-label small mb-1">Org unit (responsible)</label>
+        <select class="form-select form-select-sm mb-2" value="@ws.OrgUnitId"
+                @onchange="e => UpdateWorkstationLinks(ws, ws.EquipmentId, ParseGuid(e.Value), ws.StorageLocationId)">
+            <option value="">— none —</option>
+            @foreach (var o in _orgUnits)
+            {
+                <option value="@o.Id">@o.Code — @o.Name</option>
+            }
+        </select>
+
+        <label class="form-label small mb-1">Storage location</label>
+        <select class="form-select form-select-sm mb-3" value="@ws.StorageLocationId"
+                @onchange="e => UpdateWorkstationLinks(ws, ws.EquipmentId, ws.OrgUnitId, ParseGuid(e.Value))">
+            <option value="">— none —</option>
+            @foreach (var l in _locations)
+            {
+                <option value="@l.Id">@l.Code — @l.Name</option>
+            }
+        </select>
+
+        <hr />
+        <div class="d-flex justify-content-between align-items-center">
+            <strong>Processes</strong>
+            <span class="badge bg-secondary">@ws.Processes.Count</span>
+        </div>
+        @if (ws.Processes.Count == 0)
+        {
+            <p class="text-muted mb-1">No processes assigned. Assign processes so material flow can compute inputs.</p>
+        }
+        else
+        {
+            <ul class="list-group list-group-flush mb-2">
+                @foreach (var p in ws.Processes)
+                {
+                    <li class="list-group-item px-0 py-1 d-flex justify-content-between align-items-center">
+                        <span>@p.ProcessCode <span class="text-muted">@p.ProcessName</span></span>
+                        <button class="btn btn-sm btn-link text-danger p-0" @onclick="() => RemoveProcess(ws, p.Id)">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+        <div class="input-group input-group-sm mb-3">
+            <select class="form-select" @bind="_processToAdd">
+                <option value="">— add process —</option>
+                @foreach (var p in _processes.Where(p => ws.Processes.All(wp => wp.ProcessId != p.Id)))
+                {
+                    <option value="@p.Id">@p.Code — @p.Name</option>
+                }
+            </select>
+            <button class="btn btn-outline-primary" @onclick="() => AddProcess(ws)" disabled="@(_processToAdd is null)">Add</button>
+        </div>
+
+        <hr />
+        <strong>CAD Model</strong>
+        @if (ws.Model is null)
+        {
+            <p class="text-muted mb-1">Workstation renders as a cube. Upload a CAD model (STEP/IGES converted server-side; glTF/STL/OBJ used directly).</p>
+            <InputFile class="form-control form-control-sm" accept=".glb,.gltf,.stl,.obj,.step,.stp,.iges,.igs"
+                       OnChange="e => OnModelFileSelected(e, ws)" />
+        }
+        else
+        {
+            <div class="mb-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-truncate" title="@ws.Model.OriginalFileName">@ws.Model.OriginalFileName</span>
+                    <span class="badge @ModelStatusBadge(ws.Model.ConversionStatus)">@ws.Model.ConversionStatus</span>
+                </div>
+                @if (ws.Model.ConversionStatus is ModelConversionStatus.Pending or ModelConversionStatus.Failed)
+                {
+                    <button class="btn btn-sm btn-warning mt-1 w-100" @onclick="() => ConvertModel(ws)">
+                        <i class="bi bi-arrow-repeat me-1"></i>Convert STEP → glTF
+                    </button>
+                }
+                @if (ws.Model.ConversionStatus == ModelConversionStatus.Failed && !string.IsNullOrEmpty(ws.Model.ConversionError))
+                {
+                    <div class="text-danger small mt-1">@ws.Model.ConversionError</div>
+                }
+            </div>
+
+            @if (ws.Model.HasRenderableModel)
+            {
+                <label class="form-label small mb-0">Scale (×@ws.Model.Scale)</label>
+                <input type="range" class="form-range" min="0.1" max="5" step="0.1" value="@ws.Model.Scale"
+                       @onchange="e => UpdateModelTransform(ws, scale: double.Parse(e.Value!.ToString()!))" />
+                <label class="form-label small mb-0">Yaw (@ws.Model.Yaw°)</label>
+                <input type="range" class="form-range" min="0" max="360" step="15" value="@ws.Model.Yaw"
+                       @onchange="e => UpdateModelTransform(ws, yaw: double.Parse(e.Value!.ToString()!))" />
+            }
+
+            <button class="btn btn-sm btn-outline-danger w-100 mt-1" @onclick="() => DeleteModel(ws)">
+                <i class="bi bi-trash me-1"></i>Remove model
+            </button>
+        }
+    </div>;
+
+    private RenderFragment RenderInventoryPanel(FloorPlanInventoryLocationDto loc) => @<div class="mt-2 small">
+        <div class="mb-2"><strong>Inventory Location</strong> <code class="ms-1">@loc.PlacementId</code></div>
+        <div class="mb-2">
+            <span class="badge bg-warning text-dark">@loc.StorageLocationCode</span>
+            <span class="text-muted">@loc.StorageLocationName</span>
+        </div>
+
+        <hr />
+        <div class="d-flex justify-content-between align-items-center">
+            <strong>Designated Kinds</strong>
+            <span class="badge bg-secondary">@loc.DesignatedKinds.Count</span>
+        </div>
+        <p class="text-muted mb-1">Designations drive <em>Designed</em> material-flow mode — which Kinds this location is meant to supply, regardless of current stock.</p>
+        @if (loc.DesignatedKinds.Count > 0)
+        {
+            <ul class="list-group list-group-flush mb-2">
+                @foreach (var d in loc.DesignatedKinds)
+                {
+                    <li class="list-group-item px-0 py-1 d-flex justify-content-between align-items-center">
+                        <span>@d.KindCode <span class="text-muted">@d.KindName</span></span>
+                        <button class="btn btn-sm btn-link text-danger p-0" @onclick="() => RemoveDesignation(loc, d.Id)">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </li>
+                }
+            </ul>
+        }
+        <div class="input-group input-group-sm mb-3">
+            <select class="form-select" @bind="_designationKindToAdd">
+                <option value="">— designate kind —</option>
+                @foreach (var k in _kinds.Where(k => loc.DesignatedKinds.All(d => d.KindId != k.Id)))
+                {
+                    <option value="@k.Id">@k.Code — @k.Name</option>
+                }
+            </select>
+            <button class="btn btn-outline-primary" @onclick="() => AddDesignation(loc)" disabled="@(_designationKindToAdd is null)">Add</button>
+        </div>
+
+        <hr />
+        <button class="btn btn-sm btn-outline-danger w-100" @onclick="() => UnlinkInventory(loc)">
+            <i class="bi bi-link-45deg me-1"></i>Unlink location
+        </button>
+    </div>;
 
     private static string StatusBadge(FloorPlanStatus status) => status switch
     {
@@ -232,6 +819,16 @@ else
         FloorPlanStatus.Published => "bg-success",
         FloorPlanStatus.Archived => "bg-dark",
         _ => "bg-light text-dark"
+    };
+
+    private static string ModelStatusBadge(ModelConversionStatus s) => s switch
+    {
+        ModelConversionStatus.NotRequired => "bg-success",
+        ModelConversionStatus.Converted => "bg-success",
+        ModelConversionStatus.Pending => "bg-warning text-dark",
+        ModelConversionStatus.Converting => "bg-info text-dark",
+        ModelConversionStatus.Failed => "bg-danger",
+        _ => "bg-secondary"
     };
 
     public async ValueTask DisposeAsync()

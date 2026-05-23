@@ -297,6 +297,40 @@ public class FloorPlansController : ControllerBase
         return Ok(MapWorkstationModel(ws));
     }
 
+    /// <summary>
+    /// Persist a client-tessellated glTF (.glb) as the converted model (Phase 37).
+    /// The browser converts the STEP/IGES once via occt-import-js + GLTFExporter
+    /// and uploads the result here, so subsequent viewers load the lightweight glb
+    /// directly. This is the conversion path used when no native server converter
+    /// is configured.
+    /// </summary>
+    [HttpPost("{id:guid}/workstations/{wsId:guid}/model/converted")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadConvertedWorkstationModel(
+        Guid id, Guid wsId,
+        [FromForm] ImageUploadRequest request,
+        [FromServices] IImageStorageService storage)
+    {
+        var ws = await _db.FloorPlanWorkstations.FirstOrDefaultAsync(w => w.Id == wsId && w.FloorPlanId == id);
+        if (ws is null) return NotFound();
+        if (string.IsNullOrEmpty(ws.ModelFileName))
+            return BadRequest(new { error = "no_model", message = "Upload a source model before storing a converted one." });
+
+        var file = request.File;
+        if (file is null || file.Length == 0) return BadRequest(new { error = "no_file" });
+
+        // Replace any previous converted artefact.
+        if (!string.IsNullOrEmpty(ws.ConvertedModelFileName))
+            await storage.DeleteAsync($"floorplan-models/{ws.ConvertedModelFileName}");
+
+        var (fileName, _) = await storage.SaveAsync(file, "floorplan-models");
+        ws.ConvertedModelFileName = fileName;
+        ws.ConversionStatus = Domain.Services.ModelConversionStatus.Converted;
+        ws.ConversionError = null;
+        await _db.SaveChangesAsync();
+        return Ok(MapWorkstationModel(ws));
+    }
+
     [AllowAnonymous]
     [HttpGet("{id:guid}/workstations/{wsId:guid}/model/download")]
     public async Task<IActionResult> DownloadWorkstationModel(

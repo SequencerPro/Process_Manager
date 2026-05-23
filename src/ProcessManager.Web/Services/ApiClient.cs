@@ -2484,6 +2484,18 @@ public class ApiClient
         return await r.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(_json);
     }
 
+    /// <summary>Persist a client-tessellated glb as the converted model.</summary>
+    public async Task<FloorPlanWorkstationModelDto?> UploadConvertedWorkstationModelAsync(Guid floorPlanId, Guid wsId, byte[] glb)
+    {
+        using var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(glb);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("model/gltf-binary");
+        content.Add(fileContent, "File", "converted.glb");
+        var r = await _http.PostAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}/model/converted", content);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(_json);
+    }
+
     public async Task<FloorPlanWorkstationModelDto?> UpdateWorkstationModelTransformAsync(
         Guid floorPlanId, Guid wsId, double scale, double yaw, double offsetX, double offsetY, double offsetZ)
     {

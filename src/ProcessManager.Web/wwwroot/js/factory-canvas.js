@@ -14,6 +14,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 // ---------------------------------------------------------------------------
 // Private state — one entry per container instance
@@ -1102,6 +1103,37 @@ export function clearMaterialFlows(containerId) {
         if (c.material) c.material.dispose();
     });
     inst.flowGroup = null;
+}
+
+// ---------------------------------------------------------------------------
+// Client-assisted CAD→glTF conversion (Phase 37)
+// ---------------------------------------------------------------------------
+
+function arrayBufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    return btoa(binary);
+}
+
+/**
+ * Load a CAD/mesh model and export it as a binary glTF (.glb), returned as a
+ * base64 string. The browser already tessellates STEP/IGES via occt-import-js,
+ * so this lets us persist a lightweight glb server-side: the first viewer
+ * converts once, everyone after loads the fast glb. No native server toolchain
+ * required. Not tied to a canvas instance — usable headlessly.
+ */
+export async function convertCadToGlb(url, ext) {
+    const group = await loadModelGroup(url, ext);
+    const exporter = new GLTFExporter();
+    const result = await new Promise((resolve, reject) => {
+        exporter.parse(group, (out) => resolve(out), (err) => reject(err), { binary: true });
+    });
+    // With { binary: true } the result is an ArrayBuffer.
+    return arrayBufferToBase64(result);
 }
 
 // ---------------------------------------------------------------------------

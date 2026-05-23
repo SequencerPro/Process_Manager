@@ -182,7 +182,7 @@ else
     [Parameter] public Guid Id { get; set; }
 
     // Bump when factory-canvas.js changes so browsers don't serve a cached module.
-    private const string CanvasVersion = "37b";
+    private const string CanvasVersion = "37c";
 
     private FloorPlanDetailDto? _plan;
     private bool _loading = true;
@@ -529,14 +529,29 @@ else
     {
         try
         {
-            _statusMessage = "Converting (STEP→glTF)…";
+            if (_module is null || !_canvasInitialized)
+            {
+                _statusMessage = "Canvas not ready — try again in a moment.";
+                StateHasChanged();
+                return;
+            }
+
+            _statusMessage = "Converting (STEP→glTF in browser)…";
             StateHasChanged();
-            var model = await Api.ConvertWorkstationModelAsync(Id, ws.Id);
+
+            // Tessellate the raw CAD file in the browser and export a glb, then
+            // persist it server-side so future loads skip re-tessellation.
+            var rawUrl = $"{_apiBaseUrl}/api/floor-plans/{Id}/workstations/{ws.Id}/model/download?converted=false";
+            var sourceExt = System.IO.Path.GetExtension(ws.Model?.OriginalFileName ?? "").TrimStart('.').ToLowerInvariant();
+            var base64 = await _module.InvokeAsync<string>("convertCadToGlb", rawUrl, sourceExt);
+            var bytes = Convert.FromBase64String(base64);
+
+            var model = await Api.UploadConvertedWorkstationModelAsync(Id, ws.Id, bytes);
             _plan = await Api.GetFloorPlanAsync(Id);
             await PushModelToCanvas(ws.Id);
             _statusMessage = model?.ConversionStatus == ModelConversionStatus.Converted
-                ? "Conversion complete."
-                : $"Conversion failed: {model?.ConversionError}";
+                ? "Conversion complete — serving optimised glTF."
+                : "Conversion finished.";
         }
         catch (Exception ex) { _statusMessage = $"Convert failed: {ex.Message}"; }
         StateHasChanged();

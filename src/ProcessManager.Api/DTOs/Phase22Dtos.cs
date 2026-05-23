@@ -81,7 +81,8 @@ public record FloorPlanInventoryLocationCreateDto(string PlacementId, Guid Stora
 public record FloorPlanInventoryLocationDto(
     Guid Id, string PlacementId,
     Guid StorageLocationId, string StorageLocationCode, string? StorageLocationName,
-    List<FloorPlanLocationDesignationDto> DesignatedKinds);
+    List<FloorPlanLocationDesignationDto> DesignatedKinds,
+    FloorPlanWorkstationModelDto? Model = null);
 
 // ── Inventory Location Designations (Phase 37 designed-flow) ──
 

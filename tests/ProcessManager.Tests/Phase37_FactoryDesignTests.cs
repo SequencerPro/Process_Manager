@@ -386,6 +386,123 @@ public class Phase37_FactoryDesignTests : IntegrationTestBase
         Assert.True(designed.TotalTravelDistanceMm > 0);
         Assert.Empty(designed.Unresolved);
     }
+
+    // ──────────── Inventory location CAD model (mirrors workstation) ────────────
+
+    private async Task<Guid> CreateLinkedInventoryLocation(Guid fpId, string placementId, string pfx)
+    {
+        var loc = await CreateStorageLocation($"SL-{pfx}", "Rack");
+        var resp = await Client.PostAsJsonAsync($"/api/floor-plans/{fpId}/inventory-locations",
+            new FloorPlanInventoryLocationCreateDto(placementId, loc.Id), JsonOptions);
+        resp.EnsureSuccessStatusCode();
+        return (await resp.Content.ReadFromJsonAsync<JsonElement>(JsonOptions)).GetProperty("id").GetGuid();
+    }
+
+    [Fact]
+    public async Task UploadInventoryModel_WebReadyGlb_IsImmediatelyRenderable()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var fpId = await CreateFloorPlan($"FP-{pfx}", "Inv Model Plan");
+        var locId = await CreateLinkedInventoryLocation(fpId, "inv-1", pfx);
+
+        using var content = ModelUpload("rack.glb", "model/gltf-binary");
+        var resp = await Client.PostAsync($"/api/floor-plans/{fpId}/inventory-locations/{locId}/model", content);
+        resp.EnsureSuccessStatusCode();
+
+        var model = await resp.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(JsonOptions);
+        Assert.Equal(ModelConversionStatus.NotRequired, model!.ConversionStatus);
+        Assert.True(model.HasRenderableModel);
+    }
+
+    [Fact]
+    public async Task UploadInventoryModel_StepFile_IsPendingConversion()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var fpId = await CreateFloorPlan($"FP-{pfx}", "Inv Step Plan");
+        var locId = await CreateLinkedInventoryLocation(fpId, "inv-1", pfx);
+
+        using var content = ModelUpload("rack.step", "application/step");
+        var resp = await Client.PostAsync($"/api/floor-plans/{fpId}/inventory-locations/{locId}/model", content);
+        resp.EnsureSuccessStatusCode();
+
+        var model = await resp.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(JsonOptions);
+        Assert.Equal(ModelConversionStatus.Pending, model!.ConversionStatus);
+        Assert.False(model.HasRenderableModel);
+    }
+
+    [Fact]
+    public async Task UploadInventoryModel_UnsupportedFormat_Returns400()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var fpId = await CreateFloorPlan($"FP-{pfx}", "Inv Bad Plan");
+        var locId = await CreateLinkedInventoryLocation(fpId, "inv-1", pfx);
+
+        using var content = ModelUpload("notes.txt", "text/plain");
+        var resp = await Client.PostAsync($"/api/floor-plans/{fpId}/inventory-locations/{locId}/model", content);
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task UploadConvertedInventory_StoresGlb_AndMarksConverted()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var fpId = await CreateFloorPlan($"FP-{pfx}", "Inv ClientConv Plan");
+        var locId = await CreateLinkedInventoryLocation(fpId, "inv-1", pfx);
+
+        using (var step = ModelUpload("rack.step", "application/step"))
+            (await Client.PostAsync($"/api/floor-plans/{fpId}/inventory-locations/{locId}/model", step)).EnsureSuccessStatusCode();
+
+        using var glb = GlbUpload();
+        var resp = await Client.PostAsync($"/api/floor-plans/{fpId}/inventory-locations/{locId}/model/converted", glb);
+        resp.EnsureSuccessStatusCode();
+
+        var model = await resp.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(JsonOptions);
+        Assert.Equal(ModelConversionStatus.Converted, model!.ConversionStatus);
+        Assert.True(model.HasRenderableModel);
+    }
+
+    [Fact]
+    public async Task UploadConvertedInventory_WithoutSource_Returns400()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var fpId = await CreateFloorPlan($"FP-{pfx}", "Inv NoSource Plan");
+        var locId = await CreateLinkedInventoryLocation(fpId, "inv-1", pfx);
+
+        using var glb = GlbUpload();
+        var resp = await Client.PostAsync($"/api/floor-plans/{fpId}/inventory-locations/{locId}/model/converted", glb);
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task InventoryModel_AppearsInFloorPlanDetail()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var fpId = await CreateFloorPlan($"FP-{pfx}", "Inv Detail Plan");
+        var locId = await CreateLinkedInventoryLocation(fpId, "inv-1", pfx);
+        using (var glb = ModelUpload("rack.glb", "model/gltf-binary"))
+            (await Client.PostAsync($"/api/floor-plans/{fpId}/inventory-locations/{locId}/model", glb)).EnsureSuccessStatusCode();
+
+        var detail = await Client.GetFromJsonAsync<FloorPlanDetailDto>($"/api/floor-plans/{fpId}", JsonOptions);
+        var loc = detail!.InventoryLocations.Single();
+        Assert.NotNull(loc.Model);
+        Assert.True(loc.Model!.HasRenderableModel);
+    }
+
+    [Fact]
+    public async Task DeleteInventoryModel_ClearsModelState()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var fpId = await CreateFloorPlan($"FP-{pfx}", "Inv Del Plan");
+        var locId = await CreateLinkedInventoryLocation(fpId, "inv-1", pfx);
+        using (var glb = ModelUpload("rack.glb", "model/gltf-binary"))
+            (await Client.PostAsync($"/api/floor-plans/{fpId}/inventory-locations/{locId}/model", glb)).EnsureSuccessStatusCode();
+
+        var del = await Client.DeleteAsync($"/api/floor-plans/{fpId}/inventory-locations/{locId}/model");
+        Assert.Equal(HttpStatusCode.NoContent, del.StatusCode);
+
+        var detail = await Client.GetFromJsonAsync<FloorPlanDetailDto>($"/api/floor-plans/{fpId}", JsonOptions);
+        Assert.Null(detail!.InventoryLocations.Single().Model);
+    }
 }
 
 /// <summary>Fake converter that always "succeeds" — used to test the success path.</summary>

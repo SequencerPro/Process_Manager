@@ -1769,6 +1769,15 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(l => new { l.FloorPlanId, l.StorageLocationId }).IsUnique();
             e.Property(l => l.PlacementId).HasMaxLength(100).IsRequired();
 
+            // Phase 37 — per-placement CAD model
+            e.Property(l => l.ModelFileName).HasMaxLength(260);
+            e.Property(l => l.ModelOriginalFileName).HasMaxLength(260);
+            e.Property(l => l.ModelMimeType).HasMaxLength(100);
+            e.Property(l => l.ConvertedModelFileName).HasMaxLength(260);
+            e.Property(l => l.ConversionStatus).HasConversion<string>().HasMaxLength(20);
+            e.Property(l => l.ConversionError).HasMaxLength(1000);
+            e.Ignore(l => l.HasRenderableModel);
+
             e.HasOne(l => l.FloorPlan)
                 .WithMany(f => f.InventoryLocations)
                 .HasForeignKey(l => l.FloorPlanId)

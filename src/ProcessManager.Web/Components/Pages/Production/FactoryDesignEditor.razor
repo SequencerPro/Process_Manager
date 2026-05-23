@@ -182,7 +182,7 @@ else
     [Parameter] public Guid Id { get; set; }
 
     // Bump when factory-canvas.js changes so browsers don't serve a cached module.
-    private const string CanvasVersion = "37c";
+    private const string CanvasVersion = "37d";
 
     private FloorPlanDetailDto? _plan;
     private bool _loading = true;
@@ -318,21 +318,16 @@ else
                     if (el is null) continue;
                     var id = el["id"]?.GetValue<string>();
                     if (id is null) continue;
+
                     var ws = _plan.Workstations.FirstOrDefault(w => w.PlacementId == id);
                     if (ws?.Model is not null)
                     {
-                        var url = ModelUrlFor(ws);
-                        if (url is not null)
-                        {
-                            el["modelUrl"] = url;
-                            el["modelExt"] = ModelExtFor(ws);
-                            el["modelScale"] = ws.Model.Scale;
-                            el["modelYaw"] = ws.Model.Yaw;
-                            el["modelOffsetX"] = ws.Model.OffsetX;
-                            el["modelOffsetY"] = ws.Model.OffsetY;
-                            el["modelOffsetZ"] = ws.Model.OffsetZ;
-                        }
+                        ApplyModelToElement(el, ModelUrlFor("workstations", ws.Id, ws.Model), ws.Model);
+                        continue;
                     }
+                    var loc = _plan.InventoryLocations.FirstOrDefault(l => l.PlacementId == id);
+                    if (loc?.Model is not null)
+                        ApplyModelToElement(el, ModelUrlFor("inventory-locations", loc.Id, loc.Model), loc.Model);
                 }
             }
             return node.ToJsonString();
@@ -340,24 +335,36 @@ else
         catch { return _plan.LayoutJson; }
     }
 
-    private string? ModelUrlFor(FloorPlanWorkstationDto ws)
+    private static void ApplyModelToElement(JsonNode el, string? url, FloorPlanWorkstationModelDto model)
     {
-        if (ws.Model is null) return null;
-        // Prefer the converted glTF when present; otherwise serve the raw upload.
-        // The canvas can render glTF/STL/OBJ directly and tessellate STEP/IGES
-        // client-side via occt-import-js, so a model is viewable even before
-        // (or without) server-side conversion.
-        var converted = ws.Model.ConversionStatus == ModelConversionStatus.Converted;
-        return $"{_apiBaseUrl}/api/floor-plans/{Id}/workstations/{ws.Id}/model/download?converted={converted.ToString().ToLowerInvariant()}";
+        if (url is null) return;
+        el["modelUrl"] = url;
+        el["modelExt"] = ModelExtFor(model);
+        el["modelScale"] = model.Scale;
+        el["modelYaw"] = model.Yaw;
+        el["modelOffsetX"] = model.OffsetX;
+        el["modelOffsetY"] = model.OffsetY;
+        el["modelOffsetZ"] = model.OffsetZ;
+    }
+
+    /// <summary>
+    /// Build the canvas-facing model download URL for any placement type.
+    /// Prefers the converted glTF; otherwise serves the raw upload (the canvas
+    /// renders glTF/STL/OBJ directly and tessellates STEP/IGES client-side).
+    /// </summary>
+    private string? ModelUrlFor(string segment, Guid entityId, FloorPlanWorkstationModelDto? model)
+    {
+        if (model is null) return null;
+        var converted = model.ConversionStatus == ModelConversionStatus.Converted;
+        return $"{_apiBaseUrl}/api/floor-plans/{Id}/{segment}/{entityId}/model/download?converted={converted.ToString().ToLowerInvariant()}";
     }
 
     /// <summary>The format the canvas should use to load the model (the URL has no extension).</summary>
-    private static string ModelExtFor(FloorPlanWorkstationDto ws)
+    private static string ModelExtFor(FloorPlanWorkstationModelDto? model)
     {
-        if (ws.Model is null) return "";
-        if (ws.Model.ConversionStatus == ModelConversionStatus.Converted) return "glb";
-        var ext = System.IO.Path.GetExtension(ws.Model.OriginalFileName ?? "").TrimStart('.').ToLowerInvariant();
-        return ext;
+        if (model is null) return "";
+        if (model.ConversionStatus == ModelConversionStatus.Converted) return "glb";
+        return System.IO.Path.GetExtension(model.OriginalFileName ?? "").TrimStart('.').ToLowerInvariant();
     }
 
     private async Task SetTool(string tool)
@@ -579,22 +586,34 @@ else
         StateHasChanged();
     }
 
-    private async Task PushModelToCanvas(Guid wsId)
+    private Task PushModelToCanvas(Guid wsId)
     {
-        if (_module is null || !_canvasInitialized || _plan is null) return;
-        var ws = _plan.Workstations.FirstOrDefault(w => w.Id == wsId);
-        if (ws is null) return;
-        var url = ModelUrlFor(ws);
+        var ws = _plan?.Workstations.FirstOrDefault(w => w.Id == wsId);
+        return ws is null ? Task.CompletedTask
+            : PushPlacementModel(ws.PlacementId, "workstations", ws.Id, ws.Model);
+    }
+
+    private Task PushInventoryModelToCanvas(Guid locId)
+    {
+        var loc = _plan?.InventoryLocations.FirstOrDefault(l => l.Id == locId);
+        return loc is null ? Task.CompletedTask
+            : PushPlacementModel(loc.PlacementId, "inventory-locations", loc.Id, loc.Model);
+    }
+
+    /// <summary>Refresh one placement's mesh on the canvas after a model change.</summary>
+    private async Task PushPlacementModel(string placementId, string segment, Guid entityId, FloorPlanWorkstationModelDto? model)
+    {
+        if (_module is null || !_canvasInitialized) return;
         var patch = new
         {
-            id = ws.PlacementId,
-            modelUrl = url,
-            modelExt = ModelExtFor(ws),
-            modelScale = ws.Model?.Scale ?? 1.0,
-            modelYaw = ws.Model?.Yaw ?? 0.0,
-            modelOffsetX = ws.Model?.OffsetX ?? 0.0,
-            modelOffsetY = ws.Model?.OffsetY ?? 0.0,
-            modelOffsetZ = ws.Model?.OffsetZ ?? 0.0,
+            id = placementId,
+            modelUrl = ModelUrlFor(segment, entityId, model),
+            modelExt = ModelExtFor(model),
+            modelScale = model?.Scale ?? 1.0,
+            modelYaw = model?.Yaw ?? 0.0,
+            modelOffsetX = model?.OffsetX ?? 0.0,
+            modelOffsetY = model?.OffsetY ?? 0.0,
+            modelOffsetZ = model?.OffsetZ ?? 0.0,
         };
         // Best-effort: the model state is already persisted server-side. A canvas
         // refresh failure (e.g. stale module) must not surface as a data error.
@@ -606,6 +625,75 @@ else
         {
             Console.WriteLine($"[FactoryEditor] Canvas refresh skipped: {ex.Message}");
         }
+    }
+
+    // ── Inventory: CAD model ──
+
+    private async Task OnInventoryModelFileSelected(InputFileChangeEventArgs e, FloorPlanInventoryLocationDto loc)
+    {
+        try
+        {
+            _statusMessage = "Uploading model…";
+            StateHasChanged();
+            var model = await Api.UploadInventoryModelAsync(Id, loc.Id, e.File);
+            _plan = await Api.GetFloorPlanAsync(Id);
+            await PushInventoryModelToCanvas(loc.Id);
+            _statusMessage = model?.ConversionStatus == ModelConversionStatus.Pending
+                ? "Model uploaded — rendering client-side. Optionally convert to glTF for faster loading of heavy assemblies."
+                : "Model uploaded.";
+        }
+        catch (Exception ex) { _statusMessage = $"Upload failed: {ex.Message}"; }
+        StateHasChanged();
+    }
+
+    private async Task ConvertInventoryModel(FloorPlanInventoryLocationDto loc)
+    {
+        try
+        {
+            if (_module is null || !_canvasInitialized)
+            {
+                _statusMessage = "Canvas not ready — try again in a moment.";
+                StateHasChanged();
+                return;
+            }
+            _statusMessage = "Converting (STEP→glTF in browser)…";
+            StateHasChanged();
+
+            var rawUrl = $"{_apiBaseUrl}/api/floor-plans/{Id}/inventory-locations/{loc.Id}/model/download?converted=false";
+            var sourceExt = System.IO.Path.GetExtension(loc.Model?.OriginalFileName ?? "").TrimStart('.').ToLowerInvariant();
+            var base64 = await _module.InvokeAsync<string>("convertCadToGlb", rawUrl, sourceExt);
+            var bytes = Convert.FromBase64String(base64);
+
+            var model = await Api.UploadConvertedInventoryModelAsync(Id, loc.Id, bytes);
+            _plan = await Api.GetFloorPlanAsync(Id);
+            await PushInventoryModelToCanvas(loc.Id);
+            _statusMessage = model?.ConversionStatus == ModelConversionStatus.Converted
+                ? "Conversion complete — serving optimised glTF."
+                : "Conversion finished.";
+        }
+        catch (Exception ex) { _statusMessage = $"Convert failed: {ex.Message}"; }
+        StateHasChanged();
+    }
+
+    private async Task UpdateInventoryModelTransform(FloorPlanInventoryLocationDto loc, double? scale = null, double? yaw = null)
+    {
+        var m = loc.Model;
+        if (m is null) return;
+        await Api.UpdateInventoryModelTransformAsync(Id, loc.Id,
+            scale ?? m.Scale, yaw ?? m.Yaw, m.OffsetX, m.OffsetY, m.OffsetZ);
+        _plan = await Api.GetFloorPlanAsync(Id);
+        await PushInventoryModelToCanvas(loc.Id);
+        StateHasChanged();
+    }
+
+    private async Task DeleteInventoryModel(FloorPlanInventoryLocationDto loc)
+    {
+        await Api.DeleteInventoryModelAsync(Id, loc.Id);
+        _plan = await Api.GetFloorPlanAsync(Id);
+        if (_module is not null && _canvasInitialized)
+            await _module.InvokeVoidAsync("updateElement", "factory-canvas",
+                JsonSerializer.Serialize(new { id = loc.PlacementId, modelUrl = (string?)null }));
+        StateHasChanged();
     }
 
     // ── Inventory: designations ──
@@ -848,6 +936,46 @@ else
             </select>
             <button class="btn btn-outline-primary" @onclick="() => AddDesignation(loc)" disabled="@(_designationKindToAdd is null)">Add</button>
         </div>
+
+        <hr />
+        <strong>CAD Model</strong>
+        @if (loc.Model is null)
+        {
+            <p class="text-muted mb-1">Location renders as a rack. Upload a CAD model (STEP/IGES converted in-browser; glTF/STL/OBJ used directly).</p>
+            <InputFile class="form-control form-control-sm" accept=".glb,.gltf,.stl,.obj,.step,.stp,.iges,.igs"
+                       OnChange="e => OnInventoryModelFileSelected(e, loc)" />
+        }
+        else
+        {
+            <div class="mb-2">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="text-truncate" title="@loc.Model.OriginalFileName">@loc.Model.OriginalFileName</span>
+                    <span class="badge @ModelStatusBadge(loc.Model.ConversionStatus)">@loc.Model.ConversionStatus</span>
+                </div>
+                @if (loc.Model.ConversionStatus is ModelConversionStatus.Pending or ModelConversionStatus.Failed)
+                {
+                    <div class="text-muted" style="font-size:.7rem">Rendered client-side. Convert to glTF on the server for faster loading of heavy assemblies (requires a configured converter).</div>
+                    <button class="btn btn-sm btn-warning mt-1 w-100" @onclick="() => ConvertInventoryModel(loc)">
+                        <i class="bi bi-arrow-repeat me-1"></i>Convert STEP → glTF
+                    </button>
+                }
+                @if (loc.Model.ConversionStatus == ModelConversionStatus.Failed && !string.IsNullOrEmpty(loc.Model.ConversionError))
+                {
+                    <div class="text-danger small mt-1">@loc.Model.ConversionError</div>
+                }
+            </div>
+
+            <label class="form-label small mb-0">Scale (×@loc.Model.Scale)</label>
+            <input type="range" class="form-range" min="0.1" max="5" step="0.1" value="@loc.Model.Scale"
+                   @onchange="e => UpdateInventoryModelTransform(loc, scale: double.Parse(e.Value!.ToString()!))" />
+            <label class="form-label small mb-0">Yaw (@loc.Model.Yaw°)</label>
+            <input type="range" class="form-range" min="0" max="360" step="15" value="@loc.Model.Yaw"
+                   @onchange="e => UpdateInventoryModelTransform(loc, yaw: double.Parse(e.Value!.ToString()!))" />
+
+            <button class="btn btn-sm btn-outline-danger w-100 mt-1" @onclick="() => DeleteInventoryModel(loc)">
+                <i class="bi bi-trash me-1"></i>Remove model
+            </button>
+        }
 
         <hr />
         <button class="btn btn-sm btn-outline-danger w-100" @onclick="() => UnlinkInventory(loc)">

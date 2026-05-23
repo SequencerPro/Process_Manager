@@ -496,7 +496,8 @@ function buildInventory(group, el, colors, h) {
     const shelves = 4;
     const shelfH = h / shelves;
 
-    // Uprights (4 pillars)
+    // Uprights (4 pillars) — placeholder rack, shown while a CAD model loads
+    // and as the permanent representation when none is attached.
     const pillarGeo = new THREE.BoxGeometry(6, h, 6);
     const pillarMat = new THREE.MeshStandardMaterial({ color: 0x616161, roughness: 0.6, metalness: 0.4 });
     const offsets = [
@@ -509,6 +510,7 @@ function buildInventory(group, el, colors, h) {
         const pillar = new THREE.Mesh(pillarGeo, pillarMat);
         pillar.position.set(ox, h / 2, oz);
         pillar.castShadow = true;
+        pillar.userData._placeholder = true;
         group.add(pillar);
     }
 
@@ -520,10 +522,31 @@ function buildInventory(group, el, colors, h) {
         shelf.position.y = shelfH * i + 2;
         shelf.castShadow = true;
         shelf.receiveShadow = true;
+        shelf.userData._placeholder = true;
         group.add(shelf);
     }
 
     addLabel(group, el.label || 'Storage', h + 25, colors.select);
+
+    // If a CAD model is attached, swap the rack for the real model.
+    if (el.modelUrl) {
+        loadModelGroup(el.modelUrl, el.modelExt)
+            .then(modelGroup => {
+                const toRemove = group.children.filter(c => c.userData && c.userData._placeholder);
+                for (const c of toRemove) {
+                    group.remove(c);
+                    if (c.geometry) c.geometry.dispose();
+                    if (c.material) c.material.dispose();
+                }
+                fitModelToFootprint(modelGroup, el);
+                modelGroup.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+                modelGroup.userData._cadModel = true;
+                group.add(modelGroup);
+            })
+            .catch(err => {
+                console.warn(`[Factory3D] Inventory model load failed for '${el.id}', keeping rack:`, err.message);
+            });
+    }
 }
 
 function buildWall(group, el, colors, h) {

@@ -2515,6 +2515,47 @@ public class ApiClient
     public string WorkstationModelUrl(Guid floorPlanId, Guid wsId, bool converted)
         => $"api/floor-plans/{floorPlanId}/workstations/{wsId}/model/download?converted={converted.ToString().ToLowerInvariant()}";
 
+    // ── Phase 37: Inventory location CAD model (mirrors workstation) ──
+
+    public async Task<FloorPlanWorkstationModelDto?> UploadInventoryModelAsync(Guid floorPlanId, Guid locId, IBrowserFile file)
+    {
+        using var content = new MultipartFormDataContent();
+        using var stream = file.OpenReadStream(maxAllowedSize: 200 * 1024 * 1024);
+        var fileContent = new StreamContent(stream);
+        var mime = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType;
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(mime);
+        content.Add(fileContent, "File", file.Name);
+        var r = await _http.PostAsync($"api/floor-plans/{floorPlanId}/inventory-locations/{locId}/model", content);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(_json);
+    }
+
+    public async Task<FloorPlanWorkstationModelDto?> UploadConvertedInventoryModelAsync(Guid floorPlanId, Guid locId, byte[] glb)
+    {
+        using var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(glb);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("model/gltf-binary");
+        content.Add(fileContent, "File", "converted.glb");
+        var r = await _http.PostAsync($"api/floor-plans/{floorPlanId}/inventory-locations/{locId}/model/converted", content);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(_json);
+    }
+
+    public async Task<FloorPlanWorkstationModelDto?> UpdateInventoryModelTransformAsync(
+        Guid floorPlanId, Guid locId, double scale, double yaw, double offsetX, double offsetY, double offsetZ)
+    {
+        var dto = new FloorPlanWorkstationModelTransformDto(scale, yaw, offsetX, offsetY, offsetZ);
+        var r = await _http.PutAsJsonAsync($"api/floor-plans/{floorPlanId}/inventory-locations/{locId}/model/transform", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(_json);
+    }
+
+    public async Task DeleteInventoryModelAsync(Guid floorPlanId, Guid locId)
+    {
+        var r = await _http.DeleteAsync($"api/floor-plans/{floorPlanId}/inventory-locations/{locId}/model");
+        if (r.StatusCode != System.Net.HttpStatusCode.NotFound) r.EnsureSuccessStatusCode();
+    }
+
     // ── Phase 37: Inventory locations ──
 
     public async Task<Guid?> AddInventoryLocationAsync(Guid floorPlanId, string placementId, Guid storageLocationId)

@@ -545,6 +545,136 @@ public class FloorPlansController : ControllerBase
         return NoContent();
     }
 
+    // ── Inventory Location CAD Model (Phase 37) — mirrors workstation model ──
+
+    [HttpPost("{id:guid}/inventory-locations/{locId:guid}/model")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadInventoryModel(
+        Guid id, Guid locId,
+        [FromForm] ImageUploadRequest request,
+        [FromServices] IImageStorageService storage)
+    {
+        var loc = await _db.FloorPlanInventoryLocations.FirstOrDefaultAsync(l => l.Id == locId && l.FloorPlanId == id);
+        if (loc is null) return NotFound();
+
+        var file = request.File;
+        if (file is null || file.Length == 0) return BadRequest(new { error = "no_file" });
+
+        var classification = Domain.Services.ModelFormatPolicy.Classify(file.FileName);
+        if (!classification.IsSupported)
+            return BadRequest(new
+            {
+                error = "unsupported_format",
+                message = $"Allowed: {string.Join(", ", Domain.Services.ModelFormatPolicy.AllowedExtensions)}"
+            });
+
+        if (!string.IsNullOrEmpty(loc.ModelFileName))
+            await storage.DeleteAsync($"floorplan-models/{loc.ModelFileName}");
+        if (!string.IsNullOrEmpty(loc.ConvertedModelFileName))
+            await storage.DeleteAsync($"floorplan-models/{loc.ConvertedModelFileName}");
+
+        var (fileName, _) = await storage.SaveAsync(file, "floorplan-models");
+        loc.ModelFileName = fileName;
+        loc.ModelOriginalFileName = file.FileName;
+        loc.ModelMimeType = Domain.Services.ModelFormatPolicy.MimeTypeFor(file.FileName);
+        loc.ConvertedModelFileName = null;
+        loc.ConversionError = null;
+        loc.ConversionStatus = classification.InitialStatus;
+
+        await _db.SaveChangesAsync();
+        return Ok(MapInventoryModel(loc));
+    }
+
+    /// <summary>Persist a client-tessellated glTF (.glb) as the converted model.</summary>
+    [HttpPost("{id:guid}/inventory-locations/{locId:guid}/model/converted")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadConvertedInventoryModel(
+        Guid id, Guid locId,
+        [FromForm] ImageUploadRequest request,
+        [FromServices] IImageStorageService storage)
+    {
+        var loc = await _db.FloorPlanInventoryLocations.FirstOrDefaultAsync(l => l.Id == locId && l.FloorPlanId == id);
+        if (loc is null) return NotFound();
+        if (string.IsNullOrEmpty(loc.ModelFileName))
+            return BadRequest(new { error = "no_model", message = "Upload a source model before storing a converted one." });
+
+        var file = request.File;
+        if (file is null || file.Length == 0) return BadRequest(new { error = "no_file" });
+
+        if (!string.IsNullOrEmpty(loc.ConvertedModelFileName))
+            await storage.DeleteAsync($"floorplan-models/{loc.ConvertedModelFileName}");
+
+        var (fileName, _) = await storage.SaveAsync(file, "floorplan-models");
+        loc.ConvertedModelFileName = fileName;
+        loc.ConversionStatus = Domain.Services.ModelConversionStatus.Converted;
+        loc.ConversionError = null;
+        await _db.SaveChangesAsync();
+        return Ok(MapInventoryModel(loc));
+    }
+
+    [AllowAnonymous]
+    [HttpGet("{id:guid}/inventory-locations/{locId:guid}/model/download")]
+    public async Task<IActionResult> DownloadInventoryModel(
+        Guid id, Guid locId,
+        [FromQuery] bool converted,
+        [FromServices] IImageStorageService storage)
+    {
+        var loc = await _db.FloorPlanInventoryLocations.FirstOrDefaultAsync(l => l.Id == locId && l.FloorPlanId == id);
+        if (loc is null) return NotFound();
+
+        var fileName = converted && !string.IsNullOrEmpty(loc.ConvertedModelFileName)
+            ? loc.ConvertedModelFileName
+            : loc.ModelFileName;
+        if (string.IsNullOrEmpty(fileName)) return NotFound("No model attached.");
+
+        var stream = await storage.GetStreamAsync($"floorplan-models/{fileName}");
+        if (stream is null) return NotFound("Model file not found in storage.");
+
+        var mime = fileName == loc.ConvertedModelFileName
+            ? Domain.Services.ModelFormatPolicy.ConvertedMimeType
+            : loc.ModelMimeType ?? "application/octet-stream";
+        return File(stream, mime, loc.ModelOriginalFileName ?? fileName);
+    }
+
+    [HttpPut("{id:guid}/inventory-locations/{locId:guid}/model/transform")]
+    public async Task<IActionResult> UpdateInventoryModelTransform(
+        Guid id, Guid locId, [FromBody] FloorPlanWorkstationModelTransformDto dto)
+    {
+        var loc = await _db.FloorPlanInventoryLocations.FirstOrDefaultAsync(l => l.Id == locId && l.FloorPlanId == id);
+        if (loc is null) return NotFound();
+
+        loc.ModelScale = dto.Scale <= 0 ? 1.0 : dto.Scale;
+        loc.ModelYaw = dto.Yaw;
+        loc.ModelOffsetX = dto.OffsetX;
+        loc.ModelOffsetY = dto.OffsetY;
+        loc.ModelOffsetZ = dto.OffsetZ;
+        await _db.SaveChangesAsync();
+        return Ok(MapInventoryModel(loc));
+    }
+
+    [HttpDelete("{id:guid}/inventory-locations/{locId:guid}/model")]
+    public async Task<IActionResult> DeleteInventoryModel(
+        Guid id, Guid locId,
+        [FromServices] IImageStorageService storage)
+    {
+        var loc = await _db.FloorPlanInventoryLocations.FirstOrDefaultAsync(l => l.Id == locId && l.FloorPlanId == id);
+        if (loc is null) return NotFound();
+        if (string.IsNullOrEmpty(loc.ModelFileName)) return NotFound("No model attached.");
+
+        await storage.DeleteAsync($"floorplan-models/{loc.ModelFileName}");
+        if (!string.IsNullOrEmpty(loc.ConvertedModelFileName))
+            await storage.DeleteAsync($"floorplan-models/{loc.ConvertedModelFileName}");
+
+        loc.ModelFileName = null;
+        loc.ModelOriginalFileName = null;
+        loc.ModelMimeType = null;
+        loc.ConvertedModelFileName = null;
+        loc.ConversionError = null;
+        loc.ConversionStatus = Domain.Services.ModelConversionStatus.None;
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // ── Material Flow Analysis (Phase 37: dual-mode via MaterialFlowAnalyzer) ──
 
     [HttpPost("{id:guid}/analyse-material-flow")]
@@ -659,7 +789,13 @@ public class FloorPlansController : ControllerBase
         l.Id, l.PlacementId, l.StorageLocationId,
         l.StorageLocation.Code, l.StorageLocation.Name,
         l.DesignatedKinds.Select(d => new FloorPlanLocationDesignationDto(
-            d.Id, d.KindId, d.Kind.Code, d.Kind.Name)).ToList());
+            d.Id, d.KindId, d.Kind.Code, d.Kind.Name)).ToList(),
+        l.ConversionStatus == Domain.Services.ModelConversionStatus.None ? null : MapInventoryModel(l));
+
+    private static FloorPlanWorkstationModelDto MapInventoryModel(FloorPlanInventoryLocation l) => new(
+        l.ModelOriginalFileName, l.ModelMimeType,
+        l.ConversionStatus, l.HasRenderableModel, l.ConversionError,
+        l.ModelScale, l.ModelYaw, l.ModelOffsetX, l.ModelOffsetY, l.ModelOffsetZ);
 
     // ── Layout JSON deserialization models (internal) ──
 

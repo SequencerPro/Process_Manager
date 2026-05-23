@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Api.Data;
 using ProcessManager.Api.DTOs;
+using ProcessManager.Api.Services;
 using ProcessManager.Domain.Entities;
 using System.Text.Json;
 
@@ -56,6 +57,7 @@ public class FloorPlansController : ControllerBase
             .Include(f => f.Workstations).ThenInclude(w => w.Processes).ThenInclude(p => p.Process)
             .Include(f => f.Workstations).ThenInclude(w => w.Tools).ThenInclude(t => t.Kind)
             .Include(f => f.InventoryLocations).ThenInclude(l => l.StorageLocation)
+            .Include(f => f.InventoryLocations).ThenInclude(l => l.DesignatedKinds).ThenInclude(d => d.Kind)
             .FirstOrDefaultAsync(f => f.Id == id);
 
         if (fp is null) return NotFound();
@@ -65,9 +67,7 @@ public class FloorPlansController : ControllerBase
             fp.Version, fp.Status, fp.IsActive,
             fp.LayoutJson, fp.ThumbnailBase64,
             fp.Workstations.Select(MapWorkstation).ToList(),
-            fp.InventoryLocations.Select(l => new FloorPlanInventoryLocationDto(
-                l.Id, l.PlacementId, l.StorageLocationId,
-                l.StorageLocation.Code, l.StorageLocation.Name)).ToList(),
+            fp.InventoryLocations.Select(MapInventoryLocation).ToList(),
             fp.CreatedAt, fp.UpdatedAt, fp.CreatedBy));
     }
 
@@ -213,6 +213,157 @@ public class FloorPlansController : ControllerBase
         return NoContent();
     }
 
+    // ── Workstation CAD Model (Phase 37) ──
+
+    [HttpPost("{id:guid}/workstations/{wsId:guid}/model")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadWorkstationModel(
+        Guid id, Guid wsId,
+        [FromForm] ImageUploadRequest request,
+        [FromServices] IImageStorageService storage)
+    {
+        var ws = await _db.FloorPlanWorkstations.FirstOrDefaultAsync(w => w.Id == wsId && w.FloorPlanId == id);
+        if (ws is null) return NotFound();
+
+        var file = request.File;
+        if (file is null || file.Length == 0) return BadRequest(new { error = "no_file" });
+
+        var classification = ProcessManager.Domain.Services.ModelFormatPolicy.Classify(file.FileName);
+        if (!classification.IsSupported)
+            return BadRequest(new
+            {
+                error = "unsupported_format",
+                message = $"Allowed: {string.Join(", ", ProcessManager.Domain.Services.ModelFormatPolicy.AllowedExtensions)}"
+            });
+
+        // Remove any previous model artefacts.
+        if (!string.IsNullOrEmpty(ws.ModelFileName))
+            await storage.DeleteAsync($"floorplan-models/{ws.ModelFileName}");
+        if (!string.IsNullOrEmpty(ws.ConvertedModelFileName))
+            await storage.DeleteAsync($"floorplan-models/{ws.ConvertedModelFileName}");
+
+        var (fileName, _) = await storage.SaveAsync(file, "floorplan-models");
+        ws.ModelFileName = fileName;
+        ws.ModelOriginalFileName = file.FileName;
+        ws.ModelMimeType = ProcessManager.Domain.Services.ModelFormatPolicy.MimeTypeFor(file.FileName);
+        ws.ConvertedModelFileName = null;
+        ws.ConversionError = null;
+        // Web-ready meshes are renderable immediately; CAD formats await conversion.
+        ws.ConversionStatus = classification.InitialStatus;
+
+        await _db.SaveChangesAsync();
+        return Ok(MapWorkstationModel(ws));
+    }
+
+    /// <summary>
+    /// Run (or retry) server-side CAD→glTF conversion for a workstation whose
+    /// uploaded model needs it. Web-ready uploads return immediately. Heavy STEP
+    /// assemblies are tessellated once here rather than in every browser.
+    /// </summary>
+    [HttpPost("{id:guid}/workstations/{wsId:guid}/model/convert")]
+    public async Task<IActionResult> ConvertWorkstationModel(
+        Guid id, Guid wsId,
+        [FromServices] IStepConversionService converter)
+    {
+        var ws = await _db.FloorPlanWorkstations.FirstOrDefaultAsync(w => w.Id == wsId && w.FloorPlanId == id);
+        if (ws is null) return NotFound();
+        if (string.IsNullOrEmpty(ws.ModelFileName))
+            return BadRequest(new { error = "no_model" });
+
+        if (ws.ConversionStatus == Domain.Services.ModelConversionStatus.NotRequired
+            || ws.ConversionStatus == Domain.Services.ModelConversionStatus.Converted)
+            return Ok(MapWorkstationModel(ws)); // already renderable — no-op
+
+        ws.ConversionStatus = Domain.Services.ModelConversionStatus.Converting;
+        ws.ConversionError = null;
+        await _db.SaveChangesAsync();
+
+        var result = await converter.ConvertToGlbAsync($"floorplan-models/{ws.ModelFileName}");
+
+        if (result.Success && !string.IsNullOrEmpty(result.ConvertedStorageKey))
+        {
+            ws.ConvertedModelFileName = result.ConvertedStorageKey.Contains('/')
+                ? result.ConvertedStorageKey[(result.ConvertedStorageKey.LastIndexOf('/') + 1)..]
+                : result.ConvertedStorageKey;
+            ws.ConversionStatus = Domain.Services.ModelConversionStatus.Converted;
+        }
+        else
+        {
+            ws.ConversionStatus = Domain.Services.ModelConversionStatus.Failed;
+            ws.ConversionError = result.Error;
+        }
+
+        await _db.SaveChangesAsync();
+        return Ok(MapWorkstationModel(ws));
+    }
+
+    [AllowAnonymous]
+    [HttpGet("{id:guid}/workstations/{wsId:guid}/model/download")]
+    public async Task<IActionResult> DownloadWorkstationModel(
+        Guid id, Guid wsId,
+        [FromQuery] bool converted,
+        [FromServices] IImageStorageService storage)
+    {
+        var ws = await _db.FloorPlanWorkstations.FirstOrDefaultAsync(w => w.Id == wsId && w.FloorPlanId == id);
+        if (ws is null) return NotFound();
+
+        // Prefer the converted glTF when available and requested (or when the raw
+        // upload isn't web-ready).
+        var wantConverted = converted || ws.ConversionStatus == Domain.Services.ModelConversionStatus.Converted
+                            && ws.ConversionStatus != Domain.Services.ModelConversionStatus.NotRequired;
+        var fileName = wantConverted && !string.IsNullOrEmpty(ws.ConvertedModelFileName)
+            ? ws.ConvertedModelFileName
+            : ws.ModelFileName;
+        if (string.IsNullOrEmpty(fileName)) return NotFound("No model attached.");
+
+        var stream = await storage.GetStreamAsync($"floorplan-models/{fileName}");
+        if (stream is null) return NotFound("Model file not found in storage.");
+
+        var mime = fileName == ws.ConvertedModelFileName
+            ? Domain.Services.ModelFormatPolicy.ConvertedMimeType
+            : ws.ModelMimeType ?? "application/octet-stream";
+        return File(stream, mime, ws.ModelOriginalFileName ?? fileName);
+    }
+
+    [HttpPut("{id:guid}/workstations/{wsId:guid}/model/transform")]
+    public async Task<IActionResult> UpdateWorkstationModelTransform(
+        Guid id, Guid wsId, [FromBody] FloorPlanWorkstationModelTransformDto dto)
+    {
+        var ws = await _db.FloorPlanWorkstations.FirstOrDefaultAsync(w => w.Id == wsId && w.FloorPlanId == id);
+        if (ws is null) return NotFound();
+
+        ws.ModelScale = dto.Scale <= 0 ? 1.0 : dto.Scale;
+        ws.ModelYaw = dto.Yaw;
+        ws.ModelOffsetX = dto.OffsetX;
+        ws.ModelOffsetY = dto.OffsetY;
+        ws.ModelOffsetZ = dto.OffsetZ;
+        await _db.SaveChangesAsync();
+        return Ok(MapWorkstationModel(ws));
+    }
+
+    [HttpDelete("{id:guid}/workstations/{wsId:guid}/model")]
+    public async Task<IActionResult> DeleteWorkstationModel(
+        Guid id, Guid wsId,
+        [FromServices] IImageStorageService storage)
+    {
+        var ws = await _db.FloorPlanWorkstations.FirstOrDefaultAsync(w => w.Id == wsId && w.FloorPlanId == id);
+        if (ws is null) return NotFound();
+        if (string.IsNullOrEmpty(ws.ModelFileName)) return NotFound("No model attached.");
+
+        await storage.DeleteAsync($"floorplan-models/{ws.ModelFileName}");
+        if (!string.IsNullOrEmpty(ws.ConvertedModelFileName))
+            await storage.DeleteAsync($"floorplan-models/{ws.ConvertedModelFileName}");
+
+        ws.ModelFileName = null;
+        ws.ModelOriginalFileName = null;
+        ws.ModelMimeType = null;
+        ws.ConvertedModelFileName = null;
+        ws.ConversionError = null;
+        ws.ConversionStatus = Domain.Services.ModelConversionStatus.None;
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // ── Workstation Processes ──
 
     [HttpPost("{id:guid}/workstations/{wsId:guid}/processes")]
@@ -327,32 +478,63 @@ public class FloorPlansController : ControllerBase
         return NoContent();
     }
 
-    // ── Material Flow Analysis ──
+    // ── Inventory Location Designations (Phase 37 designed-flow) ──
+
+    [HttpPost("{id:guid}/inventory-locations/{locId:guid}/designations")]
+    public async Task<IActionResult> AddDesignation(Guid id, Guid locId, [FromBody] FloorPlanLocationDesignationCreateDto dto)
+    {
+        var loc = await _db.FloorPlanInventoryLocations.FirstOrDefaultAsync(l => l.Id == locId && l.FloorPlanId == id);
+        if (loc is null) return NotFound();
+        if (!await _db.Kinds.AnyAsync(k => k.Id == dto.KindId))
+            return BadRequest(new { error = "kind_not_found" });
+        if (await _db.FloorPlanInventoryLocationKinds.AnyAsync(d => d.FloorPlanInventoryLocationId == locId && d.KindId == dto.KindId))
+            return BadRequest(new { error = "duplicate_designation" });
+
+        var designation = new FloorPlanInventoryLocationKind
+        {
+            FloorPlanInventoryLocationId = locId,
+            KindId = dto.KindId
+        };
+        _db.FloorPlanInventoryLocationKinds.Add(designation);
+        await _db.SaveChangesAsync();
+        return Created("", new { designation.Id });
+    }
+
+    [HttpDelete("{id:guid}/inventory-locations/{locId:guid}/designations/{designationId:guid}")]
+    public async Task<IActionResult> RemoveDesignation(Guid id, Guid locId, Guid designationId)
+    {
+        var designation = await _db.FloorPlanInventoryLocationKinds
+            .FirstOrDefaultAsync(d => d.Id == designationId && d.FloorPlanInventoryLocationId == locId);
+        if (designation is null) return NotFound();
+        _db.FloorPlanInventoryLocationKinds.Remove(designation);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ── Material Flow Analysis (Phase 37: dual-mode via MaterialFlowAnalyzer) ──
 
     [HttpPost("{id:guid}/analyse-material-flow")]
     public async Task<IActionResult> AnalyseMaterialFlow(Guid id, [FromBody] MaterialFlowRequestDto? dto = null)
     {
+        dto ??= new MaterialFlowRequestDto();
+
         var fp = await _db.FloorPlans.AsNoTracking()
             .Include(f => f.Workstations).ThenInclude(w => w.Processes).ThenInclude(p => p.Process)
                 .ThenInclude(p => p.ProcessSteps).ThenInclude(ps => ps.StepTemplate).ThenInclude(st => st.Ports)
             .Include(f => f.InventoryLocations).ThenInclude(l => l.StorageLocation)
+            .Include(f => f.InventoryLocations).ThenInclude(l => l.DesignatedKinds)
             .FirstOrDefaultAsync(f => f.Id == id);
 
         if (fp is null) return NotFound();
 
-        // Parse layout to get element positions
         var layout = JsonSerializer.Deserialize<LayoutDocument>(fp.LayoutJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         if (layout is null) return BadRequest(new { error = "invalid_layout" });
 
         var elementPositions = layout.Elements
             .Where(e => e.Id != null)
-            .ToDictionary(e => e.Id!, e => (CenterX: e.X + e.Width / 2.0, CenterY: e.Y + e.Height / 2.0, e.X, e.Y, e.Width, e.Height, Label: e.Label ?? e.Id!));
+            .ToDictionary(e => e.Id!, e => (CenterX: e.X + e.Width / 2.0, CenterY: e.Y + e.Height / 2.0, Label: e.Label ?? e.Id!));
 
-        // Collect material requirements per workstation
-        var flows = new List<MaterialFlowLineDto>();
-        var unresolved = new List<UnresolvedMaterialDto>();
-
-        // Get on-hand inventory per location per kind
+        // On-hand inventory per location per kind (live mode).
         var invLocationIds = fp.InventoryLocations.Select(l => l.StorageLocationId).ToList();
         var onHand = await _db.Items
             .Where(i => i.StorageLocationId != null && invLocationIds.Contains(i.StorageLocationId.Value)
@@ -361,63 +543,64 @@ public class FloorPlansController : ControllerBase
             .Select(g => new { g.Key.StorageLocationId, g.Key.KindId, Count = g.Count() })
             .ToListAsync();
 
-        var onHandLookup = onHand.ToLookup(x => x.KindId);
-
-        foreach (var ws in fp.Workstations)
-        {
-            if (!elementPositions.TryGetValue(ws.PlacementId, out var wsPos)) continue;
-
-            // Collect all input material KindIds from this workstation's processes
-            var requiredKinds = ws.Processes
-                .SelectMany(p => p.Process.ProcessSteps)
-                .SelectMany(ps => ps.StepTemplate.Ports)
-                .Where(port => port.Direction == Domain.Enums.PortDirection.Input
-                            && port.PortType == Domain.Enums.PortType.Material
-                            && port.KindId.HasValue)
-                .Select(port => port.KindId!.Value)
-                .Distinct()
-                .ToList();
-
-            foreach (var kindId in requiredKinds)
+        // Project workstations into analyzer inputs.
+        var flowWorkstations = fp.Workstations
+            .Where(ws => elementPositions.ContainsKey(ws.PlacementId))
+            .Select(ws =>
             {
-                var kindEntity = await _db.Kinds.AsNoTracking().FirstOrDefaultAsync(k => k.Id == kindId);
-                if (kindEntity is null) continue;
+                var pos = elementPositions[ws.PlacementId];
+                var requiredKinds = ws.Processes
+                    .SelectMany(p => p.Process.ProcessSteps)
+                    .SelectMany(ps => ps.StepTemplate.Ports)
+                    .Where(port => port.Direction == Domain.Enums.PortDirection.Input
+                                && port.PortType == Domain.Enums.PortType.Material
+                                && port.KindId.HasValue)
+                    .Select(port => port.KindId!.Value)
+                    .Distinct()
+                    .ToList();
+                return new ProcessManager.Domain.Services.FlowWorkstation(
+                    ws.PlacementId, pos.Label, pos.CenterX, pos.CenterY, requiredKinds);
+            })
+            .ToList();
 
-                // Find nearest inventory location with stock for this kind
-                var candidates = fp.InventoryLocations
-                    .Where(l => elementPositions.ContainsKey(l.PlacementId))
-                    .Select(l =>
-                    {
-                        var locPos = elementPositions[l.PlacementId];
-                        var stock = onHand.FirstOrDefault(x => x.StorageLocationId == l.StorageLocationId && x.KindId == kindId);
-                        var qty = stock?.Count ?? 0;
-                        var dx = wsPos.CenterX - locPos.CenterX;
-                        var dy = wsPos.CenterY - locPos.CenterY;
-                        var dist = Math.Sqrt(dx * dx + dy * dy);
-                        return new { Location = l, Pos = locPos, Quantity = qty, Distance = dist };
-                    })
-                    .Where(c => dto?.IncludeEmptyLocations == true || c.Quantity > 0)
-                    .OrderBy(c => c.Distance)
-                    .FirstOrDefault();
+        // Project inventory locations into analyzer inputs.
+        var flowLocations = fp.InventoryLocations
+            .Where(l => elementPositions.ContainsKey(l.PlacementId))
+            .Select(l =>
+            {
+                var pos = elementPositions[l.PlacementId];
+                var onHandByKind = onHand
+                    .Where(x => x.StorageLocationId == l.StorageLocationId)
+                    .ToDictionary(x => x.KindId, x => x.Count);
+                var designated = l.DesignatedKinds.Select(d => d.KindId).ToHashSet();
+                return new ProcessManager.Domain.Services.FlowInventoryLocation(
+                    l.PlacementId, pos.Label, l.StorageLocation.Code, pos.CenterX, pos.CenterY,
+                    onHandByKind, designated);
+            })
+            .ToList();
 
-                if (candidates is null)
-                {
-                    unresolved.Add(new UnresolvedMaterialDto(
-                        ws.PlacementId, kindId, kindEntity.Code, kindEntity.Name, "no_inventory_location_with_stock"));
-                    continue;
-                }
+        // Kind metadata lookup for every kind referenced by a workstation.
+        var allKindIds = flowWorkstations.SelectMany(w => w.RequiredKindIds).Distinct().ToList();
+        var kindLookup = await _db.Kinds.AsNoTracking()
+            .Where(k => allKindIds.Contains(k.Id))
+            .ToDictionaryAsync(k => k.Id, k => new ProcessManager.Domain.Services.FlowKind(k.Id, k.Code, k.Name));
 
-                flows.Add(new MaterialFlowLineDto(
-                    ws.PlacementId, elementPositions[ws.PlacementId].Label,
-                    kindId, kindEntity.Code, kindEntity.Name,
-                    candidates.Location.PlacementId, candidates.Pos.Label, candidates.Location.StorageLocation.Code,
-                    candidates.Quantity, Math.Round(candidates.Distance, 1), Math.Round(candidates.Distance / 1000.0, 2),
-                    new PointDto(candidates.Pos.CenterX, candidates.Pos.CenterY),
-                    new PointDto(wsPos.CenterX, wsPos.CenterY)));
-            }
-        }
+        var options = new ProcessManager.Domain.Services.MaterialFlowOptions(dto.Mode, dto.IncludeEmptyLocations);
+        var result = ProcessManager.Domain.Services.MaterialFlowAnalyzer.Analyze(
+            flowWorkstations, flowLocations, kindLookup, options);
 
-        return Ok(new MaterialFlowResultDto(flows, unresolved));
+        return Ok(new MaterialFlowResultDto(
+            dto.Mode,
+            result.Flows.Select(f => new MaterialFlowLineDto(
+                f.WorkstationPlacementId, f.WorkstationLabel,
+                f.KindId, f.KindCode, f.KindName,
+                f.SourceLocationPlacementId, f.SourceLocationLabel, f.SourceLocationCode,
+                f.OnHandQuantity, f.DistanceMm, f.DistanceM,
+                new PointDto(f.FromPoint.X, f.FromPoint.Y),
+                new PointDto(f.ToPoint.X, f.ToPoint.Y))).ToList(),
+            result.Unresolved.Select(u => new UnresolvedMaterialDto(
+                u.WorkstationPlacementId, u.KindId, u.KindCode, u.KindName, u.Reason)).ToList(),
+            result.TotalTravelDistanceMm));
     }
 
     // ── Private helpers ──
@@ -430,7 +613,19 @@ public class FloorPlansController : ControllerBase
         w.Processes.OrderBy(p => p.SortOrder).Select(p => new FloorPlanWorkstationProcessDto(
             p.Id, p.ProcessId, p.Process.Code, p.Process.Name, p.SortOrder)).ToList(),
         w.Tools.Select(t => new FloorPlanWorkstationToolDto(
-            t.Id, t.KindId, t.Kind.Code, t.Kind.Name, t.Quantity, t.Notes)).ToList());
+            t.Id, t.KindId, t.Kind.Code, t.Kind.Name, t.Quantity, t.Notes)).ToList(),
+        w.ConversionStatus == Domain.Services.ModelConversionStatus.None ? null : MapWorkstationModel(w));
+
+    private static FloorPlanWorkstationModelDto MapWorkstationModel(FloorPlanWorkstation w) => new(
+        w.ModelOriginalFileName, w.ModelMimeType,
+        w.ConversionStatus, w.HasRenderableModel, w.ConversionError,
+        w.ModelScale, w.ModelYaw, w.ModelOffsetX, w.ModelOffsetY, w.ModelOffsetZ);
+
+    private static FloorPlanInventoryLocationDto MapInventoryLocation(FloorPlanInventoryLocation l) => new(
+        l.Id, l.PlacementId, l.StorageLocationId,
+        l.StorageLocation.Code, l.StorageLocation.Name,
+        l.DesignatedKinds.Select(d => new FloorPlanLocationDesignationDto(
+            d.Id, d.KindId, d.Kind.Code, d.Kind.Name)).ToList());
 
     // ── Layout JSON deserialization models (internal) ──
 

@@ -17,4 +17,11 @@ public interface IImageStorageService
     /// Caller is responsible for disposing the stream.
     /// </summary>
     Task<Stream?> GetStreamAsync(string storageKey);
+
+    /// <summary>
+    /// Saves a raw stream under an explicit storage key (subfolder/fileName).
+    /// Used for server-generated artefacts such as converted glTF models where
+    /// the caller — not the uploader — controls the file name.
+    /// </summary>
+    Task SaveStreamAsync(Stream content, string storageKey, string contentType);
 }

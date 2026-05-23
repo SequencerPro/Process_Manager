@@ -125,6 +125,9 @@ if (storageProvider.Equals("AzureBlob", StringComparison.OrdinalIgnoreCase))
 else
     builder.Services.AddScoped<IImageStorageService, LocalImageStorageService>();
 
+// CAD→glTF conversion for workstation models (Phase 37)
+builder.Services.AddScoped<IStepConversionService, ExternalProcessStepConversionService>();
+
 // ── Webhook event system ──────────────────────────────────────────────────────
 builder.Services.AddSingleton<WebhookEventQueue>();
 builder.Services.AddSingleton<IWebhookEventPublisher>(sp => sp.GetRequiredService<WebhookEventQueue>());

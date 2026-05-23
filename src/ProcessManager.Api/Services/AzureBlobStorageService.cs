@@ -33,6 +33,12 @@ public class AzureBlobStorageService : IImageStorageService
         return (fileName, storageKey);
     }
 
+    public async Task SaveStreamAsync(Stream content, string storageKey, string contentType)
+    {
+        var blob = _container.GetBlobClient(storageKey);
+        await blob.UploadAsync(content, new BlobHttpHeaders { ContentType = contentType });
+    }
+
     public async Task DeleteAsync(string storageKey)
     {
         var blob = _container.GetBlobClient(storageKey);

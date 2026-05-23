@@ -1,4 +1,5 @@
 using ProcessManager.Domain.Entities;
+using ProcessManager.Domain.Services;
 
 namespace ProcessManager.Api.DTOs;
 
@@ -39,7 +40,23 @@ public record FloorPlanWorkstationDto(
     Guid? OrgUnitId, string? OrgUnitCode, string? OrgUnitName,
     Guid? StorageLocationId, string? StorageLocationCode,
     List<FloorPlanWorkstationProcessDto> Processes,
-    List<FloorPlanWorkstationToolDto> Tools);
+    List<FloorPlanWorkstationToolDto> Tools,
+    FloorPlanWorkstationModelDto? Model = null);
+
+// ── Workstation CAD Model (Phase 37) ──
+
+public record FloorPlanWorkstationModelDto(
+    string? OriginalFileName,
+    string? MimeType,
+    ModelConversionStatus ConversionStatus,
+    bool HasRenderableModel,
+    string? ConversionError,
+    double Scale, double Yaw,
+    double OffsetX, double OffsetY, double OffsetZ);
+
+public record FloorPlanWorkstationModelTransformDto(
+    double Scale = 1.0, double Yaw = 0.0,
+    double OffsetX = 0.0, double OffsetY = 0.0, double OffsetZ = 0.0);
 
 // ── Workstation Process ──
 
@@ -63,15 +80,30 @@ public record FloorPlanInventoryLocationCreateDto(string PlacementId, Guid Stora
 
 public record FloorPlanInventoryLocationDto(
     Guid Id, string PlacementId,
-    Guid StorageLocationId, string StorageLocationCode, string? StorageLocationName);
+    Guid StorageLocationId, string StorageLocationCode, string? StorageLocationName,
+    List<FloorPlanLocationDesignationDto> DesignatedKinds);
+
+// ── Inventory Location Designations (Phase 37 designed-flow) ──
+
+public record FloorPlanLocationDesignationCreateDto(Guid KindId);
+
+public record FloorPlanLocationDesignationDto(Guid Id, Guid KindId, string KindCode, string KindName);
 
 // ── Material Flow Analysis ──
 
-public record MaterialFlowRequestDto(bool IncludeEmptyLocations = false);
+/// <summary>
+/// Flow analysis request. Mode selects Live (route from locations holding stock)
+/// or Designed (route from explicitly-designated locations regardless of stock).
+/// </summary>
+public record MaterialFlowRequestDto(
+    MaterialFlowMode Mode = MaterialFlowMode.Live,
+    bool IncludeEmptyLocations = false);
 
 public record MaterialFlowResultDto(
+    MaterialFlowMode Mode,
     List<MaterialFlowLineDto> Flows,
-    List<UnresolvedMaterialDto> Unresolved);
+    List<UnresolvedMaterialDto> Unresolved,
+    double TotalTravelDistanceMm);
 
 public record MaterialFlowLineDto(
     string WorkstationPlacementId, string WorkstationLabel,

@@ -146,6 +146,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<FloorPlanWorkstationProcess> FloorPlanWorkstationProcesses => Set<FloorPlanWorkstationProcess>();
     public DbSet<FloorPlanWorkstationTool> FloorPlanWorkstationTools => Set<FloorPlanWorkstationTool>();
     public DbSet<FloorPlanInventoryLocation> FloorPlanInventoryLocations => Set<FloorPlanInventoryLocation>();
+    public DbSet<FloorPlanInventoryLocationKind> FloorPlanInventoryLocationKinds => Set<FloorPlanInventoryLocationKind>();
 
     // M5: Billing Infrastructure
     public DbSet<TenantSubscription> TenantSubscriptions => Set<TenantSubscription>();
@@ -1698,6 +1699,15 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(w => new { w.FloorPlanId, w.PlacementId }).IsUnique();
             e.Property(w => w.PlacementId).HasMaxLength(100).IsRequired();
 
+            // Phase 37 — per-placement CAD model
+            e.Property(w => w.ModelFileName).HasMaxLength(260);
+            e.Property(w => w.ModelOriginalFileName).HasMaxLength(260);
+            e.Property(w => w.ModelMimeType).HasMaxLength(100);
+            e.Property(w => w.ConvertedModelFileName).HasMaxLength(260);
+            e.Property(w => w.ConversionStatus).HasConversion<string>().HasMaxLength(20);
+            e.Property(w => w.ConversionError).HasMaxLength(1000);
+            e.Ignore(w => w.HasRenderableModel);
+
             e.HasOne(w => w.FloorPlan)
                 .WithMany(f => f.Workstations)
                 .HasForeignKey(w => w.FloorPlanId)
@@ -1767,6 +1777,22 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasOne(l => l.StorageLocation)
                 .WithMany()
                 .HasForeignKey(l => l.StorageLocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<FloorPlanInventoryLocationKind>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.HasIndex(d => new { d.FloorPlanInventoryLocationId, d.KindId }).IsUnique();
+
+            e.HasOne(d => d.FloorPlanInventoryLocation)
+                .WithMany(l => l.DesignatedKinds)
+                .HasForeignKey(d => d.FloorPlanInventoryLocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(d => d.Kind)
+                .WithMany()
+                .HasForeignKey(d => d.KindId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

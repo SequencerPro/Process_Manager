@@ -52,12 +52,15 @@ function extOf(url) {
 
 /**
  * Load a 3D model from a URL into a THREE.Group, choosing the loader by
- * extension. STEP/IGES are tessellated via occt-import-js. Cached by URL.
+ * format. STEP/IGES are tessellated via occt-import-js. Cached by URL.
+ * @param {string} url
+ * @param {string} [explicitExt]  format hint when the URL has no extension
+ *                                 (e.g. an API download endpoint).
  */
-async function loadModelGroup(url) {
+async function loadModelGroup(url, explicitExt) {
     if (modelCache.has(url)) return modelCache.get(url).clone();
 
-    const ext = extOf(url);
+    const ext = (explicitExt || extOf(url) || '').toLowerCase();
     let group;
 
     if (ext === 'glb' || ext === 'gltf') {
@@ -464,9 +467,9 @@ function buildWorkstation(group, el, colors, h) {
 
     addLabel(group, el.label || 'Workstation', h + 50, colors.select);
 
-    // If a web-ready CAD model is attached, swap the cube for the real model.
+    // If a CAD model is attached, swap the cube for the real model.
     if (el.modelUrl) {
-        loadModelGroup(el.modelUrl)
+        loadModelGroup(el.modelUrl, el.modelExt)
             .then(modelGroup => {
                 // Remove placeholder primitives (keep the label sprite).
                 const toRemove = group.children.filter(c => c.userData && c.userData._placeholder);

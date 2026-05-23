@@ -181,6 +181,9 @@ else
 @code {
     [Parameter] public Guid Id { get; set; }
 
+    // Bump when factory-canvas.js changes so browsers don't serve a cached module.
+    private const string CanvasVersion = "37b";
+
     private FloorPlanDetailDto? _plan;
     private bool _loading = true;
     private bool _saving;
@@ -282,7 +285,9 @@ else
         {
             try
             {
-                _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/factory-canvas.js");
+                // Cache-bust the module so a stale copy is never served after the
+                // canvas script changes. Bump CanvasVersion whenever factory-canvas.js changes.
+                _module = await JS.InvokeAsync<IJSObjectReference>("import", $"./js/factory-canvas.js?v={CanvasVersion}");
                 _dotNetRef = DotNetObjectReference.Create(this);
                 await _module.InvokeVoidAsync("initCanvas", "factory-canvas", _dotNetRef, BuildLayoutWithModels());
                 _canvasInitialized = true;
@@ -314,12 +319,13 @@ else
                     var id = el["id"]?.GetValue<string>();
                     if (id is null) continue;
                     var ws = _plan.Workstations.FirstOrDefault(w => w.PlacementId == id);
-                    if (ws?.Model is { HasRenderableModel: true })
+                    if (ws?.Model is not null)
                     {
                         var url = ModelUrlFor(ws);
                         if (url is not null)
                         {
                             el["modelUrl"] = url;
+                            el["modelExt"] = ModelExtFor(ws);
                             el["modelScale"] = ws.Model.Scale;
                             el["modelYaw"] = ws.Model.Yaw;
                             el["modelOffsetX"] = ws.Model.OffsetX;
@@ -336,9 +342,22 @@ else
 
     private string? ModelUrlFor(FloorPlanWorkstationDto ws)
     {
-        if (ws.Model is null || !ws.Model.HasRenderableModel) return null;
+        if (ws.Model is null) return null;
+        // Prefer the converted glTF when present; otherwise serve the raw upload.
+        // The canvas can render glTF/STL/OBJ directly and tessellate STEP/IGES
+        // client-side via occt-import-js, so a model is viewable even before
+        // (or without) server-side conversion.
         var converted = ws.Model.ConversionStatus == ModelConversionStatus.Converted;
         return $"{_apiBaseUrl}/api/floor-plans/{Id}/workstations/{ws.Id}/model/download?converted={converted.ToString().ToLowerInvariant()}";
+    }
+
+    /// <summary>The format the canvas should use to load the model (the URL has no extension).</summary>
+    private static string ModelExtFor(FloorPlanWorkstationDto ws)
+    {
+        if (ws.Model is null) return "";
+        if (ws.Model.ConversionStatus == ModelConversionStatus.Converted) return "glb";
+        var ext = System.IO.Path.GetExtension(ws.Model.OriginalFileName ?? "").TrimStart('.').ToLowerInvariant();
+        return ext;
     }
 
     private async Task SetTool(string tool)
@@ -499,7 +518,7 @@ else
             _plan = await Api.GetFloorPlanAsync(Id);
             await PushModelToCanvas(ws.Id);
             _statusMessage = model?.ConversionStatus == ModelConversionStatus.Pending
-                ? "Model uploaded — conversion required (STEP/IGES)."
+                ? "Model uploaded — rendering client-side. Optionally convert to glTF for faster loading of heavy assemblies."
                 : "Model uploaded.";
         }
         catch (Exception ex) { _statusMessage = $"Upload failed: {ex.Message}"; }
@@ -555,13 +574,23 @@ else
         {
             id = ws.PlacementId,
             modelUrl = url,
+            modelExt = ModelExtFor(ws),
             modelScale = ws.Model?.Scale ?? 1.0,
             modelYaw = ws.Model?.Yaw ?? 0.0,
             modelOffsetX = ws.Model?.OffsetX ?? 0.0,
             modelOffsetY = ws.Model?.OffsetY ?? 0.0,
             modelOffsetZ = ws.Model?.OffsetZ ?? 0.0,
         };
-        await _module.InvokeVoidAsync("updateElement", "factory-canvas", JsonSerializer.Serialize(patch));
+        // Best-effort: the model state is already persisted server-side. A canvas
+        // refresh failure (e.g. stale module) must not surface as a data error.
+        try
+        {
+            await _module.InvokeVoidAsync("updateElement", "factory-canvas", JsonSerializer.Serialize(patch));
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[FactoryEditor] Canvas refresh skipped: {ex.Message}");
+        }
     }
 
     // ── Inventory: designations ──
@@ -743,6 +772,7 @@ else
                 </div>
                 @if (ws.Model.ConversionStatus is ModelConversionStatus.Pending or ModelConversionStatus.Failed)
                 {
+                    <div class="text-muted" style="font-size:.7rem">Rendered client-side. Convert to glTF on the server for faster loading of heavy assemblies (requires a configured converter).</div>
                     <button class="btn btn-sm btn-warning mt-1 w-100" @onclick="() => ConvertModel(ws)">
                         <i class="bi bi-arrow-repeat me-1"></i>Convert STEP → glTF
                     </button>
@@ -753,15 +783,12 @@ else
                 }
             </div>
 
-            @if (ws.Model.HasRenderableModel)
-            {
-                <label class="form-label small mb-0">Scale (×@ws.Model.Scale)</label>
-                <input type="range" class="form-range" min="0.1" max="5" step="0.1" value="@ws.Model.Scale"
-                       @onchange="e => UpdateModelTransform(ws, scale: double.Parse(e.Value!.ToString()!))" />
-                <label class="form-label small mb-0">Yaw (@ws.Model.Yaw°)</label>
-                <input type="range" class="form-range" min="0" max="360" step="15" value="@ws.Model.Yaw"
-                       @onchange="e => UpdateModelTransform(ws, yaw: double.Parse(e.Value!.ToString()!))" />
-            }
+            <label class="form-label small mb-0">Scale (×@ws.Model.Scale)</label>
+            <input type="range" class="form-range" min="0.1" max="5" step="0.1" value="@ws.Model.Scale"
+                   @onchange="e => UpdateModelTransform(ws, scale: double.Parse(e.Value!.ToString()!))" />
+            <label class="form-label small mb-0">Yaw (@ws.Model.Yaw°)</label>
+            <input type="range" class="form-range" min="0" max="360" step="15" value="@ws.Model.Yaw"
+                   @onchange="e => UpdateModelTransform(ws, yaw: double.Parse(e.Value!.ToString()!))" />
 
             <button class="btn btn-sm btn-outline-danger w-100 mt-1" @onclick="() => DeleteModel(ws)">
                 <i class="bi bi-trash me-1"></i>Remove model

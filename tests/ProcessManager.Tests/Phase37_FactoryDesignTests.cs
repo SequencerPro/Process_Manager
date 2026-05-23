@@ -158,6 +158,101 @@ public class Phase37_FactoryDesignTests : IntegrationTestBase
         Assert.True(model.HasRenderableModel);
     }
 
+    // ──────────── Client-assisted conversion (model/converted) ────────────
+
+    private static MultipartFormDataContent GlbUpload()
+    {
+        var content = new MultipartFormDataContent();
+        // Minimal glb header bytes ("glTF" magic) — content isn't parsed server-side.
+        var bytes = new byte[] { 0x67, 0x6C, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00 };
+        var file = new ByteArrayContent(bytes);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("model/gltf-binary");
+        content.Add(file, "File", "converted.glb");
+        return content;
+    }
+
+    [Fact]
+    public async Task UploadConverted_StoresGlb_AndMarksConverted()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var fpId = await CreateFloorPlan($"FP-{pfx}", "ClientConv Plan");
+        var wsId = await CreateWorkstation(fpId, "ws-1");
+
+        // Source STEP first (Pending), then persist a browser-produced glb.
+        using (var step = ModelUpload("assembly.step", "application/step"))
+            (await Client.PostAsync($"/api/floor-plans/{fpId}/workstations/{wsId}/model", step)).EnsureSuccessStatusCode();
+
+        using var glb = GlbUpload();
+        var resp = await Client.PostAsync($"/api/floor-plans/{fpId}/workstations/{wsId}/model/converted", glb);
+        resp.EnsureSuccessStatusCode();
+
+        var model = await resp.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(JsonOptions);
+        Assert.Equal(ModelConversionStatus.Converted, model!.ConversionStatus);
+        Assert.True(model.HasRenderableModel);
+    }
+
+    [Fact]
+    public async Task UploadConverted_WithoutSourceModel_Returns400()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var fpId = await CreateFloorPlan($"FP-{pfx}", "NoSource Plan");
+        var wsId = await CreateWorkstation(fpId, "ws-1");
+
+        using var glb = GlbUpload();
+        var resp = await Client.PostAsync($"/api/floor-plans/{fpId}/workstations/{wsId}/model/converted", glb);
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task UploadConverted_UnknownWorkstation_Returns404()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var fpId = await CreateFloorPlan($"FP-{pfx}", "Unknown WS Plan");
+
+        using var glb = GlbUpload();
+        var resp = await Client.PostAsync($"/api/floor-plans/{fpId}/workstations/{Guid.NewGuid()}/model/converted", glb);
+        Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task DownloadConverted_AfterClientConversion_ServesGlb()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var fpId = await CreateFloorPlan($"FP-{pfx}", "DownloadConv Plan");
+        var wsId = await CreateWorkstation(fpId, "ws-1");
+
+        using (var step = ModelUpload("assembly.step", "application/step"))
+            (await Client.PostAsync($"/api/floor-plans/{fpId}/workstations/{wsId}/model", step)).EnsureSuccessStatusCode();
+        using (var glb = GlbUpload())
+            (await Client.PostAsync($"/api/floor-plans/{fpId}/workstations/{wsId}/model/converted", glb)).EnsureSuccessStatusCode();
+
+        var dl = await Client.GetAsync($"/api/floor-plans/{fpId}/workstations/{wsId}/model/download?converted=true");
+        dl.EnsureSuccessStatusCode();
+        var bytes = await dl.Content.ReadAsByteArrayAsync();
+        Assert.True(bytes.Length > 0);
+    }
+
+    [Fact]
+    public async Task UploadConverted_ReplacesPriorConvertedArtifact()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var fpId = await CreateFloorPlan($"FP-{pfx}", "Replace Conv Plan");
+        var wsId = await CreateWorkstation(fpId, "ws-1");
+
+        using (var step = ModelUpload("assembly.step", "application/step"))
+            (await Client.PostAsync($"/api/floor-plans/{fpId}/workstations/{wsId}/model", step)).EnsureSuccessStatusCode();
+
+        using (var glb1 = GlbUpload())
+            (await Client.PostAsync($"/api/floor-plans/{fpId}/workstations/{wsId}/model/converted", glb1)).EnsureSuccessStatusCode();
+        // Second conversion should overwrite cleanly and remain Converted.
+        using var glb2 = GlbUpload();
+        var resp = await Client.PostAsync($"/api/floor-plans/{fpId}/workstations/{wsId}/model/converted", glb2);
+        resp.EnsureSuccessStatusCode();
+
+        var model = await resp.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(JsonOptions);
+        Assert.Equal(ModelConversionStatus.Converted, model!.ConversionStatus);
+    }
+
     [Fact]
     public async Task UpdateModelTransform_PersistsScaleAndOffsets()
     {

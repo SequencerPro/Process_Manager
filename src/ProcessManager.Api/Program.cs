@@ -44,6 +44,7 @@ builder.Services.AddScoped<ProcessManager.Api.Services.IPlanEnforcementService, 
 builder.Services.AddScoped<ProcessManager.Api.Services.IUsageMeteringService, ProcessManager.Api.Services.UsageMeteringService>();
 builder.Services.AddSingleton<ProcessManager.Api.Services.ISpcCalculationService, ProcessManager.Api.Services.SpcCalculationService>();
 builder.Services.AddScoped<ProcessManager.Api.Services.IOeeCalculationService, ProcessManager.Api.Services.OeeCalculationService>();
+builder.Services.AddScoped<ProcessManager.Api.Services.IMeasureValueResolver, ProcessManager.Api.Services.MeasureValueResolver>();
 
 builder.Services.AddDbContext<ProcessManagerDbContext>((sp, options) =>
 {
@@ -138,6 +139,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddHostedService<WorkflowSchedulerService>();
     builder.Services.AddHostedService<WebhookDeliveryService>();
+    builder.Services.AddHostedService<ScorecardSnapshotService>();
 }
 
 // ── Swagger ───────────────────────────────────────────────────────────────────

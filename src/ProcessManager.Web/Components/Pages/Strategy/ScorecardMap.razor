@@ -1,0 +1,319 @@
+@page "/strategy/scorecards/{Id:guid}/map"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@inject ApiClient Api
+
+<PageTitle>Strategy Map — Process Manager</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading strategy map…
+    </div>
+}
+else if (_map is null)
+{
+    <div class="alert alert-warning">Scorecard not found.</div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-start mb-3 page-heading-row">
+        <div>
+            <div class="text-muted small">
+                <a href="strategy/scorecards" class="text-decoration-none">Balanced Scorecards</a>
+                <i class="bi bi-chevron-right mx-1" style="font-size:.7rem"></i>
+                <a href="strategy/scorecards/@Id" class="text-decoration-none">@_map.ScorecardName</a>
+                <i class="bi bi-chevron-right mx-1" style="font-size:.7rem"></i>Strategy Map
+            </div>
+            <h3 class="mb-0"><i class="bi bi-diagram-2 me-2 text-primary"></i>Strategy Map</h3>
+            <p class="text-muted small mb-0 d-none d-md-block">
+                Cause-and-effect: Learning &amp; Growth drives Internal Process, which drives Customer outcomes, which drive Financial results
+            </p>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <button class="btn btn-sm @(_linkMode ? "btn-primary" : "btn-outline-primary")" @onclick="ToggleLinkMode">
+                <i class="bi bi-arrow-up-right me-1"></i>@(_linkMode ? "Linking: pick driver, then outcome" : "Add Cause Link")
+            </button>
+            @if (_selectedEdgeId is not null)
+            {
+                <button class="btn btn-sm btn-outline-danger" @onclick="DeleteSelectedEdge" disabled="@_saving">
+                    <i class="bi bi-trash me-1"></i>Delete Link
+                </button>
+            }
+            <button class="btn btn-sm btn-outline-secondary" @onclick="Load" disabled="@_loading">
+                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+            </button>
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="alert alert-danger py-2 small">@_error</div>
+    }
+
+    <div class="d-flex gap-2 mb-2 flex-wrap small text-muted align-items-center">
+        <span class="d-flex align-items-center"><span class="rounded-circle bg-success me-1" style="width:.6rem;height:.6rem;display:inline-block"></span>Green</span>
+        <span class="d-flex align-items-center"><span class="rounded-circle bg-warning me-1" style="width:.6rem;height:.6rem;display:inline-block"></span>Amber</span>
+        <span class="d-flex align-items-center"><span class="rounded-circle bg-danger me-1" style="width:.6rem;height:.6rem;display:inline-block"></span>Red</span>
+        <span class="d-flex align-items-center"><span class="rounded-circle bg-secondary me-1" style="width:.6rem;height:.6rem;display:inline-block"></span>No data</span>
+        <span class="ms-2">Click an arrow to select it; hover for the causal hypothesis.</span>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body p-2" style="overflow-x:auto">
+            <svg width="@CanvasWidth" height="@CanvasHeight" style="min-width:100%; font-family:inherit">
+                <defs>
+                    <marker id="bsc-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#6c757d" />
+                    </marker>
+                    <marker id="bsc-arrow-selected" viewBox="0 0 10 10" refX="9" refY="5"
+                            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z" fill="#dc3545" />
+                    </marker>
+                </defs>
+
+                @* Perspective bands *@
+                @foreach (var band in _bands)
+                {
+                    <rect x="0" y="@band.Y" width="@CanvasWidth" height="@BandHeight"
+                          fill="@(band.Index % 2 == 0 ? "#f8f9fa" : "#ffffff")" />
+                    @SvgText(16, band.Y + 26, band.Name.ToUpperInvariant(), 12, "600", "#6c757d")
+                }
+
+                @* Edges *@
+                @foreach (var edge in _map.Edges)
+                {
+                    var path = EdgePath(edge);
+                    if (path is null) { continue; }
+                    var selected = edge.Id == _selectedEdgeId;
+                    <g style="cursor:pointer" @onclick="() => SelectEdge(edge.Id)">
+                        <path d="@path" fill="none" stroke="transparent" stroke-width="14" />
+                        <path d="@path" fill="none"
+                              stroke="@(selected ? "#dc3545" : "#6c757d")"
+                              stroke-width="@(selected ? 2.5 : 1.5)"
+                              marker-end="url(#@(selected ? "bsc-arrow-selected" : "bsc-arrow"))" />
+                        <title>@(edge.Description ?? "Cause-and-effect link")</title>
+                    </g>
+                }
+
+                @* Objective nodes *@
+                @foreach (var node in _layout.Values)
+                {
+                    var isSource = node.Node.ObjectiveId == _linkSourceId;
+                    <g style="cursor:pointer" @onclick="() => NodeClicked(node.Node.ObjectiveId)">
+                        <rect x="@node.X" y="@node.Y" width="@NodeWidth" height="@NodeHeight" rx="8"
+                              fill="white"
+                              stroke="@(isSource ? "#0d6efd" : "#dee2e6")"
+                              stroke-width="@(isSource ? 3 : 1)" />
+                        <rect x="@node.X" y="@node.Y" width="6" height="@NodeHeight" rx="3"
+                              fill="@RagColor(node.Node.Rag)" />
+                        @SvgText(node.X + 14, node.Y + 20, node.Node.Code, 10, "400", "#6c757d")
+                        @foreach (var (line, i) in WrapName(node.Node.Name).Select((l, i) => (l, i)))
+                        {
+                            @SvgText(node.X + 14, node.Y + 37 + i * 14, line, 11.5, "600", "#212529")
+                        }
+                        <title>@node.Node.Name (@node.Node.Rag)</title>
+                    </g>
+                }
+            </svg>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private const int BandHeight = 150;
+    private const int NodeWidth = 190;
+    private const int NodeHeight = 70;
+    private const int NodeGapX = 44;
+    private const int MarginX = 150;
+
+    private bool _loading = true;
+    private bool _saving;
+    private bool _linkMode;
+    private Guid? _linkSourceId;
+    private Guid? _selectedEdgeId;
+    private string? _error;
+    private StrategyMapDto? _map;
+
+    private readonly Dictionary<Guid, NodeLayout> _layout = [];
+    private List<BandLayout> _bands = [];
+
+    private int CanvasWidth { get; set; } = 900;
+    private int CanvasHeight { get; set; } = 620;
+
+    private record NodeLayout(StrategyMapNodeDto Node, int X, int Y);
+    private record BandLayout(string Name, int Index, int Y);
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        _error = null;
+        _selectedEdgeId = null;
+        _linkSourceId = null;
+        try
+        {
+            _map = await Api.GetStrategyMapAsync(Id);
+            if (_map is not null) ComputeLayout();
+        }
+        catch { _map = null; }
+        _loading = false;
+    }
+
+    private void ComputeLayout()
+    {
+        _layout.Clear();
+        _bands = [];
+
+        var perspectives = _map!.Nodes
+            .GroupBy(n => (n.PerspectiveSortOrder, n.PerspectiveName))
+            .OrderBy(g => g.Key.PerspectiveSortOrder)
+            .ToList();
+
+        var maxPerBand = perspectives.Count == 0 ? 0 : perspectives.Max(g => g.Count());
+        CanvasWidth = Math.Max(900, MarginX + maxPerBand * (NodeWidth + NodeGapX) + 30);
+        CanvasHeight = Math.Max(1, perspectives.Count) * BandHeight + 20;
+
+        for (var band = 0; band < perspectives.Count; band++)
+        {
+            var group = perspectives[band];
+            _bands.Add(new BandLayout(group.Key.PerspectiveName, band, band * BandHeight + 10));
+
+            var nodes = group.ToList();
+            for (var i = 0; i < nodes.Count; i++)
+            {
+                _layout[nodes[i].ObjectiveId] = new NodeLayout(
+                    nodes[i],
+                    MarginX + i * (NodeWidth + NodeGapX),
+                    band * BandHeight + 10 + (BandHeight - NodeHeight) / 2);
+            }
+        }
+    }
+
+    /// <summary>Cubic curve from the source node edge to the target node edge.</summary>
+    private string? EdgePath(CauseLinkResponseDto edge)
+    {
+        if (!_layout.TryGetValue(edge.SourceObjectiveId, out var s) ||
+            !_layout.TryGetValue(edge.TargetObjectiveId, out var t))
+            return null;
+
+        var sCx = s.X + NodeWidth / 2;
+        var tCx = t.X + NodeWidth / 2;
+
+        if (s.Y > t.Y) // target band is above: exit top, enter bottom
+        {
+            var x1 = sCx; var y1 = s.Y;
+            var x2 = tCx; var y2 = t.Y + NodeHeight;
+            var bend = Math.Max(30, (y1 - y2) / 2);
+            return $"M {x1},{y1} C {x1},{y1 - bend} {x2},{y2 + bend} {x2},{y2}";
+        }
+        if (s.Y < t.Y) // target band is below: exit bottom, enter top
+        {
+            var x1 = sCx; var y1 = s.Y + NodeHeight;
+            var x2 = tCx; var y2 = t.Y;
+            var bend = Math.Max(30, (y2 - y1) / 2);
+            return $"M {x1},{y1} C {x1},{y1 + bend} {x2},{y2 - bend} {x2},{y2}";
+        }
+        // Same band: connect facing sides
+        var leftToRight = s.X < t.X;
+        var sx = leftToRight ? s.X + NodeWidth : s.X;
+        var tx = leftToRight ? t.X : t.X + NodeWidth;
+        var sy = s.Y + NodeHeight / 2;
+        return $"M {sx},{sy} C {(sx + tx) / 2},{sy - 40} {(sx + tx) / 2},{sy - 40} {tx},{sy}";
+    }
+
+    private void ToggleLinkMode()
+    {
+        _linkMode = !_linkMode;
+        _linkSourceId = null;
+        _error = null;
+    }
+
+    private async Task NodeClicked(Guid objectiveId)
+    {
+        _selectedEdgeId = null;
+        if (!_linkMode) return;
+
+        if (_linkSourceId is null)
+        {
+            _linkSourceId = objectiveId;
+            return;
+        }
+        if (_linkSourceId == objectiveId)
+        {
+            _linkSourceId = null;
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            await Api.AddCauseLinkAsync(Id, new CreateCauseLinkDto(_linkSourceId.Value, objectiveId, null));
+            _linkMode = false;
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not create link: {ex.Message}";
+            _linkSourceId = null;
+        }
+        _saving = false;
+    }
+
+    private void SelectEdge(Guid edgeId)
+    {
+        _selectedEdgeId = _selectedEdgeId == edgeId ? null : edgeId;
+        _linkSourceId = null;
+    }
+
+    private async Task DeleteSelectedEdge()
+    {
+        if (_selectedEdgeId is null) return;
+        _saving = true;
+        try
+        {
+            await Api.DeleteCauseLinkAsync(_selectedEdgeId.Value);
+            await Load();
+        }
+        catch (Exception ex) { _error = $"Could not delete link: {ex.Message}"; }
+        _saving = false;
+    }
+
+    /// <summary>
+    /// Renders an SVG &lt;text&gt; element as raw markup — Razor reserves the &lt;text&gt; tag,
+    /// so it cannot be written inline. Content is HTML-encoded.
+    /// </summary>
+    private static MarkupString SvgText(int x, int y, string content, double fontSize, string fontWeight, string fill) =>
+        new($"<text x=\"{x}\" y=\"{y}\" font-size=\"{fontSize.ToString(System.Globalization.CultureInfo.InvariantCulture)}\" " +
+            $"font-weight=\"{fontWeight}\" fill=\"{fill}\">{System.Net.WebUtility.HtmlEncode(content)}</text>");
+
+    private static string RagColor(string rag) => rag switch
+    {
+        "Green" => "#198754",
+        "Amber" => "#ffc107",
+        "Red" => "#dc3545",
+        _ => "#adb5bd",
+    };
+
+    /// <summary>Wraps an objective name onto at most two lines that fit the node width.</summary>
+    private static List<string> WrapName(string name)
+    {
+        const int maxChars = 27;
+        if (name.Length <= maxChars) return [name];
+
+        var words = name.Split(' ');
+        var line1 = "";
+        var i = 0;
+        while (i < words.Length && (line1.Length + words[i].Length + 1) <= maxChars)
+            line1 = line1.Length == 0 ? words[i++] : $"{line1} {words[i++]}";
+
+        var line2 = string.Join(' ', words[i..]);
+        if (line2.Length > maxChars) line2 = line2[..(maxChars - 1)] + "…";
+        return line2.Length == 0 ? [line1] : [line1, line2];
+    }
+}

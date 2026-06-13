@@ -14,6 +14,7 @@
 | 0.9     | 2026-03-20 | OrgUnitMember join entity added (user ↔ OrgUnit many-to-many membership); unique composite index on (user_id, org_unit_id); cascade delete from both sides |
 | 0.8     | 2026-03-16 | Post-Phase-6 additions: `ProcessTimingDto` and `StepTimingDto` (report DTOs — not entities); three DataSeeder methods for manufacturing demo, ISO 9001 QMS documents (QMS-001–QMS-021), and system onboarding training courses (TRN-SYS-001–TRN-SYS-012); no schema changes — all additions populate existing Process/StepTemplate entities with `ProcessRole = Training / QmsDocument` values |
 | 1.0     | 2026-04-21 | M3 schema addition: `PromptResponse.ClientId` nullable string — client-generated idempotency key for offline sync batch replay |
+| 1.1     | 2026-06-09 | Phase 50 (planned): Balanced Scorecard entities — Scorecard, ScorecardPerspective, StrategicObjective, ObjectiveMeasure, MeasureSnapshot, ObjectiveCauseLink, ObjectiveProcessLink; `ActionItemSourceType.StrategicObjective` enum extension |
 
 ---
 
@@ -1113,3 +1114,176 @@ A **Default Tenant** sentinel (`00000000-0000-0000-0000-000000000001`) exists to
 - `GET /{id}` — get one
 - `POST /` — create (validates subdomain uniqueness; new tenants start in `Trial`)
 - `PATCH /{id}/status` — change `Status`
+
+---
+
+## Phase 50: Strategy Management — Balanced Scorecard (planned)
+
+Strategic planning layer following Kaplan & Norton's Balanced Scorecard: a `Scorecard` holds perspectives, perspectives hold strategic objectives, objectives carry measures (with targets and live data sources) and link to the operational Processes/Workflows that realize them. Cause-and-effect links between objectives form the strategy map. Initiatives are not a new entity — they are `ActionItem`s with `SourceType = StrategicObjective`.
+
+### Entity-Relationship Diagram (Text)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  PHASE 50: BALANCED SCORECARD                                           │
+│                                                                         │
+│  ┌───────────┐ 1───* ┌──────────────────────┐ 1───* ┌─────────────────┐│
+│  │ Scorecard │───────│ ScorecardPerspective │───────│StrategicObjective││
+│  └───────────┘       └──────────────────────┘       └─────────────────┘│
+│       │ 1                                              │ 1     │ 1      │
+│       │                                                │       │        │
+│       └───* ┌────────────────────┐  source/target      │       │        │
+│             │ ObjectiveCauseLink │◄─────────(both ends)─┘       │        │
+│             └────────────────────┘                              │        │
+│                                                                 │        │
+│             ┌──────────────────────┐ *───1 Process / Workflow   │        │
+│             │ ObjectiveProcessLink │◄────────────────────────────┤        │
+│             └──────────────────────┘                            │        │
+│                                                                 │        │
+│             ┌──────────────────┐ 1───* ┌──────────────────┐     │        │
+│             │ ObjectiveMeasure │───────│ MeasureSnapshot  │     │        │
+│             └──────────────────┘       └──────────────────┘     │        │
+│                      ▲ *                                        │        │
+│                      └──────────────────────────────────────────┘        │
+│                                                                         │
+│  ActionItem (Phase 15) — SourceType=StrategicObjective,                  │
+│                          SourceEntityId=StrategicObjective.Id            │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Scorecard
+
+| Attribute         | Type        | Constraints                       | Description                                          |
+|-------------------|-------------|-----------------------------------|------------------------------------------------------|
+| id                | UUID        | PK                                | Unique identifier                                    |
+| code              | string(50)  | Unique, Not Null                  | Auto-generated (e.g., "BSC-001")                     |
+| name              | string(200) | Not Null                          | Human-readable name                                  |
+| mission_statement | text        |                                   | The organization's mission                           |
+| vision_statement  | text        |                                   | The organization's vision                            |
+| strategy_notes    | text        |                                   | Free-form strategy narrative                         |
+| status            | enum        | Not Null, Default: Draft          | One of: Draft, Active, Archived                      |
+| owner_org_unit_id | UUID        | FK → OrgUnit, nullable            | Owning department/role                               |
+| created_at / updated_at | timestamp | Not Null                    | Audit fields                                         |
+
+### ScorecardPerspective
+
+The four Kaplan-Norton perspectives (Financial, Customer, Internal Business Process, Learning & Growth) are seeded on scorecard creation; users may rename, reorder, add, or remove.
+
+| Attribute     | Type        | Constraints                  | Description                          |
+|---------------|-------------|------------------------------|--------------------------------------|
+| id            | UUID        | PK                           | Unique identifier                    |
+| scorecard_id  | UUID        | FK → Scorecard, Not Null     | Parent scorecard                     |
+| name          | string(200) | Not Null                     | e.g., "Customer"                     |
+| description   | text        |                              | What this perspective covers         |
+| sort_order    | integer     | Not Null, Default: 0         | Display ordering (top → bottom on strategy map) |
+| created_at / updated_at | timestamp | Not Null           | Audit fields                         |
+
+**Constraints:** unique on (scorecard_id, name).
+
+### StrategicObjective
+
+| Attribute         | Type        | Constraints                          | Description                                |
+|-------------------|-------------|--------------------------------------|--------------------------------------------|
+| id                | UUID        | PK                                   | Unique identifier                          |
+| perspective_id    | UUID        | FK → ScorecardPerspective, Not Null  | Owning perspective                         |
+| code              | string(50)  | Unique, Not Null                     | Auto-generated (e.g., "OBJ-001")           |
+| name              | string(200) | Not Null                             | e.g., "Reduce first-pass defect escapes"   |
+| description       | text        |                                      | Intent and scope                           |
+| owner_org_unit_id | UUID        | FK → OrgUnit, nullable               | Accountable owner                          |
+| status            | enum        | Not Null, Default: Proposed          | One of: Proposed, Active, Achieved, Retired |
+| target_date       | date        | nullable                             | When the objective should be achieved      |
+| sort_order        | integer     | Not Null, Default: 0                 | Display ordering within perspective        |
+| created_at / updated_at | timestamp | Not Null                       | Audit fields                               |
+
+### ObjectiveMeasure
+
+A measurable indicator on an objective. `source_type` determines whether the current value is entered manually or resolved live from operational data by `MeasureValueResolver`.
+
+| Attribute        | Type         | Constraints                       | Description                                                  |
+|------------------|--------------|-----------------------------------|--------------------------------------------------------------|
+| id               | UUID         | PK                                | Unique identifier                                            |
+| objective_id     | UUID         | FK → StrategicObjective, Not Null | Owning objective                                             |
+| name             | string(200)  | Not Null                          | e.g., "Final inspection yield"                               |
+| units            | string(50)   |                                   | e.g., "%", "$", "days"                                       |
+| direction        | enum         | Not Null, Default: HigherIsBetter | One of: HigherIsBetter, LowerIsBetter, TargetIsBest          |
+| baseline_value   | decimal      | nullable                          | Starting point when the measure was adopted                  |
+| target_value     | decimal      | Not Null                          | The goal                                                     |
+| green_threshold  | decimal      | nullable                          | At/beyond this (respecting direction) = Green                |
+| red_threshold    | decimal      | nullable                          | At/beyond this (respecting direction) = Red; between = Amber |
+| source_type      | enum         | Not Null, Default: Manual         | See MeasureSourceType below                                  |
+| source_entity_id | UUID         | nullable                          | Entity the source resolves against (Process, SpcChart, Equipment, OrgUnit, …) |
+| source_parameter | string(200)  | nullable                          | Source-specific config (e.g., rolling window days, aggregation) |
+| created_at / updated_at | timestamp | Not Null                     | Audit fields                                                 |
+
+**MeasureSourceType enum values:**
+
+| Value                | source_entity_id resolves to | Resolution                                                        |
+|----------------------|------------------------------|-------------------------------------------------------------------|
+| Manual               | —                            | Latest MeasureSnapshot value                                      |
+| ProcessYield         | Process                      | Good-grade outputs ÷ inputs from PortTransactions of completed jobs (Phase 5) — a linked process's yield expresses the objective's maturity |
+| ProcessMaturity      | Process                      | Mean step maturity score 0–100 (Phase 8 MaturityScoringService)   |
+| WorkflowThroughput   | Workflow                     | Completed WorkflowJobs in window (Phase 12)                       |
+| SpcCapability        | SpcChart                     | Latest Cpk (Phase 24)                                             |
+| ActionCloseRate      | OrgUnit (optional)           | 30-day ActionItem close rate (Phase 15)                           |
+| OpenNonConformances  | Process (optional)           | Open NC count (Phase 8c)                                          |
+| TrainingCompliance   | OrgUnit (optional)           | % required competencies current (Phase 16)                        |
+| Oee                  | Equipment (optional)         | OEE % (Phase 29)                                                  |
+| QualityCost          | —                            | Cost of quality in window (Phase 35)                              |
+| PromptMetric         | PromptDefinition             | Aggregated numeric prompt value via analytics path                |
+
+**Constraints:**
+- `source_entity_id` required for source types that resolve against a specific entity (ProcessYield, ProcessMaturity, WorkflowThroughput, SpcCapability, PromptMetric)
+- `green_threshold`/`red_threshold` must be ordered consistently with `direction`
+
+### MeasureSnapshot
+
+Append-only reading history per measure — manual entries and the nightly auto-capture by `ScorecardSnapshotService`. Powers trend charts and keeps RAG evaluation cheap.
+
+| Attribute      | Type      | Constraints                      | Description                          |
+|----------------|-----------|----------------------------------|--------------------------------------|
+| id             | UUID      | PK                               | Unique identifier                    |
+| measure_id     | UUID      | FK → ObjectiveMeasure, Not Null  | The measure this reading belongs to  |
+| value          | decimal   | Not Null                         | The reading                          |
+| captured_at    | timestamptz | Not Null                       | When the reading was taken           |
+| capture_source | enum      | Not Null                         | One of: Manual, Auto                 |
+| note           | text      |                                  | Optional context for manual readings |
+| created_at / updated_at | timestamp | Not Null               | Audit fields                         |
+
+### ObjectiveCauseLink
+
+A directed cause-and-effect edge between two objectives — the strategy-map arrows (e.g., Learning & Growth objective → Internal Process objective → Customer objective → Financial objective).
+
+| Attribute            | Type   | Constraints                          | Description                  |
+|----------------------|--------|--------------------------------------|------------------------------|
+| id                   | UUID   | PK                                   | Unique identifier            |
+| scorecard_id         | UUID   | FK → Scorecard, Not Null             | Owning scorecard             |
+| source_objective_id  | UUID   | FK → StrategicObjective, Not Null    | The driving objective        |
+| target_objective_id  | UUID   | FK → StrategicObjective, Not Null    | The driven objective         |
+| description          | text   |                                      | The causal hypothesis        |
+| created_at / updated_at | timestamp | Not Null                       | Audit fields                 |
+
+**Constraints:**
+- Source and target must be different objectives (no self-loops)
+- Unique on (source_objective_id, target_objective_id)
+- Both objectives must belong to perspectives of the same scorecard
+
+### ObjectiveProcessLink
+
+Attaches an existing operational Process or Workflow to an objective: "this work realizes this objective".
+
+| Attribute    | Type | Constraints                          | Description                          |
+|--------------|------|--------------------------------------|--------------------------------------|
+| id           | UUID | PK                                   | Unique identifier                    |
+| objective_id | UUID | FK → StrategicObjective, Not Null    | The objective                        |
+| process_id   | UUID | FK → Process, nullable               | Linked process                       |
+| workflow_id  | UUID | FK → Workflow, nullable              | Linked workflow                      |
+| note         | text |                                      | How this work serves the objective   |
+| created_at / updated_at | timestamp | Not Null               | Audit fields                         |
+
+**Constraints:**
+- Exactly one of `process_id`, `workflow_id` must be set
+- Unique on (objective_id, process_id) and (objective_id, workflow_id)
+
+### ActionItem extension (initiatives)
+
+`ActionItemSourceType` gains a `StrategicObjective` value. An initiative is an `ActionItem` with `SourceType = StrategicObjective` and `SourceEntityId = StrategicObjective.Id`, inheriting Phase 15 assignment, due-date, two-step verification, and overdue tracking. No new columns on `ActionItem`.

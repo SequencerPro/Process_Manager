@@ -3,9 +3,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Api.Data;
 using ProcessManager.Api.DTOs;
+using ProcessManager.Api.Services;
 using ProcessManager.Domain.Entities;
 using ProcessManager.Domain.Enums;
 using System.Security.Claims;
+using System.Text;
 
 namespace ProcessManager.Api.Controllers;
 
@@ -15,8 +17,13 @@ namespace ProcessManager.Api.Controllers;
 public class ManagementReviewsController : ControllerBase
 {
     private readonly ProcessManagerDbContext _db;
+    private readonly IMeasureValueResolver? _measureResolver;
 
-    public ManagementReviewsController(ProcessManagerDbContext db) => _db = db;
+    public ManagementReviewsController(ProcessManagerDbContext db, IMeasureValueResolver? measureResolver = null)
+    {
+        _db = db;
+        _measureResolver = measureResolver;
+    }
 
     // ───── List ─────
 
@@ -190,6 +197,9 @@ public class ManagementReviewsController : ControllerBase
         review.TrainingComplianceSummary =
             $"Competency records: {trainingCurrent}/{trainingTotal} current ({trainingPct}%). Expired: {trainingExpired}. Expiring within 30 days: {trainingExpiringSoon}.";
 
+        // Balanced Scorecard snapshot (Phase 50d — strategy input for clause 9.3)
+        review.ScorecardSummary = await BuildScorecardSummaryAsync();
+
         review.Status = ManagementReviewStatus.InProgress;
 
         await _db.SaveChangesAsync();
@@ -289,6 +299,54 @@ public class ManagementReviewsController : ControllerBase
         r.CreatedBy
     );
 
+    /// <summary>
+    /// RAG rollup of every active Balanced Scorecard, with Red objectives called out by name.
+    /// Returns null when there are no active scorecards (panel hidden) or resolution is unavailable.
+    /// </summary>
+    private async Task<string?> BuildScorecardSummaryAsync()
+    {
+        if (_measureResolver is null) return null;
+
+        var scorecards = await _db.Scorecards
+            .Where(s => s.Status == ScorecardStatus.Active)
+            .Include(s => s.Perspectives)
+                .ThenInclude(p => p.Objectives)
+                    .ThenInclude(o => o.Measures)
+                        .ThenInclude(m => m.Snapshots)
+            .ToListAsync();
+
+        if (scorecards.Count == 0) return null;
+
+        int green = 0, amber = 0, red = 0, noData = 0;
+        var redObjectives = new List<string>();
+
+        foreach (var scorecard in scorecards)
+        foreach (var objective in scorecard.Perspectives.SelectMany(p => p.Objectives))
+        {
+            var objectiveIsRed = false;
+            foreach (var measure in objective.Measures)
+            {
+                var rag = MeasureValueResolver.EvaluateRag(measure, await _measureResolver.ResolveAsync(measure));
+                switch (rag)
+                {
+                    case "Green": green++; break;
+                    case "Amber": amber++; break;
+                    case "Red": red++; objectiveIsRed = true; break;
+                    default: noData++; break;
+                }
+            }
+            if (objectiveIsRed) redObjectives.Add($"{objective.Name} ({objective.Code})");
+        }
+
+        var sb = new StringBuilder();
+        sb.Append($"Active scorecards: {scorecards.Count} ({string.Join(", ", scorecards.Select(s => s.Code))}). ");
+        sb.Append($"Measures: {green} Green, {amber} Amber, {red} Red, {noData} No data. ");
+        sb.Append(redObjectives.Count > 0
+            ? $"Red objectives: {string.Join("; ", redObjectives)}."
+            : "No objectives are Red.");
+        return sb.ToString();
+    }
+
     private static ManagementReviewDto MapToDto(ManagementReview r, int actionCount) => new(
         r.Id,
         r.Title,
@@ -300,6 +358,7 @@ public class ManagementReviewsController : ControllerBase
         r.ActionCloseRateSummary,
         r.MrbSummary,
         r.TrainingComplianceSummary,
+        r.ScorecardSummary,
         r.CustomerComplaintsNotes,
         r.SupplierQualityNotes,
         r.InternalAuditStatus,

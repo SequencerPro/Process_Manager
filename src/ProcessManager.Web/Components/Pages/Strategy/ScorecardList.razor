@@ -1,0 +1,216 @@
+@page "/strategy/scorecards"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Balanced Scorecards — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-bullseye me-2 text-primary"></i>Balanced Scorecards</h3>
+        <p class="text-muted small mb-0 d-none d-md-block">Translate mission and vision into objectives, measures, and initiatives</p>
+    </div>
+    <div class="d-flex gap-2">
+        <AuthorizeView Roles="Admin">
+            <Authorized>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="SeedExample" disabled="@_seeding">
+                    @if (_seeding) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    <i class="bi bi-stars me-1"></i>Load Example
+                </button>
+            </Authorized>
+        </AuthorizeView>
+        <button class="btn btn-sm btn-primary" @onclick="OpenCreateModal">
+            <i class="bi bi-plus-lg me-1"></i>New Scorecard
+        </button>
+    </div>
+</div>
+
+<div class="d-flex gap-2 mb-3">
+    <select class="form-select form-select-sm" style="max-width: 160px" @bind="_statusFilter" @bind:after="Load">
+        <option value="">All statuses</option>
+        <option value="Draft">Draft</option>
+        <option value="Active">Active</option>
+        <option value="Archived">Archived</option>
+    </select>
+    <input class="form-control form-control-sm" style="max-width: 280px" placeholder="Search code or name…"
+           @bind="_search" @bind:after="Load" />
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading scorecards…
+    </div>
+}
+else if (_scorecards.Count == 0)
+{
+    <div class="text-center py-5 text-muted">
+        <i class="bi bi-bullseye fs-1 d-block mb-2 opacity-50"></i>
+        <p class="mb-1">No scorecards yet.</p>
+        <p class="small">Create your first Balanced Scorecard to start building out strategic objectives.</p>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var sc in _scorecards)
+        {
+            <div class="col-md-6 col-xl-4">
+                <div class="card shadow-sm h-100 stat-card" style="cursor:pointer"
+                     @onclick='() => Nav.NavigateTo($"strategy/scorecards/{sc.Id}")'>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="text-muted small">@sc.Code</div>
+                                <h5 class="mb-1">@sc.Name</h5>
+                            </div>
+                            <span class="badge @StatusBadge(sc.Status)">@sc.Status</span>
+                        </div>
+                        <div class="d-flex gap-3 mt-3 small text-muted">
+                            <span><i class="bi bi-columns-gap me-1"></i>@sc.PerspectiveCount perspectives</span>
+                            <span><i class="bi bi-flag me-1"></i>@sc.ObjectiveCount objectives</span>
+                            <span><i class="bi bi-speedometer me-1"></i>@sc.MeasureCount measures</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (_showCreateModal)
+{
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-purple">
+                        <i class="bi bi-bullseye"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">New Balanced Scorecard</h5>
+                        <div class="pm-modal-subtitle">Translate mission and vision into strategic objectives</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showCreateModal = false"></button>
+                </div>
+                <div class="modal-body" style="max-height:70vh; overflow-y:auto">
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Name</label>
+                        <input class="form-control" @bind="_newName" placeholder="e.g. Company Strategy 2026" />
+                    </div>
+
+                    <div class="pm-modal-divider">Foundation</div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-compass"></i> Mission statement</label>
+                        <textarea class="form-control" rows="2" @bind="_newMission"
+                                  placeholder="Why does the organization exist?"></textarea>
+                    </div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-eye"></i> Vision statement</label>
+                        <textarea class="form-control" rows="2" @bind="_newVision"
+                                  placeholder="What does the organization aspire to become?"></textarea>
+                    </div>
+                    <div class="text-muted" style="font-size:.75rem">
+                        The four Kaplan-Norton perspectives (Financial, Customer, Internal Business Process,
+                        Learning &amp; Growth) are added automatically — you can customize them afterwards.
+                    </div>
+                    @if (_createError is not null)
+                    {
+                        <div class="alert alert-danger mt-2 mb-0 py-2 small">@_createError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showCreateModal = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="CreateScorecard" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                        <i class="bi bi-plus-lg"></i>
+                        Create Scorecard
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _saving;
+    private bool _seeding;
+    private bool _showCreateModal;
+    private string _statusFilter = "";
+    private string _search = "";
+    private string _newName = "";
+    private string? _newMission;
+    private string? _newVision;
+    private string? _createError;
+    private List<ScorecardSummaryDto> _scorecards = [];
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            var page = await Api.GetScorecardsAsync(
+                string.IsNullOrWhiteSpace(_statusFilter) ? null : _statusFilter,
+                string.IsNullOrWhiteSpace(_search) ? null : _search,
+                pageSize: 100);
+            _scorecards = page?.Items ?? [];
+        }
+        catch { _scorecards = []; }
+        _loading = false;
+    }
+
+    private async Task SeedExample()
+    {
+        _seeding = true;
+        try
+        {
+            var demo = await Api.SeedScorecardDemoAsync();
+            Nav.NavigateTo($"strategy/scorecards/{demo!.Id}");
+        }
+        catch { /* surfaced by empty list */ }
+        _seeding = false;
+    }
+
+    private void OpenCreateModal()
+    {
+        _newName = "";
+        _newMission = null;
+        _newVision = null;
+        _createError = null;
+        _showCreateModal = true;
+    }
+
+    private async Task CreateScorecard()
+    {
+        if (string.IsNullOrWhiteSpace(_newName))
+        {
+            _createError = "Name is required.";
+            return;
+        }
+
+        _saving = true;
+        _createError = null;
+        try
+        {
+            var created = await Api.CreateScorecardAsync(
+                new CreateScorecardDto(_newName.Trim(), _newMission, _newVision, null, null));
+            Nav.NavigateTo($"strategy/scorecards/{created!.Id}");
+        }
+        catch (Exception ex)
+        {
+            _createError = $"Could not create scorecard: {ex.Message}";
+        }
+        _saving = false;
+    }
+
+    private static string StatusBadge(string status) => status switch
+    {
+        "Active" => "bg-success",
+        "Archived" => "bg-secondary",
+        _ => "bg-warning text-dark",
+    };
+}

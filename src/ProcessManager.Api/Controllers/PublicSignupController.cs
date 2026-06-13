@@ -120,7 +120,8 @@ public class PublicSignupController : ControllerBase
                 ShowQualityTools = true,
                 ShowProductionTools = false,
                 ShowWarehouseTools = false,
-                ShowTrainingTools = false
+                ShowTrainingTools = false,
+                ShowStrategyTools = false
             };
             _db.TenantFeatureFlags.Add(flags);
 

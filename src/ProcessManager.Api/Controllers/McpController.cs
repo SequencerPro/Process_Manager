@@ -46,12 +46,18 @@ public partial class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "4.1";
+    private const string ServerVersion   = "4.2";
 
-    public McpController(ProcessManagerDbContext db, IWebhookEventPublisher? webhooks = null)
+    private readonly IMeasureValueResolver? _measureResolver;
+
+    public McpController(
+        ProcessManagerDbContext db,
+        IWebhookEventPublisher? webhooks = null,
+        IMeasureValueResolver? measureResolver = null)
     {
         _db = db;
         _webhooks = webhooks;
+        _measureResolver = measureResolver;
     }
 
     // ─── Discovery endpoint ───────────────────────────────────────────────────
@@ -347,6 +353,16 @@ public partial class McpController : ControllerBase
                      ("category", "string", "Optional: filter by PAF category (Prevention/Appraisal/InternalFailure/ExternalFailure)"),
                      ("source_type", "string", "Optional: filter by source type (Manual/Scrap/Rework/Warranty/InspectionLabor/ExternalFailure/PreventionCost/AppraisalCost/CustomerComplaint/Capa)"),
                      ("days", "string", "Optional: number of days to look back (default all time)"))),
+
+            // ── Phase 50: Strategy Management — Balanced Scorecard ─────────────
+            Tool("get_scorecard_status",
+                 "Get a Balanced Scorecard status report: mission/vision, Green/Amber/Red rollup, and every perspective's objectives with their measures, current values (live-resolved from operational data), targets, and RAG status. Useful for answering 'how are we tracking against strategy?' and as management review input (ISO 9001 9.3). Requires authentication.",
+                 Schema(
+                     ("code", "string", "Optional: scorecard code (e.g. BSC-001). Defaults to the most recently created Active scorecard."))),
+            Tool("list_at_risk_objectives",
+                 "List strategic objectives whose measures are Red or Amber across all active Balanced Scorecards, with each off-track measure's current value, target, and gap. Useful for focusing leadership attention on the parts of the strategy that are off track. Requires authentication.",
+                 Schema(
+                     ("include_amber", "string", "Optional: 'false' to list only Red objectives (default includes Amber)"))),
         }
     };
 
@@ -479,6 +495,9 @@ public partial class McpController : ControllerBase
                 "get_complaint_status"           => await ToolGetComplaintStatus(args),
                 // Phase 35: Cost of Quality
                 "get_cost_of_quality"            => await ToolGetCostOfQuality(args),
+                // Phase 50: Balanced Scorecard
+                "get_scorecard_status"           => await ToolGetScorecardStatus(args),
+                "list_at_risk_objectives"        => await ToolListAtRiskObjectives(args),
                 _                               => null
             };
 

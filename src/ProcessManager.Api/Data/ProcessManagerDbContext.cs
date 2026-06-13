@@ -206,6 +206,15 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<QualityCost> QualityCosts => Set<QualityCost>();
     public DbSet<QualityCostRule> QualityCostRules => Set<QualityCostRule>();
 
+    // Phase 50: Strategy Management — Balanced Scorecard
+    public DbSet<Scorecard> Scorecards => Set<Scorecard>();
+    public DbSet<ScorecardPerspective> ScorecardPerspectives => Set<ScorecardPerspective>();
+    public DbSet<StrategicObjective> StrategicObjectives => Set<StrategicObjective>();
+    public DbSet<ObjectiveMeasure> ObjectiveMeasures => Set<ObjectiveMeasure>();
+    public DbSet<MeasureSnapshot> MeasureSnapshots => Set<MeasureSnapshot>();
+    public DbSet<ObjectiveCauseLink> ObjectiveCauseLinks => Set<ObjectiveCauseLink>();
+    public DbSet<ObjectiveProcessLink> ObjectiveProcessLinks => Set<ObjectiveProcessLink>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -1265,6 +1274,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(r => r.ConductedBy).HasMaxLength(200);
             e.Property(r => r.NcSummary).HasMaxLength(2000);
             e.Property(r => r.ActionCloseRateSummary).HasMaxLength(500);
+            e.Property(r => r.ScorecardSummary).HasMaxLength(2000);
             e.Property(r => r.MrbSummary).HasMaxLength(500);
             e.Property(r => r.TrainingComplianceSummary).HasMaxLength(500);
             e.Property(r => r.CustomerComplaintsNotes).HasMaxLength(2000);
@@ -2406,6 +2416,148 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(r => r.Description).HasMaxLength(500);
 
             e.HasIndex(r => r.TriggerEvent);
+        });
+
+        // ── Phase 50: Strategy Management — Balanced Scorecard ───────────────
+
+        modelBuilder.Entity<Scorecard>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.HasIndex(s => new { s.TenantId, s.Code }).IsUnique();
+            e.Property(s => s.Code).HasMaxLength(50).IsRequired();
+            e.Property(s => s.Name).HasMaxLength(200).IsRequired();
+            e.Property(s => s.MissionStatement).HasMaxLength(2000);
+            e.Property(s => s.VisionStatement).HasMaxLength(2000);
+            e.Property(s => s.StrategyNotes).HasMaxLength(4000);
+            e.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
+
+            e.HasOne(s => s.OwnerOrgUnit)
+                .WithMany()
+                .HasForeignKey(s => s.OwnerOrgUnitId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ScorecardPerspective>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            e.Property(p => p.Description).HasMaxLength(2000);
+
+            e.HasOne(p => p.Scorecard)
+                .WithMany(s => s.Perspectives)
+                .HasForeignKey(p => p.ScorecardId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(p => p.ScorecardId);
+        });
+
+        modelBuilder.Entity<StrategicObjective>(e =>
+        {
+            e.HasKey(o => o.Id);
+            e.HasIndex(o => new { o.TenantId, o.Code }).IsUnique();
+            e.Property(o => o.Code).HasMaxLength(50).IsRequired();
+            e.Property(o => o.Name).HasMaxLength(300).IsRequired();
+            e.Property(o => o.Description).HasMaxLength(4000);
+            e.Property(o => o.Status).HasConversion<string>().HasMaxLength(20);
+
+            e.HasOne(o => o.Perspective)
+                .WithMany(p => p.Objectives)
+                .HasForeignKey(o => o.PerspectiveId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(o => o.OwnerOrgUnit)
+                .WithMany()
+                .HasForeignKey(o => o.OwnerOrgUnitId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasIndex(o => o.PerspectiveId);
+        });
+
+        modelBuilder.Entity<ObjectiveMeasure>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.Property(m => m.Name).HasMaxLength(300).IsRequired();
+            e.Property(m => m.Units).HasMaxLength(50);
+            e.Property(m => m.Direction).HasConversion<string>().HasMaxLength(20);
+            e.Property(m => m.SourceType).HasConversion<string>().HasMaxLength(30);
+            e.Property(m => m.SourceParameter).HasMaxLength(200);
+            e.Property(m => m.BaselineValue).HasColumnType("decimal(18,4)");
+            e.Property(m => m.TargetValue).HasColumnType("decimal(18,4)");
+            e.Property(m => m.GreenThreshold).HasColumnType("decimal(18,4)");
+            e.Property(m => m.RedThreshold).HasColumnType("decimal(18,4)");
+
+            e.HasOne(m => m.Objective)
+                .WithMany(o => o.Measures)
+                .HasForeignKey(m => m.ObjectiveId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(m => m.ObjectiveId);
+        });
+
+        modelBuilder.Entity<MeasureSnapshot>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.Property(s => s.Value).HasColumnType("decimal(18,4)");
+            e.Property(s => s.CaptureSource).HasConversion<string>().HasMaxLength(10);
+            e.Property(s => s.Note).HasMaxLength(2000);
+
+            e.HasOne(s => s.Measure)
+                .WithMany(m => m.Snapshots)
+                .HasForeignKey(s => s.MeasureId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(s => new { s.MeasureId, s.CapturedAt });
+        });
+
+        modelBuilder.Entity<ObjectiveCauseLink>(e =>
+        {
+            e.HasKey(l => l.Id);
+            e.HasIndex(l => new { l.SourceObjectiveId, l.TargetObjectiveId }).IsUnique();
+            e.Property(l => l.Description).HasMaxLength(1000);
+
+            e.HasOne(l => l.Scorecard)
+                .WithMany(s => s.CauseLinks)
+                .HasForeignKey(l => l.ScorecardId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Cause links are removed explicitly by the controller when an
+            // objective is deleted; Restrict avoids multiple cascade paths.
+            e.HasOne(l => l.SourceObjective)
+                .WithMany()
+                .HasForeignKey(l => l.SourceObjectiveId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(l => l.TargetObjective)
+                .WithMany()
+                .HasForeignKey(l => l.TargetObjectiveId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ObjectiveProcessLink>(e =>
+        {
+            e.HasKey(l => l.Id);
+            e.Property(l => l.Note).HasMaxLength(1000);
+
+            e.HasOne(l => l.Objective)
+                .WithMany(o => o.ProcessLinks)
+                .HasForeignKey(l => l.ObjectiveId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(l => l.Process)
+                .WithMany()
+                .HasForeignKey(l => l.ProcessId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(l => l.Workflow)
+                .WithMany()
+                .HasForeignKey(l => l.WorkflowId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(l => l.ObjectiveId);
         });
 
         ApplyTenantQueryFilters(modelBuilder);

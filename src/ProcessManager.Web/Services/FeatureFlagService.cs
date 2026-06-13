@@ -26,6 +26,7 @@ public class FeatureFlagService
     public bool ShowProductionTools  => _active?.ShowProductionTools  ?? true;
     public bool ShowWarehouseTools   => _active?.ShowWarehouseTools   ?? true;
     public bool ShowTrainingTools    => _active?.ShowTrainingTools    ?? true;
+    public bool ShowStrategyTools    => _active?.ShowStrategyTools    ?? true;
 
     /// <summary>Loads the tenant's flags from the API. Idempotent — only fetches once per circuit.</summary>
     public async Task LoadAsync(ApiClient api)

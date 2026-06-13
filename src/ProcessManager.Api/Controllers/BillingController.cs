@@ -345,6 +345,7 @@ public class BillingController : ControllerBase
         flags.ShowProductionTools = enableAdvanced || plan == SubscriptionPlan.Starter;
         flags.ShowWarehouseTools = enableAdvanced || plan == SubscriptionPlan.Starter;
         flags.ShowTrainingTools = enableAdvanced || plan == SubscriptionPlan.Starter;
+        flags.ShowStrategyTools = enableAdvanced || plan == SubscriptionPlan.Starter;
 
         await db.SaveChangesAsync();
     }

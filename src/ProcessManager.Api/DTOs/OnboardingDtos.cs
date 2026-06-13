@@ -45,4 +45,5 @@ public record TenantFeatureFlagsDto(
     bool ShowQualityTools,
     bool ShowProductionTools,
     bool ShowWarehouseTools,
-    bool ShowTrainingTools);
+    bool ShowTrainingTools,
+    bool ShowStrategyTools = true);

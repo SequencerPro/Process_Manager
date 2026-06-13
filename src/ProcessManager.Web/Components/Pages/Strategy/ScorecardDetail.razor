@@ -1,0 +1,1088 @@
+@page "/strategy/scorecards/{Id:guid}"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Balanced Scorecard — Process Manager</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading scorecard…
+    </div>
+}
+else if (_scorecard is null || _status is null)
+{
+    <div class="alert alert-warning">Scorecard not found.</div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-start mb-1 page-heading-row">
+        <div>
+            <div class="text-muted small">
+                <a href="strategy/scorecards" class="text-decoration-none">Balanced Scorecards</a>
+                <i class="bi bi-chevron-right mx-1" style="font-size:.7rem"></i>@_scorecard.Code
+            </div>
+            <h3 class="mb-0">
+                <i class="bi bi-bullseye me-2 text-primary"></i>@_scorecard.Name
+                <span class="badge ms-2 @StatusBadge(_scorecard.Status)">@_scorecard.Status</span>
+            </h3>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <a class="btn btn-sm btn-outline-primary" href="strategy/scorecards/@Id/map">
+                <i class="bi bi-diagram-2 me-1"></i>Strategy Map
+            </a>
+            @if (_scorecard.Status == "Draft")
+            {
+                <button class="btn btn-sm btn-success" @onclick='() => ChangeStatus("Active")'>
+                    <i class="bi bi-play-fill me-1"></i>Activate
+                </button>
+            }
+            else if (_scorecard.Status == "Active")
+            {
+                <button class="btn btn-sm btn-outline-secondary" @onclick='() => ChangeStatus("Archived")'>
+                    <i class="bi bi-archive me-1"></i>Archive
+                </button>
+            }
+            <button class="btn btn-sm btn-outline-secondary" @onclick="Load" disabled="@_loading">
+                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+            </button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_scorecard.MissionStatement) || !string.IsNullOrWhiteSpace(_scorecard.VisionStatement))
+    {
+        <div class="row g-2 mb-3">
+            @if (!string.IsNullOrWhiteSpace(_scorecard.MissionStatement))
+            {
+                <div class="col-md-6">
+                    <div class="card border-0 bg-body-tertiary h-100">
+                        <div class="card-body py-2">
+                            <span class="fw-semibold small text-muted">MISSION</span>
+                            <div class="small">@_scorecard.MissionStatement</div>
+                        </div>
+                    </div>
+                </div>
+            }
+            @if (!string.IsNullOrWhiteSpace(_scorecard.VisionStatement))
+            {
+                <div class="col-md-6">
+                    <div class="card border-0 bg-body-tertiary h-100">
+                        <div class="card-body py-2">
+                            <span class="fw-semibold small text-muted">VISION</span>
+                            <div class="small">@_scorecard.VisionStatement</div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @* ── RAG rollup ── *@
+    <div class="d-flex gap-2 mb-4 flex-wrap">
+        <span class="badge bg-success">@_status.GreenCount Green</span>
+        <span class="badge bg-warning text-dark">@_status.AmberCount Amber</span>
+        <span class="badge bg-danger">@_status.RedCount Red</span>
+        <span class="badge bg-secondary">@_status.NoDataCount No data</span>
+    </div>
+
+    @* ── Perspectives ── *@
+    <div class="row g-3">
+        @foreach (var (perspective, perspectiveIndex) in _status.Perspectives.Select((p, i) => (p, i)))
+        {
+            <div class="col-md-6 col-xl-3">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center bg-transparent">
+                        <span class="fw-semibold text-truncate" title="@perspective.Description">@perspective.Name</span>
+                        <span class="d-flex gap-1 flex-shrink-0">
+                            <button class="btn btn-sm btn-outline-secondary py-0 px-1" title="Move left"
+                                    disabled="@(perspectiveIndex == 0)"
+                                    @onclick="() => MovePerspective(perspectiveIndex, -1)">
+                                <i class="bi bi-arrow-left" style="font-size:.7rem"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary py-0 px-1" title="Move right"
+                                    disabled="@(perspectiveIndex == _status.Perspectives.Count - 1)"
+                                    @onclick="() => MovePerspective(perspectiveIndex, +1)">
+                                <i class="bi bi-arrow-right" style="font-size:.7rem"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary py-0 px-1" title="Rename perspective"
+                                    @onclick="() => OpenPerspectiveEditModal(perspective)">
+                                <i class="bi bi-pencil" style="font-size:.7rem"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Delete perspective"
+                                    @onclick="() => _deletePerspectiveTarget = perspective">
+                                <i class="bi bi-trash" style="font-size:.7rem"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-primary py-0 px-1" title="Add objective"
+                                    @onclick="() => OpenObjectiveModal(perspective)">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        </span>
+                    </div>
+                    <div class="card-body p-2">
+                        @if (perspective.Objectives.Count == 0)
+                        {
+                            <div class="text-muted small text-center py-3">No objectives yet</div>
+                        }
+                        @foreach (var objective in perspective.Objectives)
+                        {
+                            <div class="border rounded p-2 mb-2">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <div class="text-muted" style="font-size:.7rem">@objective.Code</div>
+                                        <div class="fw-semibold small">@objective.Name</div>
+                                    </div>
+                                    <div class="d-flex gap-1">
+                                        <button class="btn btn-sm btn-outline-primary py-0 px-1" title="Add measure"
+                                                @onclick="() => OpenMeasureModal(objective)">
+                                            <i class="bi bi-speedometer" style="font-size:.75rem"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-success py-0 px-1" title="Launch initiative"
+                                                @onclick="() => OpenInitiativeModal(objective)">
+                                            <i class="bi bi-rocket-takeoff" style="font-size:.75rem"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary py-0 px-1" title="Link process/workflow"
+                                                @onclick="() => OpenProcessLinkModal(objective)">
+                                            <i class="bi bi-link-45deg" style="font-size:.75rem"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Delete objective"
+                                                @onclick="() => DeleteObjective(objective)">
+                                            <i class="bi bi-trash" style="font-size:.75rem"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                @foreach (var measure in objective.Measures)
+                                {
+                                    <div class="d-flex justify-content-between align-items-center mt-2 small">
+                                        <span class="d-flex align-items-center" style="min-width:0">
+                                            <span class="rounded-circle me-1 flex-shrink-0 @RagDot(measure.Rag)"
+                                                  style="width:.6rem;height:.6rem;display:inline-block"></span>
+                                            <span class="text-truncate" title="@measure.Name">@measure.Name</span>
+                                            @if (measure.Trend.Count >= 2)
+                                            {
+                                                <svg width="48" height="14" class="ms-1 flex-shrink-0" style="opacity:.75">
+                                                    <polyline points="@SparklinePoints(measure.Trend, 48, 14)"
+                                                              fill="none" stroke="#6c757d" stroke-width="1.25" />
+                                                    <title>Last @measure.Trend.Count readings</title>
+                                                </svg>
+                                            }
+                                        </span>
+                                        <span class="text-nowrap ms-1">
+                                            <span class="fw-semibold">@FormatValue(measure.CurrentValue)</span>
+                                            <span class="text-muted">/ @FormatValue(measure.TargetValue)@measure.Units</span>
+                                            @if (measure.SourceType == "Manual")
+                                            {
+                                                <button class="btn btn-sm btn-outline-secondary py-0 px-1 ms-1" title="Record reading"
+                                                        @onclick="() => OpenSnapshotModal(measure)">
+                                                    <i class="bi bi-pencil" style="font-size:.65rem"></i>
+                                                </button>
+                                            }
+                                        </span>
+                                    </div>
+                                }
+
+                                @foreach (var link in objective.ProcessLinks)
+                                {
+                                    <div class="small text-muted mt-1">
+                                        <i class="bi bi-link-45deg"></i>
+                                        @(link.ProcessName ?? link.WorkflowName)
+                                        <span class="badge bg-light text-muted border" style="font-size:.6rem">
+                                            @(link.ProcessId.HasValue ? "Process" : "Workflow")
+                                        </span>
+                                    </div>
+                                }
+
+                                @if (_initiatives.TryGetValue(objective.Id, out var initiatives) && initiatives.Count > 0)
+                                {
+                                    var open = initiatives.Count(i => i.Status is "Open" or "InProgress");
+                                    <div class="small text-muted mt-1">
+                                        <i class="bi bi-rocket-takeoff"></i>
+                                        @initiatives.Count initiative@(initiatives.Count == 1 ? "" : "s")
+                                        @if (open > 0)
+                                        {
+                                            <span class="badge bg-warning text-dark" style="font-size:.6rem">@open open</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-success" style="font-size:.6rem">all closed</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@* ── Add objective modal ── *@
+@if (_showObjectiveModal)
+{
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-purple">
+                        <i class="bi bi-flag"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">New Objective</h5>
+                        <div class="pm-modal-subtitle">@_modalPerspective?.Name perspective</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showObjectiveModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Name</label>
+                        <input class="form-control" @bind="_objectiveName" placeholder="e.g. Reduce first-pass defect escapes" />
+                    </div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-card-text"></i> Description</label>
+                        <textarea class="form-control" rows="2" @bind="_objectiveDescription" placeholder="Optional description..."></textarea>
+                    </div>
+                    @if (_modalError is not null)
+                    {
+                        <div class="alert alert-danger py-2 small mb-0">@_modalError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showObjectiveModal = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="AddObjective" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                        <i class="bi bi-plus-lg"></i>
+                        Add Objective
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Add measure modal ── *@
+@if (_showMeasureModal)
+{
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-green">
+                        <i class="bi bi-speedometer"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">New Measure</h5>
+                        <div class="pm-modal-subtitle">@_modalObjective?.Name</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showMeasureModal = false"></button>
+                </div>
+                <div class="modal-body" style="max-height:70vh; overflow-y:auto">
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Name</label>
+                        <input class="form-control" @bind="_measureName" placeholder="e.g. Final inspection yield" />
+                    </div>
+
+                    <div class="pm-modal-divider">Data Source</div>
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        @foreach (var src in _sourceTypes)
+                        {
+                            var isActive = _measureSourceType == src.Value;
+                            <button type="button"
+                                    class="btn btn-sm @(isActive ? "btn-primary" : "btn-outline-secondary")"
+                                    @onclick="() => SelectSourceType(src.Value)">
+                                <i class="bi @src.Icon me-1"></i> @src.Label
+                            </button>
+                        }
+                    </div>
+                    <div class="text-muted mb-3" style="font-size:.75rem">@CurrentSourceHint</div>
+
+                    @if (_measureSourceType is "ProcessYield" or "ProcessMaturity")
+                    {
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-diagram-3"></i> Process</label>
+                            <select class="form-select" @bind="_measureSourceEntityId">
+                                <option value="">— select a process —</option>
+                                @foreach (var p in _processes)
+                                {
+                                    <option value="@p.Id">@p.Code — @p.Name</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    @if (_measureSourceType == "WorkflowThroughput")
+                    {
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-share"></i> Workflow</label>
+                            <select class="form-select" @bind="_measureSourceEntityId">
+                                <option value="">— select a workflow —</option>
+                                @foreach (var w in _workflows)
+                                {
+                                    <option value="@w.Id">@w.Code — @w.Name</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    @if (_measureSourceType == "SpcCapability")
+                    {
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-graph-up"></i> SPC Chart</label>
+                            <select class="form-select" @bind="_measureSourceEntityId">
+                                <option value="">— select an SPC chart —</option>
+                                @foreach (var c in _spcCharts)
+                                {
+                                    <option value="@c.Id">@c.Name (@c.ProcessName)</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    @if (_measureSourceType == "TrainingCompliance")
+                    {
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-mortarboard"></i> Training Process</label>
+                            <select class="form-select" @bind="_measureSourceEntityId">
+                                <option value="">All training (org-wide)</option>
+                                @foreach (var p in _trainingProcesses)
+                                {
+                                    <option value="@p.Id">@p.Code — @p.Name</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    @if (_measureSourceType == "Oee")
+                    {
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-gear-wide"></i> Equipment</label>
+                            <select class="form-select" @bind="_measureSourceEntityId">
+                                <option value="">Plant-wide</option>
+                                @foreach (var e in _equipment)
+                                {
+                                    <option value="@e.Id">@e.Code — @e.Name</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                    @if (_measureSourceType == "PromptMetric")
+                    {
+                        <div class="pm-input-group">
+                            <label><i class="bi bi-input-cursor-text"></i> Inspection Prompt</label>
+                            <select class="form-select" @bind="_measureSourceEntityId">
+                                <option value="">— select a numeric prompt —</option>
+                                @foreach (var pm in _promptMetrics)
+                                {
+                                    <option value="@pm.Id">@pm.StepTemplateName — @pm.Label@(pm.Units is null || pm.Label.Contains(pm.Units) ? "" : $" ({pm.Units})")</option>
+                                }
+                            </select>
+                        </div>
+                    }
+
+                    <div class="pm-modal-divider">Target &amp; Thresholds</div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Direction</label>
+                            <select class="form-select form-select-sm" @bind="_measureDirection">
+                                <option value="HigherIsBetter">Higher is better</option>
+                                <option value="LowerIsBetter">Lower is better</option>
+                                <option value="TargetIsBest">Closest to target</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Target</label>
+                            <input type="number" class="form-control form-control-sm" @bind="_measureTarget" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Green at</label>
+                            <input type="number" class="form-control form-control-sm" @bind="_measureGreen" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Red at</label>
+                            <input type="number" class="form-control form-control-sm" @bind="_measureRed" />
+                        </div>
+                    </div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-rulers"></i> Units</label>
+                        <input class="form-control" @bind="_measureUnits" placeholder="%, $, days…" />
+                    </div>
+                    @if (_modalError is not null)
+                    {
+                        <div class="alert alert-danger py-2 small mb-0">@_modalError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showMeasureModal = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="AddMeasure" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                        <i class="bi bi-plus-lg"></i>
+                        Add Measure
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Edit perspective modal ── *@
+@if (_showPerspectiveEditModal)
+{
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-blue">
+                        <i class="bi bi-pencil-square"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">Edit Perspective</h5>
+                        <div class="pm-modal-subtitle">Rename or describe this lens on the business</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showPerspectiveEditModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Name</label>
+                        <input class="form-control" @bind="_perspectiveName" />
+                    </div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-card-text"></i> Description</label>
+                        <textarea class="form-control" rows="2" @bind="_perspectiveDescription"></textarea>
+                    </div>
+                    @if (_modalError is not null)
+                    {
+                        <div class="alert alert-danger py-2 small mb-0">@_modalError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showPerspectiveEditModal = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SavePerspective" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                        <i class="bi bi-check-lg"></i>
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Delete perspective confirm ── *@
+@if (_deletePerspectiveTarget is not null)
+{
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-purple">
+                        <i class="bi bi-trash"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">Delete Perspective</h5>
+                        <div class="pm-modal-subtitle">@_deletePerspectiveTarget.Name</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _deletePerspectiveTarget = null"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">
+                        This deletes the perspective and its
+                        <strong>@_deletePerspectiveTarget.Objectives.Count objective@(_deletePerspectiveTarget.Objectives.Count == 1 ? "" : "s")</strong>,
+                        including their measures, readings, and strategy-map links. This cannot be undone.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _deletePerspectiveTarget = null">Cancel</button>
+                    <button class="btn btn-danger" @onclick="DeletePerspective" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                        <i class="bi bi-trash"></i>
+                        Delete Perspective
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Launch initiative modal ── *@
+@if (_showInitiativeModal)
+{
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-green">
+                        <i class="bi bi-rocket-takeoff"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">Launch Initiative</h5>
+                        <div class="pm-modal-subtitle">@_modalObjective?.Name — becomes an Action Item with owner, due date, and verified closure</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showInitiativeModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-type"></i> Title</label>
+                        <input class="form-control" @bind="_initiativeTitle" placeholder="e.g. Stand up daily yield huddle" />
+                    </div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-card-text"></i> Description</label>
+                        <textarea class="form-control" rows="2" @bind="_initiativeDescription"
+                                  placeholder="What will be done to close the gap to target..."></textarea>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Assign to</label>
+                            <select class="form-select form-select-sm" @bind="_initiativeAssigneeId">
+                                <option value="">— select an owner —</option>
+                                @foreach (var u in _users)
+                                {
+                                    <option value="@u.Id">@u.DisplayName</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Due date</label>
+                            <input type="date" class="form-control form-control-sm" @bind="_initiativeDueDate" />
+                        </div>
+                    </div>
+                    @if (_modalError is not null)
+                    {
+                        <div class="alert alert-danger py-2 small mb-0">@_modalError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showInitiativeModal = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="AddInitiative" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                        <i class="bi bi-rocket-takeoff"></i>
+                        Launch Initiative
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Record snapshot modal ── *@
+@if (_showSnapshotModal)
+{
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-blue">
+                        <i class="bi bi-pencil-square"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">Record Reading</h5>
+                        <div class="pm-modal-subtitle">@_modalMeasure?.Name</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showSnapshotModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-123"></i> Value</label>
+                        <input type="number" class="form-control" @bind="_snapshotValue" />
+                    </div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-journal-text"></i> Note</label>
+                        <input class="form-control" @bind="_snapshotNote" placeholder="Optional context..." />
+                    </div>
+                    @if (_modalError is not null)
+                    {
+                        <div class="alert alert-danger py-2 small mb-0">@_modalError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showSnapshotModal = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="AddSnapshot" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                        <i class="bi bi-check-lg"></i>
+                        Save Reading
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Link process/workflow modal ── *@
+@if (_showProcessLinkModal)
+{
+    <div class="modal show d-block pm-modal" tabindex="-1" style="background: rgba(0,0,0,.45)">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div class="pm-modal-icon pm-modal-icon-blue">
+                        <i class="bi bi-link-45deg"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title">Link Work</h5>
+                        <div class="pm-modal-subtitle">@_modalObjective?.Name</div>
+                    </div>
+                    <button type="button" class="btn-close ms-auto" @onclick="() => _showProcessLinkModal = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="pm-modal-divider">Type</div>
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <button type="button"
+                                class="btn btn-sm @(_linkType == "Process" ? "btn-primary" : "btn-outline-secondary")"
+                                @onclick='() => { _linkType = "Process"; _linkEntityId = ""; }'>
+                            <i class="bi bi-diagram-3 me-1"></i> Process
+                        </button>
+                        <button type="button"
+                                class="btn btn-sm @(_linkType == "Workflow" ? "btn-primary" : "btn-outline-secondary")"
+                                @onclick='() => { _linkType = "Workflow"; _linkEntityId = ""; }'>
+                            <i class="bi bi-share me-1"></i> Workflow
+                        </button>
+                    </div>
+                    <div class="pm-input-group">
+                        <label><i class="bi @(_linkType == "Process" ? "bi-diagram-3" : "bi-share")"></i> @_linkType</label>
+                        @if (_linkType == "Process")
+                        {
+                            <select class="form-select" @bind="_linkEntityId">
+                                <option value="">— select a process —</option>
+                                @foreach (var p in _processes)
+                                {
+                                    <option value="@p.Id">@p.Code — @p.Name</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <select class="form-select" @bind="_linkEntityId">
+                                <option value="">— select a workflow —</option>
+                                @foreach (var w in _workflows)
+                                {
+                                    <option value="@w.Id">@w.Code — @w.Name</option>
+                                }
+                            </select>
+                        }
+                    </div>
+                    <div class="pm-input-group">
+                        <label><i class="bi bi-journal-text"></i> Note</label>
+                        <input class="form-control" @bind="_linkNote" placeholder="How this work serves the objective" />
+                    </div>
+                    @if (_modalError is not null)
+                    {
+                        <div class="alert alert-danger py-2 small mb-0">@_modalError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="() => _showProcessLinkModal = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="AddProcessLink" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm"></span> }
+                        <i class="bi bi-link-45deg"></i>
+                        Link Work
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private bool _loading = true;
+    private bool _saving;
+    private ScorecardResponseDto? _scorecard;
+    private ScorecardStatusDto? _status;
+    private List<ProcessSummaryResponseDto> _processes = [];
+    private List<WorkflowResponseDto> _workflows = [];
+    private List<SpcChartSummaryDto> _spcCharts = [];
+    private List<ProcessSummaryResponseDto> _trainingProcesses = [];
+    private List<EquipmentSummaryDto> _equipment = [];
+    private List<PromptMetricOptionDto> _promptMetrics = [];
+
+    private bool _showObjectiveModal;
+    private bool _showMeasureModal;
+    private bool _showSnapshotModal;
+    private bool _showProcessLinkModal;
+    private string? _modalError;
+
+    private PerspectiveResponseDto? _modalPerspective;
+    private ObjectiveResponseDto? _modalObjective;
+    private MeasureResponseDto? _modalMeasure;
+
+    private string _objectiveName = "";
+    private string? _objectiveDescription;
+
+    private string _measureName = "";
+    private string _measureSourceType = "Manual";
+    private string _measureDirection = "HigherIsBetter";
+    private string _measureSourceEntityId = "";
+    private decimal _measureTarget;
+    private decimal? _measureGreen;
+    private decimal? _measureRed;
+    private string? _measureUnits;
+
+    private decimal _snapshotValue;
+    private string? _snapshotNote;
+
+    private string _linkType = "Process";
+    private string _linkEntityId = "";
+    private string? _linkNote;
+
+    private bool _showPerspectiveEditModal;
+    private PerspectiveResponseDto? _editPerspectiveTarget;
+    private PerspectiveResponseDto? _deletePerspectiveTarget;
+    private string _perspectiveName = "";
+    private string? _perspectiveDescription;
+
+    private bool _showInitiativeModal;
+    private string _initiativeTitle = "";
+    private string? _initiativeDescription;
+    private string _initiativeAssigneeId = "";
+    private DateTime _initiativeDueDate = DateTime.Today.AddDays(14);
+    private List<UserPickerDto> _users = [];
+    private Dictionary<Guid, List<ActionItemSummaryDto>> _initiatives = [];
+
+    /// <summary>Measure data sources offered in the modal. PromptMetric remains API-only
+    /// until the page grows a prompt-block picker.</summary>
+    private static readonly (string Value, string Label, string Icon, string Hint)[] _sourceTypes =
+    [
+        ("Manual", "Manual", "bi-pencil", "Readings are entered by hand on the scorecard."),
+        ("ProcessYield", "Process yield", "bi-diagram-3", "Good items ÷ total items across the linked process's jobs — the objective's maturity reads from this value."),
+        ("ProcessMaturity", "Process maturity", "bi-graph-up", "Mean step maturity score (0–100) of the linked process."),
+        ("WorkflowThroughput", "Workflow throughput", "bi-share", "Completed workorders of the linked workflow in the last 30 days."),
+        ("ActionCloseRate", "Action close rate", "bi-person-check", "Percent of action items raised in the last 30 days that are complete or verified."),
+        ("OpenNonConformances", "Open NCs", "bi-exclamation-triangle", "Count of non-conformances awaiting disposition."),
+        ("QualityCost", "Cost of quality", "bi-currency-dollar", "Total cost of quality recorded in the last 30 days."),
+        ("SpcCapability", "SPC capability", "bi-bullseye", "Latest Cpk of the linked SPC chart."),
+        ("TrainingCompliance", "Training compliance", "bi-mortarboard", "Percent of competency records that are current — org-wide or for one training process."),
+        ("Oee", "OEE", "bi-speedometer", "Average OEE percent over the last 30 days — plant-wide or for one piece of equipment."),
+        ("PromptMetric", "Prompt metric", "bi-input-cursor-text", "Mean of a numeric inspection prompt's responses over the last 30 days."),
+    ];
+
+    private string CurrentSourceHint =>
+        _sourceTypes.FirstOrDefault(s => s.Value == _measureSourceType).Hint ?? "";
+
+    private void SelectSourceType(string value)
+    {
+        _measureSourceType = value;
+        _measureSourceEntityId = "";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+        try
+        {
+            var processes = await Api.GetProcessesAsync(active: true, pageSize: 200);
+            _processes = processes?.Items ?? [];
+            var workflows = await Api.GetWorkflowsAsync(active: true, pageSize: 200);
+            _workflows = workflows?.Items ?? [];
+            var spcCharts = await Api.GetSpcChartsAsync(active: true, pageSize: 200);
+            _spcCharts = spcCharts?.Items ?? [];
+            var training = await Api.GetProcessesAsync(processRole: "Training", pageSize: 200);
+            _trainingProcesses = training?.Items ?? [];
+            var equipment = await Api.GetEquipmentAsync(activeOnly: true, pageSize: 200);
+            _equipment = equipment?.Items ?? [];
+            _users = await Api.GetUserPickerListAsync() ?? [];
+            _promptMetrics = await Api.GetPromptMetricOptionsAsync() ?? [];
+        }
+        catch { /* pickers degrade gracefully */ }
+    }
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            _scorecard = await Api.GetScorecardAsync(Id);
+            _status = await Api.GetScorecardStatusAsync(Id);
+
+            // Initiatives are ActionItems sourced from this scorecard's objectives.
+            var actions = await Api.GetActionItemsAsync(sourceType: "StrategicObjective", pageSize: 500);
+            var objectiveIds = _status?.Perspectives
+                .SelectMany(p => p.Objectives).Select(o => o.Id).ToHashSet() ?? [];
+            _initiatives = (actions?.Items ?? [])
+                .Where(a => a.SourceEntityId.HasValue && objectiveIds.Contains(a.SourceEntityId.Value))
+                .GroupBy(a => a.SourceEntityId!.Value)
+                .ToDictionary(g => g.Key, g => g.ToList());
+        }
+        catch
+        {
+            _scorecard = null;
+            _status = null;
+        }
+        _loading = false;
+    }
+
+    private async Task ChangeStatus(string status)
+    {
+        try
+        {
+            await Api.UpdateScorecardAsync(Id, new UpdateScorecardDto(null, null, null, null, status, null));
+            await Load();
+        }
+        catch { /* surfaced on refresh */ }
+    }
+
+    // ── Perspectives ──
+
+    private void OpenPerspectiveEditModal(PerspectiveResponseDto perspective)
+    {
+        _editPerspectiveTarget = perspective;
+        _perspectiveName = perspective.Name;
+        _perspectiveDescription = perspective.Description;
+        _modalError = null;
+        _showPerspectiveEditModal = true;
+    }
+
+    private async Task SavePerspective()
+    {
+        if (string.IsNullOrWhiteSpace(_perspectiveName)) { _modalError = "Name is required."; return; }
+        _saving = true;
+        try
+        {
+            await Api.UpdateScorecardPerspectiveAsync(_editPerspectiveTarget!.Id,
+                new UpdatePerspectiveDto(_perspectiveName.Trim(), _perspectiveDescription, null));
+            _showPerspectiveEditModal = false;
+            await Load();
+        }
+        catch (Exception ex) { _modalError = ex.Message; }
+        _saving = false;
+    }
+
+    /// <summary>Swaps a perspective with its neighbor, then renumbers all sort orders 0..n.</summary>
+    private async Task MovePerspective(int index, int direction)
+    {
+        if (_status is null) return;
+        var ordered = _status.Perspectives.ToList();
+        var target = index + direction;
+        if (target < 0 || target >= ordered.Count) return;
+
+        (ordered[index], ordered[target]) = (ordered[target], ordered[index]);
+        try
+        {
+            for (var i = 0; i < ordered.Count; i++)
+                await Api.UpdateScorecardPerspectiveAsync(ordered[i].Id, new UpdatePerspectiveDto(null, null, i));
+            await Load();
+        }
+        catch { /* surfaced on refresh */ }
+    }
+
+    private async Task DeletePerspective()
+    {
+        if (_deletePerspectiveTarget is null) return;
+        _saving = true;
+        try
+        {
+            await Api.DeleteScorecardPerspectiveAsync(_deletePerspectiveTarget.Id);
+            _deletePerspectiveTarget = null;
+            await Load();
+        }
+        catch { /* surfaced on refresh */ }
+        _saving = false;
+    }
+
+    // ── Objectives ──
+
+    private void OpenObjectiveModal(PerspectiveResponseDto perspective)
+    {
+        _modalPerspective = perspective;
+        _objectiveName = "";
+        _objectiveDescription = null;
+        _modalError = null;
+        _showObjectiveModal = true;
+    }
+
+    private async Task AddObjective()
+    {
+        if (string.IsNullOrWhiteSpace(_objectiveName)) { _modalError = "Name is required."; return; }
+        _saving = true;
+        try
+        {
+            await Api.AddStrategicObjectiveAsync(_modalPerspective!.Id,
+                new CreateObjectiveDto(_objectiveName.Trim(), _objectiveDescription, null, null, 0));
+            _showObjectiveModal = false;
+            await Load();
+        }
+        catch (Exception ex) { _modalError = ex.Message; }
+        _saving = false;
+    }
+
+    private async Task DeleteObjective(ObjectiveResponseDto objective)
+    {
+        try
+        {
+            await Api.DeleteStrategicObjectiveAsync(objective.Id);
+            await Load();
+        }
+        catch { /* surfaced on refresh */ }
+    }
+
+    // ── Measures ──
+
+    private void OpenMeasureModal(ObjectiveResponseDto objective)
+    {
+        _modalObjective = objective;
+        _measureName = "";
+        _measureSourceType = "Manual";
+        _measureDirection = "HigherIsBetter";
+        _measureSourceEntityId = "";
+        _measureTarget = 0;
+        _measureGreen = null;
+        _measureRed = null;
+        _measureUnits = null;
+        _modalError = null;
+        _showMeasureModal = true;
+    }
+
+    private async Task AddMeasure()
+    {
+        if (string.IsNullOrWhiteSpace(_measureName)) { _modalError = "Name is required."; return; }
+
+        Guid? sourceEntityId = Guid.TryParse(_measureSourceEntityId, out var g) ? g : null;
+        if (_measureSourceType is "ProcessYield" or "ProcessMaturity" or "WorkflowThroughput" or "SpcCapability" or "PromptMetric"
+            && sourceEntityId is null)
+        {
+            _modalError = "Select the entity this measure reads from.";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            await Api.AddObjectiveMeasureAsync(_modalObjective!.Id, new CreateMeasureDto(
+                _measureName.Trim(), _measureUnits, _measureDirection,
+                null, _measureTarget, _measureGreen, _measureRed,
+                _measureSourceType, sourceEntityId, null));
+            _showMeasureModal = false;
+            await Load();
+        }
+        catch (Exception ex) { _modalError = ex.Message; }
+        _saving = false;
+    }
+
+    // ── Initiatives ──
+
+    private void OpenInitiativeModal(ObjectiveResponseDto objective)
+    {
+        _modalObjective = objective;
+        _initiativeTitle = "";
+        _initiativeDescription = null;
+        _initiativeAssigneeId = "";
+        _initiativeDueDate = DateTime.Today.AddDays(14);
+        _modalError = null;
+        _showInitiativeModal = true;
+    }
+
+    private async Task AddInitiative()
+    {
+        if (string.IsNullOrWhiteSpace(_initiativeTitle)) { _modalError = "Title is required."; return; }
+        var assignee = _users.FirstOrDefault(u => u.Id == _initiativeAssigneeId);
+        if (assignee is null) { _modalError = "Select an owner for the initiative."; return; }
+
+        _saving = true;
+        try
+        {
+            // Date inputs bind with Kind=Local/Unspecified; Npgsql requires UTC for timestamptz.
+            var dueDateUtc = DateTime.SpecifyKind(_initiativeDueDate.Date, DateTimeKind.Utc);
+            await Api.CreateActionItemAsync(new CreateActionItemDto(
+                _initiativeTitle.Trim(), _initiativeDescription,
+                assignee.Id, assignee.DisplayName,
+                dueDateUtc, "Medium",
+                "StrategicObjective", _modalObjective!.Id));
+            _showInitiativeModal = false;
+            await Load();
+        }
+        catch (Exception ex) { _modalError = ex.Message; }
+        _saving = false;
+    }
+
+    // ── Snapshots ──
+
+    private void OpenSnapshotModal(MeasureResponseDto measure)
+    {
+        _modalMeasure = measure;
+        _snapshotValue = measure.CurrentValue ?? 0;
+        _snapshotNote = null;
+        _modalError = null;
+        _showSnapshotModal = true;
+    }
+
+    private async Task AddSnapshot()
+    {
+        _saving = true;
+        try
+        {
+            await Api.AddMeasureSnapshotAsync(_modalMeasure!.Id,
+                new CreateMeasureSnapshotDto(_snapshotValue, null, _snapshotNote));
+            _showSnapshotModal = false;
+            await Load();
+        }
+        catch (Exception ex) { _modalError = ex.Message; }
+        _saving = false;
+    }
+
+    // ── Process links ──
+
+    private void OpenProcessLinkModal(ObjectiveResponseDto objective)
+    {
+        _modalObjective = objective;
+        _linkType = "Process";
+        _linkEntityId = "";
+        _linkNote = null;
+        _modalError = null;
+        _showProcessLinkModal = true;
+    }
+
+    private async Task AddProcessLink()
+    {
+        if (!Guid.TryParse(_linkEntityId, out var entityId))
+        {
+            _modalError = $"Select a {_linkType.ToLower()} to link.";
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            await Api.AddObjectiveProcessLinkAsync(_modalObjective!.Id, new CreateProcessLinkDto(
+                _linkType == "Process" ? entityId : null,
+                _linkType == "Workflow" ? entityId : null,
+                _linkNote));
+            _showProcessLinkModal = false;
+            await Load();
+        }
+        catch (Exception ex) { _modalError = ex.Message; }
+        _saving = false;
+    }
+
+    // ── Display helpers ──
+
+    private static string FormatValue(decimal? value) => value?.ToString("0.##") ?? "—";
+
+    /// <summary>SVG polyline points for a sparkline, normalized to the given box with 1px padding.</summary>
+    private static string SparklinePoints(List<decimal> values, int width, int height)
+    {
+        var min = values.Min();
+        var max = values.Max();
+        var range = max - min;
+        var points = values.Select((v, i) =>
+        {
+            var x = 1 + (double)i / (values.Count - 1) * (width - 2);
+            var y = range == 0
+                ? height / 2.0
+                : 1 + (double)((max - v) / range) * (height - 2);
+            return $"{x.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)},{y.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}";
+        });
+        return string.Join(" ", points);
+    }
+
+    private static string RagDot(string rag) => rag switch
+    {
+        "Green" => "bg-success",
+        "Amber" => "bg-warning",
+        "Red" => "bg-danger",
+        _ => "bg-secondary",
+    };
+
+    private static string StatusBadge(string status) => status switch
+    {
+        "Active" => "bg-success",
+        "Archived" => "bg-secondary",
+        _ => "bg-warning text-dark",
+    };
+}

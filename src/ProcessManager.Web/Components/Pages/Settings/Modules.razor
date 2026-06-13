@@ -64,6 +64,11 @@ else
                           Description="Training catalogue, competency matrix."
                           Icon="bi-mortarboard"
                           @bind-Value="_model.ShowTrainingTools" />
+            <hr class="my-3" />
+            <ModuleToggle Label="Strategy tools"
+                          Description="Balanced Scorecard, strategic objectives, strategy map."
+                          Icon="bi-bullseye"
+                          @bind-Value="_model.ShowStrategyTools" />
         </div>
         <div class="card-footer d-flex justify-content-end bg-white">
             <button class="btn btn-primary" @onclick="SaveAsync" disabled="@_busy">
@@ -136,6 +141,7 @@ else
         public bool ShowProductionTools { get; set; }
         public bool ShowWarehouseTools { get; set; }
         public bool ShowTrainingTools { get; set; }
+        public bool ShowStrategyTools { get; set; }
 
         public static FlagsModel From(TenantFeatureFlagsDto dto) => new()
         {
@@ -144,6 +150,7 @@ else
             ShowProductionTools = dto.ShowProductionTools,
             ShowWarehouseTools  = dto.ShowWarehouseTools,
             ShowTrainingTools   = dto.ShowTrainingTools,
+            ShowStrategyTools   = dto.ShowStrategyTools,
         };
 
         public TenantFeatureFlagsDto ToDto() => new(
@@ -151,6 +158,7 @@ else
             ShowQualityTools,
             ShowProductionTools,
             ShowWarehouseTools,
-            ShowTrainingTools);
+            ShowTrainingTools,
+            ShowStrategyTools);
     }
 }

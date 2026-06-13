@@ -22,4 +22,7 @@ public class TenantFeatureFlags : BaseEntity
 
     /// <summary>Show training and competency tools.</summary>
     public bool ShowTrainingTools { get; set; }
+
+    /// <summary>Show strategy tools (Balanced Scorecard, strategy map).</summary>
+    public bool ShowStrategyTools { get; set; }
 }

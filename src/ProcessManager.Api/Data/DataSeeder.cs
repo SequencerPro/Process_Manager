@@ -3658,6 +3658,315 @@ public static class DataSeeder
         await db.SaveChangesAsync();
         return new SampleProcessIds(kind.Id, step.Id, process.Id);
     }
+
+    /// <summary>
+    /// Phase 50: seeds a complete example Balanced Scorecard that exhibits every capability
+    /// of the strategy tool — four Kaplan-Norton perspectives, objectives in each, manual
+    /// measures with six months of snapshot history, live measures fed by a seeded process
+    /// with real execution data (yield, maturity), org-wide live measures (action close rate,
+    /// open NCs, cost of quality), process links, initiatives (ActionItems), and a full
+    /// cause-and-effect chain for the strategy map. Idempotent per tenant — re-running
+    /// returns the existing demo scorecard.
+    /// </summary>
+    public static async Task<Guid> SeedBalancedScorecardDemoAsync(ProcessManagerDbContext db, Guid tenantId)
+    {
+        var suffix = tenantId.ToString()[..6].ToUpperInvariant();
+        var scorecardCode = $"BSC-DEMO-{suffix}";
+
+        var existing = await db.Scorecards.FirstOrDefaultAsync(s => s.Code == scorecardCode);
+        if (existing is not null) return existing.Id;
+
+        var now = DateTime.UtcNow;
+
+        // ── Operational backdrop: a finished widget process with real execution data ──
+
+        var kind = new Kind
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            Code = $"BSCDEMO-WIDGET-{suffix}", Name = "Demo Precision Widget",
+            Description = "Backing part for the Balanced Scorecard demo. Safe to delete with the demo scorecard.",
+            IsSerialized = false, IsBatchable = true,
+            SourceType = KindSourceType.Make, UnitOfMeasure = "Each"
+        };
+        var gradeNew  = new Grade { Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now, KindId = kind.Id, Code = "NEW",  Name = "New",    IsDefault = true,  SortOrder = 1 };
+        var gradePass = new Grade { Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now, KindId = kind.Id, Code = "PASS", Name = "Passed", IsDefault = false, SortOrder = 2 };
+        var gradeFail = new Grade { Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now, KindId = kind.Id, Code = "FAIL", Name = "Failed", IsDefault = false, SortOrder = 3 };
+        kind.Grades.Add(gradeNew);
+        kind.Grades.Add(gradePass);
+        kind.Grades.Add(gradeFail);
+        db.Kinds.Add(kind);
+
+        var step = new StepTemplate
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            Code = $"BSCDEMO-FPI-{suffix}", Name = "Final Precision Inspection",
+            Description = "Inspection step backing the demo scorecard's yield and maturity measures.",
+            Pattern = StepPattern.Transform, Version = 1, IsActive = true,
+            Status = ProcessStatus.Released, IsShared = true, ExpectedDurationMinutes = 8
+        };
+        step.Ports.Add(new Port
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            StepTemplateId = step.Id, Name = "Incoming", Direction = PortDirection.Input,
+            PortType = PortType.Material, KindId = kind.Id, GradeId = gradeNew.Id,
+            QtyRuleMode = QuantityRuleMode.Exactly, QtyRuleN = 1, SortOrder = 1
+        });
+        step.Ports.Add(new Port
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            StepTemplateId = step.Id, Name = "Inspected", Direction = PortDirection.Output,
+            PortType = PortType.Material, KindId = kind.Id, GradeId = gradePass.Id,
+            QtyRuleMode = QuantityRuleMode.Exactly, QtyRuleN = 1, SortOrder = 1
+        });
+
+        // Content blocks so the ProcessMaturity measure scores meaningfully (Phase 8 rules).
+        var setupBlock = SeederStepBuilder.Setup(step, 0,
+            "Mount the widget in the inspection fixture and zero the gauge before measuring.");
+        setupBlock.TenantId = tenantId;
+        step.Contents.Add(setupBlock);
+        var safetyBlock = SeederStepBuilder.Safety(step, 20,
+            "Wear cut-resistant gloves when handling unfinished widgets — edges may be sharp.");
+        safetyBlock.TenantId = tenantId;
+        step.Contents.Add(safetyBlock);
+        var inspectPrompt = SeederStepBuilder.Numeric(step, 40, "Outside diameter (mm)",
+            units: "mm", min: 24.95m, max: 25.05m, nominal: 25.00m);
+        inspectPrompt.TenantId = tenantId;
+        step.Contents.Add(inspectPrompt);
+        db.StepTemplates.Add(step);
+
+        var process = new Process
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            Code = $"BSCDEMO-PROC-{suffix}", Name = "Precision Widget Finishing",
+            Description = "Demo process realizing the scorecard's first-pass-yield objective.",
+            Version = 1, IsActive = true, Status = ProcessStatus.Released,
+            RevisionCode = "A", EffectiveDate = now
+        };
+        process.ProcessSteps.Add(new ProcessStep
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            ProcessId = process.Id, StepTemplateId = step.Id, Sequence = 1
+        });
+        db.Processes.Add(process);
+
+        // A completed job with 18 passed / 2 failed items → 90 % first-pass yield.
+        var job = new Job
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            Code = $"BSCDEMO-JOB-{suffix}", Name = "Widget Finishing Run 42",
+            Description = "Demo execution run feeding the scorecard's yield measure.",
+            ProcessId = process.Id, ProcessVersion = 1,
+            Status = JobStatus.Completed, StartedAt = now.AddDays(-7), CompletedAt = now.AddDays(-6)
+        };
+        db.Jobs.Add(job);
+
+        for (var i = 0; i < 20; i++)
+        {
+            db.Items.Add(new Item
+            {
+                Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+                KindId = kind.Id, GradeId = i < 18 ? gradePass.Id : gradeFail.Id,
+                JobId = job.Id, Status = ItemStatus.Completed
+            });
+        }
+
+        // Cost-of-quality records feeding the Financial perspective (450 total, 30-day window).
+        db.QualityCosts.Add(new QualityCost
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            SourceType = QualityCostSourceType.Scrap, Amount = 320m, Currency = "USD",
+            CostCategory = QualityCostCategory.InternalFailure,
+            Description = "Demo: scrapped widgets from finishing run 42",
+            RecordedByUserId = "demo-seeder", RecordedByDisplayName = "Demo Seeder",
+            RecordedAt = now.AddDays(-10)
+        });
+        db.QualityCosts.Add(new QualityCost
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            SourceType = QualityCostSourceType.Rework, Amount = 130m, Currency = "USD",
+            CostCategory = QualityCostCategory.InternalFailure,
+            Description = "Demo: rework labor on returned widgets",
+            RecordedByUserId = "demo-seeder", RecordedByDisplayName = "Demo Seeder",
+            RecordedAt = now.AddDays(-3)
+        });
+
+        // ── The scorecard itself ─────────────────────────────────────────────
+
+        var scorecard = new Scorecard
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            Code = scorecardCode, Name = "Demo: Widget Co. Strategy",
+            MissionStatement = "Make the most reliable precision widgets in the market.",
+            VisionStatement = "Every customer order delivered on time, defect-free, at industry-leading margin.",
+            StrategyNotes = "Seeded example exhibiting all Balanced Scorecard capabilities. Safe to delete.",
+            Status = ScorecardStatus.Active
+        };
+
+        ScorecardPerspective Perspective(string name, string description, int order)
+        {
+            var p = new ScorecardPerspective
+            {
+                Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+                ScorecardId = scorecard.Id, Name = name, Description = description, SortOrder = order
+            };
+            scorecard.Perspectives.Add(p);
+            return p;
+        }
+
+        var financial = Perspective("Financial", "How do we look to shareholders?", 0);
+        var customer  = Perspective("Customer", "How do customers see us?", 1);
+        var internalP = Perspective("Internal Business Process", "What must we excel at?", 2);
+        var learning  = Perspective("Learning & Growth", "Can we continue to improve and create value?", 3);
+
+        var objSeq = 0;
+        StrategicObjective Objective(ScorecardPerspective p, string name, string description)
+        {
+            var o = new StrategicObjective
+            {
+                Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+                PerspectiveId = p.Id, Code = $"OBJ-DEMO-{suffix}-{++objSeq:D2}",
+                Name = name, Description = description,
+                Status = StrategicObjectiveStatus.Active, SortOrder = p.Objectives.Count
+            };
+            p.Objectives.Add(o);
+            return o;
+        }
+
+        ObjectiveMeasure Measure(StrategicObjective o, string name, string? units,
+            MeasureDirection direction, decimal target, decimal? green, decimal? red,
+            MeasureSourceType sourceType, Guid? sourceEntityId = null, string? sourceParameter = null)
+        {
+            var m = new ObjectiveMeasure
+            {
+                Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+                ObjectiveId = o.Id, Name = name, Units = units, Direction = direction,
+                TargetValue = target, GreenThreshold = green, RedThreshold = red,
+                SourceType = sourceType, SourceEntityId = sourceEntityId, SourceParameter = sourceParameter
+            };
+            o.Measures.Add(m);
+            return m;
+        }
+
+        void Snapshots(ObjectiveMeasure m, params decimal[] monthlyValues)
+        {
+            for (var i = 0; i < monthlyValues.Length; i++)
+            {
+                m.Snapshots.Add(new MeasureSnapshot
+                {
+                    Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+                    MeasureId = m.Id, Value = monthlyValues[i],
+                    CapturedAt = now.AddDays(-30 * (monthlyValues.Length - 1 - i)),
+                    CaptureSource = MeasureCaptureSource.Manual,
+                    Note = i == monthlyValues.Length - 1 ? "Latest monthly review" : null
+                });
+            }
+            m.BaselineValue = monthlyValues[0];
+        }
+
+        // Financial
+        var objMargin = Objective(financial, "Grow margin through quality",
+            "Reduce the cost of poor quality so finished-goods margin expands without price increases.");
+        Measure(objMargin, "Cost of quality (30-day)", "$", MeasureDirection.LowerIsBetter,
+            500m, 500m, 1000m, MeasureSourceType.QualityCost);
+        var mRevenue = Measure(objMargin, "Revenue per employee", "k$", MeasureDirection.HigherIsBetter,
+            220m, 210m, 180m, MeasureSourceType.Manual);
+        Snapshots(mRevenue, 188m, 192m, 199m, 204m, 208m, 212m);
+
+        // Customer
+        var objOnTime = Objective(customer, "Deliver on time, every time",
+            "Hit promised ship dates so customers can plan their lines around our deliveries.");
+        var mOtd = Measure(objOnTime, "On-time delivery", "%", MeasureDirection.HigherIsBetter,
+            98m, 95m, 85m, MeasureSourceType.Manual);
+        Snapshots(mOtd, 88m, 90m, 91m, 93m, 95m, 96m);
+        var objEscapes = Objective(customer, "Eliminate customer-visible defects",
+            "No defect that reaches inspection should ever reach a customer.");
+        Measure(objEscapes, "Open non-conformances", "NCs", MeasureDirection.LowerIsBetter,
+            0m, 0m, 5m, MeasureSourceType.OpenNonConformances);
+
+        // Internal Business Process
+        var objYield = Objective(internalP, "Achieve world-class first-pass yield",
+            "Finishing yield is the single best proxy for how mature this objective is — it reads live from the linked process.");
+        Measure(objYield, "Finishing first-pass yield", "%", MeasureDirection.HigherIsBetter,
+            95m, 90m, 75m, MeasureSourceType.ProcessYield, process.Id, gradePass.Id.ToString());
+        var objMature = Objective(internalP, "Mature core process documentation",
+            "Every released step carries setup, safety, and inspection content with hard limits.");
+        Measure(objMature, "Mean step maturity score", "pts", MeasureDirection.HigherIsBetter,
+            85m, 80m, 50m, MeasureSourceType.ProcessMaturity, process.Id);
+
+        // Learning & Growth
+        var objAccountable = Objective(learning, "Build a culture of accountability",
+            "Actions raised in reviews get owners, due dates, and verified closure.");
+        Measure(objAccountable, "30-day action close rate", "%", MeasureDirection.HigherIsBetter,
+            90m, 80m, 50m, MeasureSourceType.ActionCloseRate);
+        var objCertify = Objective(learning, "Grow workforce certification",
+            "Cross-train operators so every shift can run the finishing line unassisted.");
+        var mCert = Measure(objCertify, "Operators certified on finishing", "%", MeasureDirection.HigherIsBetter,
+            100m, 90m, 60m, MeasureSourceType.Manual);
+        Snapshots(mCert, 55m, 62m, 70m, 78m, 85m, 92m);
+
+        db.Scorecards.Add(scorecard);
+
+        // Link the operational work that realizes the internal-process objectives.
+        db.ObjectiveProcessLinks.Add(new ObjectiveProcessLink
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            ObjectiveId = objYield.Id, ProcessId = process.Id,
+            Note = "Finishing process whose yield expresses this objective's maturity."
+        });
+        db.ObjectiveProcessLinks.Add(new ObjectiveProcessLink
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            ObjectiveId = objMature.Id, ProcessId = process.Id,
+            Note = "Documentation maturity is scored against this process's steps."
+        });
+
+        // Initiatives: ActionItems sourced from a strategic objective (Phase 15 machinery).
+        void Initiative(string title, ActionItemStatus status, int createdDaysAgo, DateTime? completedAt)
+        {
+            db.ActionItems.Add(new ActionItem
+            {
+                Id = Guid.NewGuid(), TenantId = tenantId,
+                CreatedAt = now.AddDays(-createdDaysAgo), UpdatedAt = now,
+                Title = title,
+                Description = "Demo initiative spawned from the Balanced Scorecard example.",
+                AssignedToUserId = "demo-seeder", AssignedToDisplayName = "Demo Operator",
+                AssignedByUserId = "demo-seeder", AssignedByDisplayName = "Demo Manager",
+                DueDate = now.AddDays(7), Priority = ActionItemPriority.Medium,
+                Status = status,
+                SourceType = ActionItemSourceType.StrategicObjective,
+                SourceEntityId = objAccountable.Id,
+                CompletedAt = completedAt,
+                CompletedBy = completedAt is null ? null : "Demo Operator"
+            });
+        }
+
+        Initiative("Stand up daily yield huddle at the finishing line", ActionItemStatus.Complete, 20, now.AddDays(-12));
+        Initiative("Add hard limits to all finishing inspection prompts", ActionItemStatus.Complete, 18, now.AddDays(-9));
+        Initiative("Train second-shift operators on the OD gauge", ActionItemStatus.Complete, 14, now.AddDays(-6));
+        Initiative("Pilot SPC chart on outside-diameter readings", ActionItemStatus.Complete, 10, now.AddDays(-2));
+        Initiative("Document fixture changeover as a Setup block", ActionItemStatus.Open, 5, null);
+
+        // Cause-and-effect chain across all four perspectives (the strategy map).
+        void CauseLink(StrategicObjective source, StrategicObjective target, string description) =>
+            db.ObjectiveCauseLinks.Add(new ObjectiveCauseLink
+            {
+                Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+                ScorecardId = scorecard.Id,
+                SourceObjectiveId = source.Id, TargetObjectiveId = target.Id,
+                Description = description
+            });
+
+        CauseLink(objAccountable, objYield, "Verified closure of line actions removes recurring yield detractors.");
+        CauseLink(objCertify, objMature, "Certified operators surface gaps that harden work instructions.");
+        CauseLink(objMature, objYield, "Mature instructions reduce operator-induced variation.");
+        CauseLink(objYield, objOnTime, "Higher first-pass yield removes rework queues that slip ship dates.");
+        CauseLink(objYield, objEscapes, "Catching defects at finishing keeps them out of customer shipments.");
+        CauseLink(objOnTime, objMargin, "Reliable delivery wins repeat business at better prices.");
+        CauseLink(objEscapes, objMargin, "Fewer escapes cut warranty and goodwill spend.");
+
+        await db.SaveChangesAsync();
+        return scorecard.Id;
+    }
 }
 
 // =============================================================================

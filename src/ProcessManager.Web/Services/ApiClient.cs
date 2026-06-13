@@ -3117,4 +3117,148 @@ public class ApiClient
 
     public Task<ComplaintDashboardDto?> GetComplaintDashboardAsync()
         => _http.GetFromJsonAsync<ComplaintDashboardDto>("api/complaints/dashboard", _json);
+
+    // ── Balanced Scorecard (Phase 50) ────────────────────────────────────────
+
+    public Task<PaginatedResponse<ScorecardSummaryDto>?> GetScorecardsAsync(string? status = null, string? search = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<ScorecardSummaryDto>>(
+            $"api/scorecards?status={E(status)}&search={E(search)}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<ScorecardResponseDto?> GetScorecardAsync(Guid id)
+        => _http.GetFromJsonAsync<ScorecardResponseDto>($"api/scorecards/{id}", _json);
+
+    public Task<ScorecardStatusDto?> GetScorecardStatusAsync(Guid id)
+        => _http.GetFromJsonAsync<ScorecardStatusDto>($"api/scorecards/{id}/status", _json);
+
+    public Task<StrategyMapDto?> GetStrategyMapAsync(Guid id)
+        => _http.GetFromJsonAsync<StrategyMapDto>($"api/scorecards/{id}/strategy-map", _json);
+
+    public Task<List<PromptMetricOptionDto>?> GetPromptMetricOptionsAsync()
+        => _http.GetFromJsonAsync<List<PromptMetricOptionDto>>("api/scorecards/prompt-metrics", _json);
+
+    public Task<ScorecardDashboardDto?> GetScorecardDashboardAsync()
+        => _http.GetFromJsonAsync<ScorecardDashboardDto>("api/scorecards/dashboard", _json);
+
+    public async Task<ScorecardResponseDto?> SeedScorecardDemoAsync()
+    {
+        var resp = await _http.PostAsync("api/scorecards/seed-demo", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ScorecardResponseDto>(_json);
+    }
+
+    public async Task<ScorecardResponseDto?> CreateScorecardAsync(CreateScorecardDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/scorecards", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ScorecardResponseDto>(_json);
+    }
+
+    public async Task<ScorecardResponseDto?> UpdateScorecardAsync(Guid id, UpdateScorecardDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/scorecards/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ScorecardResponseDto>(_json);
+    }
+
+    public async Task DeleteScorecardAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/scorecards/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<PerspectiveResponseDto?> AddScorecardPerspectiveAsync(Guid scorecardId, CreatePerspectiveDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/scorecards/{scorecardId}/perspectives", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<PerspectiveResponseDto>(_json);
+    }
+
+    public async Task<PerspectiveResponseDto?> UpdateScorecardPerspectiveAsync(Guid perspectiveId, UpdatePerspectiveDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/scorecards/perspectives/{perspectiveId}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<PerspectiveResponseDto>(_json);
+    }
+
+    public async Task DeleteScorecardPerspectiveAsync(Guid perspectiveId)
+    {
+        var resp = await _http.DeleteAsync($"api/scorecards/perspectives/{perspectiveId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<ObjectiveResponseDto?> AddStrategicObjectiveAsync(Guid perspectiveId, CreateObjectiveDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/scorecards/perspectives/{perspectiveId}/objectives", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ObjectiveResponseDto>(_json);
+    }
+
+    public async Task<ObjectiveResponseDto?> UpdateStrategicObjectiveAsync(Guid objectiveId, UpdateObjectiveDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/scorecards/objectives/{objectiveId}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ObjectiveResponseDto>(_json);
+    }
+
+    public async Task DeleteStrategicObjectiveAsync(Guid objectiveId)
+    {
+        var resp = await _http.DeleteAsync($"api/scorecards/objectives/{objectiveId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<MeasureResponseDto?> AddObjectiveMeasureAsync(Guid objectiveId, CreateMeasureDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/scorecards/objectives/{objectiveId}/measures", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<MeasureResponseDto>(_json);
+    }
+
+    public async Task<MeasureResponseDto?> UpdateObjectiveMeasureAsync(Guid measureId, UpdateMeasureDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/scorecards/measures/{measureId}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<MeasureResponseDto>(_json);
+    }
+
+    public async Task DeleteObjectiveMeasureAsync(Guid measureId)
+    {
+        var resp = await _http.DeleteAsync($"api/scorecards/measures/{measureId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<List<MeasureSnapshotResponseDto>?> GetMeasureSnapshotsAsync(Guid measureId)
+        => _http.GetFromJsonAsync<List<MeasureSnapshotResponseDto>>($"api/scorecards/measures/{measureId}/snapshots", _json);
+
+    public async Task<MeasureSnapshotResponseDto?> AddMeasureSnapshotAsync(Guid measureId, CreateMeasureSnapshotDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/scorecards/measures/{measureId}/snapshots", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<MeasureSnapshotResponseDto>(_json);
+    }
+
+    public async Task<CauseLinkResponseDto?> AddCauseLinkAsync(Guid scorecardId, CreateCauseLinkDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/scorecards/{scorecardId}/cause-links", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<CauseLinkResponseDto>(_json);
+    }
+
+    public async Task DeleteCauseLinkAsync(Guid linkId)
+    {
+        var resp = await _http.DeleteAsync($"api/scorecards/cause-links/{linkId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<ProcessLinkResponseDto?> AddObjectiveProcessLinkAsync(Guid objectiveId, CreateProcessLinkDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/scorecards/objectives/{objectiveId}/process-links", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ProcessLinkResponseDto>(_json);
+    }
+
+    public async Task DeleteObjectiveProcessLinkAsync(Guid linkId)
+    {
+        var resp = await _http.DeleteAsync($"api/scorecards/process-links/{linkId}");
+        resp.EnsureSuccessStatusCode();
+    }
 }

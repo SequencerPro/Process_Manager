@@ -156,6 +156,7 @@ public class OnboardingController : ControllerBase
         flags.ShowProductionTools = dto.ShowProductionTools;
         flags.ShowWarehouseTools = dto.ShowWarehouseTools;
         flags.ShowTrainingTools = dto.ShowTrainingTools;
+        flags.ShowStrategyTools = dto.ShowStrategyTools;
         await _db.SaveChangesAsync();
         return Ok(MapFlags(flags));
     }
@@ -177,7 +178,8 @@ public class OnboardingController : ControllerBase
                 ShowQualityTools = true,
                 ShowProductionTools = true,
                 ShowWarehouseTools = true,
-                ShowTrainingTools = true
+                ShowTrainingTools = true,
+                ShowStrategyTools = true
             };
             _db.TenantFeatureFlags.Add(flags);
             await _db.SaveChangesAsync();
@@ -193,5 +195,5 @@ public class OnboardingController : ControllerBase
             s.SignupAt, s.CompletedAt, s.SkippedAt, s.FirstJobCompletedAt);
 
     private static TenantFeatureFlagsDto MapFlags(TenantFeatureFlags f) =>
-        new(f.ShowAdvancedModules, f.ShowQualityTools, f.ShowProductionTools, f.ShowWarehouseTools, f.ShowTrainingTools);
+        new(f.ShowAdvancedModules, f.ShowQualityTools, f.ShowProductionTools, f.ShowWarehouseTools, f.ShowTrainingTools, f.ShowStrategyTools);
 }

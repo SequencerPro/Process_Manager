@@ -109,7 +109,10 @@ public class UpgradeFlowTests : IClassFixture<TestWebApplicationFactory>, IDispo
         Assert.Equal(SubscriptionPlan.Starter, sub.PlanCode);
         Assert.Equal(SubscriptionStatus.Active, sub.Status);
 
-        var log = await db.PlanChangeLogs.FirstOrDefaultAsync();
+        // Filter to the log this test created. The scope's DbContext has no HTTP tenant
+        // context, so its global query filter is bypassed and an unfiltered FirstOrDefault
+        // would return a sibling test's log from the shared class database.
+        var log = await db.PlanChangeLogs.FirstOrDefaultAsync(l => l.Reason == "User upgraded from trial");
         Assert.NotNull(log);
         Assert.Equal(SubscriptionPlan.Trial, log.FromPlan);
         Assert.Equal(SubscriptionPlan.Starter, log.ToPlan);

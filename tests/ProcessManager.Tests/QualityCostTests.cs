@@ -376,12 +376,30 @@ public class QualityCostTests : IClassFixture<TestWebApplicationFactory>, IDispo
     [Fact]
     public async Task ListRules_ActiveOnly()
     {
-        var active = await CreateRule("NcScrapped", 100, isActive: true);
+        // Run in an isolated tenant: the controller rejects a second *active* rule for a
+        // trigger event, and sibling tests in this class already seed active NcScrapped
+        // rules in the shared class database, so creating one here on the default tenant
+        // is order-dependent and 409s. A fresh tenant has a clean slate.
+        using var client = _factory.CreateTenantClient(
+            _factory.CreateTenant($"qc-rules-{Guid.NewGuid().ToString()[..6]}"));
 
-        var resp = await _client.GetAsync("/api/quality-costs/rules?activeOnly=true");
+        var dto = new CreateQualityCostRuleDto
+        {
+            TriggerEvent = "NcScrapped",
+            DefaultCategory = "InternalFailure",
+            DefaultSourceType = "Scrap",
+            DefaultAmount = 100m,
+            Description = "Active-only test rule",
+            IsActive = true
+        };
+        var create = await client.PostAsJsonAsync("/api/quality-costs/rules", dto, Json);
+        create.EnsureSuccessStatusCode();
+
+        var resp = await client.GetAsync("/api/quality-costs/rules?activeOnly=true");
         resp.EnsureSuccessStatusCode();
         var rules = await resp.Content.ReadFromJsonAsync<List<QualityCostRuleResponseDto>>(Json);
         Assert.NotNull(rules);
+        Assert.NotEmpty(rules!);
         Assert.All(rules!, r => Assert.True(r.IsActive));
     }
 

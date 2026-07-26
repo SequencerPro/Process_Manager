@@ -578,4 +578,848 @@ public partial class McpController
 
         return sb.ToString();
     }
+
+    // ── Phase 17: Standards Conformance ──────────────────────────────────
+
+    private async Task<string> ToolGetConformanceStatus(JsonElement args)
+    {
+        var standardFilter = GetStringArg(args, "standard");
+        var clauseFilter   = GetStringArg(args, "clause_number");
+
+        var query = _db.StandardsClauses
+            .Include(c => c.EvidenceLinks)
+            .Include(c => c.Findings)
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(standardFilter) &&
+            Enum.TryParse<ConformanceStandard>(standardFilter, true, out var std))
+            query = query.Where(c => c.Standard == std);
+
+        if (!string.IsNullOrEmpty(clauseFilter))
+            query = query.Where(c => c.ClauseNumber == clauseFilter);
+
+        var clauses = await query
+            .OrderBy(c => c.Standard)
+            .ThenBy(c => c.ClauseNumber)
+            .ToListAsync();
+
+        if (!clauses.Any())
+            return "No standards clauses found matching the criteria.";
+
+        var covered = 0; var partial = 0; var gap = 0; var majorFinding = 0;
+        var openMajors = new List<(string Clause, string Title, string FindingDesc)>();
+
+        foreach (var c in clauses)
+        {
+            var hasOpenMajor = c.Findings.Any(f =>
+                f.FindingType == FindingType.MajorNonconformance && f.Status != FindingStatus.Closed);
+
+            if (hasOpenMajor)
+            {
+                majorFinding++;
+                foreach (var f in c.Findings.Where(f =>
+                    f.FindingType == FindingType.MajorNonconformance && f.Status != FindingStatus.Closed))
+                    openMajors.Add((c.ClauseNumber, c.Title, f.Description));
+            }
+            else if (!c.EvidenceLinks.Any())
+                gap++;
+            else if (c.Findings.Any(f =>
+                (f.FindingType == FindingType.MinorNonconformance || f.FindingType == FindingType.Observation)
+                && f.Status != FindingStatus.Closed))
+                partial++;
+            else
+                covered++;
+        }
+
+        var nextAudit = await _db.Audits
+            .Where(a => a.Status == AuditStatus.Planned && a.PlannedDate >= DateTime.UtcNow)
+            .OrderBy(a => a.PlannedDate)
+            .Select(a => (DateTime?)a.PlannedDate)
+            .FirstOrDefaultAsync();
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Conformance Status ({clauses.Count} clauses)\n");
+        sb.AppendLine($"- **Covered:** {covered}");
+        sb.AppendLine($"- **Partial Coverage:** {partial}");
+        sb.AppendLine($"- **Gap (no evidence):** {gap}");
+        sb.AppendLine($"- **Open Major Findings:** {majorFinding}");
+        sb.AppendLine($"- **Next Planned Audit:** {(nextAudit.HasValue ? nextAudit.Value.ToString("yyyy-MM-dd") : "None scheduled")}");
+
+        if (openMajors.Any())
+        {
+            sb.AppendLine("\n### Open Major Findings\n");
+            sb.AppendLine("| Clause | Title | Finding |");
+            sb.AppendLine("|--------|-------|---------|");
+            foreach (var (clause, title, desc) in openMajors)
+                sb.AppendLine($"| {clause} | {title} | {desc[..Math.Min(80, desc.Length)]} |");
+        }
+
+        return sb.ToString();
+    }
+
+    // ── Phase 24: SPC & Capability Analysis ─────────────────────────────
+
+    private async Task<string> ToolGetSpcStatus(JsonElement args)
+    {
+        var processIdStr = GetStringArg(args, "process_id");
+        var oocOnly = GetStringArg(args, "ooc_only");
+
+        var query = _db.SpcCharts
+            .Include(c => c.Process)
+            .Include(c => c.DataPoints)
+            .Where(c => c.IsActive)
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(processIdStr) && Guid.TryParse(processIdStr, out var pid))
+            query = query.Where(c => c.ProcessId == pid);
+
+        var charts = await query.OrderBy(c => c.Process.Name).ThenBy(c => c.Name).ToListAsync();
+
+        if (!charts.Any())
+            return "No active SPC charts found.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## SPC Status ({charts.Count} active charts)\n");
+        sb.AppendLine("| Chart | Process | Type | Points | Cpk | OOC |");
+        sb.AppendLine("|-------|---------|------|--------|-----|-----|");
+
+        var spcService = new Services.SpcCalculationService();
+        var oocTotal = 0;
+
+        foreach (var c in charts)
+        {
+            var values = c.DataPoints.OrderBy(d => d.SubgroupIndex).Select(d => d.Value).ToList();
+            string cpkStr = "—", oocStr = "0";
+
+            if (values.Count >= c.SubgroupSize)
+            {
+                var result = spcService.Calculate(values, c.SubgroupSize, c.LSL, c.USL);
+                cpkStr = result.Cpk.HasValue ? result.Cpk.Value.ToString("F2") : "—";
+                oocStr = result.OutOfControlPoints.Count.ToString();
+                oocTotal += result.OutOfControlPoints.Count;
+            }
+
+            var skipRow = string.Equals(oocOnly, "true", StringComparison.OrdinalIgnoreCase)
+                          && oocStr == "0";
+            if (skipRow) continue;
+
+            sb.AppendLine($"| {c.Name} | {c.Process.Name} | {c.ChartType} | {values.Count} | {cpkStr} | {oocStr} |");
+        }
+
+        sb.AppendLine($"\n**Total charts with OOC points:** {charts.Count(c => c.DataPoints.Count > 0)}");
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolGetProcessCapability(JsonElement args)
+    {
+        var chartIdStr = GetStringArg(args, "chart_id");
+        if (string.IsNullOrEmpty(chartIdStr) || !Guid.TryParse(chartIdStr, out var chartId))
+            return "Error: chart_id is required (GUID).";
+
+        var chart = await _db.SpcCharts
+            .Include(c => c.Process)
+            .Include(c => c.DataPoints)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == chartId);
+
+        if (chart is null)
+            return "Error: SPC chart not found.";
+
+        var values = chart.DataPoints.OrderBy(d => d.SubgroupIndex).Select(d => d.Value).ToList();
+        if (values.Count < chart.SubgroupSize)
+            return $"Error: Need at least {chart.SubgroupSize} data points (have {values.Count}).";
+
+        var spcService = new Services.SpcCalculationService();
+        var result = spcService.Calculate(values, chart.SubgroupSize, chart.LSL, chart.USL);
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Process Capability: {chart.Name}\n");
+        sb.AppendLine($"- **Process:** {chart.Process.Name}");
+        sb.AppendLine($"- **Chart Type:** {chart.ChartType}");
+        sb.AppendLine($"- **Subgroup Size:** {chart.SubgroupSize}");
+        sb.AppendLine($"- **Total Points:** {result.TotalPoints}");
+        sb.AppendLine($"- **Subgroup Count:** {result.SubgroupCount}");
+
+        sb.AppendLine($"\n### Central Tendency & Dispersion\n");
+        sb.AppendLine($"- **X-bar (Grand Mean):** {result.XBar}");
+        sb.AppendLine($"- **R-bar (Average Range):** {result.RBar}");
+        sb.AppendLine($"- **Estimated σ (within):** {result.StdDev}");
+
+        sb.AppendLine($"\n### Control Limits\n");
+        sb.AppendLine($"| Metric | UCL | CL | LCL |");
+        sb.AppendLine($"|--------|-----|----|----|");
+        sb.AppendLine($"| X-bar | {result.UCL} | {result.CL} | {result.LCL} |");
+        sb.AppendLine($"| Range | {result.RangeUCL} | {result.RangeCL} | {result.RangeLCL} |");
+
+        if (chart.LSL.HasValue || chart.USL.HasValue)
+        {
+            sb.AppendLine($"\n### Specification Limits\n");
+            if (chart.LSL.HasValue) sb.AppendLine($"- **LSL:** {chart.LSL}");
+            if (chart.USL.HasValue) sb.AppendLine($"- **USL:** {chart.USL}");
+        }
+
+        sb.AppendLine($"\n### Capability Indices\n");
+        sb.AppendLine($"| Index | Value | Assessment |");
+        sb.AppendLine($"|-------|-------|------------|");
+        if (result.Cp.HasValue)
+            sb.AppendLine($"| Cp | {result.Cp.Value:F4} | {CapabilityAssessment(result.Cp.Value)} |");
+        if (result.Cpk.HasValue)
+            sb.AppendLine($"| Cpk | {result.Cpk.Value:F4} | {CapabilityAssessment(result.Cpk.Value)} |");
+        if (result.Pp.HasValue)
+            sb.AppendLine($"| Pp | {result.Pp.Value:F4} | {CapabilityAssessment(result.Pp.Value)} |");
+        if (result.Ppk.HasValue)
+            sb.AppendLine($"| Ppk | {result.Ppk.Value:F4} | {CapabilityAssessment(result.Ppk.Value)} |");
+
+        if (!result.Cp.HasValue && !result.Cpk.HasValue)
+            sb.AppendLine("*Specification limits not set — capability indices unavailable.*");
+
+        if (result.OutOfControlPoints.Any())
+        {
+            sb.AppendLine($"\n### Out-of-Control Points ({result.OutOfControlPoints.Count})\n");
+            sb.AppendLine("| Subgroup | Value | Rule |");
+            sb.AppendLine("|----------|-------|------|");
+            foreach (var ooc in result.OutOfControlPoints.Take(20))
+                sb.AppendLine($"| {ooc.SubgroupIndex} | {ooc.Value:F4} | {ooc.Rule} |");
+        }
+        else
+        {
+            sb.AppendLine("\n**Process is in statistical control — no Nelson rule violations.**");
+        }
+
+        return sb.ToString();
+    }
+
+    private static string CapabilityAssessment(decimal value) => value switch
+    {
+        >= 2.0m => "Excellent (Six Sigma)",
+        >= 1.67m => "Very Good",
+        >= 1.33m => "Good (minimum for new processes)",
+        >= 1.0m => "Marginal (minimum for existing processes)",
+        _ => "Poor — process improvement needed"
+    };
+
+    // ── Phase 21: Automatic Inventory Tracking ────────────────────────────
+
+    private async Task<string> ToolGetWorkstationStatus(JsonElement args)
+    {
+        var activeOnly = GetStringArg(args, "active_only");
+        var wsCode = GetStringArg(args, "workstation_code");
+
+        var query = _db.Workstations
+            .Include(w => w.FixedLocation)
+            .Include(w => w.ApiKeys)
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (string.IsNullOrEmpty(activeOnly) || string.Equals(activeOnly, "true", StringComparison.OrdinalIgnoreCase))
+            query = query.Where(w => w.IsActive);
+
+        if (!string.IsNullOrEmpty(wsCode))
+            query = query.Where(w => w.Code.ToLower() == wsCode.Trim().ToLower());
+
+        var workstations = await query.OrderBy(w => w.Code).ToListAsync();
+
+        if (!workstations.Any())
+            return "No workstations found matching the criteria.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Workstation Status ({workstations.Count} workstations)\n");
+        sb.AppendLine("| Code | Name | Location | API Keys | Active | Last Scan |");
+        sb.AppendLine("|------|------|----------|----------|--------|-----------|");
+
+        foreach (var ws in workstations)
+        {
+            var lastScan = await _db.ScanEvents
+                .Where(s => s.WorkstationId == ws.Id)
+                .OrderByDescending(s => s.ScannedAt)
+                .Select(s => (DateTime?)s.ScannedAt)
+                .FirstOrDefaultAsync();
+
+            var lastScanStr = lastScan.HasValue ? lastScan.Value.ToString("yyyy-MM-dd HH:mm") : "Never";
+            sb.AppendLine($"| {ws.Code} | {ws.Name} | {ws.FixedLocation.Code} | {ws.ApiKeys.Count} | {(ws.IsActive ? "Yes" : "No")} | {lastScanStr} |");
+        }
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolGetSupplierQualityStatus(JsonElement args)
+    {
+        var statusFilter = GetStringArg(args, "status");
+        var topStr = args.TryGetProperty("top", out var tp) ? tp.GetString()?.Trim() : null;
+        var top = int.TryParse(topStr, out var t) && t > 0 ? Math.Min(t, 50) : 20;
+
+        var query = _db.Suppliers
+            .Include(s => s.Evaluations)
+            .AsNoTracking()
+            .Where(s => s.IsActive);
+
+        if (!string.IsNullOrEmpty(statusFilter) && Enum.TryParse<SupplierStatus>(statusFilter, true, out var st))
+            query = query.Where(s => s.Status == st);
+
+        var suppliers = await query.OrderBy(s => s.Code).Take(top).ToListAsync();
+
+        if (!suppliers.Any())
+            return "No suppliers found matching the criteria.";
+
+        var allActive = await _db.Suppliers.AsNoTracking().Where(s => s.IsActive).ToListAsync();
+        var approved = allActive.Count(s => s.Status == SupplierStatus.Approved);
+        var conditional = allActive.Count(s => s.Status == SupplierStatus.Conditional);
+        var suspended = allActive.Count(s => s.Status == SupplierStatus.Suspended);
+        var pending = allActive.Count(s => s.Status == SupplierStatus.Pending);
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Supplier Quality Status\n");
+        sb.AppendLine($"**Total Active:** {allActive.Count} | **Approved:** {approved} | **Conditional:** {conditional} | **Suspended:** {suspended} | **Pending:** {pending}\n");
+
+        sb.AppendLine($"### Suppliers ({suppliers.Count})\n");
+        sb.AppendLine("| Code | Name | Status | Evaluations | Latest Score |");
+        sb.AppendLine("|------|------|--------|-------------|--------------|");
+
+        foreach (var s in suppliers)
+        {
+            var latest = s.Evaluations.OrderByDescending(e => e.EvaluationDate).FirstOrDefault();
+            var scoreStr = latest != null ? latest.OverallScore.ToString() : "—";
+            sb.AppendLine($"| `{s.Code}` | {s.Name} | **{s.Status}** | {s.Evaluations.Count} | {scoreStr} |");
+        }
+
+        var atRisk = allActive
+            .Where(s => s.Status == SupplierStatus.Conditional || s.Status == SupplierStatus.Suspended)
+            .ToList();
+
+        if (atRisk.Any())
+        {
+            sb.AppendLine($"\n### At-Risk Suppliers ({atRisk.Count})\n");
+            foreach (var s in atRisk.Take(10))
+                sb.AppendLine($"- **{s.Code}** ({s.Name}) — Status: {s.Status}");
+        }
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolGetCalibrationStatus(JsonElement args)
+    {
+        var equipmentIdStr = GetStringArg(args, "equipment_id");
+        var includeHistory = GetStringArg(args, "include_history")?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
+
+        var now = DateTime.UtcNow;
+
+        var schedulesQuery = _db.CalibrationSchedules
+            .Include(s => s.Equipment)
+            .Where(s => s.IsActive);
+
+        if (!string.IsNullOrEmpty(equipmentIdStr) && Guid.TryParse(equipmentIdStr, out var eqId))
+            schedulesQuery = schedulesQuery.Where(s => s.EquipmentId == eqId);
+
+        var schedules = await schedulesQuery.ToListAsync();
+
+        var recordsQuery = _db.CalibrationRecords
+            .Include(r => r.Equipment)
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(equipmentIdStr) && Guid.TryParse(equipmentIdStr, out var eqId2))
+            recordsQuery = recordsQuery.Where(r => r.EquipmentId == eqId2);
+
+        var allRecords = await recordsQuery.OrderByDescending(r => r.CalibrationDate).ToListAsync();
+
+        if (!schedules.Any() && !allRecords.Any())
+            return "No calibration schedules or records found.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## Calibration Status Summary\n");
+
+        // Record stats
+        var passCount = allRecords.Count(r => r.Result == Domain.Enums.CalibrationResult.Pass);
+        var failCount = allRecords.Count(r => r.Result == Domain.Enums.CalibrationResult.Fail);
+        var limitedCount = allRecords.Count(r => r.Result == Domain.Enums.CalibrationResult.Limited);
+        sb.AppendLine($"**Total Records:** {allRecords.Count} | **Pass:** {passCount} | **Fail:** {failCount} | **Limited:** {limitedCount}");
+        sb.AppendLine($"**Active Schedules:** {schedules.Count}\n");
+
+        // Compute due/overdue per schedule
+        var recalls = new List<(string Code, string Name, DateTime NextDue, int DaysUntil, string? LastResult)>();
+        foreach (var s in schedules)
+        {
+            var lastRecord = allRecords.FirstOrDefault(r => r.EquipmentId == s.EquipmentId);
+            var nextDue = lastRecord?.NextDueDate ?? now;
+            var daysUntil = (int)(nextDue - now).TotalDays;
+            recalls.Add((s.Equipment.Code, s.Equipment.Name, nextDue, daysUntil, lastRecord?.Result.ToString()));
+        }
+
+        var overdue = recalls.Where(r => r.DaysUntil < 0).OrderBy(r => r.DaysUntil).ToList();
+        var due = recalls.Where(r => r.DaysUntil >= 0 && r.DaysUntil <= 30).OrderBy(r => r.DaysUntil).ToList();
+
+        sb.AppendLine($"**Overdue:** {overdue.Count} | **Due within 30 days:** {due.Count}\n");
+
+        if (overdue.Any())
+        {
+            sb.AppendLine("### Overdue Calibrations\n");
+            sb.AppendLine("| Equipment | Name | Next Due | Days Overdue | Last Result |");
+            sb.AppendLine("|-----------|------|----------|--------------|-------------|");
+            foreach (var r in overdue.Take(15))
+                sb.AppendLine($"| `{r.Code}` | {r.Name} | {r.NextDue:yyyy-MM-dd} | {Math.Abs(r.DaysUntil)} | {r.LastResult ?? "—"} |");
+        }
+
+        if (due.Any())
+        {
+            sb.AppendLine("\n### Due Within 30 Days\n");
+            sb.AppendLine("| Equipment | Name | Next Due | Days Until Due | Last Result |");
+            sb.AppendLine("|-----------|------|----------|----------------|-------------|");
+            foreach (var r in due.Take(15))
+                sb.AppendLine($"| `{r.Code}` | {r.Name} | {r.NextDue:yyyy-MM-dd} | {r.DaysUntil} | {r.LastResult ?? "—"} |");
+        }
+
+        if (includeHistory && allRecords.Any())
+        {
+            var grouped = allRecords.GroupBy(r => r.EquipmentId).Take(10);
+            sb.AppendLine("\n### Recent Calibration History\n");
+            foreach (var g in grouped)
+            {
+                var eq = g.First().Equipment;
+                sb.AppendLine($"\n**{eq.Code}** ({eq.Name}):");
+                sb.AppendLine("| Date | Type | Result | Certificate |");
+                sb.AppendLine("|------|------|--------|-------------|");
+                foreach (var r in g.Take(5))
+                    sb.AppendLine($"| {r.CalibrationDate:yyyy-MM-dd} | {r.CalibrationType} | {r.Result} | {r.CertificateNumber ?? "—"} |");
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolGetCapaStatus(JsonElement args)
+    {
+        var statusFilter = GetStringArg(args, "status");
+        var typeFilter = GetStringArg(args, "type");
+
+        var query = _db.CapaRecords.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrEmpty(statusFilter) && Enum.TryParse<CapaStatus>(statusFilter, true, out var st))
+            query = query.Where(c => c.Status == st);
+
+        if (!string.IsNullOrEmpty(typeFilter) && Enum.TryParse<CapaType>(typeFilter, true, out var tp))
+            query = query.Where(c => c.Type == tp);
+
+        var all = await query.ToListAsync();
+
+        if (!all.Any())
+            return "No CAPA records found matching the criteria.";
+
+        var open = all.Where(c => c.Status != CapaStatus.Closed).ToList();
+        var closed = all.Where(c => c.Status == CapaStatus.Closed).ToList();
+        var overdue = open.Where(c => c.VerificationDueDate.HasValue && c.VerificationDueDate.Value < DateTime.UtcNow).ToList();
+
+        var avgDaysToClose = closed.Any()
+            ? closed.Average(c => (c.ClosedAt!.Value - c.CreatedAt).TotalDays)
+            : 0;
+
+        var effectivenessVerified = closed.Count(c => c.EffectivenessVerifiedAt.HasValue);
+        var effectivenessRate = closed.Any() ? (double)effectivenessVerified / closed.Count * 100 : 0;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## CAPA Status Summary\n");
+        sb.AppendLine($"**Total:** {all.Count} | **Open:** {open.Count} | **Overdue:** {overdue.Count} | **Closed:** {closed.Count}");
+        sb.AppendLine($"**Avg Days to Close:** {avgDaysToClose:F1} | **Effectiveness Rate:** {effectivenessRate:F1}%\n");
+
+        var byStatus = all.GroupBy(c => c.Status.ToString()).OrderBy(g => g.Key);
+        sb.AppendLine("### By Status\n");
+        sb.AppendLine("| Status | Count |");
+        sb.AppendLine("|--------|-------|");
+        foreach (var g in byStatus)
+            sb.AppendLine($"| {g.Key} | {g.Count()} |");
+
+        var bySource = all.GroupBy(c => c.SourceType.ToString()).OrderByDescending(g => g.Count());
+        sb.AppendLine("\n### By Source Type\n");
+        sb.AppendLine("| Source | Count |");
+        sb.AppendLine("|--------|-------|");
+        foreach (var g in bySource)
+            sb.AppendLine($"| {g.Key} | {g.Count()} |");
+
+        if (overdue.Any())
+        {
+            sb.AppendLine($"\n### Overdue CAPAs ({overdue.Count})\n");
+            sb.AppendLine("| Code | Type | Problem | Due Date | Owner |");
+            sb.AppendLine("|------|------|---------|----------|-------|");
+            foreach (var c in overdue.OrderBy(c => c.VerificationDueDate).Take(10))
+            {
+                var problem = c.ProblemStatement.Length > 40
+                    ? c.ProblemStatement[..40] + "..."
+                    : c.ProblemStatement;
+                sb.AppendLine($"| `{c.Code}` | {c.Type} | {problem} | {c.VerificationDueDate:yyyy-MM-dd} | {c.OwnerDisplayName} |");
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    // ─── Phase 26: MSA/GR&R ──────────────────────────────────────────────────
+
+    private async Task<string> ToolGetMsaStatus(JsonElement args)
+    {
+        var statusStr = GetStringArg(args, "status");
+        var equipmentIdStr = GetStringArg(args, "equipment_id");
+
+        var query = _db.GageStudies
+            .Include(g => g.Equipment)
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(statusStr) && Enum.TryParse<Domain.Enums.GageStudyStatus>(statusStr, true, out var status))
+            query = query.Where(g => g.Status == status);
+
+        if (!string.IsNullOrEmpty(equipmentIdStr) && Guid.TryParse(equipmentIdStr, out var eqId))
+            query = query.Where(g => g.EquipmentId == eqId);
+
+        var studies = await query.OrderByDescending(g => g.CreatedAt).ToListAsync();
+
+        if (!studies.Any())
+            return "No gage studies found.";
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("## MSA/GR&R Status Summary\n");
+
+        var total = studies.Count;
+        var complete = studies.Count(s => s.Status == Domain.Enums.GageStudyStatus.Complete);
+        var inProgress = studies.Count(s => s.Status == Domain.Enums.GageStudyStatus.InProgress);
+        var draft = studies.Count(s => s.Status == Domain.Enums.GageStudyStatus.Draft);
+
+        sb.AppendLine($"**Total Studies:** {total} | **Complete:** {complete} | **In Progress:** {inProgress} | **Draft:** {draft}\n");
+
+        var completed = studies.Where(s => s.Status == Domain.Enums.GageStudyStatus.Complete && s.GrrPercent.HasValue).ToList();
+        if (completed.Any())
+        {
+            var acceptable = completed.Count(s => s.GrrPercent < 10);
+            var marginal = completed.Count(s => s.GrrPercent >= 10 && s.GrrPercent < 30);
+            var unacceptable = completed.Count(s => s.GrrPercent >= 30);
+
+            sb.AppendLine("### Acceptance Breakdown\n");
+            sb.AppendLine($"| Category | Count | Criteria |");
+            sb.AppendLine($"|----------|-------|----------|");
+            sb.AppendLine($"| Acceptable | {acceptable} | %GRR < 10% |");
+            sb.AppendLine($"| Marginal | {marginal} | 10% ≤ %GRR < 30% |");
+            sb.AppendLine($"| Unacceptable | {unacceptable} | %GRR ≥ 30% |");
+
+            var worst = completed.OrderByDescending(s => s.GrrPercent).Take(5).ToList();
+            if (worst.Any())
+            {
+                sb.AppendLine("\n### Worst Performing Studies\n");
+                sb.AppendLine("| Study | Equipment | Characteristic | %GRR | ndc | Decision |");
+                sb.AppendLine("|-------|-----------|----------------|------|-----|----------|");
+                foreach (var s in worst)
+                    sb.AppendLine($"| {s.Name} | {s.Equipment?.Code ?? "—"} | {s.CharacteristicName ?? "—"} | {s.GrrPercent:F1}% | {s.Ndc} | {s.AcceptanceDecision} |");
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolGetOeeStatus(JsonElement args)
+    {
+        var equipmentIdStr = GetStringArg(args, "equipment_id");
+        var daysStr = GetStringArg(args, "days");
+        var targetStr = GetStringArg(args, "target_oee");
+
+        var days = 7;
+        if (!string.IsNullOrEmpty(daysStr) && int.TryParse(daysStr, out var d) && d > 0)
+            days = Math.Min(d, 90);
+
+        var targetOee = 85m;
+        if (!string.IsNullOrEmpty(targetStr) && decimal.TryParse(targetStr, out var t) && t > 0)
+            targetOee = t;
+
+        Guid? equipmentId = null;
+        if (!string.IsNullOrEmpty(equipmentIdStr) && Guid.TryParse(equipmentIdStr, out var eqId))
+            equipmentId = eqId;
+
+        var fromDate = DateTime.UtcNow.Date.AddDays(-days);
+        var toDate = DateTime.UtcNow.Date;
+
+        var oeeService = HttpContext.RequestServices.GetRequiredService<ProcessManager.Api.Services.IOeeCalculationService>();
+        var dashboard = await oeeService.GetDashboardAsync(fromDate, toDate, equipmentId, targetOee);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## OEE Status Summary\n");
+        sb.AppendLine($"**Period:** {fromDate:yyyy-MM-dd} to {toDate:yyyy-MM-dd} ({days} days)");
+        sb.AppendLine($"**Equipment Monitored:** {dashboard.EquipmentCount} | **Target OEE:** {dashboard.TargetOee}%");
+        sb.AppendLine($"**Average OEE:** {dashboard.AverageOee:F1}% | **Below Target:** {dashboard.EquipmentBelowTarget}\n");
+        sb.AppendLine($"| Metric | Average |");
+        sb.AppendLine($"|--------|---------|");
+        sb.AppendLine($"| Availability | {dashboard.AverageAvailability:F1}% |");
+        sb.AppendLine($"| Performance | {dashboard.AveragePerformance:F1}% |");
+        sb.AppendLine($"| Quality | {dashboard.AverageQuality:F1}% |");
+        sb.AppendLine($"| **OEE** | **{dashboard.AverageOee:F1}%** |");
+
+        if (dashboard.EquipmentSnapshots.Any())
+        {
+            sb.AppendLine("\n### Equipment OEE (Latest Shift)\n");
+            sb.AppendLine("| Equipment | Name | OEE | Availability | Performance | Quality |");
+            sb.AppendLine("|-----------|------|-----|--------------|-------------|---------|");
+            foreach (var s in dashboard.EquipmentSnapshots.Take(15))
+                sb.AppendLine($"| `{s.EquipmentCode}` | {s.EquipmentName} | {s.OeePct:F1}% | {s.AvailabilityPct:F1}% | {s.PerformancePct:F1}% | {s.QualityPct:F1}% |");
+        }
+
+        if (dashboard.TopLossCategories.Any())
+        {
+            sb.AppendLine("\n### Top Loss Categories (Pareto)\n");
+            sb.AppendLine("| Category | Type | Minutes Lost | % of Total | Occurrences |");
+            sb.AppendLine("|----------|------|-------------|------------|-------------|");
+            foreach (var l in dashboard.TopLossCategories.Take(10))
+                sb.AppendLine($"| {l.Category} | {l.Type} | {l.MinutesLost:F0} | {l.PercentOfTotal:F1}% | {l.Occurrences} |");
+        }
+
+        return sb.ToString();
+    }
+
+    private async Task<string> ToolGetChangeOrderStatus(JsonElement args)
+    {
+        var statusStr = GetStringArg(args, "status");
+        var typeStr = GetStringArg(args, "type");
+        var priorityStr = GetStringArg(args, "priority");
+
+        var query = _db.ChangeOrders
+            .Include(c => c.Impacts)
+            .Include(c => c.Approvers)
+            .Include(c => c.Tasks)
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(statusStr) && Enum.TryParse<ChangeOrderStatus>(statusStr, true, out var st))
+            query = query.Where(c => c.Status == st);
+
+        if (!string.IsNullOrEmpty(typeStr) && Enum.TryParse<ChangeOrderType>(typeStr, true, out var tp))
+            query = query.Where(c => c.Type == tp);
+
+        if (!string.IsNullOrEmpty(priorityStr) && Enum.TryParse<ChangeOrderPriority>(priorityStr, true, out var pr))
+            query = query.Where(c => c.Priority == pr);
+
+        var all = await query.ToListAsync();
+
+        var open = all.Where(c => c.Status != ChangeOrderStatus.Closed && c.Status != ChangeOrderStatus.Rejected).ToList();
+        var closed = all.Where(c => c.Status == ChangeOrderStatus.Closed).ToList();
+        var rejected = all.Where(c => c.Status == ChangeOrderStatus.Rejected).ToList();
+
+        var avgDaysToClose = closed.Any()
+            ? closed.Average(c => (c.ClosedAt!.Value - c.CreatedAt).TotalDays)
+            : 0;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## Change Order (ECO) Status Summary\n");
+        sb.AppendLine($"**Total Open:** {open.Count} | **Total Closed:** {closed.Count} | **Total Rejected:** {rejected.Count}");
+        sb.AppendLine($"**Average Days to Close:** {avgDaysToClose:F1}\n");
+
+        var byStatus = all.GroupBy(c => c.Status.ToString()).OrderByDescending(g => g.Count());
+        if (byStatus.Any())
+        {
+            sb.AppendLine("### By Status\n");
+            sb.AppendLine("| Status | Count |");
+            sb.AppendLine("|--------|-------|");
+            foreach (var g in byStatus)
+                sb.AppendLine($"| {g.Key} | {g.Count()} |");
+        }
+
+        var byType = all.GroupBy(c => c.Type.ToString()).OrderByDescending(g => g.Count());
+        if (byType.Any())
+        {
+            sb.AppendLine("\n### By Type\n");
+            sb.AppendLine("| Type | Count |");
+            sb.AppendLine("|------|-------|");
+            foreach (var g in byType)
+                sb.AppendLine($"| {g.Key} | {g.Count()} |");
+        }
+
+        var byPriority = all.GroupBy(c => c.Priority.ToString()).OrderByDescending(g => g.Count());
+        if (byPriority.Any())
+        {
+            sb.AppendLine("\n### By Priority\n");
+            sb.AppendLine("| Priority | Count |");
+            sb.AppendLine("|----------|-------|");
+            foreach (var g in byPriority)
+                sb.AppendLine($"| {g.Key} | {g.Count()} |");
+        }
+
+        var overdue = open
+            .Where(c => c.TargetImplementationDate.HasValue && c.TargetImplementationDate.Value < DateTime.UtcNow)
+            .OrderBy(c => c.TargetImplementationDate)
+            .Take(10)
+            .ToList();
+
+        if (overdue.Any())
+        {
+            sb.AppendLine("\n### Overdue ECOs\n");
+            sb.AppendLine("| Code | Title | Priority | Status | Target Date | Days Overdue |");
+            sb.AppendLine("|------|-------|----------|--------|-------------|-------------|");
+            foreach (var c in overdue)
+            {
+                var daysOverdue = (DateTime.UtcNow - c.TargetImplementationDate!.Value).TotalDays;
+                sb.AppendLine($"| `{c.Code}` | {c.Title} | {c.Priority} | {c.Status} | {c.TargetImplementationDate:yyyy-MM-dd} | {daysOverdue:F0} |");
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    // ── Phase 34: Customer Complaint Management ─────────────────────────────
+
+    private async Task<string> ToolGetComplaintStatus(JsonElement args)
+    {
+        var statusStr = GetStringArg(args, "status");
+        var categoryStr = GetStringArg(args, "category");
+        var severityStr = GetStringArg(args, "severity");
+
+        var query = _db.CustomerComplaints
+            .Include(c => c.Investigations)
+            .Include(c => c.Responses)
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(statusStr) && Enum.TryParse<ComplaintStatus>(statusStr, true, out var st))
+            query = query.Where(c => c.Status == st);
+
+        if (!string.IsNullOrEmpty(categoryStr) && Enum.TryParse<ComplaintCategory>(categoryStr, true, out var cat))
+            query = query.Where(c => c.Category == cat);
+
+        if (!string.IsNullOrEmpty(severityStr) && Enum.TryParse<ComplaintSeverity>(severityStr, true, out var sev))
+            query = query.Where(c => c.Severity == sev);
+
+        var all = await query.ToListAsync();
+
+        var open = all.Where(c => c.Status != ComplaintStatus.Closed).ToList();
+        var closed = all.Where(c => c.Status == ComplaintStatus.Closed && c.ClosedAt.HasValue).ToList();
+        var overdue = open.Where(c => c.ResponseDueDate.HasValue && c.ResponseDueDate < DateTime.UtcNow).ToList();
+
+        var avgDaysToClose = closed.Any()
+            ? closed.Average(c => (c.ClosedAt!.Value - c.CreatedAt).TotalDays)
+            : 0;
+
+        var withSatisfaction = all.Where(c => c.CustomerSatisfied.HasValue).ToList();
+        var satisfactionRate = withSatisfaction.Any()
+            ? (decimal)withSatisfaction.Count(c => c.CustomerSatisfied == true) / withSatisfaction.Count * 100
+            : 0m;
+
+        var sb = new StringBuilder();
+        sb.AppendLine("## Customer Complaint Status Summary\n");
+        sb.AppendLine($"**Total Open:** {open.Count} | **Total Overdue:** {overdue.Count} | **Total Closed:** {closed.Count}");
+        sb.AppendLine($"**Average Days to Close:** {avgDaysToClose:F1} | **Customer Satisfaction Rate:** {satisfactionRate:F1}%\n");
+
+        var byStatus = all.GroupBy(c => c.Status.ToString()).OrderByDescending(g => g.Count());
+        if (byStatus.Any())
+        {
+            sb.AppendLine("### By Status\n");
+            sb.AppendLine("| Status | Count |");
+            sb.AppendLine("|--------|-------|");
+            foreach (var g in byStatus)
+                sb.AppendLine($"| {g.Key} | {g.Count()} |");
+        }
+
+        var byCategory = all.GroupBy(c => c.Category.ToString()).OrderByDescending(g => g.Count());
+        if (byCategory.Any())
+        {
+            sb.AppendLine("\n### By Category\n");
+            sb.AppendLine("| Category | Count |");
+            sb.AppendLine("|----------|-------|");
+            foreach (var g in byCategory)
+                sb.AppendLine($"| {g.Key} | {g.Count()} |");
+        }
+
+        var bySeverity = all.GroupBy(c => c.Severity.ToString()).OrderByDescending(g => g.Count());
+        if (bySeverity.Any())
+        {
+            sb.AppendLine("\n### By Severity\n");
+            sb.AppendLine("| Severity | Count |");
+            sb.AppendLine("|----------|-------|");
+            foreach (var g in bySeverity)
+                sb.AppendLine($"| {g.Key} | {g.Count()} |");
+        }
+
+        if (overdue.Any())
+        {
+            sb.AppendLine("\n### Overdue Complaints (Response Past Due)\n");
+            sb.AppendLine("| Code | Customer | Severity | Status | Due Date | Days Overdue |");
+            sb.AppendLine("|------|----------|----------|--------|----------|-------------|");
+            foreach (var c in overdue.OrderBy(c => c.ResponseDueDate).Take(10))
+            {
+                var daysOverdue = (DateTime.UtcNow - c.ResponseDueDate!.Value).TotalDays;
+                sb.AppendLine($"| `{c.Code}` | {c.CustomerName} | {c.Severity} | {c.Status} | {c.ResponseDueDate:yyyy-MM-dd} | {daysOverdue:F0} |");
+            }
+        }
+
+        return sb.ToString();
+    }
+
+    // ── Phase 35: Cost of Quality ─────────────────────────────────────────────
+
+    private async Task<string> ToolGetCostOfQuality(JsonElement args)
+    {
+        var categoryStr   = args.TryGetProperty("category",    out var c) ? c.GetString()?.Trim() : null;
+        var sourceTypeStr = args.TryGetProperty("source_type", out var s) ? s.GetString()?.Trim() : null;
+        var daysStr       = args.TryGetProperty("days",        out var d) ? d.GetString()?.Trim() : null;
+
+        var query = _db.QualityCosts.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(categoryStr) && Enum.TryParse<QualityCostCategory>(categoryStr, true, out var cat))
+            query = query.Where(q => q.CostCategory == cat);
+
+        if (!string.IsNullOrWhiteSpace(sourceTypeStr) && Enum.TryParse<QualityCostSourceType>(sourceTypeStr, true, out var st))
+            query = query.Where(q => q.SourceType == st);
+
+        if (int.TryParse(daysStr, out var days) && days > 0)
+            query = query.Where(q => q.RecordedAt >= DateTime.UtcNow.AddDays(-days));
+
+        var all = await query.ToListAsync();
+
+        if (!all.Any())
+            return "No quality cost entries found matching the specified filters.";
+
+        var now          = DateTime.UtcNow;
+        var monthStart   = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var quarterMonth = ((now.Month - 1) / 3) * 3 + 1;
+        var quarterStart = new DateTime(now.Year, quarterMonth, 1, 0, 0, 0, DateTimeKind.Utc);
+        var yearStart    = new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var totalMonth   = all.Where(q => q.RecordedAt >= monthStart).Sum(q => q.Amount);
+        var totalQuarter = all.Where(q => q.RecordedAt >= quarterStart).Sum(q => q.Amount);
+        var totalYear    = all.Where(q => q.RecordedAt >= yearStart).Sum(q => q.Amount);
+        var totalAll     = all.Sum(q => q.Amount);
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"## Cost of Quality Summary ({all.Count} entries)\n");
+        sb.AppendLine("| Period | Total Cost |");
+        sb.AppendLine("|--------|-----------|");
+        sb.AppendLine($"| This Month | ${totalMonth:N2} |");
+        sb.AppendLine($"| This Quarter | ${totalQuarter:N2} |");
+        sb.AppendLine($"| This Year | ${totalYear:N2} |");
+        sb.AppendLine($"| All Time | ${totalAll:N2} |");
+
+        var byCategory = all.GroupBy(q => q.CostCategory.ToString()).OrderByDescending(g => g.Sum(q => q.Amount));
+        sb.AppendLine("\n### PAF Category Breakdown\n");
+        sb.AppendLine("| Category | Total Cost | % of Total | Entry Count |");
+        sb.AppendLine("|----------|-----------|-----------|------------|");
+        foreach (var g in byCategory)
+        {
+            var pct = totalAll > 0 ? (g.Sum(q => q.Amount) / totalAll * 100) : 0;
+            sb.AppendLine($"| {g.Key} | ${g.Sum(q => q.Amount):N2} | {pct:F1}% | {g.Count()} |");
+        }
+
+        var bySource = all.GroupBy(q => q.SourceType.ToString()).OrderByDescending(g => g.Sum(q => q.Amount));
+        sb.AppendLine("\n### By Source Type\n");
+        sb.AppendLine("| Source Type | Total Cost | Entry Count |");
+        sb.AppendLine("|-----------|-----------|------------|");
+        foreach (var g in bySource)
+            sb.AppendLine($"| {g.Key} | ${g.Sum(q => q.Amount):N2} | {g.Count()} |");
+
+        var topDrivers = all
+            .Where(q => q.KindName is not null)
+            .GroupBy(q => q.KindName!)
+            .OrderByDescending(g => g.Sum(q => q.Amount))
+            .Take(10);
+
+        if (topDrivers.Any())
+        {
+            sb.AppendLine("\n### Top Cost Drivers by Product\n");
+            sb.AppendLine("| Product | Total Cost | Entry Count |");
+            sb.AppendLine("|---------|-----------|------------|");
+            foreach (var g in topDrivers)
+                sb.AppendLine($"| {g.Key} | ${g.Sum(q => q.Amount):N2} | {g.Count()} |");
+        }
+
+        return sb.ToString();
+    }
 }

@@ -1,0 +1,151 @@
+@* Work-order export modal — 4 tabs (Spec / BoM / Rules & routing / Raw JSON),
+   4 stat tiles, footer: Copy BoM CSV, Copy JSON, Download CSV, Print / Save PDF. *@
+@using System.Text.Json
+@using ProcessManager.Domain.Configurator
+
+<div class="bom-cfg-modal-backdrop" @onclick="Close">
+    <div class="bom-cfg-modal" @onclick:stopPropagation="true">
+        <div class="m-head">
+            <div class="m-title"><i class="bi bi-box-arrow-up-right me-2"></i>Release Work Order</div>
+            <button class="btn btn-sm border-0 bg-transparent" @onclick="Close"><i class="bi bi-x-lg"></i></button>
+        </div>
+
+        <div class="m-stats">
+            <div class="m-stat"><div class="v">@ConfiguratorEngine.Money(_spec.Price.OrderTotal)</div><div class="k">Order Total</div></div>
+            <div class="m-stat"><div class="v">@_spec.Bom.PartCount</div><div class="k">Parts</div></div>
+            <div class="m-stat"><div class="v">@_spec.Routing.Count</div><div class="k">Operations</div></div>
+            <div class="m-stat"><div class="v mono" style="font-size:13px">@_spec.Meta.ConfigHash</div><div class="k">Config Hash</div></div>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 px-3 pb-2">
+            <label class="text-muted small" style="min-width:80px">Work order</label>
+            <input class="form-control form-control-sm" style="max-width:220px" placeholder="WO-2026-000123" @bind="_workOrder" />
+            <span class="text-muted small ms-2 mono">@_spec.Meta.DocNo</span>
+        </div>
+
+        <div class="m-tabs">
+            @foreach (var (id, label) in new[] { ("spec", "Spec"), ("bom", "BoM"), ("rules", "Rules & routing"), ("raw", "Raw JSON") })
+            {
+                <button class="m-tab @(_tab == id ? "on" : "")" @onclick="() => _tab = id">@label</button>
+            }
+        </div>
+
+        <div class="m-body">
+            @if (_tab == "spec")
+            {
+                <table>
+                    <tbody>
+                        @foreach (var s in _spec.Selections)
+                        {
+                            <tr><td class="text-muted">@s.Group</td><td>@s.Name</td><td class="num">@(s.UnitPrice > 0 ? ConfiguratorEngine.Money(s.UnitPrice) : "Incl.")</td></tr>
+                        }
+                        @foreach (var a in _spec.Attributes)
+                        {
+                            <tr><td class="text-muted">@a.Name</td><td class="mono">@ConfiguratorEngine.Fmt(a.Value) @a.Unit</td>
+                                <td class="num text-muted" style="font-size:11px">@(a.Bounds != null && a.Bounds.ClampedBy.Any() ? "clamped " + string.Join(",", a.Bounds.ClampedBy) : "")</td></tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else if (_tab == "bom")
+            {
+                <table>
+                    <thead><tr><th>Lvl</th><th>Code</th><th>Part</th><th class="num">Qty</th><th class="num">Ext</th></tr></thead>
+                    <tbody>
+                        @foreach (var r in _spec.Bom.Rows)
+                        {
+                            <tr class="@(r.Level == 2 ? "lvl2" : "")">
+                                <td>@r.Level</td><td class="mono">@r.Code</td>
+                                <td>@r.Name @(r.QtyFormula != null ? "(ƒ " + r.QtyFormula + ")" : "")</td>
+                                <td class="num">@r.Qty</td><td class="num">@ConfiguratorEngine.Money(r.Ext)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else if (_tab == "rules")
+            {
+                <div class="mb-3">
+                    <div class="fw-bold mb-1">Routing</div>
+                    <table><tbody>
+                        @foreach (var op in _spec.Routing)
+                        {
+                            <tr><td class="num" style="width:30px">@op.Step</td><td class="mono">@op.Code</td><td>@op.Name</td></tr>
+                        }
+                    </tbody></table>
+                </div>
+                <div class="fw-bold mb-1">Active rules</div>
+                <table><tbody>
+                    @foreach (var r in _spec.Rules)
+                    {
+                        <tr><td class="mono" style="width:34px">@r.Id</td><td class="text-muted" style="width:90px">@r.Type</td><td>@r.Msg</td></tr>
+                    }
+                </tbody></table>
+            }
+            else
+            {
+                <pre>@_json</pre>
+            }
+        </div>
+
+        <div class="m-foot">
+            <button class="btn-line" @onclick="CopyCsv"><i class="bi bi-clipboard"></i>@(_copiedCsv ? "Copied!" : "Copy BoM CSV")</button>
+            <button class="btn-line" @onclick="CopyJson"><i class="bi bi-clipboard-data"></i>@(_copiedJson ? "Copied!" : "Copy JSON")</button>
+            <button class="btn-line" @onclick="DownloadCsv"><i class="bi bi-download"></i>Download CSV</button>
+            <button class="btn-dark" @onclick="Print"><i class="bi bi-printer"></i>Print / Save PDF</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ConfiguratorEngine Engine { get; set; } = default!;
+    [Parameter, EditorRequired] public ConfigSelection Sel { get; set; } = default!;
+    [Parameter, EditorRequired] public HashSet<string> Enabled { get; set; } = default!;
+    [Parameter, EditorRequired] public IJSRuntime JS { get; set; } = default!;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private ExportSpec _spec = new();
+    private string _json = "";
+    private string _csv = "";
+    private string _tab = "spec";
+    private string _workOrder = "";
+    private bool _copiedCsv;
+    private bool _copiedJson;
+
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+    protected override void OnInitialized()
+    {
+        _spec = Engine.ExportSpec(Sel, Enabled);
+        _csv = ConfiguratorEngine.BomToCsv(_spec);
+        _json = JsonSerializer.Serialize(_spec, JsonOpts);
+    }
+
+    private Task Close() => OnClose.InvokeAsync();
+
+    private async Task CopyCsv()
+    {
+        await JS.InvokeVoidAsync("BomConfigurator.copyText", _csv);
+        _copiedCsv = true;
+        StateHasChanged();
+    }
+
+    private async Task CopyJson()
+    {
+        await JS.InvokeVoidAsync("BomConfigurator.copyText", _json);
+        _copiedJson = true;
+        StateHasChanged();
+    }
+
+    private async Task DownloadCsv()
+    {
+        var name = $"BoM-{_spec.Meta.Platform.Code}-{_spec.Meta.ConfigHash}.csv";
+        await JS.InvokeVoidAsync("BomConfigurator.downloadFile", name, _csv, "text/csv");
+    }
+
+    private async Task Print()
+    {
+        var html = SpecSheetHtml.Build(_spec, _workOrder);
+        await JS.InvokeVoidAsync("BomConfigurator.printHtml", html);
+    }
+}

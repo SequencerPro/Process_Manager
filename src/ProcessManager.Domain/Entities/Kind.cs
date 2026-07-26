@@ -73,7 +73,10 @@ public class Kind : BaseEntity
     /// <summary>Suggested quantity to reorder when below threshold.</summary>
     public decimal? ReorderQuantity { get; set; }
 
-    // ──────────── 3D Model ─���──────────
+    /// <summary>UPC/EAN/GTIN barcode for the product type. Unique if set.</summary>
+    public string? Barcode { get; set; }
+
+    // ──────────── 3D Model ────────────
 
     /// <summary>GUID-based filename of the 3D model stored on disk (STL, OBJ, GLB, GLTF).</summary>
     public string? ModelFileName { get; set; }

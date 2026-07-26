@@ -1,0 +1,637 @@
+@page "/admin/workstations"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+@using Microsoft.AspNetCore.Authorization
+@using ProcessManager.Api.DTOs
+@inject ApiClient Api
+
+<PageTitle>Workstations — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-pc-display me-2 text-primary"></i>Workstations &amp; API Keys</h3>
+        <p class="text-muted small mb-0 d-none d-md-block">Manage barcode scanning workstations and their authentication keys</p>
+    </div>
+    <button class="btn btn-primary" @onclick="OpenCreateWorkstationModal">
+        <i class="bi bi-plus-lg me-1"></i> New Workstation
+    </button>
+</div>
+
+@* ── Filters ── *@
+<div class="row g-2 mb-3">
+    <div class="col-md-4">
+        <div class="input-group input-group-sm">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" placeholder="Search by code or name…"
+                   @bind="_search" @bind:event="oninput" @onkeyup="OnSearchKeyUp" />
+        </div>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select form-select-sm" @bind="_activeFilter" @bind:after="LoadData">
+            <option value="">All statuses</option>
+            <option value="true">Active</option>
+            <option value="false">Inactive</option>
+        </select>
+    </div>
+</div>
+
+@* ── Workstation table ── *@
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th class="col-hide-mobile">Location</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-center">API Keys</th>
+                    <th class="text-end" style="width:180px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_loading)
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-4">
+                        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+                    </td></tr>
+                }
+                else if (_result is null || !_result.Items.Any())
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-4">No workstations found.</td></tr>
+                }
+                else
+                {
+                    @foreach (var ws in _result.Items)
+                    {
+                        <tr class="@(_expandedWsId == ws.Id ? "table-active" : "")">
+                            <td class="align-middle"><code>@ws.Code</code></td>
+                            <td class="align-middle">@ws.Name</td>
+                            <td class="align-middle small text-muted col-hide-mobile">@ws.FixedLocationCode</td>
+                            <td class="align-middle text-center">
+                                <span class="badge @(ws.IsActive ? "bg-success" : "bg-secondary")">
+                                    @(ws.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td class="align-middle text-center">
+                                <button class="btn btn-sm btn-link p-0" @onclick="() => ToggleKeys(ws.Id)">
+                                    @ws.ApiKeyCount <i class="bi bi-key ms-1"></i>
+                                </button>
+                            </td>
+                            <td class="align-middle text-end">
+                                <button class="btn btn-sm btn-outline-success me-1" @onclick="() => OpenCreateKeyModal(ws)" title="Generate API key">
+                                    <i class="bi bi-key"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary me-1" @onclick="() => OpenEditWorkstationModal(ws)" title="Edit">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-info me-1" @onclick="() => ToggleScanLog(ws.Id)" title="Scan log">
+                                    <i class="bi bi-upc-scan"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteWorkstation(ws)" title="Deactivate"
+                                        disabled="@(ws.ApiKeyCount > 0)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+
+                        @* ── Inline API Keys panel ── *@
+                        @if (_expandedWsId == ws.Id && _keys is not null)
+                        {
+                            <tr>
+                                <td colspan="6" class="p-0 border-0">
+                                    <div class="bg-light px-4 py-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="fw-semibold small"><i class="bi bi-key me-1"></i> API Keys for @ws.Name</span>
+                                        </div>
+                                        @if (!_keys.Items.Any())
+                                        {
+                                            <p class="text-muted small mb-0">No API keys. Generate one to enable barcode scanning.</p>
+                                        }
+                                        else
+                                        {
+                                            <table class="table table-sm table-bordered mb-0 bg-white">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Name</th>
+                                                        <th>Prefix</th>
+                                                        <th class="text-center">Status</th>
+                                                        <th class="col-hide-mobile">Last Used</th>
+                                                        <th class="col-hide-mobile">Expires</th>
+                                                        <th class="text-end" style="width:120px">Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach (var key in _keys.Items)
+                                                    {
+                                                        <tr>
+                                                            <td class="align-middle">@key.Name</td>
+                                                            <td class="align-middle"><code>@key.KeyPrefix…</code></td>
+                                                            <td class="align-middle text-center">
+                                                                @if (!key.IsActive)
+                                                                {
+                                                                    <span class="badge bg-secondary">Inactive</span>
+                                                                }
+                                                                else if (key.ExpiresAt.HasValue && key.ExpiresAt.Value <= DateTime.UtcNow)
+                                                                {
+                                                                    <span class="badge bg-warning text-dark">Expired</span>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <span class="badge bg-success">Active</span>
+                                                                }
+                                                            </td>
+                                                            <td class="align-middle small text-muted col-hide-mobile">
+                                                                @(key.LastUsedAt?.ToString("yyyy-MM-dd HH:mm") ?? "Never")
+                                                            </td>
+                                                            <td class="align-middle small text-muted col-hide-mobile">
+                                                                @(key.ExpiresAt?.ToString("yyyy-MM-dd") ?? "Never")
+                                                            </td>
+                                                            <td class="align-middle text-end">
+                                                                @if (key.IsActive)
+                                                                {
+                                                                    <button class="btn btn-sm btn-outline-warning me-1" @onclick="() => DeactivateKey(key)" title="Deactivate">
+                                                                        <i class="bi bi-pause-circle"></i>
+                                                                    </button>
+                                                                }
+                                                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteKey(ws.Id, key.Id)" title="Delete permanently">
+                                                                    <i class="bi bi-trash"></i>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (_result is not null && _result.TotalCount > _pageSize)
+    {
+        <div class="card-footer d-flex justify-content-between align-items-center py-2">
+            <span class="text-muted small">
+                Showing @((_page - 1) * _pageSize + 1)–@Math.Min(_page * _pageSize, _result.TotalCount) of @_result.TotalCount
+            </span>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" disabled="@(_page <= 1)" @onclick="PrevPage">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                <button class="btn btn-outline-secondary" disabled="@(_page * _pageSize >= _result.TotalCount)" @onclick="NextPage">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@* ── Scan log panel ── *@
+@if (_showScanLog && _scanEvents is not null)
+{
+    <div class="card shadow-sm mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-upc-scan me-1"></i> Recent Scan Events</span>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="() => _showScanLog = false">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Time</th>
+                        <th>Barcode</th>
+                        <th class="col-hide-mobile">Item</th>
+                        <th class="text-center">Result</th>
+                        <th class="col-hide-mobile">Error</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!_scanEvents.Items.Any())
+                    {
+                        <tr><td colspan="5" class="text-center text-muted py-3">No scan events.</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var evt in _scanEvents.Items)
+                        {
+                            <tr>
+                                <td class="small text-muted">@evt.ScannedAt.ToString("MM-dd HH:mm:ss")</td>
+                                <td><code>@evt.ScannedBarcode</code></td>
+                                <td class="small col-hide-mobile">@(evt.ItemSerialNumber ?? "—")</td>
+                                <td class="text-center">
+                                    <span class="badge @ResultBadgeClass(evt.Result)">@evt.Result</span>
+                                </td>
+                                <td class="small text-muted col-hide-mobile">@(evt.ErrorMessage ?? "—")</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@* ── Create/Edit Workstation modal ── *@
+@if (_showWsModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content pm-modal">
+                <div class="modal-header">
+                    <div class="d-flex align-items-center">
+                        <div class="pm-modal-icon @(_editingWsId.HasValue ? "bg-primary bg-opacity-10 text-primary" : "bg-success bg-opacity-10 text-success") rounded-circle d-flex align-items-center justify-content-center"
+                             style="width:40px; height:40px">
+                            <i class="bi @(_editingWsId.HasValue ? "bi-pencil" : "bi-plus-lg") fs-5"></i>
+                        </div>
+                        <div class="ms-3">
+                            <h5 class="mb-0">@(_editingWsId.HasValue ? "Edit Workstation" : "New Workstation")</h5>
+                            <small class="text-muted">Define a physical scan point</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" @onclick="CloseWsModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(_wsModalError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_wsModalError</div>
+                    }
+
+                    @if (!_editingWsId.HasValue)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label small">Code <span class="text-danger">*</span></label>
+                            <div class="pm-input-group">
+                                <i class="bi bi-hash"></i>
+                                <input type="text" class="form-control" @bind="_wsCode" placeholder="WS-001" />
+                            </div>
+                        </div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label small">Name <span class="text-danger">*</span></label>
+                        <div class="pm-input-group">
+                            <i class="bi bi-pc-display"></i>
+                            <input type="text" class="form-control" @bind="_wsName" placeholder="Assembly Cell 1" />
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Description</label>
+                        <input type="text" class="form-control" @bind="_wsDescription" placeholder="Optional description" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small">Fixed Location <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="_wsLocationId">
+                            <option value="">— Select location —</option>
+                            @if (_locations is not null)
+                            {
+                                @foreach (var loc in _locations.Items.Where(l => l.IsActive))
+                                {
+                                    <option value="@loc.Id">@loc.Code — @loc.Name</option>
+                                }
+                            }
+                        </select>
+                        <div class="form-text">The warehouse location where scanned items will be transferred to.</div>
+                    </div>
+
+                    @if (_editingWsId.HasValue)
+                    {
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" @bind="_wsIsActive" id="wsActiveToggle" />
+                            <label class="form-check-label" for="wsActiveToggle">Active</label>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseWsModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SaveWorkstation" disabled="@_wsSaving">
+                        @if (_wsSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        @(_editingWsId.HasValue ? "Update" : "Create")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Create API Key modal ── *@
+@if (_showKeyModal)
+{
+    <div class="modal show d-block" tabindex="-1" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content pm-modal">
+                <div class="modal-header">
+                    <div class="d-flex align-items-center">
+                        <div class="pm-modal-icon bg-success bg-opacity-10 text-success rounded-circle d-flex align-items-center justify-content-center"
+                             style="width:40px; height:40px">
+                            <i class="bi bi-key fs-5"></i>
+                        </div>
+                        <div class="ms-3">
+                            <h5 class="mb-0">Generate API Key</h5>
+                            <small class="text-muted">For workstation: <strong>@_keyWsName</strong></small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close" @onclick="CloseKeyModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(_keyModalError))
+                    {
+                        <div class="alert alert-danger py-2 small">@_keyModalError</div>
+                    }
+
+                    @if (_createdKey is not null)
+                    {
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            <strong>Copy this key now.</strong> It will not be shown again.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small">API Key</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control font-monospace" value="@_createdKey.RawKey" readonly />
+                            </div>
+                        </div>
+                        <p class="small text-muted mb-0">
+                            Use this key in the <code>X-Api-Key</code> header when calling the scan endpoint from this workstation.
+                        </p>
+                    }
+                    else
+                    {
+                        <div class="mb-3">
+                            <label class="form-label small">Key Name <span class="text-danger">*</span></label>
+                            <div class="pm-input-group">
+                                <i class="bi bi-tag"></i>
+                                <input type="text" class="form-control" @bind="_keyName" placeholder="Scanner Key" />
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small">Expires</label>
+                            <input type="date" class="form-control" @bind="_keyExpires" />
+                            <div class="form-text">Leave blank for no expiry.</div>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    @if (_createdKey is not null)
+                    {
+                        <button class="btn btn-primary" @onclick="CloseKeyModal">Done</button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-secondary" @onclick="CloseKeyModal">Cancel</button>
+                        <button class="btn btn-success" @onclick="GenerateKey" disabled="@_keySaving">
+                            @if (_keySaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            Generate
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResponse<WorkstationSummaryDto>? _result;
+    private PaginatedResponse<StorageLocationResponseDto>? _locations;
+    private PaginatedResponse<ApiKeyResponseDto>? _keys;
+    private PaginatedResponse<ScanEventResponseDto>? _scanEvents;
+    private bool _loading = true;
+    private int _page = 1;
+    private int _pageSize = 25;
+    private string? _search;
+    private string _activeFilter = "";
+
+    // Expanded panels
+    private Guid? _expandedWsId;
+    private bool _showScanLog;
+    private Guid? _scanLogWsId;
+
+    // Workstation modal
+    private bool _showWsModal;
+    private bool _wsSaving;
+    private string? _wsModalError;
+    private Guid? _editingWsId;
+    private string _wsCode = "";
+    private string _wsName = "";
+    private string? _wsDescription;
+    private string _wsLocationId = "";
+    private bool _wsIsActive = true;
+
+    // API Key modal
+    private bool _showKeyModal;
+    private bool _keySaving;
+    private string? _keyModalError;
+    private Guid _keyWsId;
+    private string _keyWsName = "";
+    private string _keyName = "";
+    private DateTime? _keyExpires;
+    private ApiKeyCreatedDto? _createdKey;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        _locations = await Api.GetWarehouseLocationsAsync(active: true, pageSize: 200);
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            bool? active = string.IsNullOrEmpty(_activeFilter) ? null : bool.Parse(_activeFilter);
+            _result = await Api.GetWorkstationsAsync(_search, active, _page, _pageSize);
+        }
+        catch { /* best-effort */ }
+        finally { _loading = false; }
+    }
+
+    private async Task OnSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoadData();
+    }
+
+    private async Task PrevPage() { _page--; await LoadData(); }
+    private async Task NextPage() { _page++; await LoadData(); }
+
+    // ── Keys panel ──
+
+    private async Task ToggleKeys(Guid wsId)
+    {
+        if (_expandedWsId == wsId) { _expandedWsId = null; return; }
+        _expandedWsId = wsId;
+        try { _keys = await Api.GetApiKeysAsync(workstationId: wsId, pageSize: 50); }
+        catch { _keys = null; }
+    }
+
+    // ── Scan log panel ──
+
+    private async Task ToggleScanLog(Guid wsId)
+    {
+        if (_showScanLog && _scanLogWsId == wsId) { _showScanLog = false; return; }
+        _scanLogWsId = wsId;
+        _showScanLog = true;
+        try { _scanEvents = await Api.GetScanEventsAsync(workstationId: wsId, pageSize: 50); }
+        catch { _scanEvents = null; }
+    }
+
+    // ── Workstation modal ──
+
+    private void OpenCreateWorkstationModal()
+    {
+        _editingWsId = null;
+        _wsCode = "";
+        _wsName = "";
+        _wsDescription = null;
+        _wsLocationId = "";
+        _wsIsActive = true;
+        _wsModalError = null;
+        _showWsModal = true;
+    }
+
+    private void OpenEditWorkstationModal(WorkstationSummaryDto ws)
+    {
+        _editingWsId = ws.Id;
+        _wsCode = ws.Code;
+        _wsName = ws.Name;
+        _wsDescription = null;
+        _wsLocationId = "";
+        _wsIsActive = ws.IsActive;
+        _wsModalError = null;
+        _showWsModal = true;
+
+        _ = LoadWorkstationDetail(ws.Id);
+    }
+
+    private async Task LoadWorkstationDetail(Guid id)
+    {
+        var detail = await Api.GetWorkstationAsync(id);
+        if (detail is not null)
+        {
+            _wsName = detail.Name;
+            _wsDescription = detail.Description;
+            _wsLocationId = detail.FixedLocationId.ToString();
+        }
+        StateHasChanged();
+    }
+
+    private void CloseWsModal() => _showWsModal = false;
+
+    private async Task SaveWorkstation()
+    {
+        _wsModalError = null;
+        if (string.IsNullOrWhiteSpace(_wsName)) { _wsModalError = "Name is required."; return; }
+        if (!Guid.TryParse(_wsLocationId, out var locId) || locId == Guid.Empty) { _wsModalError = "Location is required."; return; }
+
+        _wsSaving = true;
+        try
+        {
+            if (_editingWsId.HasValue)
+            {
+                await Api.UpdateWorkstationAsync(_editingWsId.Value,
+                    new UpdateWorkstationDto { Name = _wsName, Description = _wsDescription, FixedLocationId = locId, IsActive = _wsIsActive });
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(_wsCode)) { _wsModalError = "Code is required."; _wsSaving = false; return; }
+                await Api.CreateWorkstationAsync(
+                    new CreateWorkstationDto { Code = _wsCode, Name = _wsName, Description = _wsDescription, FixedLocationId = locId });
+            }
+            _showWsModal = false;
+            await LoadData();
+        }
+        catch (Exception ex) { _wsModalError = ex.Message; }
+        finally { _wsSaving = false; }
+    }
+
+    private async Task DeleteWorkstation(WorkstationSummaryDto ws)
+    {
+        try
+        {
+            await Api.DeleteWorkstationAsync(ws.Id);
+            await LoadData();
+        }
+        catch { /* best-effort */ }
+    }
+
+    // ── API Key modal ──
+
+    private void OpenCreateKeyModal(WorkstationSummaryDto ws)
+    {
+        _keyWsId = ws.Id;
+        _keyWsName = ws.Name;
+        _keyName = "";
+        _keyExpires = null;
+        _createdKey = null;
+        _keyModalError = null;
+        _showKeyModal = true;
+    }
+
+    private async Task CloseKeyModal()
+    {
+        _showKeyModal = false;
+        if (_createdKey is not null)
+        {
+            _createdKey = null;
+            await LoadData();
+            if (_expandedWsId == _keyWsId)
+                await ToggleKeys(_keyWsId);
+        }
+    }
+
+    private async Task GenerateKey()
+    {
+        _keyModalError = null;
+        if (string.IsNullOrWhiteSpace(_keyName)) { _keyModalError = "Key name is required."; return; }
+
+        _keySaving = true;
+        try
+        {
+            _createdKey = await Api.CreateApiKeyAsync(new CreateApiKeyDto
+            {
+                Name = _keyName,
+                WorkstationId = _keyWsId,
+                ExpiresAt = _keyExpires
+            });
+        }
+        catch (Exception ex) { _keyModalError = ex.Message; }
+        finally { _keySaving = false; }
+    }
+
+    private async Task DeactivateKey(ApiKeyResponseDto key)
+    {
+        try
+        {
+            await Api.UpdateApiKeyAsync(key.Id, new UpdateApiKeyDto { Name = key.Name, IsActive = false });
+            if (_expandedWsId.HasValue)
+                _keys = await Api.GetApiKeysAsync(workstationId: _expandedWsId.Value, pageSize: 50);
+            await LoadData();
+        }
+        catch { /* best-effort */ }
+    }
+
+    private async Task DeleteKey(Guid wsId, Guid keyId)
+    {
+        try
+        {
+            await Api.DeleteApiKeyAsync(keyId);
+            if (_expandedWsId.HasValue)
+                _keys = await Api.GetApiKeysAsync(workstationId: _expandedWsId.Value, pageSize: 50);
+            await LoadData();
+        }
+        catch { /* best-effort */ }
+    }
+
+    private static string ResultBadgeClass(string result) => result switch
+    {
+        "Transferred" => "bg-success",
+        "AlreadyAtLocation" => "bg-info",
+        "UnknownBarcode" => "bg-danger",
+        "InvalidItemStatus" => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+}

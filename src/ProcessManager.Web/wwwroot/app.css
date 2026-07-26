@@ -91,6 +91,21 @@ h1:focus {
     color: #b0b0b0;
 }
 
+/* Drill-down nav: when a section is open, hide root-level items so the selected
+   section takes the full sidebar view. Back arrow at top returns to root. */
+.pm-sidebar.pm-drilled .pm-nav-root-item {
+    display: none !important;
+}
+.pm-nav-back button {
+    background: none !important;
+    border: none !important;
+    cursor: pointer;
+}
+.pm-nav-back button:hover {
+    background: #1e1e1e !important;
+    border-radius: 6px;
+}
+
 .valid.modified:not([type=checkbox]) {
     outline: 1px solid #26b050;
 }
@@ -1174,4 +1189,67 @@ h1:focus {
     .pb-metadata .col-md-3,
     .pb-metadata .col-md-4,
     .pb-metadata .col-md-5 { width: 100%; }
+}
+
+/* ══════════════════════════════════════════
+   M3 — Execution Wizard Touch Targets
+   ══════════════════════════════════════════ */
+
+.ewiz-touch-btn {
+    min-height: 44px;
+    min-width: 44px;
+}
+
+@media (pointer: coarse) {
+    .ewiz-touch-btn,
+    .execution-wizard .btn,
+    .execution-wizard .form-check-input,
+    .execution-wizard .form-select,
+    .execution-wizard .form-control {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    .execution-wizard .form-check-input {
+        width: 1.5em;
+        height: 1.5em;
+    }
+
+    .execution-wizard .btn-lg {
+        min-height: 52px;
+        font-size: 1.1rem;
+        padding: .65rem 1.2rem;
+    }
+
+    .execution-wizard .form-control,
+    .execution-wizard .form-select {
+        font-size: 1rem;
+        padding: .5rem .75rem;
+    }
+
+    .execution-wizard .badge {
+        padding: .4em .6em;
+        font-size: .85rem;
+    }
+
+    .execution-wizard .signature-canvas-container canvas {
+        min-height: 160px;
+    }
+
+    .execution-wizard .photo-capture .btn {
+        min-height: 52px;
+        font-size: 1.05rem;
+    }
+}
+
+/* Signature canvas responsive sizing */
+.signature-canvas-container canvas {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Sync status pill */
+.sync-status {
+    font-size: .8rem;
+    white-space: nowrap;
 }

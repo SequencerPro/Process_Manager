@@ -2,12 +2,23 @@
 @inject TokenService TokenService
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
+@inject ApiClient Api
+@inject BrandingService Branding
+@implements IDisposable
 @using System.Security.Claims
 
 <nav class="d-flex flex-column flex-shrink-0 p-3 pm-sidebar sidebar" style="width: 250px; height: 100vh; overflow: hidden; background: #141414; color: #c0c0c0;">
     <a href="/portal" class="pm-sidebar-brand d-flex align-items-center mb-3 text-decoration-none">
-        <i class="bi bi-gear-wide-connected me-2 fs-4"></i>
-        <span class="fs-5 fw-semibold">Process Manager</span>
+        @if (Branding.HasLogo)
+        {
+            <img src="@Branding.GetLogoUrl(Api)" alt="@Branding.CompanyName"
+                 class="me-2" style="max-height: 32px; max-width: 40px; object-fit: contain;" />
+        }
+        else
+        {
+            <i class="bi bi-gear-wide-connected me-2 fs-4"></i>
+        }
+        <span class="fs-5 fw-semibold text-truncate">@Branding.CompanyName</span>
     </a>
     <hr />
     <ul class="nav nav-pills flex-column mb-auto" style="overflow-y: auto; flex: 1 1 0; min-height: 0;">
@@ -41,6 +52,11 @@
     private string? _displayName;
     private string? _role;
 
+    protected override void OnInitialized()
+    {
+        Branding.OnChange += Rerender;
+    }
+
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthState.GetAuthenticationStateAsync();
@@ -48,5 +64,18 @@
         _displayName = user.FindFirst("display_name")?.Value
                        ?? user.Identity?.Name;
         _role        = user.FindFirst(ClaimTypes.Role)?.Value;
+
+        // Load branding here as well as in ParticipantLayout. The two
+        // components live in different DI scopes when the layout is rendered
+        // as static SSR and this nav is InteractiveServer, so the layout's
+        // load doesn't reach this instance. LoadAsync is idempotent.
+        if (!Branding.IsLoaded)
+        {
+            await Branding.LoadAsync(Api);
+        }
     }
+
+    private void Rerender() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Branding.OnChange -= Rerender;
 }

@@ -4,6 +4,8 @@
 @inject ApiClient Api
 @inject NavigationManager Nav
 @inject VocabularyService Vocab
+@inject FeatureFlagService Flags
+@inject BrandingService Branding
 @implements IDisposable
 @using System.Security.Claims
 
@@ -11,7 +13,12 @@
     <button class="btn btn-sm btn-outline-light border-0" @onclick="ToggleOpen" aria-label="Open menu">
         <i class="bi bi-list fs-5"></i>
     </button>
-    <span class="ms-2 fw-semibold text-white small">Process Manager</span>
+    @if (Branding.HasLogo)
+    {
+        <img src="@Branding.GetLogoUrl(Api)" alt="@Branding.CompanyName"
+             class="ms-2" style="max-height: 24px; max-width: 80px; object-fit: contain;" />
+    }
+    <span class="ms-2 fw-semibold text-white small text-truncate">@Branding.CompanyName</span>
 </header>
 
 @if (_isOpen)
@@ -19,31 +26,50 @@
     <div class="sidebar-backdrop d-lg-none" @onclick="CloseNav"></div>
 }
 
-<nav class="d-flex flex-column flex-shrink-0 p-3 pm-sidebar @(_isOpen ? "sidebar-open" : "")" style="overflow: hidden; background: #141414; color: #c0c0c0;">
+<nav class="d-flex flex-column flex-shrink-0 p-3 pm-sidebar @(_isOpen ? "sidebar-open" : "") @(_openSection is not null ? "pm-drilled" : "")" style="overflow: hidden; background: #141414; color: #c0c0c0;">
     <a href="/" class="pm-sidebar-brand d-flex align-items-center mb-3 text-decoration-none">
-        <i class="bi bi-gear-wide-connected me-2 fs-4"></i>
-        <span class="fs-5 fw-semibold">Process Manager</span>
+        @if (Branding.HasLogo)
+        {
+            <img src="@Branding.GetLogoUrl(Api)" alt="@Branding.CompanyName"
+                 class="me-2" style="max-height: 32px; max-width: 40px; object-fit: contain;" />
+        }
+        else
+        {
+            <i class="bi bi-gear-wide-connected me-2 fs-4"></i>
+        }
+        <span class="fs-5 fw-semibold text-truncate">@Branding.CompanyName</span>
     </a>
     <hr />
     <ul class="nav nav-pills flex-column mb-auto" style="overflow-y: auto; flex: 1 1 0; min-height: 0;">
-        <li class="nav-item">
+        @if (_openSection is not null)
+        {
+            <li class="nav-item pm-nav-back">
+                <button type="button" class="nav-link text-white w-100 text-start d-flex align-items-center"
+                        @onclick="() => _openSection = null">
+                    <i class="bi bi-arrow-left me-2"></i>
+                    <span class="fw-semibold">@SectionLabel(_openSection)</span>
+                </button>
+            </li>
+            <li><hr class="my-1" style="border-color:#262626;opacity:1"/></li>
+        }
+        <li class="nav-item pm-nav-root-item">
             <NavLink class="nav-link text-white" href="" Match="NavLinkMatch.All">
                 <i class="bi bi-house-door me-2"></i> Home
             </NavLink>
         </li>
-        <li class="nav-item">
+        <li class="nav-item pm-nav-root-item">
             <NavLink class="nav-link text-white" href="dashboard">
                 <i class="bi bi-speedometer2 me-2"></i> Dashboard
             </NavLink>
         </li>
-        <li class="nav-item">
+        <li class="nav-item pm-nav-root-item">
             <NavLink class="nav-link text-white" href="my-work">
                 <i class="bi bi-person-workspace me-2"></i> My Work
             </NavLink>
         </li>
         <AuthorizeView Roles="Admin,Engineer">
             <Authorized>
-                <li class="nav-item">
+                <li class="nav-item pm-nav-root-item">
                     <NavLink class="nav-link text-white d-flex align-items-center justify-content-between" href="alerts">
                         <span><i class="bi bi-bell me-2"></i> Alerts</span>
                         @if (_alertCount > 0)
@@ -52,14 +78,14 @@
                         }
                     </NavLink>
                 </li>
-                <li class="nav-item">
+                <li class="nav-item pm-nav-root-item">
                     <NavLink class="nav-link text-white" href="analytics">
                         <i class="bi bi-graph-up-arrow me-2"></i> Analytics
                     </NavLink>
                 </li>
 
                 @* ── Design ── *@
-                <li class="mt-2">
+                <li class="mt-2 pm-nav-root-item">
                     <button type="button"
                             class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
                             @onclick='() => ToggleSection("design")'>
@@ -106,8 +132,29 @@
                     </li>
                 }
 
+                @* ── Strategy ── *@
+                @if (Flags.ShowStrategyTools)
+                {
+                <li class="mt-2 pm-nav-root-item">
+                    <button type="button"
+                            class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
+                            @onclick='() => ToggleSection("strategy")'>
+                        <span>Strategy</span>
+                        <i class='bi @(_openSection == "strategy" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
+                    </button>
+                </li>
+                }
+                @if (Flags.ShowStrategyTools && _openSection == "strategy")
+                {
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="strategy/scorecards">
+                            <i class="bi bi-bullseye me-2"></i> Balanced Scorecard
+                        </NavLink>
+                    </li>
+                }
+
                 @* ── Execution ── *@
-                <li class="mt-2">
+                <li class="mt-2 pm-nav-root-item">
                     <button type="button"
                             class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
                             @onclick='() => ToggleSection("execution")'>
@@ -142,10 +189,15 @@
                             <i class="bi bi-play-circle me-2"></i> @Vocab.StepExecutions
                         </NavLink>
                     </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="configurator">
+                            <i class="bi bi-diagram-3 me-2"></i> Configurator
+                        </NavLink>
+                    </li>
                 }
 
                 @* ── Config ── *@
-                <li class="mt-2">
+                <li class="mt-2 pm-nav-root-item">
                     <button type="button"
                             class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
                             @onclick='() => ToggleSection("config")'>
@@ -168,7 +220,9 @@
                 }
 
                 @* ── Quality ── *@
-                <li class="mt-2">
+                @if (Flags.ShowQualityTools)
+                {
+                <li class="mt-2 pm-nav-root-item">
                     <button type="button"
                             class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
                             @onclick='() => ToggleSection("quality")'>
@@ -176,7 +230,8 @@
                         <i class='bi @(_openSection == "quality" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
                     </button>
                 </li>
-                @if (_openSection == "quality")
+                }
+                @if (Flags.ShowQualityTools && _openSection == "quality")
                 {
                     <li class="nav-item">
                         <NavLink class="nav-link text-white ps-4" href="pfmeas">
@@ -218,10 +273,35 @@
                             <i class="bi bi-clipboard2-x me-2"></i> Material Review Board
                         </NavLink>
                     </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="spc">
+                            <i class="bi bi-graph-up me-2"></i> SPC Charts
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="gage-studies">
+                            <i class="bi bi-bullseye me-2"></i> Gage Studies
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="suppliers">
+                            <i class="bi bi-building me-2"></i> Suppliers
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="capas">
+                            <i class="bi bi-shield-exclamation me-2"></i> CAPA
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="complaints">
+                            <i class="bi bi-chat-left-dots me-2"></i> Complaints
+                        </NavLink>
+                    </li>
                 }
 
                 @* ── Document Library ── *@
-                <li class="mt-2">
+                <li class="mt-2 pm-nav-root-item">
                     <button type="button"
                             class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
                             @onclick='() => ToggleSection("documents")'>
@@ -256,7 +336,7 @@
         </AuthorizeView>
 
         @* ── Accountability ── *@
-        <li class="mt-2">
+        <li class="mt-2 pm-nav-root-item">
             <button type="button"
                     class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
                     @onclick='() => ToggleSection("accountability")'>
@@ -296,12 +376,63 @@
                             <i class="bi bi-journal-check me-2"></i> Management Reviews
                         </NavLink>
                     </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="quality-costs">
+                            <i class="bi bi-currency-dollar me-2"></i> Cost of Quality
+                        </NavLink>
+                    </li>
+                </Authorized>
+            </AuthorizeView>
+        }
+
+        @* ── Conformance ── *@
+        @if (Flags.ShowQualityTools)
+        {
+        <AuthorizeView Roles="Admin,Engineer">
+            <Authorized>
+                <li class="mt-2 pm-nav-root-item">
+                    <button type="button"
+                            class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
+                            @onclick='() => ToggleSection("conformance")'>
+                        <span>Conformance</span>
+                        <i class='bi @(_openSection == "conformance" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
+                    </button>
+                </li>
+            </Authorized>
+        </AuthorizeView>
+        }
+        @if (Flags.ShowQualityTools && _openSection == "conformance")
+        {
+            <AuthorizeView Roles="Admin,Engineer">
+                <Authorized>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="conformance">
+                            <i class="bi bi-shield-check me-2"></i> Dashboard
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="conformance/clauses">
+                            <i class="bi bi-list-check me-2"></i> Clause Browser
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="audit-programs">
+                            <i class="bi bi-clipboard2-check me-2"></i> Audit Programs
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="change-orders">
+                            <i class="bi bi-arrow-repeat me-2"></i> Change Orders
+                        </NavLink>
+                    </li>
                 </Authorized>
             </AuthorizeView>
         }
 
         @* ── Training ── *@
-        <li class="mt-2">
+        @if (Flags.ShowTrainingTools)
+        {
+        <li class="mt-2 pm-nav-root-item">
             <button type="button"
                     class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
                     @onclick='() => ToggleSection("training")'>
@@ -309,7 +440,8 @@
                 <i class='bi @(_openSection == "training" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
             </button>
         </li>
-        @if (_openSection == "training")
+        }
+        @if (Flags.ShowTrainingTools && _openSection == "training")
         {
             <li class="nav-item">
                 <NavLink class="nav-link text-white ps-4" href="training">
@@ -330,7 +462,9 @@
         <AuthorizeView Roles="Admin,Engineer">
             <Authorized>
                 @* ── Production ── *@
-                <li class="mt-2">
+                @if (Flags.ShowProductionTools)
+                {
+                <li class="mt-2 pm-nav-root-item">
                     <button type="button"
                             class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
                             @onclick='() => ToggleSection("production")'>
@@ -342,7 +476,8 @@
                         <i class='bi @(_openSection == "production" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
                     </button>
                 </li>
-                @if (_openSection == "production")
+                }
+                @if (Flags.ShowProductionTools && _openSection == "production")
                 {
                     <li class="nav-item">
                         <NavLink class="nav-link text-white ps-4" href="production">
@@ -360,6 +495,16 @@
                         </NavLink>
                     </li>
                     <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="calibration">
+                            <i class="bi bi-rulers me-2"></i> Calibration
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="oee">
+                            <i class="bi bi-graph-up me-2"></i> OEE Dashboard
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
                         <NavLink class="nav-link text-white ps-4" href="factory-design">
                             <i class="bi bi-bounding-box me-2"></i> Factory Design
                         </NavLink>
@@ -367,7 +512,9 @@
                 }
 
                 @* ── Warehouse ── *@
-                <li class="mt-2">
+                @if (Flags.ShowWarehouseTools)
+                {
+                <li class="mt-2 pm-nav-root-item">
                     <button type="button"
                             class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
                             @onclick='() => ToggleSection("warehouse")'>
@@ -375,7 +522,8 @@
                         <i class='bi @(_openSection == "warehouse" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
                     </button>
                 </li>
-                @if (_openSection == "warehouse")
+                }
+                @if (Flags.ShowWarehouseTools && _openSection == "warehouse")
                 {
                     <li class="nav-item">
                         <NavLink class="nav-link text-white ps-4" href="warehouse" Match="NavLinkMatch.All">
@@ -395,7 +543,9 @@
                 }
 
                 @* ── Reports ── *@
-                <li class="mt-2">
+                @if (Flags.ShowAdvancedModules)
+                {
+                <li class="mt-2 pm-nav-root-item">
                     <button type="button"
                             class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
                             @onclick='() => ToggleSection("reports")'>
@@ -403,7 +553,8 @@
                         <i class='bi @(_openSection == "reports" ? "bi-chevron-down" : "bi-chevron-right")' style="font-size:.65rem"></i>
                     </button>
                 </li>
-                @if (_openSection == "reports")
+                }
+                @if (Flags.ShowAdvancedModules && _openSection == "reports")
                 {
                     <li class="nav-item">
                         <NavLink class="nav-link text-white ps-4" href="reports">
@@ -427,7 +578,7 @@
         @* ── Admin (role-gated) ── *@
         <AuthorizeView Roles="Admin">
             <Authorized>
-                <li class="mt-2">
+                <li class="mt-2 pm-nav-root-item">
                     <button type="button"
                             class="nav-section-toggle d-flex justify-content-between align-items-center w-100 text-start"
                             @onclick='() => ToggleSection("admin")'>
@@ -443,13 +594,33 @@
                         </NavLink>
                     </li>
                     <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="settings/modules">
+                            <i class="bi bi-sliders2 me-2"></i> Modules
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
                         <NavLink class="nav-link text-white ps-4" href="ai-audit">
                             <i class="bi bi-robot me-2"></i> AI Audit Log
                         </NavLink>
                     </li>
                     <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="admin/workstations">
+                            <i class="bi bi-pc-display me-2"></i> Workstations
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
                         <NavLink class="nav-link text-white ps-4" href="webhooks">
                             <i class="bi bi-broadcast me-2"></i> Webhooks
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="settings/billing">
+                            <i class="bi bi-credit-card me-2"></i> Billing
+                        </NavLink>
+                    </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="settings/branding">
+                            <i class="bi bi-palette me-2"></i> Branding
                         </NavLink>
                     </li>
                 }
@@ -497,14 +668,16 @@
     private static readonly Dictionary<string, string[]> _sectionPaths = new()
     {
         ["design"]    = ["kinds", "step-templates", "processes", "approval-queue", "workflows"],
-        ["execution"] = ["workorders", "jobs", "items", "batches", "step-executions"],
+        ["strategy"]  = ["strategy/scorecards"],
+        ["execution"] = ["workorders", "jobs", "items", "batches", "step-executions", "configurator"],
         ["config"]    = ["vocabulary", "orgunits"],
-        ["quality"]   = ["pfmeas", "ce-matrices", "control-plans", "non-conformances", "root-cause-library", "ishikawa", "five-whys", "mrb"],
+        ["quality"]   = ["pfmeas", "ce-matrices", "control-plans", "non-conformances", "root-cause-library", "ishikawa", "five-whys", "mrb", "spc", "gage-studies", "suppliers", "capas", "complaints"],
         ["documents"]  = ["documents"],
-        ["accountability"] = ["my-actions", "team-actions", "quality-scorecard", "management-reviews"],
-        ["production"] = ["production", "equipment", "maintenance", "factory-design"],
+        ["accountability"] = ["my-actions", "team-actions", "quality-scorecard", "management-reviews", "quality-costs"],
+        ["conformance"] = ["conformance", "conformance/clauses", "audit-programs", "change-orders"],
+        ["production"] = ["production", "equipment", "maintenance", "calibration", "oee", "factory-design"],
         ["warehouse"]  = ["warehouse", "picklists"],
-        ["admin"]     = ["admin", "ai-audit", "webhooks"],
+        ["admin"]     = ["admin", "ai-audit", "webhooks", "settings/modules", "settings/billing", "settings/branding", "admin/workstations"],
         ["reports"]   = ["reports", "reports/process-timing", "powerbi-dashboards"],
     };
 
@@ -513,6 +686,8 @@
         _openSection = GetSectionForUrl(Nav.Uri);
         Nav.LocationChanged += OnLocationChanged;
         Vocab.OnChange += OnVocabChanged;
+        Flags.OnChange += OnVocabChanged;
+        Branding.OnChange += OnVocabChanged;
     }
 
     protected override async Task OnInitializedAsync()
@@ -522,6 +697,15 @@
         _displayName = user.FindFirst("display_name")?.Value
                        ?? user.Identity?.Name;
         _role        = user.FindFirst(ClaimTypes.Role)?.Value;
+
+        // Load branding here as well as in MainLayout. The two components live
+        // in different DI scopes when MainLayout is rendered as static SSR and
+        // NavMenu is InteractiveServer, so MainLayout's load doesn't reach
+        // this instance. LoadAsync is idempotent (IsLoaded short-circuits).
+        if (!Branding.IsLoaded)
+        {
+            await Branding.LoadAsync(Api);
+        }
 
         if (_role is "Admin" or "Engineer")
         {
@@ -571,6 +755,23 @@
     private void ToggleSection(string key) =>
         _openSection = _openSection == key ? null : key;
 
+    private static string SectionLabel(string? key) => key switch
+    {
+        "design"         => "Design",
+        "strategy"       => "Strategy",
+        "execution"      => "Execution",
+        "config"         => "Config",
+        "quality"        => "Quality",
+        "documents"      => "Document Library",
+        "accountability" => "Accountability",
+        "training"       => "Training",
+        "production"     => "Production",
+        "warehouse"      => "Warehouse",
+        "reports"        => "Reports",
+        "admin"          => "Admin",
+        _                => ""
+    };
+
     private static string? GetSectionForUrl(string url)
     {
         var path = new Uri(url).AbsolutePath.TrimStart('/').ToLowerInvariant();
@@ -586,5 +787,7 @@
     {
         Nav.LocationChanged -= OnLocationChanged;
         Vocab.OnChange -= OnVocabChanged;
+        Flags.OnChange -= OnVocabChanged;
+        Branding.OnChange -= OnVocabChanged;
     }
 }

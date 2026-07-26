@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Api.Data;
 using ProcessManager.Api.DTOs;
+using ProcessManager.Api.Services;
 using ProcessManager.Domain.Entities;
 using ProcessManager.Domain.Enums;
 
@@ -15,8 +16,13 @@ namespace ProcessManager.Api.Controllers;
 public class WarehouseController : ControllerBase
 {
     private readonly ProcessManagerDbContext _db;
+    private readonly IWebhookEventPublisher? _webhooks;
 
-    public WarehouseController(ProcessManagerDbContext db) => _db = db;
+    public WarehouseController(ProcessManagerDbContext db, IWebhookEventPublisher? webhooks = null)
+    {
+        _db = db;
+        _webhooks = webhooks;
+    }
 
     // ───── Storage Locations ─────
 
@@ -462,7 +468,235 @@ public class WarehouseController : ControllerBase
         return transactions.Select(MapTransactionToDto).ToList();
     }
 
+    // ───── Barcode Scan (Phase 21) ─────
+
+    [HttpPost("scan")]
+    public async Task<ActionResult<ScanResponseDto>> Scan(ScanRequestDto dto)
+    {
+        var workstationIdClaim = User.FindFirstValue("workstation_id");
+        var apiKeyIdClaim = User.FindFirstValue("api_key_id");
+
+        if (string.IsNullOrEmpty(workstationIdClaim) || string.IsNullOrEmpty(apiKeyIdClaim))
+            return Unauthorized("This endpoint requires API key authentication with a workstation-scoped key.");
+
+        var workstationId = Guid.Parse(workstationIdClaim);
+        var apiKeyId = Guid.Parse(apiKeyIdClaim);
+        var tenantIdClaim = User.FindFirstValue("tenant_id");
+        var tenantId = !string.IsNullOrEmpty(tenantIdClaim) ? Guid.Parse(tenantIdClaim) : Guid.Empty;
+
+        var ws = await _db.Workstations
+            .Include(w => w.FixedLocation)
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(w => w.Id == workstationId);
+
+        if (ws is null || !ws.IsActive || !ws.FixedLocation.IsActive)
+        {
+            var scanEvtInactive = new ScanEvent
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                WorkstationId = workstationId,
+                ApiKeyId = apiKeyId,
+                ScannedBarcode = dto.Barcode,
+                Result = ScanResult.WorkstationInactive,
+                ErrorMessage = "Workstation or its fixed location is deactivated.",
+                ScannedAt = DateTime.UtcNow
+            };
+            _db.ScanEvents.Add(scanEvtInactive);
+            await _db.SaveChangesAsync();
+            return BadRequest(new ScanResponseDto("workstation_inactive", null, null, null, null, null, DateTime.UtcNow, "Workstation or its fixed location is deactivated."));
+        }
+
+        var item = await _db.Items
+            .Include(i => i.Kind)
+            .Include(i => i.StorageLocation)
+            .FirstOrDefaultAsync(i => i.Barcode == dto.Barcode);
+
+        if (item is null)
+            item = await _db.Items
+                .Include(i => i.Kind)
+                .Include(i => i.StorageLocation)
+                .FirstOrDefaultAsync(i => i.SerialNumber == dto.Barcode);
+
+        if (item is null)
+        {
+            var scanEvtUnknown = new ScanEvent
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                WorkstationId = workstationId,
+                ApiKeyId = apiKeyId,
+                ScannedBarcode = dto.Barcode,
+                Result = ScanResult.UnknownBarcode,
+                ErrorMessage = $"Barcode '{dto.Barcode}' not found.",
+                ScannedAt = DateTime.UtcNow
+            };
+            _db.ScanEvents.Add(scanEvtUnknown);
+            await _db.SaveChangesAsync();
+            FireScanWebhook("UnknownBarcode", scanEvtUnknown, null, ws, null, null);
+            return NotFound(new ScanResponseDto("unknown_barcode", null, null, null, null, null, DateTime.UtcNow, $"Barcode '{dto.Barcode}' not found."));
+        }
+
+        if (item.Status != ItemStatus.Available && item.Status != ItemStatus.InProcess)
+        {
+            var scanEvtStatus = new ScanEvent
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                WorkstationId = workstationId,
+                ApiKeyId = apiKeyId,
+                ScannedBarcode = dto.Barcode,
+                ItemId = item.Id,
+                Result = ScanResult.InvalidItemStatus,
+                ErrorMessage = $"Item status is '{item.Status}' — only Available or InProcess items can be scanned.",
+                ScannedAt = DateTime.UtcNow
+            };
+            _db.ScanEvents.Add(scanEvtStatus);
+            await _db.SaveChangesAsync();
+            FireScanWebhook("InvalidItemStatus", scanEvtStatus, null, ws, item, null);
+            return Conflict(new ScanResponseDto("invalid_item_status", null,
+                new ScanItemDto(item.Id, item.Barcode, item.SerialNumber, item.Kind.Code, item.Kind.Name),
+                null, null, null, DateTime.UtcNow,
+                $"Item status is '{item.Status}'."));
+        }
+
+        if (item.StorageLocationId == ws.FixedLocationId)
+        {
+            var scanEvtAlready = new ScanEvent
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                WorkstationId = workstationId,
+                ApiKeyId = apiKeyId,
+                ScannedBarcode = dto.Barcode,
+                ItemId = item.Id,
+                Result = ScanResult.AlreadyAtLocation,
+                ScannedAt = DateTime.UtcNow
+            };
+            _db.ScanEvents.Add(scanEvtAlready);
+            await _db.SaveChangesAsync();
+            FireScanWebhook("AlreadyAtLocation", scanEvtAlready, null, ws, item, null);
+            return Ok(new ScanResponseDto("already_at_location", null,
+                new ScanItemDto(item.Id, item.Barcode, item.SerialNumber, item.Kind.Code, item.Kind.Name),
+                item.StorageLocationId.HasValue ? new ScanLocationDto(item.StorageLocationId.Value, item.StorageLocation?.Code ?? "") : null,
+                new ScanLocationDto(ws.FixedLocationId, ws.FixedLocation.Code),
+                new ScanWorkstationDto(ws.Id, ws.Code),
+                DateTime.UtcNow, null));
+        }
+
+        var txnType = item.StorageLocationId.HasValue
+            ? InventoryTransactionType.Transfer
+            : InventoryTransactionType.Receipt;
+
+        var fromLocationId = item.StorageLocationId;
+        var fromLocationCode = item.StorageLocation?.Code;
+
+        var txn = new InventoryTransaction
+        {
+            TransactionType = txnType,
+            ItemId = item.Id,
+            FromLocationId = fromLocationId,
+            ToLocationId = ws.FixedLocationId,
+            Quantity = 1,
+            ReferenceType = InventoryReferenceType.Workstation,
+            ReferenceId = ws.Id,
+            TransactedAt = DateTime.UtcNow,
+            TransactedByUserId = $"apikey:{User.FindFirstValue("api_key_prefix") ?? ""}"
+        };
+
+        item.StorageLocationId = ws.FixedLocationId;
+
+        _db.InventoryTransactions.Add(txn);
+
+        var scanEvt = new ScanEvent
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            WorkstationId = workstationId,
+            ApiKeyId = apiKeyId,
+            ScannedBarcode = dto.Barcode,
+            ItemId = item.Id,
+            TransactionId = txn.Id,
+            Result = ScanResult.Transferred,
+            ScannedAt = DateTime.UtcNow
+        };
+        _db.ScanEvents.Add(scanEvt);
+
+        await _db.SaveChangesAsync();
+
+        FireScanWebhook("Transferred", scanEvt, txn, ws, item, fromLocationCode);
+
+        return Ok(new ScanResponseDto("transferred", txn.Id,
+            new ScanItemDto(item.Id, item.Barcode, item.SerialNumber, item.Kind.Code, item.Kind.Name),
+            fromLocationId.HasValue ? new ScanLocationDto(fromLocationId.Value, fromLocationCode ?? "") : null,
+            new ScanLocationDto(ws.FixedLocationId, ws.FixedLocation.Code),
+            new ScanWorkstationDto(ws.Id, ws.Code),
+            txn.TransactedAt, null));
+    }
+
+    // ───── Scan Events Query (Phase 21) ─────
+
+    [HttpGet("scan-events")]
+    [Authorize(Roles = "Admin,Engineer")]
+    public async Task<ActionResult<PaginatedResponse<ScanEventResponseDto>>> GetScanEvents(
+        [FromQuery] Guid? workstationId = null,
+        [FromQuery] string? result = null,
+        [FromQuery] string? barcode = null,
+        [FromQuery] DateTime? dateFrom = null,
+        [FromQuery] DateTime? dateTo = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25)
+    {
+        var query = _db.ScanEvents
+            .Include(s => s.Workstation)
+            .Include(s => s.Item)
+            .AsQueryable();
+
+        if (workstationId.HasValue)
+            query = query.Where(s => s.WorkstationId == workstationId.Value);
+
+        if (!string.IsNullOrEmpty(result) && Enum.TryParse<ScanResult>(result, true, out var sr))
+            query = query.Where(s => s.Result == sr);
+
+        if (!string.IsNullOrWhiteSpace(barcode))
+            query = query.Where(s => s.ScannedBarcode.Contains(barcode.Trim()));
+
+        if (dateFrom.HasValue)
+            query = query.Where(s => s.ScannedAt >= dateFrom.Value);
+
+        if (dateTo.HasValue)
+            query = query.Where(s => s.ScannedAt <= dateTo.Value);
+
+        var totalCount = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(s => s.ScannedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PaginatedResponse<ScanEventResponseDto>(
+            items.Select(s => new ScanEventResponseDto(
+                s.Id, s.WorkstationId, s.Workstation?.Code ?? "",
+                s.ScannedBarcode, s.ItemId, s.Item?.SerialNumber,
+                s.TransactionId, s.Result.ToString(), s.ErrorMessage, s.ScannedAt)).ToList(),
+            totalCount, page, pageSize);
+    }
+
     // ───── Mapping Helpers ─────
+
+    private void FireScanWebhook(string result, ScanEvent scanEvt, InventoryTransaction? txn, Workstation ws, Item? item, string? fromLocationCode)
+    {
+        _webhooks?.Publish("inventory.scan", new
+        {
+            result,
+            scanEventId = scanEvt.Id,
+            transactionId = txn?.Id,
+            workstation = new { id = ws.Id, code = ws.Code },
+            item = item is null ? null : new { id = item.Id, barcode = item.Barcode, kindCode = item.Kind?.Code },
+            fromLocationCode,
+            toLocationCode = ws.FixedLocation?.Code
+        });
+    }
 
     private static StorageLocationResponseDto MapLocationToDto(StorageLocation sl) => new(
         sl.Id, sl.Code, sl.Name, sl.Zone, sl.Aisle, sl.Bay, sl.Bin,

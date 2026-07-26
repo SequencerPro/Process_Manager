@@ -1,0 +1,352 @@
+@page "/gage-studies"
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using ProcessManager.Api.DTOs
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Gage Studies — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-rulers me-2 text-primary"></i>Gage Studies</h3>
+        <p class="text-muted small mb-0 d-none d-md-block">Gage R&R and measurement system analysis</p>
+    </div>
+    <button class="btn btn-primary" @onclick="OpenCreateModal">
+        <i class="bi bi-plus-lg me-1"></i> New Study
+    </button>
+</div>
+
+@* ── KPI cards ── *@
+@if (_dashboard is not null)
+{
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm text-center p-3">
+                <div class="fs-3 fw-bold text-primary">@_dashboard.Total</div>
+                <div class="small text-muted">Total Studies</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm text-center p-3">
+                <div class="fs-3 fw-bold text-success">@_dashboard.Acceptable</div>
+                <div class="small text-muted">Acceptable</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm text-center p-3">
+                <div class="fs-3 fw-bold text-warning">@_dashboard.Marginal</div>
+                <div class="small text-muted">Marginal</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card shadow-sm text-center p-3">
+                <div class="fs-3 fw-bold text-danger">@_dashboard.Unacceptable</div>
+                <div class="small text-muted">Unacceptable</div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Filters ── *@
+<div class="row g-2 mb-3">
+    <div class="col-md-3">
+        <select class="form-select form-select-sm" @bind="_statusFilter" @bind:after="LoadData">
+            <option value="">All statuses</option>
+            <option value="Draft">Draft</option>
+            <option value="InProgress">In Progress</option>
+            <option value="Complete">Complete</option>
+        </select>
+    </div>
+</div>
+
+@* ── Table ── *@
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Name</th>
+                    <th class="col-hide-mobile">Type</th>
+                    <th class="col-hide-mobile">Equipment</th>
+                    <th class="col-hide-mobile">Characteristic</th>
+                    <th class="text-center">Status</th>
+                    <th class="text-center col-hide-mobile">GRR %</th>
+                    <th class="text-center col-hide-mobile">NDC</th>
+                    <th class="text-end" style="width:140px">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (_loading)
+                {
+                    <tr><td colspan="8" class="text-center text-muted py-4">
+                        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+                    </td></tr>
+                }
+                else if (_result is null || !_result.Items.Any())
+                {
+                    <tr><td colspan="8" class="text-center text-muted py-4">No gage studies found.</td></tr>
+                }
+                else
+                {
+                    @foreach (var gs in _result.Items)
+                    {
+                        <tr>
+                            <td class="align-middle">@gs.Name</td>
+                            <td class="align-middle col-hide-mobile"><code>@gs.StudyType</code></td>
+                            <td class="align-middle col-hide-mobile">@(gs.EquipmentCode ?? "—")</td>
+                            <td class="align-middle col-hide-mobile">@(gs.CharacteristicName ?? "—")</td>
+                            <td class="align-middle text-center">
+                                <span class="badge @StatusBadge(gs.Status)">@gs.Status</span>
+                            </td>
+                            <td class="align-middle text-center col-hide-mobile">
+                                @if (gs.GrrPercent.HasValue)
+                                {
+                                    <span class="badge @GrrBadge(gs.GrrPercent.Value)">@gs.GrrPercent.Value.ToString("F1")%</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">—</span>
+                                }
+                            </td>
+                            <td class="align-middle text-center col-hide-mobile">@(gs.Ndc?.ToString() ?? "—")</td>
+                            <td class="align-middle text-end">
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteStudy(gs)" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@* ── Pager ── *@
+@if (_result is not null && _result.TotalPages > 1)
+{
+    <nav class="mt-3 d-flex justify-content-center">
+        <ul class="pagination pagination-sm">
+            <li class="page-item @(!_result.HasPreviousPage ? "disabled" : "")">
+                <button class="page-link" @onclick="() => GoToPage(_page - 1)">&laquo;</button>
+            </li>
+            @for (var p = 1; p <= _result.TotalPages; p++)
+            {
+                var pg = p;
+                <li class="page-item @(pg == _page ? "active" : "")">
+                    <button class="page-link" @onclick="() => GoToPage(pg)">@pg</button>
+                </li>
+            }
+            <li class="page-item @(!_result.HasNextPage ? "disabled" : "")">
+                <button class="page-link" @onclick="() => GoToPage(_page + 1)">&raquo;</button>
+            </li>
+        </ul>
+    </nav>
+}
+
+@* ── Create modal ── *@
+@if (_showCreateModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">New Gage Study</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(_error))
+                    {
+                        <div class="alert alert-danger py-2 small">@_error</div>
+                    }
+                    <div class="mb-3">
+                        <label class="form-label">Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" @bind="_createName" placeholder="e.g. Caliper GRR — OD Measurement" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Study Type <span class="text-danger">*</span></label>
+                        <select class="form-select" @bind="_createStudyType">
+                            <option value="">— Select —</option>
+                            <option value="GRR_Range">GRR (Range)</option>
+                            <option value="GRR_ANOVA">GRR (ANOVA)</option>
+                            <option value="Linearity">Linearity</option>
+                            <option value="Bias">Bias</option>
+                            <option value="Stability">Stability</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Characteristic Name</label>
+                        <input type="text" class="form-control" @bind="_createCharacteristic" placeholder="e.g. OD at Section A" />
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Parts <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" @bind="_createParts" min="2" max="50" />
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Operators <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" @bind="_createOperators" min="2" max="10" />
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Trials <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" @bind="_createTrials" min="2" max="10" />
+                        </div>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Tolerance</label>
+                            <input type="number" class="form-control" @bind="_createTolerance" step="0.001" />
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">LSL</label>
+                            <input type="number" class="form-control" @bind="_createLSL" step="0.001" />
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">USL</label>
+                            <input type="number" class="form-control" @bind="_createUSL" step="0.001" />
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseModal">Cancel</button>
+                    <button class="btn btn-primary" @onclick="SubmitCreate" disabled="@_saving">
+                        @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                        Create
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PaginatedResponse<GageStudySummaryDto>? _result;
+    private GageStudyDashboardDto? _dashboard;
+    private bool _loading = true;
+    private string _statusFilter = "";
+    private int _page = 1;
+
+    // Create modal
+    private bool _showCreateModal;
+    private bool _saving;
+    private string? _error;
+    private string _createName = "";
+    private string _createStudyType = "";
+    private string? _createCharacteristic;
+    private int _createParts = 10;
+    private int _createOperators = 3;
+    private int _createTrials = 3;
+    private decimal? _createTolerance;
+    private decimal? _createLSL;
+    private decimal? _createUSL;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        StateHasChanged();
+
+        try
+        {
+            var statusParam = string.IsNullOrEmpty(_statusFilter) ? null : _statusFilter;
+            _result = await Api.GetGageStudiesAsync(status: statusParam, page: _page);
+            _dashboard = await Api.GetGageStudyDashboardAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task GoToPage(int p) { _page = p; await LoadData(); }
+
+    private void OpenCreateModal()
+    {
+        _showCreateModal = true;
+        _error = null;
+        _createName = "";
+        _createStudyType = "";
+        _createCharacteristic = null;
+        _createParts = 10;
+        _createOperators = 3;
+        _createTrials = 3;
+        _createTolerance = null;
+        _createLSL = null;
+        _createUSL = null;
+    }
+
+    private void CloseModal() => _showCreateModal = false;
+
+    private async Task SubmitCreate()
+    {
+        if (string.IsNullOrWhiteSpace(_createName) || string.IsNullOrWhiteSpace(_createStudyType))
+        {
+            _error = "Name and Study Type are required.";
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+
+        try
+        {
+            var dto = new CreateGageStudyDto
+            {
+                Name = _createName,
+                StudyType = _createStudyType,
+                CharacteristicName = _createCharacteristic,
+                NumberOfParts = _createParts,
+                NumberOfOperators = _createOperators,
+                NumberOfTrials = _createTrials,
+                Tolerance = _createTolerance,
+                LSL = _createLSL,
+                USL = _createUSL
+            };
+            await Api.CreateGageStudyAsync(dto);
+            _showCreateModal = false;
+            await LoadData();
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteStudy(GageStudySummaryDto gs)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"Delete gage study '{gs.Name}'?"))
+            return;
+        try
+        {
+            await Api.DeleteGageStudyAsync(gs.Id);
+            await LoadData();
+        }
+        catch (HttpRequestException ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Delete failed: {ex.Message}");
+        }
+    }
+
+    private static string StatusBadge(string status) => status switch
+    {
+        "Complete" => "bg-success",
+        "InProgress" => "bg-info text-dark",
+        "Draft" => "bg-secondary",
+        _ => "bg-secondary"
+    };
+
+    private static string GrrBadge(decimal grr) => grr switch
+    {
+        < 10 => "bg-success",
+        < 30 => "bg-warning text-dark",
+        _ => "bg-danger"
+    };
+}

@@ -318,7 +318,14 @@ public class ProcessTests : IntegrationTestBase
     [Fact]
     public async Task Validate_FullyConnectedProcess_NoWarnings()
     {
-        var (kind, grade) = await CreateKindWithGrade("PC-016", "Valid Kind");
+        // Use Buy-sourced Kind so Phase 23 BOM validation (which warns on Make outputs without a BOM)
+        // does not fire — this test targets flow-coverage only.
+        var kindDto = new KindCreateDto("PC-016", "Valid Kind", null, false, false,
+            Domain.Enums.KindSourceType.Buy);
+        var kindResp = await Client.PostAsJsonAsync("/api/kinds", kindDto, JsonOptions);
+        kindResp.EnsureSuccessStatusCode();
+        var kind = (await kindResp.Content.ReadFromJsonAsync<KindResponseDto>(JsonOptions))!;
+        var grade = await CreateGrade(kind.Id, "STD", "Standard", isDefault: true);
         var stepA = await CreateTransformStep("VL-001A", "A", kind.Id, grade.Id, kind.Id, grade.Id);
         var stepB = await CreateTransformStep("VL-001B", "B", kind.Id, grade.Id, kind.Id, grade.Id);
         var process = await CreateProcess("PC-016", "Valid Process");

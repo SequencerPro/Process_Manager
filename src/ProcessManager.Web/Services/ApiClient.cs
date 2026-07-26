@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Components.Forms;
 using ProcessManager.Api.DTOs;
 using ProcessManager.Domain.Enums;
+using ProcessManager.Domain.Entities;
 
 namespace ProcessManager.Web.Services;
 
@@ -529,6 +530,13 @@ public class ApiClient
     {
         var resp = await _http.PostAsJsonAsync(
             $"api/step-executions/{stepExecutionId}/prompt-responses", dto, _json);
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task BatchPromptResponsesAsync(Guid stepExecutionId, BatchPromptResponsesDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync(
+            $"api/step-executions/{stepExecutionId}/prompt-responses/batch", dto, _json);
         resp.EnsureSuccessStatusCode();
     }
 
@@ -2411,5 +2419,907 @@ public class ApiClient
     {
         var r = await _http.PostAsync($"api/floor-plans/{id}/archive", null);
         r.EnsureSuccessStatusCode();
+    }
+
+    // ── Phase 37: Workstation placements ──
+
+    public async Task<Guid?> CreateFloorPlanWorkstationAsync(Guid floorPlanId, string placementId,
+        Guid? equipmentId = null, Guid? orgUnitId = null, Guid? storageLocationId = null)
+    {
+        var dto = new FloorPlanWorkstationCreateDto(placementId, equipmentId, orgUnitId, storageLocationId);
+        var r = await _http.PostAsJsonAsync($"api/floor-plans/{floorPlanId}/workstations", dto, _json);
+        if (!r.IsSuccessStatusCode) return null;
+        var result = await r.Content.ReadFromJsonAsync<JsonElement>(_json);
+        return result.GetProperty("id").GetGuid();
+    }
+
+    public async Task UpdateFloorPlanWorkstationAsync(Guid floorPlanId, Guid wsId,
+        Guid? equipmentId, Guid? orgUnitId, Guid? storageLocationId)
+    {
+        var dto = new FloorPlanWorkstationUpdateDto(equipmentId, orgUnitId, storageLocationId);
+        var r = await _http.PutAsJsonAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}", dto, _json);
+        r.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteFloorPlanWorkstationAsync(Guid floorPlanId, Guid wsId)
+    {
+        var r = await _http.DeleteAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}");
+        if (r.StatusCode != System.Net.HttpStatusCode.NotFound) r.EnsureSuccessStatusCode();
+    }
+
+    // ── Phase 37: Workstation processes ──
+
+    public async Task AddWorkstationProcessAsync(Guid floorPlanId, Guid wsId, Guid processId, int sortOrder = 0)
+    {
+        var dto = new FloorPlanWorkstationProcessCreateDto(processId, sortOrder);
+        var r = await _http.PostAsJsonAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}/processes", dto, _json);
+        r.EnsureSuccessStatusCode();
+    }
+
+    public async Task RemoveWorkstationProcessAsync(Guid floorPlanId, Guid wsId, Guid procLinkId)
+    {
+        var r = await _http.DeleteAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}/processes/{procLinkId}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    // ── Phase 37: Workstation CAD model ──
+
+    public async Task<FloorPlanWorkstationModelDto?> UploadWorkstationModelAsync(Guid floorPlanId, Guid wsId, IBrowserFile file)
+    {
+        using var content = new MultipartFormDataContent();
+        using var stream = file.OpenReadStream(maxAllowedSize: 200 * 1024 * 1024); // 200 MB for heavy CAD assemblies
+        var fileContent = new StreamContent(stream);
+        var mime = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType;
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(mime);
+        content.Add(fileContent, "File", file.Name);
+        var r = await _http.PostAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}/model", content);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(_json);
+    }
+
+    public async Task<FloorPlanWorkstationModelDto?> ConvertWorkstationModelAsync(Guid floorPlanId, Guid wsId)
+    {
+        var r = await _http.PostAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}/model/convert", null);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(_json);
+    }
+
+    /// <summary>Persist a client-tessellated glb as the converted model.</summary>
+    public async Task<FloorPlanWorkstationModelDto?> UploadConvertedWorkstationModelAsync(Guid floorPlanId, Guid wsId, byte[] glb)
+    {
+        using var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(glb);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("model/gltf-binary");
+        content.Add(fileContent, "File", "converted.glb");
+        var r = await _http.PostAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}/model/converted", content);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(_json);
+    }
+
+    public async Task<FloorPlanWorkstationModelDto?> UpdateWorkstationModelTransformAsync(
+        Guid floorPlanId, Guid wsId, double scale, double yaw, double offsetX, double offsetY, double offsetZ)
+    {
+        var dto = new FloorPlanWorkstationModelTransformDto(scale, yaw, offsetX, offsetY, offsetZ);
+        var r = await _http.PutAsJsonAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}/model/transform", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(_json);
+    }
+
+    public async Task DeleteWorkstationModelAsync(Guid floorPlanId, Guid wsId)
+    {
+        var r = await _http.DeleteAsync($"api/floor-plans/{floorPlanId}/workstations/{wsId}/model");
+        if (r.StatusCode != System.Net.HttpStatusCode.NotFound) r.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Relative URL the canvas can fetch to render the web-ready model.</summary>
+    public string WorkstationModelUrl(Guid floorPlanId, Guid wsId, bool converted)
+        => $"api/floor-plans/{floorPlanId}/workstations/{wsId}/model/download?converted={converted.ToString().ToLowerInvariant()}";
+
+    // ── Phase 37: Inventory location CAD model (mirrors workstation) ──
+
+    public async Task<FloorPlanWorkstationModelDto?> UploadInventoryModelAsync(Guid floorPlanId, Guid locId, IBrowserFile file)
+    {
+        using var content = new MultipartFormDataContent();
+        using var stream = file.OpenReadStream(maxAllowedSize: 200 * 1024 * 1024);
+        var fileContent = new StreamContent(stream);
+        var mime = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType;
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(mime);
+        content.Add(fileContent, "File", file.Name);
+        var r = await _http.PostAsync($"api/floor-plans/{floorPlanId}/inventory-locations/{locId}/model", content);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(_json);
+    }
+
+    public async Task<FloorPlanWorkstationModelDto?> UploadConvertedInventoryModelAsync(Guid floorPlanId, Guid locId, byte[] glb)
+    {
+        using var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(glb);
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("model/gltf-binary");
+        content.Add(fileContent, "File", "converted.glb");
+        var r = await _http.PostAsync($"api/floor-plans/{floorPlanId}/inventory-locations/{locId}/model/converted", content);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(_json);
+    }
+
+    public async Task<FloorPlanWorkstationModelDto?> UpdateInventoryModelTransformAsync(
+        Guid floorPlanId, Guid locId, double scale, double yaw, double offsetX, double offsetY, double offsetZ)
+    {
+        var dto = new FloorPlanWorkstationModelTransformDto(scale, yaw, offsetX, offsetY, offsetZ);
+        var r = await _http.PutAsJsonAsync($"api/floor-plans/{floorPlanId}/inventory-locations/{locId}/model/transform", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<FloorPlanWorkstationModelDto>(_json);
+    }
+
+    public async Task DeleteInventoryModelAsync(Guid floorPlanId, Guid locId)
+    {
+        var r = await _http.DeleteAsync($"api/floor-plans/{floorPlanId}/inventory-locations/{locId}/model");
+        if (r.StatusCode != System.Net.HttpStatusCode.NotFound) r.EnsureSuccessStatusCode();
+    }
+
+    // ── Phase 37: Inventory locations ──
+
+    public async Task<Guid?> AddInventoryLocationAsync(Guid floorPlanId, string placementId, Guid storageLocationId)
+    {
+        var dto = new FloorPlanInventoryLocationCreateDto(placementId, storageLocationId);
+        var r = await _http.PostAsJsonAsync($"api/floor-plans/{floorPlanId}/inventory-locations", dto, _json);
+        if (!r.IsSuccessStatusCode) return null;
+        var result = await r.Content.ReadFromJsonAsync<JsonElement>(_json);
+        return result.GetProperty("id").GetGuid();
+    }
+
+    public async Task RemoveInventoryLocationAsync(Guid floorPlanId, Guid locId)
+    {
+        var r = await _http.DeleteAsync($"api/floor-plans/{floorPlanId}/inventory-locations/{locId}");
+        if (r.StatusCode != System.Net.HttpStatusCode.NotFound) r.EnsureSuccessStatusCode();
+    }
+
+    public async Task<Guid?> AddLocationDesignationAsync(Guid floorPlanId, Guid locId, Guid kindId)
+    {
+        var dto = new FloorPlanLocationDesignationCreateDto(kindId);
+        var r = await _http.PostAsJsonAsync($"api/floor-plans/{floorPlanId}/inventory-locations/{locId}/designations", dto, _json);
+        if (!r.IsSuccessStatusCode) return null;
+        var result = await r.Content.ReadFromJsonAsync<JsonElement>(_json);
+        return result.GetProperty("id").GetGuid();
+    }
+
+    public async Task RemoveLocationDesignationAsync(Guid floorPlanId, Guid locId, Guid designationId)
+    {
+        var r = await _http.DeleteAsync($"api/floor-plans/{floorPlanId}/inventory-locations/{locId}/designations/{designationId}");
+        r.EnsureSuccessStatusCode();
+    }
+
+    // ── Phase 37: Material flow analysis ──
+
+    public async Task<MaterialFlowResultDto?> AnalyseMaterialFlowAsync(
+        Guid floorPlanId, ProcessManager.Domain.Services.MaterialFlowMode mode, bool includeEmpty = false)
+    {
+        var dto = new MaterialFlowRequestDto(mode, includeEmpty);
+        var r = await _http.PostAsJsonAsync($"api/floor-plans/{floorPlanId}/analyse-material-flow", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<MaterialFlowResultDto>(_json);
+    }
+
+    // ═══════════════════ Onboarding (M2) ═══════════════════
+
+    public Task<List<OnboardingIndustryOptionDto>?> GetOnboardingIndustriesAsync()
+        => _http.GetFromJsonAsync<List<OnboardingIndustryOptionDto>>("api/onboarding/industries", _json);
+
+    public Task<OnboardingStateDto?> GetOnboardingStateAsync()
+        => _http.GetFromJsonAsync<OnboardingStateDto>("api/onboarding/state", _json);
+
+    public async Task<OnboardingStateDto?> UpdateOnboardingStateAsync(UpdateOnboardingStepDto dto)
+    {
+        var r = await _http.PatchAsJsonAsync("api/onboarding/state", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<OnboardingStateDto>(_json);
+    }
+
+    public async Task<OnboardingStateDto?> SkipOnboardingAsync(bool seedSample = true)
+    {
+        var r = await _http.PostAsJsonAsync("api/onboarding/skip", new SkipOnboardingDto(seedSample), _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<OnboardingStateDto>(_json);
+    }
+
+    public async Task<OnboardingStateDto?> SeedOnboardingSampleAsync()
+    {
+        var r = await _http.PostAsync("api/onboarding/seed-sample", null);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<OnboardingStateDto>(_json);
+    }
+
+    public Task<TenantFeatureFlagsDto?> GetTenantFeatureFlagsAsync()
+        => _http.GetFromJsonAsync<TenantFeatureFlagsDto>("api/onboarding/feature-flags", _json);
+
+    public async Task<TenantFeatureFlagsDto?> UpdateTenantFeatureFlagsAsync(TenantFeatureFlagsDto dto)
+    {
+        var r = await _http.PutAsJsonAsync("api/onboarding/feature-flags", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<TenantFeatureFlagsDto>(_json);
+    }
+
+    // ═══════════════════ Billing ═══════════════════
+
+    public Task<BillingDashboardDto?> GetBillingDashboardAsync()
+        => _http.GetFromJsonAsync<BillingDashboardDto>("api/billing", _json);
+
+    public Task<TenantSubscriptionDto?> GetSubscriptionAsync()
+        => _http.GetFromJsonAsync<TenantSubscriptionDto>("api/billing/subscription", _json);
+
+    public Task<PlanUsageSummaryDto?> GetPlanUsageAsync()
+        => _http.GetFromJsonAsync<PlanUsageSummaryDto>("api/billing/plan", _json);
+
+    public Task<List<PlanComparisonDto>?> GetPlanComparisonAsync()
+        => _http.GetFromJsonAsync<List<PlanComparisonDto>>("api/billing/plans", _json);
+
+    public async Task<CheckoutSessionResultDto?> CreateCheckoutSessionAsync(CreateCheckoutSessionDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/billing/checkout-session", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<CheckoutSessionResultDto>(_json);
+    }
+
+    public async Task<ChangePlanResultDto?> ChangePlanAsync(ChangePlanDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/billing/change-plan", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<ChangePlanResultDto>(_json);
+    }
+
+    public async Task<PortalSessionResultDto?> CreatePortalSessionAsync(CreatePortalSessionDto dto)
+    {
+        var r = await _http.PostAsJsonAsync("api/billing/portal-session", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<PortalSessionResultDto>(_json);
+    }
+
+    public Task<DowngradeCheckDto?> GetDowngradeCheckAsync(SubscriptionPlan plan)
+        => _http.GetFromJsonAsync<DowngradeCheckDto>($"api/billing/downgrade-check/{plan}", _json);
+
+    public Task<List<BillingEventDto>?> GetBillingEventsAsync(int limit = 20)
+        => _http.GetFromJsonAsync<List<BillingEventDto>>($"api/billing/events?limit={limit}", _json);
+
+    // ═══════════════════ Tenant Branding ═══════════════════
+
+    public Task<TenantBrandingResponseDto?> GetTenantBrandingAsync()
+        => _http.GetFromJsonAsync<TenantBrandingResponseDto>("api/tenant-branding", _json);
+
+    public async Task<TenantBrandingResponseDto?> UpdateTenantBrandingAsync(UpdateTenantBrandingDto dto)
+    {
+        var r = await _http.PutAsJsonAsync("api/tenant-branding", dto, _json);
+        r.EnsureSuccessStatusCode();
+        return await r.Content.ReadFromJsonAsync<TenantBrandingResponseDto>(_json);
+    }
+
+    public async Task<TenantBrandingResponseDto?> UploadTenantLogoAsync(IBrowserFile file)
+    {
+        using var ms = new MemoryStream();
+        await file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).CopyToAsync(ms);
+        ms.Position = 0;
+
+        using var content = new MultipartFormDataContent();
+        var sc = new StreamContent(ms);
+        sc.Headers.ContentType = new MediaTypeHeaderValue(
+            string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType);
+        content.Add(sc, "file", file.Name);
+
+        var resp = await _http.PostAsync("api/tenant-branding/logo", content);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<TenantBrandingResponseDto>(_json);
+    }
+
+    public async Task DeleteTenantLogoAsync()
+    {
+        var resp = await _http.DeleteAsync("api/tenant-branding/logo");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    // ═══════════════════ Phase 17: Standards Conformance ═══════════════════
+
+    public Task<List<StandardsClauseSummaryDto>?> GetStandardsClausesAsync(string? standard = null)
+        => _http.GetFromJsonAsync<List<StandardsClauseSummaryDto>>(
+            $"api/standards-clauses?standard={E(standard)}", _json);
+
+    public Task<StandardsClauseDto?> GetStandardsClauseAsync(Guid id)
+        => _http.GetFromJsonAsync<StandardsClauseDto>($"api/standards-clauses/{id}", _json);
+
+    public Task<ConformanceDashboardDto?> GetConformanceDashboardAsync(string? standard = null)
+        => _http.GetFromJsonAsync<ConformanceDashboardDto>(
+            $"api/standards-clauses/dashboard?standard={E(standard)}", _json);
+
+    public Task<List<ClauseEvidenceLinkDto>?> GetClauseEvidenceLinksAsync(Guid clauseId)
+        => _http.GetFromJsonAsync<List<ClauseEvidenceLinkDto>>(
+            $"api/standards-clauses/{clauseId}/evidence", _json);
+
+    public async Task<ClauseEvidenceLinkDto?> AddClauseEvidenceLinkAsync(Guid clauseId, CreateClauseEvidenceLinkDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/standards-clauses/{clauseId}/evidence", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ClauseEvidenceLinkDto>(_json);
+    }
+
+    public async Task DeleteClauseEvidenceLinkAsync(Guid clauseId, Guid linkId)
+    {
+        var resp = await _http.DeleteAsync($"api/standards-clauses/{clauseId}/evidence/{linkId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<PaginatedResponse<AuditProgramSummaryDto>?> GetAuditProgramsAsync(
+        string? status = null, int? year = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<AuditProgramSummaryDto>>(
+            $"api/audit-programs?status={E(status)}&year={year}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<AuditProgramDto?> GetAuditProgramAsync(Guid id)
+        => _http.GetFromJsonAsync<AuditProgramDto>($"api/audit-programs/{id}", _json);
+
+    public async Task<AuditProgramDto?> CreateAuditProgramAsync(CreateAuditProgramDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/audit-programs", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditProgramDto>(_json);
+    }
+
+    public async Task<AuditProgramDto?> UpdateAuditProgramAsync(Guid id, UpdateAuditProgramDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/audit-programs/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditProgramDto>(_json);
+    }
+
+    public async Task<AuditProgramDto?> ActivateAuditProgramAsync(Guid id)
+    {
+        var resp = await _http.PostAsync($"api/audit-programs/{id}/activate", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditProgramDto>(_json);
+    }
+
+    public async Task<AuditProgramDto?> CloseAuditProgramAsync(Guid id)
+    {
+        var resp = await _http.PostAsync($"api/audit-programs/{id}/close", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditProgramDto>(_json);
+    }
+
+    public async Task DeleteAuditProgramAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/audit-programs/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<PaginatedResponse<AuditSummaryDto>?> GetAuditsAsync(
+        Guid? programId = null, string? status = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<AuditSummaryDto>>(
+            $"api/audits?programId={programId}&status={E(status)}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<AuditDto?> GetAuditAsync(Guid id)
+        => _http.GetFromJsonAsync<AuditDto>($"api/audits/{id}", _json);
+
+    public async Task<AuditDto?> CreateAuditAsync(CreateAuditDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/audits", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditDto>(_json);
+    }
+
+    public async Task<AuditDto?> UpdateAuditAsync(Guid id, UpdateAuditDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/audits/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditDto>(_json);
+    }
+
+    public async Task<AuditDto?> StartAuditAsync(Guid id)
+    {
+        var resp = await _http.PostAsync($"api/audits/{id}/start", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditDto>(_json);
+    }
+
+    public async Task<AuditDto?> CompleteAuditAsync(Guid id)
+    {
+        var resp = await _http.PostAsync($"api/audits/{id}/complete", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditDto>(_json);
+    }
+
+    public Task<List<AuditFindingDto>?> GetAuditFindingsAsync(Guid auditId)
+        => _http.GetFromJsonAsync<List<AuditFindingDto>>(
+            $"api/audits/{auditId}/findings", _json);
+
+    public async Task<AuditFindingDto?> AddAuditFindingAsync(Guid auditId, CreateAuditFindingDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/audits/{auditId}/findings", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditFindingDto>(_json);
+    }
+
+    public async Task<AuditFindingDto?> RaiseCorrectiveActionAsync(Guid auditId, Guid findingId)
+    {
+        var resp = await _http.PostAsync($"api/audits/{auditId}/findings/{findingId}/raise-ca", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditFindingDto>(_json);
+    }
+
+    public async Task<AuditFindingDto?> CloseAuditFindingAsync(Guid auditId, Guid findingId, CloseAuditFindingDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/audits/{auditId}/findings/{findingId}/close", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<AuditFindingDto>(_json);
+    }
+
+    // ── Phase 24: SPC & Capability Analysis ─────────────────────────────────
+
+    public Task<PaginatedResponse<SpcChartSummaryDto>?> GetSpcChartsAsync(
+        Guid? processId = null, bool? active = null, int page = 1, int pageSize = 25)
+    {
+        var url = $"api/spc?page={page}&pageSize={pageSize}";
+        if (processId.HasValue) url += $"&processId={processId}";
+        if (active.HasValue) url += $"&active={active}";
+        return _http.GetFromJsonAsync<PaginatedResponse<SpcChartSummaryDto>>(url, _json);
+    }
+
+    public Task<SpcChartDto?> GetSpcChartAsync(Guid id)
+        => _http.GetFromJsonAsync<SpcChartDto>($"api/spc/{id}", _json);
+
+    public async Task<SpcChartDto?> CreateSpcChartAsync(CreateSpcChartDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/spc", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<SpcChartDto>(_json);
+    }
+
+    public async Task<SpcChartDto?> UpdateSpcChartAsync(Guid id, UpdateSpcChartDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/spc/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<SpcChartDto>(_json);
+    }
+
+    public async Task DeleteSpcChartAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/spc/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<List<SpcDataPointDto>?> GetSpcDataPointsAsync(Guid chartId)
+        => _http.GetFromJsonAsync<List<SpcDataPointDto>>($"api/spc/{chartId}/data-points", _json);
+
+    public async Task<SpcDataPointDto?> AddSpcDataPointAsync(Guid chartId, AddSpcDataPointDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/spc/{chartId}/data-points", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<SpcDataPointDto>(_json);
+    }
+
+    public Task<SpcCalculationResultDto?> CalculateSpcAsync(Guid chartId)
+        => _http.GetFromJsonAsync<SpcCalculationResultDto>($"api/spc/{chartId}/calculate", _json);
+
+    public Task<List<SpcChartSummaryDto>?> GetSpcDashboardAsync()
+        => _http.GetFromJsonAsync<List<SpcChartSummaryDto>>("api/spc/dashboard", _json);
+
+    // ── Phase 21: Automatic Inventory Tracking ─────────────────────────────
+
+    public Task<PaginatedResponse<WorkstationSummaryDto>?> GetWorkstationsAsync(string? search = null, bool? active = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<WorkstationSummaryDto>>(
+            $"api/admin/workstations?search={E(search)}&active={active}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<WorkstationResponseDto?> GetWorkstationAsync(Guid id)
+        => _http.GetFromJsonAsync<WorkstationResponseDto>($"api/admin/workstations/{id}", _json);
+
+    public async Task<WorkstationResponseDto?> CreateWorkstationAsync(CreateWorkstationDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/admin/workstations", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<WorkstationResponseDto>(_json);
+    }
+
+    public async Task<WorkstationResponseDto?> UpdateWorkstationAsync(Guid id, UpdateWorkstationDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/admin/workstations/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<WorkstationResponseDto>(_json);
+    }
+
+    public async Task DeleteWorkstationAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/admin/workstations/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<PaginatedResponse<ApiKeyResponseDto>?> GetApiKeysAsync(Guid? workstationId = null, bool? active = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<ApiKeyResponseDto>>(
+            $"api/admin/api-keys?workstationId={workstationId}&active={active}&page={page}&pageSize={pageSize}", _json);
+
+    public async Task<ApiKeyCreatedDto?> CreateApiKeyAsync(CreateApiKeyDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/admin/api-keys", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ApiKeyCreatedDto>(_json);
+    }
+
+    public async Task<ApiKeyResponseDto?> UpdateApiKeyAsync(Guid id, UpdateApiKeyDto dto)
+    {
+        var resp = await _http.PatchAsJsonAsync($"api/admin/api-keys/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ApiKeyResponseDto>(_json);
+    }
+
+    public async Task DeleteApiKeyAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/admin/api-keys/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<PaginatedResponse<ScanEventResponseDto>?> GetScanEventsAsync(Guid? workstationId = null, string? result = null, string? barcode = null, DateTime? dateFrom = null, DateTime? dateTo = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<ScanEventResponseDto>>(
+            $"api/warehouse/scan-events?workstationId={workstationId}&result={E(result)}&barcode={E(barcode)}&dateFrom={dateFrom:o}&dateTo={dateTo:o}&page={page}&pageSize={pageSize}", _json);
+
+    // ── Phase 25: Supplier Quality Management ────────────────────────────────
+
+    public Task<PaginatedResponse<SupplierSummaryDto>?> GetSuppliersAsync(string? search = null, string? status = null, bool? active = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<SupplierSummaryDto>>(
+            $"api/suppliers?search={E(search)}&status={E(status)}&active={active}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<SupplierResponseDto?> GetSupplierAsync(Guid id)
+        => _http.GetFromJsonAsync<SupplierResponseDto>($"api/suppliers/{id}", _json);
+
+    public async Task<SupplierResponseDto?> CreateSupplierAsync(CreateSupplierDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/suppliers", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<SupplierResponseDto>(_json);
+    }
+
+    public async Task<SupplierResponseDto?> UpdateSupplierAsync(Guid id, UpdateSupplierDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/suppliers/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<SupplierResponseDto>(_json);
+    }
+
+    public async Task<SupplierResponseDto?> UpdateSupplierStatusAsync(Guid id, UpdateSupplierStatusDto dto)
+    {
+        var resp = await _http.PatchAsJsonAsync($"api/suppliers/{id}/status", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<SupplierResponseDto>(_json);
+    }
+
+    public async Task DeleteSupplierAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/suppliers/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<List<SupplierEvaluationResponseDto>?> GetSupplierEvaluationsAsync(Guid supplierId)
+        => _http.GetFromJsonAsync<List<SupplierEvaluationResponseDto>>($"api/suppliers/{supplierId}/evaluations", _json);
+
+    public async Task<SupplierEvaluationResponseDto?> AddSupplierEvaluationAsync(Guid supplierId, CreateSupplierEvaluationDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/suppliers/{supplierId}/evaluations", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<SupplierEvaluationResponseDto>(_json);
+    }
+
+    public async Task DeleteSupplierEvaluationAsync(Guid supplierId, Guid evalId)
+    {
+        var resp = await _http.DeleteAsync($"api/suppliers/{supplierId}/evaluations/{evalId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<SupplierQualityDashboardDto?> GetSupplierQualityDashboardAsync()
+        => _http.GetFromJsonAsync<SupplierQualityDashboardDto>("api/suppliers/dashboard", _json);
+
+    // ── Gage Studies (Phase 26) ─────────────────────────────────────────────
+
+    public Task<PaginatedResponse<GageStudySummaryDto>?> GetGageStudiesAsync(string? status = null, Guid? equipmentId = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<GageStudySummaryDto>>(
+            $"api/gage-studies?status={E(status)}&equipmentId={equipmentId}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<GageStudyResponseDto?> GetGageStudyAsync(Guid id)
+        => _http.GetFromJsonAsync<GageStudyResponseDto>($"api/gage-studies/{id}", _json);
+
+    public async Task<GageStudyResponseDto?> CreateGageStudyAsync(CreateGageStudyDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/gage-studies", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<GageStudyResponseDto>(_json);
+    }
+
+    public async Task DeleteGageStudyAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/gage-studies/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<GageStudyDashboardDto?> GetGageStudyDashboardAsync()
+        => _http.GetFromJsonAsync<GageStudyDashboardDto>("api/gage-studies/dashboard", _json);
+
+    // ── CAPA (Phase 27) ─────────────────────────────────────────────────────
+
+    public Task<PaginatedResponse<CapaRecordSummaryDto>?> GetCapasAsync(string? search = null, string? status = null, string? type = null, string? sourceType = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<CapaRecordSummaryDto>>(
+            $"api/capas?search={E(search)}&status={E(status)}&type={E(type)}&sourceType={E(sourceType)}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<CapaRecordResponseDto?> GetCapaAsync(Guid id)
+        => _http.GetFromJsonAsync<CapaRecordResponseDto>($"api/capas/{id}", _json);
+
+    public async Task<CapaRecordResponseDto?> CreateCapaAsync(CreateCapaRecordDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/capas", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<CapaRecordResponseDto>(_json);
+    }
+
+    public async Task DeleteCapaAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/capas/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<CapaDashboardDto?> GetCapaDashboardAsync()
+        => _http.GetFromJsonAsync<CapaDashboardDto>("api/capas/dashboard", _json);
+
+    // ── Customer Complaints (Phase 34) ──────────────────────────────────────
+
+    public Task<PaginatedResponse<CustomerComplaintSummaryDto>?> GetComplaintsAsync(string? search = null, string? status = null, string? category = null, string? severity = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<CustomerComplaintSummaryDto>>(
+            $"api/complaints?search={E(search)}&status={E(status)}&category={E(category)}&severity={E(severity)}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<CustomerComplaintResponseDto?> GetComplaintAsync(Guid id)
+        => _http.GetFromJsonAsync<CustomerComplaintResponseDto>($"api/complaints/{id}", _json);
+
+    public async Task<CustomerComplaintResponseDto?> CreateComplaintAsync(CreateCustomerComplaintDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/complaints", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<CustomerComplaintResponseDto>(_json);
+    }
+
+    public async Task<CustomerComplaintResponseDto?> UpdateComplaintAsync(Guid id, UpdateCustomerComplaintDto dto)
+    {
+        var resp = await _http.PatchAsJsonAsync($"api/complaints/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<CustomerComplaintResponseDto>(_json);
+    }
+
+    public async Task DeleteComplaintAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/complaints/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<CustomerComplaintResponseDto?> TransitionComplaintStatusAsync(Guid id, TransitionComplaintStatusDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/complaints/{id}/transition", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<CustomerComplaintResponseDto>(_json);
+    }
+
+    public Task<List<ComplaintInvestigationResponseDto>?> GetComplaintInvestigationsAsync(Guid complaintId)
+        => _http.GetFromJsonAsync<List<ComplaintInvestigationResponseDto>>($"api/complaints/{complaintId}/investigations", _json);
+
+    public async Task<ComplaintInvestigationResponseDto?> AddComplaintInvestigationAsync(Guid complaintId, CreateComplaintInvestigationDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/complaints/{complaintId}/investigations", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ComplaintInvestigationResponseDto>(_json);
+    }
+
+    public Task<List<ComplaintResponseResponseDto>?> GetComplaintResponsesAsync(Guid complaintId)
+        => _http.GetFromJsonAsync<List<ComplaintResponseResponseDto>>($"api/complaints/{complaintId}/responses", _json);
+
+    public async Task<ComplaintResponseResponseDto?> AddComplaintResponseAsync(Guid complaintId, CreateComplaintResponseDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/complaints/{complaintId}/responses", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ComplaintResponseResponseDto>(_json);
+    }
+
+    public Task<ComplaintDashboardDto?> GetComplaintDashboardAsync()
+        => _http.GetFromJsonAsync<ComplaintDashboardDto>("api/complaints/dashboard", _json);
+
+    // ── Balanced Scorecard (Phase 50) ────────────────────────────────────────
+
+    public Task<PaginatedResponse<ScorecardSummaryDto>?> GetScorecardsAsync(string? status = null, string? search = null, int page = 1, int pageSize = 25)
+        => _http.GetFromJsonAsync<PaginatedResponse<ScorecardSummaryDto>>(
+            $"api/scorecards?status={E(status)}&search={E(search)}&page={page}&pageSize={pageSize}", _json);
+
+    public Task<ScorecardResponseDto?> GetScorecardAsync(Guid id)
+        => _http.GetFromJsonAsync<ScorecardResponseDto>($"api/scorecards/{id}", _json);
+
+    public Task<ScorecardStatusDto?> GetScorecardStatusAsync(Guid id)
+        => _http.GetFromJsonAsync<ScorecardStatusDto>($"api/scorecards/{id}/status", _json);
+
+    public Task<StrategyMapDto?> GetStrategyMapAsync(Guid id)
+        => _http.GetFromJsonAsync<StrategyMapDto>($"api/scorecards/{id}/strategy-map", _json);
+
+    public Task<List<PromptMetricOptionDto>?> GetPromptMetricOptionsAsync()
+        => _http.GetFromJsonAsync<List<PromptMetricOptionDto>>("api/scorecards/prompt-metrics", _json);
+
+    public Task<ScorecardDashboardDto?> GetScorecardDashboardAsync()
+        => _http.GetFromJsonAsync<ScorecardDashboardDto>("api/scorecards/dashboard", _json);
+
+    public async Task<ScorecardResponseDto?> SeedScorecardDemoAsync()
+    {
+        var resp = await _http.PostAsync("api/scorecards/seed-demo", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ScorecardResponseDto>(_json);
+    }
+
+    public async Task<ScorecardResponseDto?> CreateScorecardAsync(CreateScorecardDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/scorecards", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ScorecardResponseDto>(_json);
+    }
+
+    public async Task<ScorecardResponseDto?> UpdateScorecardAsync(Guid id, UpdateScorecardDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/scorecards/{id}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ScorecardResponseDto>(_json);
+    }
+
+    public async Task DeleteScorecardAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/scorecards/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<PerspectiveResponseDto?> AddScorecardPerspectiveAsync(Guid scorecardId, CreatePerspectiveDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/scorecards/{scorecardId}/perspectives", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<PerspectiveResponseDto>(_json);
+    }
+
+    public async Task<PerspectiveResponseDto?> UpdateScorecardPerspectiveAsync(Guid perspectiveId, UpdatePerspectiveDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/scorecards/perspectives/{perspectiveId}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<PerspectiveResponseDto>(_json);
+    }
+
+    public async Task DeleteScorecardPerspectiveAsync(Guid perspectiveId)
+    {
+        var resp = await _http.DeleteAsync($"api/scorecards/perspectives/{perspectiveId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<ObjectiveResponseDto?> AddStrategicObjectiveAsync(Guid perspectiveId, CreateObjectiveDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/scorecards/perspectives/{perspectiveId}/objectives", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ObjectiveResponseDto>(_json);
+    }
+
+    public async Task<ObjectiveResponseDto?> UpdateStrategicObjectiveAsync(Guid objectiveId, UpdateObjectiveDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/scorecards/objectives/{objectiveId}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ObjectiveResponseDto>(_json);
+    }
+
+    public async Task DeleteStrategicObjectiveAsync(Guid objectiveId)
+    {
+        var resp = await _http.DeleteAsync($"api/scorecards/objectives/{objectiveId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<MeasureResponseDto?> AddObjectiveMeasureAsync(Guid objectiveId, CreateMeasureDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/scorecards/objectives/{objectiveId}/measures", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<MeasureResponseDto>(_json);
+    }
+
+    public async Task<MeasureResponseDto?> UpdateObjectiveMeasureAsync(Guid measureId, UpdateMeasureDto dto)
+    {
+        var resp = await _http.PutAsJsonAsync($"api/scorecards/measures/{measureId}", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<MeasureResponseDto>(_json);
+    }
+
+    public async Task DeleteObjectiveMeasureAsync(Guid measureId)
+    {
+        var resp = await _http.DeleteAsync($"api/scorecards/measures/{measureId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public Task<List<MeasureSnapshotResponseDto>?> GetMeasureSnapshotsAsync(Guid measureId)
+        => _http.GetFromJsonAsync<List<MeasureSnapshotResponseDto>>($"api/scorecards/measures/{measureId}/snapshots", _json);
+
+    public async Task<MeasureSnapshotResponseDto?> AddMeasureSnapshotAsync(Guid measureId, CreateMeasureSnapshotDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/scorecards/measures/{measureId}/snapshots", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<MeasureSnapshotResponseDto>(_json);
+    }
+
+    public async Task<CauseLinkResponseDto?> AddCauseLinkAsync(Guid scorecardId, CreateCauseLinkDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/scorecards/{scorecardId}/cause-links", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<CauseLinkResponseDto>(_json);
+    }
+
+    public async Task DeleteCauseLinkAsync(Guid linkId)
+    {
+        var resp = await _http.DeleteAsync($"api/scorecards/cause-links/{linkId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    public async Task<ProcessLinkResponseDto?> AddObjectiveProcessLinkAsync(Guid objectiveId, CreateProcessLinkDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/scorecards/objectives/{objectiveId}/process-links", dto, _json);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<ProcessLinkResponseDto>(_json);
+    }
+
+    public async Task DeleteObjectiveProcessLinkAsync(Guid linkId)
+    {
+        var resp = await _http.DeleteAsync($"api/scorecards/process-links/{linkId}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    // ═══════════════════ Configurator Models ═══════════════════
+
+    public Task<List<ConfiguratorModelSummaryDto>?> GetConfiguratorModelsAsync(string? search = null)
+        => _http.GetFromJsonAsync<List<ConfiguratorModelSummaryDto>>(
+            $"api/configuratormodels?search={E(search)}", _json);
+
+    public Task<ConfiguratorModelDetailDto?> GetConfiguratorModelAsync(Guid id)
+        => _http.GetFromJsonAsync<ConfiguratorModelDetailDto>($"api/configuratormodels/{id}", _json);
+
+    public Task<ConfiguratorRevisionDto?> GetConfiguratorRevisionAsync(Guid id, int revision)
+        => _http.GetFromJsonAsync<ConfiguratorRevisionDto>($"api/configuratormodels/{id}/revisions/{revision}", _json);
+
+    public async Task<ConfiguratorModelSummaryDto?> CreateConfiguratorModelAsync(ConfiguratorModelCreateDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/configuratormodels", dto, _json);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to create model ({resp.StatusCode})");
+        }
+        return await resp.Content.ReadFromJsonAsync<ConfiguratorModelSummaryDto>(_json);
+    }
+
+    public async Task<ConfiguratorRevisionSummaryDto?> AddConfiguratorRevisionAsync(Guid id, ConfiguratorRevisionCreateDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/configuratormodels/{id}/revisions", dto, _json);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to save revision ({resp.StatusCode})");
+        }
+        return await resp.Content.ReadFromJsonAsync<ConfiguratorRevisionSummaryDto>(_json);
+    }
+
+    public async Task DeleteConfiguratorModelAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/configuratormodels/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Fetches the portable export envelope as raw JSON text (for file download).</summary>
+    public async Task<string> ExportConfiguratorModelAsync(Guid id)
+    {
+        var resp = await _http.GetAsync($"api/configuratormodels/{id}/export");
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadAsStringAsync();
+    }
+
+    /// <summary>Imports a previously exported model file (raw envelope JSON).</summary>
+    public async Task<ConfiguratorModelSummaryDto?> ImportConfiguratorModelAsync(string envelopeJson)
+    {
+        using var content = new StringContent(envelopeJson, System.Text.Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync("api/configuratormodels/import", content);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Import failed ({resp.StatusCode})");
+        }
+        return await resp.Content.ReadFromJsonAsync<ConfiguratorModelSummaryDto>(_json);
     }
 }

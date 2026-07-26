@@ -1,0 +1,745 @@
+@page "/configurator/{Id:guid}"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@using System.Text.Json
+@using ProcessManager.Domain.Configurator
+@inject IJSRuntime JS
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Product Configurator — Process Manager</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading model…
+    </div>
+}
+else if (_loadError != null)
+{
+    <div class="alert alert-danger">
+        @_loadError
+        <a href="configurator" class="alert-link ms-2">Back to models</a>
+    </div>
+}
+else
+{
+<div class="bom-cfg">
+    @* ── header ── *@
+    <div class="cfg-header">
+        <button class="btn-ghost" title="All models" @onclick='() => Nav.NavigateTo("configurator")' style="padding:6px 9px">
+            <i class="bi bi-arrow-left"></i>
+        </button>
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-diagram-3-fill" style="font-size:26px;color:var(--gold)"></i>
+            <div>
+                <div class="cfg-brand-title">@_model?.Name</div>
+                <div class="cfg-brand-sub">@_platform.Platform.Code · Rev @_loadedRevision@(_dirty ? " · unsaved changes" : "")</div>
+            </div>
+        </div>
+        <div class="cfg-tabs">
+            <button class="cfg-tab @(_mode == "configure" ? "on" : "")" @onclick='() => _mode = "configure"'><i class="bi bi-sliders2"></i>Configure</button>
+            <button class="cfg-tab @(_mode == "author" ? "on" : "")" @onclick='() => _mode = "author"'><i class="bi bi-diagram-3"></i>Author rules</button>
+            <button class="cfg-tab @(_mode == "tree" ? "on" : "")" @onclick='() => _mode = "tree"'><i class="bi bi-diagram-2"></i>Product tree</button>
+        </div>
+        <div class="ms-auto d-flex align-items-center gap-2">
+            <span class="cfg-msrp me-1"><b>@ConfiguratorEngine.Money(_price.Total)</b> MSRP</span>
+            <select class="form-select form-select-sm" style="width:auto;background:#2f2f2f;color:#fff;border-color:#4a4a4a"
+                    value="@_loadedRevision" @onchange="OnRevisionSelected" title="Revision history">
+                @foreach (var r in _revisions)
+                {
+                    <option value="@r.Revision">Rev @r.Revision — @r.CreatedAt.ToLocalTime().ToString("MMM d")</option>
+                }
+            </select>
+            <button class="btn-ghost" title="Save a new revision of this model" @onclick="OpenSave"
+                    style="@(_dirty ? "border-color:var(--gold);color:var(--gold)" : "")">
+                <i class="bi bi-save"></i>Save
+            </button>
+            <button class="btn-ghost" title="Export model as portable JSON" @onclick="ExportModel"><i class="bi bi-download"></i></button>
+            <button class="btn-ghost" @onclick="Reset"><i class="bi bi-arrow-counterclockwise"></i>Reset</button>
+        </div>
+    </div>
+
+    @if (_mode == "configure")
+    {
+        var steps = Steps();
+        var idx = StepIndex();
+        var step = steps[idx];
+        <div class="cfg-body">
+            @* ── stepper ── *@
+            <nav class="cfg-stepper">
+                <div class="text-uppercase fw-bold small text-muted px-2 pb-2" style="letter-spacing:.5px;font-size:11px">Configuration</div>
+                @foreach (var s in steps)
+                {
+                    <button class="step @(s.Id == _stepId ? "on" : "")" @onclick="() => _stepId = s.Id">
+                        <span class="step-ic"><i class="bi @s.Icon"></i></span>
+                        <span class="step-name">@s.Name</span>
+                        @if (s.Dims)
+                        {
+                            <i class="bi bi-infinity step-tick" title="Computed live"></i>
+                        }
+                        else if (StepDone(s.Id))
+                        {
+                            <i class="bi bi-check-circle-fill step-tick"></i>
+                        }
+                        else
+                        {
+                            <i class="bi bi-circle step-tick req"></i>
+                        }
+                    </button>
+                }
+            </nav>
+
+            @* ── center: preview + options ── *@
+            <div class="cfg-center">
+                @if (HasRobotPreview)
+                {
+                    <div class="preview">
+                        <SchematicRobot Color="@PreviewColor" Reach="@AttrVal("reach")" Effector="@PreviewEffector"
+                                        Badge="@PreviewBadge" HasRail="@PreviewHasRail" />
+                    </div>
+                }
+                else
+                {
+                    <div class="preview d-flex align-items-center justify-content-center" style="min-height:120px">
+                        <div class="text-center text-muted">
+                            <i class="bi bi-box-seam" style="font-size:42px;color:var(--grey)"></i>
+                            <div class="fw-bold mt-1" style="color:var(--text-secondary)">@_platform.Platform.Name</div>
+                            <div style="font-size:11px">@_platform.Platform.Tagline</div>
+                        </div>
+                    </div>
+                }
+                <div class="d-flex justify-content-center flex-wrap gap-2 mb-3">
+                    @foreach (var chip in SummaryChips())
+                    {
+                        <span class="opt-badge" style="background:var(--bg-sunken);color:var(--text-secondary)">@chip</span>
+                    }
+                </div>
+
+                @if (_rec.Notes.Any())
+                {
+                    <div class="auto-note"><i class="bi bi-info-circle"></i><span>@_rec.Notes.Last()</span></div>
+                }
+
+                <div class="d-flex align-items-center justify-content-between">
+                    <h2 class="grp-title"><i class="bi @step.Icon me-2" style="color:var(--gold)"></i>@step.Name</h2>
+                    <span class="text-uppercase text-muted" style="font-size:11px;letter-spacing:.06em">
+                        @(step.Dims ? "Computed live" : (_engine.GroupById(step.Id)?.Multi == true ? "Select any" : "Select one"))
+                    </span>
+                </div>
+                <p class="grp-hint">
+                    @(step.Dims
+                        ? "Numeric attributes drive calculated values, BoM quantities and per-unit pricing by formula — watch the BoM update as you change them."
+                        : _engine.GroupById(step.Id)?.Hint)
+                </p>
+
+                @if (step.Dims)
+                {
+                    @RenderAttributes()
+                }
+                else
+                {
+                    var g = _engine.GroupById(step.Id)!;
+                    @if (!g.Options.Any())
+                    {
+                        <div class="text-center text-muted py-4" style="border:2px dashed var(--border-strong);border-radius:8px">
+                            <i class="bi bi-diagram-2" style="font-size:24px"></i>
+                            <div class="mt-1" style="font-size:13px">No options in this panel yet.</div>
+                            <div style="font-size:12px">Switch to <b>Product tree</b> and drag Kinds into <b>@g.Name</b>, or add options by hand.</div>
+                        </div>
+                    }
+                    <div class="opt-grid">
+                        @foreach (var o in g.Options)
+                        {
+                            var sel = IsSel(o.Id);
+                            var dis = IsDisabled(o.Id);
+                            var deps = RulesFor(o.Id);
+                            <button class="opt @(sel ? "sel" : "") @(dis ? "dis" : "")"
+                                    disabled="@dis" title="@(dis ? DisabledReason(o.Id) : null)"
+                                    @onclick="() => Choose(o.Id)">
+                                @if (dis)
+                                {
+                                    <i class="bi bi-lock-fill opt-lock"></i>
+                                }
+                                <div class="opt-head">
+                                    <div>
+                                        <div class="opt-name">
+                                            @if (o.Swatch != null)
+                                            {
+                                                <span class="opt-swatch me-2" style="background:@o.Swatch"></span>
+                                            }
+                                            @o.Name
+                                            @if (deps.Any())
+                                            {
+                                                <i class="bi bi-link-45deg ms-1 text-muted" style="font-size:13px" title="@string.Join("\n", deps.Select(d => d.Msg))"></i>
+                                            }
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(o.Sub))
+                                        {
+                                            <div class="opt-sub">@o.Sub</div>
+                                        }
+                                    </div>
+                                    <div class="d-flex flex-column align-items-end gap-1">
+                                        <span class="opt-delta @(o.Price > 0 ? "inc" : "zero")">@(o.Price > 0 ? "+" + ConfiguratorEngine.Money(o.Price) : (o.PriceExpr != null ? "ƒ" : "Incl."))</span>
+                                        @if (sel)
+                                        {
+                                            <i class="bi bi-check-circle-fill opt-check"></i>
+                                        }
+                                    </div>
+                                </div>
+                                @if (o.Badge != null)
+                                {
+                                    <span class="opt-badge">@o.Badge</span>
+                                }
+                                @if (dis)
+                                {
+                                    <div class="opt-lock-note"><i class="bi bi-lock-fill"></i><span>@DisabledReason(o.Id)</span></div>
+                                }
+                            </button>
+                        }
+                    </div>
+                }
+
+                <div class="d-flex justify-content-between mt-4">
+                    <button class="btn-line" disabled="@(idx == 0)" @onclick="() => _stepId = steps[Math.Max(0, idx - 1)].Id">
+                        <i class="bi bi-arrow-left"></i>Back
+                    </button>
+                    @if (idx < steps.Count - 1)
+                    {
+                        <button class="btn-dark" @onclick="() => _stepId = steps[idx + 1].Id">
+                            Next: @steps[idx + 1].Name<i class="bi bi-arrow-right"></i>
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn-release" style="width:auto;padding:9px 18px" disabled="@(!_status.Complete)" @onclick="() => _woOpen = true">
+                            Release work order<i class="bi bi-box-arrow-up-right"></i>
+                        </button>
+                    }
+                </div>
+            </div>
+
+            @* ── right rail ── *@
+            <aside class="cfg-rail">
+                <div class="text-uppercase fw-bold text-muted" style="font-size:11px;letter-spacing:.5px">Total MSRP</div>
+                <div style="font-family:var(--font-display);font-weight:800;font-size:30px;line-height:1.1">@ConfiguratorEngine.Money(_price.Total)</div>
+                <div class="d-flex align-items-center gap-2 mt-1 mb-3">
+                    @if (_status.Complete)
+                    {
+                        <span class="opt-badge" style="background:var(--teal)">Buildable</span>
+                    }
+                    else if (_rec.Violations.Any())
+                    {
+                        <span class="opt-badge" style="background:var(--status-fail)">@_rec.Violations.Count conflict@(_rec.Violations.Count > 1 ? "s" : "")</span>
+                    }
+                    else
+                    {
+                        <span class="opt-badge" style="background:var(--blue)">In progress</span>
+                    }
+                    <span class="text-muted" style="font-size:11px">@_status.Done/@_status.Total required set</span>
+                </div>
+
+                <div class="d-flex gap-1 mb-3" role="tablist">
+                    @foreach (var (id, label, ic) in new[] { ("bom", "BoM", "bi-diagram-3"), ("route", "Routing", "bi-signpost-split"), ("issues", "Issues", "bi-exclamation-triangle") })
+                    {
+                        <button class="cfg-tab @(_railTab == id ? "on" : "")" style="flex:1;justify-content:center;color:@(_railTab == id ? "var(--slate)" : "var(--text-muted)");background:@(_railTab == id ? "var(--bg-sunken)" : "transparent")"
+                                @onclick="() => _railTab = id">
+                            <i class="bi @ic"></i>@label
+                            @if (id == "issues" && _rec.Violations.Any())
+                            {
+                                <span style="background:var(--status-fail);color:#fff;border-radius:8px;font-size:9px;padding:0 5px">@_rec.Violations.Count</span>
+                            }
+                        </button>
+                    }
+                </div>
+
+                @if (_railTab == "bom")
+                {
+                    @RenderBomTree()
+                }
+                else if (_railTab == "route")
+                {
+                    @RenderRouting()
+                }
+                else
+                {
+                    @RenderIssues()
+                }
+
+                <button class="btn-release mt-3" disabled="@(!_status.Complete)" @onclick="() => _woOpen = true">
+                    <i class="bi bi-box-arrow-up-right"></i>Release work order
+                </button>
+            </aside>
+        </div>
+    }
+    else if (_mode == "tree")
+    {
+        <div class="cfg-body" style="grid-template-columns:1fr;">
+            <ProductTreeView Engine="_engine" Sel="_sel" OnChanged="Recompute" OnDefinitionChanged="MarkDirty" />
+        </div>
+    }
+    else
+    {
+        <div class="cfg-body" style="grid-template-columns:1fr;">
+            <AuthorRulesView Engine="_engine" Enabled="_enabled" OnChanged="Recompute" OnDefinitionChanged="MarkDirty" />
+        </div>
+    }
+</div>
+
+@if (_woOpen)
+{
+    <WorkOrderModal Engine="_engine" Sel="_sel" Enabled="_enabled" OnClose="() => _woOpen = false" JS="JS" />
+}
+
+@* ── save revision dialog ── *@
+@if (_showSave)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,.5);z-index:1090">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Save revision @(_model?.CurrentRevision + 1)</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showSave = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted small">
+                        Saves the current definition (rules, formulas, calculated attributes) as a new,
+                        immutable revision of <b>@_model?.Name</b>. Earlier revisions stay available
+                        from the revision picker.
+                    </p>
+                    <label class="form-label">What changed?</label>
+                    <textarea class="form-control" rows="3" @bind="_saveNotes"
+                              placeholder="e.g. Raised reach limit to 1600 mm for the 10 kg arm"></textarea>
+                    @if (_saveError != null)
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@_saveError</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" @onclick="() => _showSave = false">Cancel</button>
+                    <button class="btn btn-primary" disabled="@_saving" @onclick="SaveRevision">
+                        @if (_saving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Save revision
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private ProductPlatform _platform = default!;
+    private ConfiguratorEngine _engine = default!;
+    private ConfigSelection _rawSel = new();
+    private HashSet<string> _enabled = new();
+    private string _mode = "configure";
+    private bool _woOpen;
+
+    // Model / revision state.
+    private ConfiguratorModelDetailDto? _model;
+    private List<ConfiguratorRevisionSummaryDto> _revisions = new();
+    private int _loadedRevision;
+    private bool _loading = true;
+    private string? _loadError;
+    private bool _dirty;
+    private bool _showSave;
+    private bool _saving;
+    private string _saveNotes = "";
+    private string? _saveError;
+
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+    };
+
+    // Stepper / right-rail sub-state.
+    private string _stepId = "";
+    private string _railTab = "bom";
+
+    // Derived (recomputed after each mutation).
+    private ConfigSelection _sel = new();
+    private ReconcileResult _rec = new();
+    private BomResult _bom = new();
+    private PriceResult _price = new();
+    private List<RoutingOp> _routing = new();
+    private List<CalcValue> _calc = new();
+    private ConfigStatus _status = new();
+
+    protected override async Task OnInitializedAsync() => await LoadModel(revision: null);
+
+    private async Task LoadModel(int? revision)
+    {
+        _loading = true;
+        _loadError = null;
+        try
+        {
+            _model = await Api.GetConfiguratorModelAsync(Id);
+            if (_model is null)
+            {
+                _loadError = "Model not found.";
+                return;
+            }
+            _revisions = _model.Revisions;
+            var rev = revision ?? _model.CurrentRevision;
+            var revDto = await Api.GetConfiguratorRevisionAsync(Id, rev);
+            if (revDto is null)
+            {
+                _loadError = $"Revision {rev} not found.";
+                return;
+            }
+            var platform = JsonSerializer.Deserialize<ProductPlatform>(revDto.DefinitionJson, JsonOpts);
+            if (platform is null || string.IsNullOrWhiteSpace(platform.Platform.Code))
+            {
+                _loadError = "The stored definition could not be read.";
+                return;
+            }
+            _platform = platform;
+            _engine = new ConfiguratorEngine(_platform);
+            _rawSel = _engine.DefaultSelections();
+            _enabled = _platform.Rules.Select(r => r.Id).ToHashSet();
+            _stepId = _platform.Groups.Count > 0 ? _platform.Groups[0].Id : DimsStep;
+            _loadedRevision = rev;
+            _dirty = false;
+            Recompute();
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"Could not load the model: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnRevisionSelected(ChangeEventArgs e)
+    {
+        if (int.TryParse(Convert.ToString(e.Value), out var rev) && rev != _loadedRevision)
+            await LoadModel(rev);
+    }
+
+    private void MarkDirty() => _dirty = true;
+
+    private void OpenSave()
+    {
+        _saveNotes = "";
+        _saveError = null;
+        _showSave = true;
+    }
+
+    private async Task SaveRevision()
+    {
+        _saving = true;
+        _saveError = null;
+        try
+        {
+            var json = JsonSerializer.Serialize(_platform, JsonOpts);
+            var saved = await Api.AddConfiguratorRevisionAsync(Id, new ConfiguratorRevisionCreateDto(
+                string.IsNullOrWhiteSpace(_saveNotes) ? null : _saveNotes.Trim(), json));
+            _showSave = false;
+            _dirty = false;
+            if (saved != null)
+            {
+                // Refresh revision metadata; the loaded definition is already current.
+                _model = await Api.GetConfiguratorModelAsync(Id);
+                _revisions = _model?.Revisions ?? _revisions;
+                _loadedRevision = saved.Revision;
+            }
+        }
+        catch (Exception ex)
+        {
+            _saveError = ex.Message;
+        }
+        _saving = false;
+    }
+
+    private async Task ExportModel()
+    {
+        var json = await Api.ExportConfiguratorModelAsync(Id);
+        var name = $"configurator-model-{_platform.Platform.Code}-rev{_model?.CurrentRevision}.json";
+        await JS.InvokeVoidAsync("BomConfigurator.downloadFile", name, json, "application/json");
+    }
+
+    private void Recompute()
+    {
+        _rec = _engine.Reconcile(_rawSel, _enabled);
+        _sel = _rec.Selection;
+        _bom = _engine.ResolveBom(_sel);
+        _price = _engine.PriceRollup(_sel);
+        _routing = _engine.GenerateRouting(_sel);
+        _calc = _engine.ComputeCalc(_sel);
+        _status = _engine.Status(_sel, _rec.Violations);
+    }
+
+    private void Choose(string id)
+    {
+        _rawSel = _engine.ApplyChoice(_sel, id);
+        Recompute();
+    }
+
+    private void ApplyFix(Violation v)
+    {
+        if (v.Fix != null) _rawSel = v.Fix(_sel);
+        Recompute();
+    }
+
+    private void SetAttr(string id, double val)
+    {
+        _rawSel = _engine.SetAttr(_sel, id, val);
+        Recompute();
+    }
+
+    private void Reset()
+    {
+        _rawSel = _engine.DefaultSelections();
+        _stepId = _platform.Groups.Count > 0 ? _platform.Groups[0].Id : DimsStep;
+        Recompute();
+    }
+
+    // ── step model ────────────────────────────────────────────────────────────
+    private const string DimsStep = "__dims";
+
+    private List<OptionGroup> ApplicableGroups => _engine.ApplicableGroups(_sel);
+
+    private List<(string Id, string Name, string Icon, bool Dims)> Steps()
+    {
+        var steps = ApplicableGroups.Select(g => (g.Id, g.Name, g.Icon, false)).ToList();
+        steps.Add((DimsStep, "Dimensions & Quantity", "bi-rulers", true));
+        return steps;
+    }
+
+    private int StepIndex()
+    {
+        var steps = Steps();
+        var idx = steps.FindIndex(s => s.Id == _stepId);
+        return idx < 0 ? 0 : idx;
+    }
+
+    private bool StepDone(string id)
+    {
+        if (id == DimsStep) return true;
+        var g = _engine.GroupById(id);
+        if (g == null) return false;
+        return g.Multi ? true : _sel.Single(id) != null;
+    }
+
+    // ── helpers for the option cards ──────────────────────────────────────────
+    private bool IsSel(string id) => _engine.IsSel(_sel, id);
+    private bool IsDisabled(string id) => _rec.Disabled.ContainsKey(id) && !IsSel(id);
+    private string? DisabledReason(string id) => _rec.Disabled.TryGetValue(id, out var r) ? r : null;
+
+    private List<ConfigRule> RulesFor(string optId) =>
+        _platform.Rules.Where(r => _enabled.Contains(r.Id) &&
+            ((r.When?.Contains(optId) ?? false) || (r.Then?.Contains(optId) ?? false))).ToList();
+
+    // ── attribute helpers ─────────────────────────────────────────────────────
+    private double AttrVal(string id) => _sel.Attrs.TryGetValue(id, out var v) ? v : (_platform.Attributes.FirstOrDefault(a => a.Id == id)?.Default ?? 0);
+
+    private List<Violation> AttrViolations(string aid) =>
+        _rec.Violations.Where(v =>
+        {
+            var r = _platform.Rules.FirstOrDefault(x => x.Id == v.RuleId);
+            return r?.Refs?.Contains(aid) ?? false;
+        }).ToList();
+
+    private (double Lo, double Hi, AttrBounds B) BoundsFor(ConfigAttribute a)
+    {
+        var b = _engine.AttrBoundsFor(a.Id, _enabled);
+        var lo = (b.Clamped && double.IsFinite(b.Min)) ? Math.Max(a.Min, b.Min) : a.Min;
+        var hi = (b.Clamped && double.IsFinite(b.Max)) ? Math.Min(a.Max, b.Max) : a.Max;
+        return (lo, hi, b);
+    }
+
+    private void OnSliderInput(ConfigAttribute a, ChangeEventArgs e)
+    {
+        var (lo, hi, _) = BoundsFor(a);
+        if (double.TryParse(Convert.ToString(e.Value, System.Globalization.CultureInfo.InvariantCulture),
+                System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var raw))
+        {
+            SetAttr(a.Id, Math.Min(hi, Math.Max(lo, raw)));
+        }
+    }
+
+    private static string Num(double v) => ConfiguratorEngine.Fmt(v);
+
+    // ── preview computed props ────────────────────────────────────────────────
+    // The parametric robot schematic only makes sense for robot-shaped models
+    // (identified by a "reach" attribute); other products get a neutral preview.
+    private bool HasRobotPreview => _platform.Attributes.Any(a => a.Id == "reach");
+    private string PreviewColor => SelectedOptions().FirstOrDefault(o => o.Swatch != null)?.Swatch ?? "#e95b15";
+    private string PreviewEffector => SelectedOptions().FirstOrDefault(o => o.Ee != null)?.Ee ?? "none";
+    private string PreviewBadge => SelectedOptions().FirstOrDefault(o => o.Badge != null)?.Badge ?? "";
+    private bool PreviewHasRail => IsSel("pkg-track") && AttrVal("railLen") > 0;
+
+    private IEnumerable<ConfigOption> SelectedOptions()
+    {
+        foreach (var g in _platform.Groups)
+            foreach (var id in _sel.Of(g.Id))
+                if (_engine.Opt(id) is { } o)
+                    yield return o;
+    }
+
+    private IEnumerable<string> SummaryChips() =>
+        _platform.Groups.Where(g => !g.Multi)
+            .Select(g => _engine.Opt(_sel.Single(g.Id) ?? "")?.Name)
+            .Where(n => n != null).Take(4)!;
+
+    // ── attribute panel ───────────────────────────────────────────────────────
+    private RenderFragment RenderAttributes() => __builder =>
+    {
+        <div>
+            @foreach (var a in _platform.Attributes)
+            {
+                var vios = AttrViolations(a.Id);
+                var bad = vios.Any();
+                var (lo, hi, b) = BoundsFor(a);
+                var cur = Math.Min(hi, Math.Max(lo, AttrVal(a.Id)));
+                <div class="attr @(bad ? "viol" : (b.Clamped ? "clamped" : ""))">
+                    <div class="attr-top">
+                        <span class="attr-name">@a.Name</span>
+                        <span class="attr-val">@Num(AttrVal(a.Id)) <span class="text-muted fw-normal" style="font-size:11px">@a.Unit</span></span>
+                    </div>
+                    <div class="attr-hint">@a.Hint</div>
+                    <input type="range" min="@Num(lo)" max="@Num(hi)" step="@Num(a.Step)" value="@Num(cur)"
+                           @onchange="e => OnSliderInput(a, e)" />
+                    <div class="attr-scale">
+                        <span>@Num(lo)@(string.IsNullOrEmpty(a.Unit) ? "" : " " + a.Unit)</span>
+                        <span>@Num(hi)@(string.IsNullOrEmpty(a.Unit) ? "" : " " + a.Unit)</span>
+                    </div>
+                    @if (b.Clamped)
+                    {
+                        <div class="attr-note blue">
+                            <i class="bi bi-lock-fill"></i>
+                            <span>Range limited to @Num(lo)–@Num(hi)@(string.IsNullOrEmpty(a.Unit) ? "" : " " + a.Unit) by rule @string.Join(", ", b.FromRules)</span>
+                        </div>
+                    }
+                    @foreach (var v in vios)
+                    {
+                        <div class="attr-note orange">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <span>@v.Msg</span>
+                            @if (v.Fix != null)
+                            {
+                                <a @onclick="() => ApplyFix(v)">@v.FixLabel</a>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            <div class="attr" style="background:var(--bg-sunken);border-style:dashed">
+                <div class="text-uppercase fw-bold text-muted mb-2" style="font-size:11px;letter-spacing:.5px">
+                    <i class="bi bi-calculator me-1"></i>Calculated attributes
+                </div>
+                @foreach (var c in _calc)
+                {
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span class="fw-bold" style="width:130px;font-size:13px;flex:none">@c.Name</span>
+                        <code class="rule-expr mono" style="flex:1;margin-top:0;padding:3px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">@c.Expr</code>
+                        <span style="font-family:var(--font-display);font-weight:800;font-size:17px;color:var(--gold);width:40px;text-align:right;flex:none">@Num(c.Value)</span>
+                    </div>
+                }
+            </div>
+        </div>
+    };
+
+    // ── BoM tree ──────────────────────────────────────────────────────────────
+    private RenderFragment RenderBomTree() => __builder =>
+    {
+        <div>
+            <div class="d-flex justify-content-between align-items-baseline mb-1">
+                <span class="panel-title mb-0"><i class="bi bi-diagram-3"></i>Resolved BoM</span>
+                <span class="text-muted mono" style="font-size:11px">@_bom.PartCount parts</span>
+            </div>
+            @foreach (var sys in _bom.Systems)
+            {
+                <div class="bom-sys"><span>@sys.Name</span><span class="mono">@ConfiguratorEngine.Money(sys.Total)</span></div>
+                @foreach (var l in sys.Assemblies)
+                {
+                    <div class="bom-line">
+                        <span><span class="bom-code">@l.Code</span> @l.Name<br /><span class="text-muted" style="font-size:10px">@l.Source</span></span>
+                        <span class="bom-qty">
+                            @if (l.QtyExpr != null)
+                            {
+                                <span class="fx" title="@l.QtyExpr">ƒ</span>
+                            }
+                            ×@l.Qty
+                        </span>
+                        <span class="bom-price">@ConfiguratorEngine.Money(l.Price * l.Qty)</span>
+                    </div>
+                    @foreach (var c in l.Children)
+                    {
+                        <div class="bom-line child">
+                            <span><span class="bom-code">@c.Code</span> @c.Name</span>
+                            <span class="bom-qty">
+                                @if (c.QtyExpr != null)
+                                {
+                                    <span class="fx" title="@c.QtyExpr">ƒ</span>
+                                }
+                                ×@c.Qty
+                            </span>
+                            <span class="bom-price">@ConfiguratorEngine.Money(c.Price * c.Qty)</span>
+                        </div>
+                    }
+                }
+            }
+
+            <div class="panel-title mt-4"><i class="bi bi-cash-stack"></i>Price rollup</div>
+            @foreach (var pl in _price.Lines)
+            {
+                <div class="price-line @(pl.Formula ? "formula" : "")">
+                    <span class="lbl">@pl.Label</span><span class="amt">@ConfiguratorEngine.Money(pl.Amount)</span>
+                </div>
+            }
+            <div class="price-total"><span>Total MSRP</span><span class="amt">@ConfiguratorEngine.Money(_price.Total)</span></div>
+        </div>
+    };
+
+    // ── routing ───────────────────────────────────────────────────────────────
+    private RenderFragment RenderRouting() => __builder =>
+    {
+        <div>
+            <div class="panel-title"><i class="bi bi-signpost-split"></i>Generated routing</div>
+            @{ var step = 0; }
+            @foreach (var op in _routing)
+            {
+                step++;
+                <div class="route-op">
+                    <span class="route-seq">@step</span>
+                    <span class="flex-grow-1">@op.Name<br /><span class="route-code">@op.Code · seq @op.Seq</span></span>
+                </div>
+            }
+        </div>
+    };
+
+    // ── issues ────────────────────────────────────────────────────────────────
+    private RenderFragment RenderIssues() => __builder =>
+    {
+        if (!_rec.Violations.Any())
+        {
+            <div class="issues ok"><i class="bi bi-check-circle-fill me-1" style="color:var(--teal)"></i>No conflicts — configuration is buildable.</div>
+        }
+        else
+        {
+            <div class="issues">
+                @foreach (var v in _rec.Violations)
+                {
+                    <div class="issue">
+                        <span class="issue-msg"><span class="issue-tag">@v.RuleId</span> @v.Msg</span>
+                        @if (v.Fix != null)
+                        {
+                            <button class="fix-btn" @onclick="() => ApplyFix(v)">@v.FixLabel</button>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    };
+}

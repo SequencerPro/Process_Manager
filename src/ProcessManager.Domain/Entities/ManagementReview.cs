@@ -32,6 +32,9 @@ public class ManagementReview : BaseEntity
     /// <summary>Training compliance % and expired/expiring counts — auto-populated at review start.</summary>
     public string? TrainingComplianceSummary { get; set; }
 
+    /// <summary>Balanced Scorecard RAG rollup and at-risk objectives — auto-populated at review start (Phase 50d).</summary>
+    public string? ScorecardSummary { get; set; }
+
     // ── Manual supplementary inputs ──────────────────────────────────────────
 
     public string? CustomerComplaintsNotes { get; set; }

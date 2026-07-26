@@ -1,6 +1,8 @@
+using System.Linq.Expressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using ProcessManager.Api.Services;
 using ProcessManager.Domain.Entities;
 using ProcessManager.Domain.Enums;
 
@@ -9,14 +11,23 @@ namespace ProcessManager.Api.Data;
 public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
 {
     private readonly IHttpContextAccessor? _httpContextAccessor;
+    private readonly ITenantContext? _tenantContext;
 
     public ProcessManagerDbContext(
         DbContextOptions<ProcessManagerDbContext> options,
-        IHttpContextAccessor? httpContextAccessor = null)
+        IHttpContextAccessor? httpContextAccessor = null,
+        ITenantContext? tenantContext = null)
         : base(options)
     {
         _httpContextAccessor = httpContextAccessor;
+        _tenantContext = tenantContext;
     }
+
+    // Multi-tenancy
+    public DbSet<Tenant> Tenants => Set<Tenant>();
+    public DbSet<TenantOnboardingState> TenantOnboardingStates => Set<TenantOnboardingState>();
+    public DbSet<TenantFeatureFlags> TenantFeatureFlags => Set<TenantFeatureFlags>();
+    public DbSet<TenantBranding> TenantBrandings => Set<TenantBranding>();
 
     // Phase 1: Type System
     public DbSet<Kind> Kinds => Set<Kind>();
@@ -46,6 +57,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Item> Items => Set<Item>();
     public DbSet<Batch> Batches => Set<Batch>();
     public DbSet<StepExecution> StepExecutions => Set<StepExecution>();
+    public DbSet<StepExecutionPhaseEvent> StepExecutionPhaseEvents => Set<StepExecutionPhaseEvent>();
     public DbSet<PortTransaction> PortTransactions => Set<PortTransaction>();
     public DbSet<ExecutionData> ExecutionData => Set<ExecutionData>();
     public DbSet<PromptResponse> PromptResponses => Set<PromptResponse>();
@@ -134,10 +146,103 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<FloorPlanWorkstationProcess> FloorPlanWorkstationProcesses => Set<FloorPlanWorkstationProcess>();
     public DbSet<FloorPlanWorkstationTool> FloorPlanWorkstationTools => Set<FloorPlanWorkstationTool>();
     public DbSet<FloorPlanInventoryLocation> FloorPlanInventoryLocations => Set<FloorPlanInventoryLocation>();
+    public DbSet<FloorPlanInventoryLocationKind> FloorPlanInventoryLocationKinds => Set<FloorPlanInventoryLocationKind>();
+
+    // M5: Billing Infrastructure
+    public DbSet<TenantSubscription> TenantSubscriptions => Set<TenantSubscription>();
+    public DbSet<UsageMetric> UsageMetrics => Set<UsageMetric>();
+    public DbSet<BillingEvent> BillingEvents => Set<BillingEvent>();
+
+    // F16: Upgrade Flow
+    public DbSet<PlanChangeLog> PlanChangeLogs => Set<PlanChangeLog>();
+
+    // Phase 17: Standards Conformance Management
+    public DbSet<StandardsClause> StandardsClauses => Set<StandardsClause>();
+    public DbSet<ClauseEvidenceLink> ClauseEvidenceLinks => Set<ClauseEvidenceLink>();
+    public DbSet<AuditProgram> AuditPrograms => Set<AuditProgram>();
+    public DbSet<Audit> Audits => Set<Audit>();
+    public DbSet<AuditFinding> AuditFindings => Set<AuditFinding>();
+
+    // F7: Statistical Process Control
+    public DbSet<SpcChart> SpcCharts => Set<SpcChart>();
+    public DbSet<SpcDataPoint> SpcDataPoints => Set<SpcDataPoint>();
+
+    // Phase 21: Automatic Inventory Tracking
+    public DbSet<Workstation> Workstations => Set<Workstation>();
+    public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+    public DbSet<ScanEvent> ScanEvents => Set<ScanEvent>();
+
+    // Phase 25: Supplier Quality Management
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+    public DbSet<SupplierEvaluation> SupplierEvaluations => Set<SupplierEvaluation>();
+
+    // Phase 27: CAPA Workflow
+    public DbSet<CapaRecord> CapaRecords => Set<CapaRecord>();
+    public DbSet<CapaStep> CapaSteps => Set<CapaStep>();
+
+    // Phase 28: Calibration Management
+    public DbSet<CalibrationRecord> CalibrationRecords => Set<CalibrationRecord>();
+    public DbSet<CalibrationSchedule> CalibrationSchedules => Set<CalibrationSchedule>();
+
+    // Phase 26: Measurement System Analysis (MSA/GR&R)
+    public DbSet<GageStudy> GageStudies => Set<GageStudy>();
+    public DbSet<GageStudyMeasurement> GageStudyMeasurements => Set<GageStudyMeasurement>();
+
+    // Phase 29: OEE Dashboard
+    public DbSet<ShiftDefinition> ShiftDefinitions => Set<ShiftDefinition>();
+
+    // Phase 32: Change Management & ECO Workflow
+    public DbSet<ChangeOrder> ChangeOrders => Set<ChangeOrder>();
+    public DbSet<ChangeOrderImpact> ChangeOrderImpacts => Set<ChangeOrderImpact>();
+    public DbSet<ChangeOrderApprover> ChangeOrderApprovers => Set<ChangeOrderApprover>();
+    public DbSet<ChangeOrderTask> ChangeOrderTasks => Set<ChangeOrderTask>();
+
+    // Phase 34: Customer Complaint Management
+    public DbSet<CustomerComplaint> CustomerComplaints => Set<CustomerComplaint>();
+    public DbSet<ComplaintInvestigation> ComplaintInvestigations => Set<ComplaintInvestigation>();
+    public DbSet<ComplaintResponse> ComplaintResponses => Set<ComplaintResponse>();
+
+    // Phase 35: Cost of Quality (CoQ)
+    public DbSet<QualityCost> QualityCosts => Set<QualityCost>();
+    public DbSet<QualityCostRule> QualityCostRules => Set<QualityCostRule>();
+
+    // Phase 50: Strategy Management — Balanced Scorecard
+    public DbSet<Scorecard> Scorecards => Set<Scorecard>();
+    public DbSet<ScorecardPerspective> ScorecardPerspectives => Set<ScorecardPerspective>();
+    public DbSet<StrategicObjective> StrategicObjectives => Set<StrategicObjective>();
+    public DbSet<ObjectiveMeasure> ObjectiveMeasures => Set<ObjectiveMeasure>();
+    public DbSet<MeasureSnapshot> MeasureSnapshots => Set<MeasureSnapshot>();
+    public DbSet<ObjectiveCauseLink> ObjectiveCauseLinks => Set<ObjectiveCauseLink>();
+    public DbSet<ObjectiveProcessLink> ObjectiveProcessLinks => Set<ObjectiveProcessLink>();
+
+    // Phase 51: BoM / Product Configurator (revision-controlled models)
+    public DbSet<ConfiguratorModel> ConfiguratorModels => Set<ConfiguratorModel>();
+    public DbSet<ConfiguratorModelRevision> ConfiguratorModelRevisions => Set<ConfiguratorModelRevision>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        // --- ConfiguratorModel (revision-controlled product configurator) ---
+        modelBuilder.Entity<ConfiguratorModel>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.HasIndex(m => new { m.TenantId, m.Code }).IsUnique();
+            e.Property(m => m.Code).HasMaxLength(50).IsRequired();
+            e.Property(m => m.Name).HasMaxLength(200).IsRequired();
+            e.Property(m => m.Description).HasMaxLength(2000);
+        });
+        modelBuilder.Entity<ConfiguratorModelRevision>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.HasIndex(r => new { r.ConfiguratorModelId, r.Revision }).IsUnique();
+            e.Property(r => r.Notes).HasMaxLength(2000);
+            e.Property(r => r.DefinitionJson).IsRequired();
+            e.HasOne(r => r.Model)
+                .WithMany(m => m.Revisions)
+                .HasForeignKey(r => r.ConfiguratorModelId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         // --- Kind ---
         modelBuilder.Entity<Kind>(e =>
@@ -683,6 +788,21 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // --- StepExecutionPhaseEvent (Phase 36.4) ---
+        modelBuilder.Entity<StepExecutionPhaseEvent>(e =>
+        {
+            e.HasKey(pe => pe.Id);
+            e.Property(pe => pe.Phase).HasConversion<string>().HasMaxLength(20);
+            e.Property(pe => pe.OperatorUserId).HasMaxLength(450);
+            e.HasIndex(pe => pe.StepExecutionId);
+            e.Ignore(pe => pe.Duration);
+
+            e.HasOne(pe => pe.StepExecution)
+                .WithMany()
+                .HasForeignKey(pe => pe.StepExecutionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         // --- PortTransaction ---
         modelBuilder.Entity<PortTransaction>(e =>
         {
@@ -1179,6 +1299,7 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.Property(r => r.ConductedBy).HasMaxLength(200);
             e.Property(r => r.NcSummary).HasMaxLength(2000);
             e.Property(r => r.ActionCloseRateSummary).HasMaxLength(500);
+            e.Property(r => r.ScorecardSummary).HasMaxLength(2000);
             e.Property(r => r.MrbSummary).HasMaxLength(500);
             e.Property(r => r.TrainingComplianceSummary).HasMaxLength(500);
             e.Property(r => r.CustomerComplaintsNotes).HasMaxLength(2000);
@@ -1613,6 +1734,15 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(w => new { w.FloorPlanId, w.PlacementId }).IsUnique();
             e.Property(w => w.PlacementId).HasMaxLength(100).IsRequired();
 
+            // Phase 37 — per-placement CAD model
+            e.Property(w => w.ModelFileName).HasMaxLength(260);
+            e.Property(w => w.ModelOriginalFileName).HasMaxLength(260);
+            e.Property(w => w.ModelMimeType).HasMaxLength(100);
+            e.Property(w => w.ConvertedModelFileName).HasMaxLength(260);
+            e.Property(w => w.ConversionStatus).HasConversion<string>().HasMaxLength(20);
+            e.Property(w => w.ConversionError).HasMaxLength(1000);
+            e.Ignore(w => w.HasRenderableModel);
+
             e.HasOne(w => w.FloorPlan)
                 .WithMany(f => f.Workstations)
                 .HasForeignKey(w => w.FloorPlanId)
@@ -1674,6 +1804,15 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
             e.HasIndex(l => new { l.FloorPlanId, l.StorageLocationId }).IsUnique();
             e.Property(l => l.PlacementId).HasMaxLength(100).IsRequired();
 
+            // Phase 37 — per-placement CAD model
+            e.Property(l => l.ModelFileName).HasMaxLength(260);
+            e.Property(l => l.ModelOriginalFileName).HasMaxLength(260);
+            e.Property(l => l.ModelMimeType).HasMaxLength(100);
+            e.Property(l => l.ConvertedModelFileName).HasMaxLength(260);
+            e.Property(l => l.ConversionStatus).HasConversion<string>().HasMaxLength(20);
+            e.Property(l => l.ConversionError).HasMaxLength(1000);
+            e.Ignore(l => l.HasRenderableModel);
+
             e.HasOne(l => l.FloorPlan)
                 .WithMany(f => f.InventoryLocations)
                 .HasForeignKey(l => l.FloorPlanId)
@@ -1684,6 +1823,803 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(l => l.StorageLocationId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        modelBuilder.Entity<FloorPlanInventoryLocationKind>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.HasIndex(d => new { d.FloorPlanInventoryLocationId, d.KindId }).IsUnique();
+
+            e.HasOne(d => d.FloorPlanInventoryLocation)
+                .WithMany(l => l.DesignatedKinds)
+                .HasForeignKey(d => d.FloorPlanInventoryLocationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(d => d.Kind)
+                .WithMany()
+                .HasForeignKey(d => d.KindId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- Tenant (root entity — not tenant-owned itself) ---
+        modelBuilder.Entity<Tenant>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.HasIndex(t => t.Subdomain).IsUnique();
+            e.Property(t => t.Subdomain).HasMaxLength(63).IsRequired();
+            e.Property(t => t.Name).HasMaxLength(200).IsRequired();
+            e.Property(t => t.Status).HasConversion<string>().HasMaxLength(20);
+        });
+
+        // --- Tenant Onboarding State (M2) ---
+        modelBuilder.Entity<TenantOnboardingState>(e =>
+        {
+            e.HasKey(s => s.Id);
+            // Exactly one row per tenant.
+            e.HasIndex(s => s.TenantId).IsUnique();
+            e.Property(s => s.Industry).HasConversion<string>().HasMaxLength(20);
+        });
+
+        // --- Tenant Feature Flags (M2) ---
+        modelBuilder.Entity<TenantFeatureFlags>(e =>
+        {
+            e.HasKey(f => f.Id);
+            e.HasIndex(f => f.TenantId).IsUnique();
+        });
+
+        // --- Tenant Branding (M4) ---
+        modelBuilder.Entity<TenantBranding>(e =>
+        {
+            e.HasKey(b => b.Id);
+            e.HasIndex(b => b.TenantId).IsUnique();
+            e.Property(b => b.LogoFileName).HasMaxLength(500);
+            e.Property(b => b.PrimaryColorHex).HasMaxLength(7);
+            e.Property(b => b.CompanyName).HasMaxLength(200);
+            e.Property(b => b.FooterText).HasMaxLength(500);
+        });
+
+        // --- Tenant Subscription (M5) ---
+        modelBuilder.Entity<TenantSubscription>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.HasIndex(s => s.TenantId).IsUnique();
+            e.Property(s => s.StripeCustomerId).HasMaxLength(100);
+            e.Property(s => s.StripeSubscriptionId).HasMaxLength(100);
+            e.Property(s => s.PlanCode).HasConversion<string>().HasMaxLength(20);
+            e.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(s => s.LastStripeEventId).HasMaxLength(100);
+            e.Property(s => s.CouponCode).HasMaxLength(100);
+        });
+
+        // --- Usage Metric (M5) ---
+        modelBuilder.Entity<UsageMetric>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.HasIndex(m => new { m.TenantId, m.MetricType, m.PeriodStart }).IsUnique();
+            e.Property(m => m.MetricType).HasConversion<string>().HasMaxLength(30);
+        });
+
+        // --- Billing Event (M5) ---
+        modelBuilder.Entity<BillingEvent>(e =>
+        {
+            e.HasKey(b => b.Id);
+            e.HasIndex(b => b.StripeEventId).IsUnique();
+            e.Property(b => b.StripeEventId).HasMaxLength(100).IsRequired();
+            e.Property(b => b.EventType).HasConversion<string>().HasMaxLength(30);
+            e.Property(b => b.Description).HasMaxLength(500);
+        });
+
+        // --- Plan Change Log (F16) ---
+        modelBuilder.Entity<PlanChangeLog>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.HasIndex(p => p.TenantId);
+            e.Property(p => p.FromPlan).HasConversion<string>().HasMaxLength(20);
+            e.Property(p => p.ToPlan).HasConversion<string>().HasMaxLength(20);
+            e.Property(p => p.ChangedByUserId).HasMaxLength(450);
+            e.Property(p => p.Reason).HasMaxLength(500);
+        });
+
+        // --- StandardsClause (Phase 17) ---
+        modelBuilder.Entity<StandardsClause>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.HasIndex(c => new { c.Standard, c.ClauseNumber }).IsUnique();
+            e.Property(c => c.Standard).HasConversion<string>().HasMaxLength(20);
+            e.Property(c => c.ClauseNumber).HasMaxLength(20).IsRequired();
+            e.Property(c => c.Title).HasMaxLength(200).IsRequired();
+            e.Property(c => c.RequirementSummary).HasMaxLength(2000);
+        });
+
+        // --- ClauseEvidenceLink (Phase 17) ---
+        modelBuilder.Entity<ClauseEvidenceLink>(e =>
+        {
+            e.HasKey(l => l.Id);
+            e.HasIndex(l => new { l.ClauseId, l.EntityType, l.EntityId }).IsUnique();
+            e.Property(l => l.EntityType).HasConversion<string>().HasMaxLength(30);
+            e.Property(l => l.EvidenceNote).HasMaxLength(1000);
+
+            e.HasOne(l => l.Clause)
+                .WithMany(c => c.EvidenceLinks)
+                .HasForeignKey(l => l.ClauseId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- AuditProgram (Phase 17) ---
+        modelBuilder.Entity<AuditProgram>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            e.Property(p => p.Standard).HasConversion<string>().HasMaxLength(20);
+            e.Property(p => p.LeadAuditor).HasMaxLength(200);
+            e.Property(p => p.Status).HasConversion<string>().HasMaxLength(20);
+        });
+
+        // --- Audit (Phase 17) ---
+        modelBuilder.Entity<Audit>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.AuditType).HasConversion<string>().HasMaxLength(30);
+            e.Property(a => a.Scope).HasMaxLength(2000);
+            e.Property(a => a.LeadAuditor).HasMaxLength(200);
+            e.Property(a => a.Status).HasConversion<string>().HasMaxLength(20);
+
+            e.HasOne(a => a.Program)
+                .WithMany(p => p.Audits)
+                .HasForeignKey(a => a.ProgramId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- AuditFinding (Phase 17) ---
+        modelBuilder.Entity<AuditFinding>(e =>
+        {
+            e.HasKey(f => f.Id);
+            e.Property(f => f.FindingType).HasConversion<string>().HasMaxLength(30);
+            e.Property(f => f.Description).HasMaxLength(2000).IsRequired();
+            e.Property(f => f.ObjectiveEvidence).HasMaxLength(2000);
+            e.Property(f => f.Status).HasConversion<string>().HasMaxLength(30);
+            e.Property(f => f.ClosureNotes).HasMaxLength(2000);
+
+            e.HasOne(f => f.Audit)
+                .WithMany(a => a.Findings)
+                .HasForeignKey(f => f.AuditId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(f => f.Clause)
+                .WithMany(c => c.Findings)
+                .HasForeignKey(f => f.ClauseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(f => f.ActionItem)
+                .WithMany()
+                .HasForeignKey(f => f.ActionItemId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // --- SpcChart ---
+        modelBuilder.Entity<SpcChart>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.Name).HasMaxLength(200).IsRequired();
+            e.Property(c => c.ChartType).HasConversion<string>().HasMaxLength(20);
+            e.Property(c => c.ControlLimitSource).HasConversion<string>().HasMaxLength(20);
+            e.Property(c => c.UCL).HasColumnType("decimal(18,6)");
+            e.Property(c => c.LCL).HasColumnType("decimal(18,6)");
+            e.Property(c => c.CL).HasColumnType("decimal(18,6)");
+            e.Property(c => c.RangeUCL).HasColumnType("decimal(18,6)");
+            e.Property(c => c.RangeLCL).HasColumnType("decimal(18,6)");
+            e.Property(c => c.RangeCL).HasColumnType("decimal(18,6)");
+            e.Property(c => c.TargetCpk).HasColumnType("decimal(18,6)");
+            e.Property(c => c.LSL).HasColumnType("decimal(18,6)");
+            e.Property(c => c.USL).HasColumnType("decimal(18,6)");
+
+            e.HasOne(c => c.Process)
+                .WithMany()
+                .HasForeignKey(c => c.ProcessId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- SpcDataPoint ---
+        modelBuilder.Entity<SpcDataPoint>(e =>
+        {
+            e.HasKey(d => d.Id);
+            e.Property(d => d.Value).HasColumnType("decimal(18,6)");
+
+            e.HasOne(d => d.SpcChart)
+                .WithMany(c => c.DataPoints)
+                .HasForeignKey(d => d.SpcChartId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(d => d.StepExecution)
+                .WithMany()
+                .HasForeignKey(d => d.StepExecutionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(d => new { d.SpcChartId, d.SubgroupIndex });
+        });
+
+        // --- Workstation ---
+        modelBuilder.Entity<Workstation>(e =>
+        {
+            e.HasKey(w => w.Id);
+            e.HasIndex(w => w.Code).IsUnique();
+            e.Property(w => w.Code).HasMaxLength(50).IsRequired();
+            e.Property(w => w.Name).HasMaxLength(200).IsRequired();
+            e.Property(w => w.Description).HasMaxLength(2000);
+            e.Property(w => w.IsActive).HasDefaultValue(true);
+
+            e.HasOne(w => w.FixedLocation)
+                .WithMany()
+                .HasForeignKey(w => w.FixedLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- ApiKey ---
+        modelBuilder.Entity<ApiKey>(e =>
+        {
+            e.HasKey(k => k.Id);
+            e.HasIndex(k => k.KeyHash).IsUnique();
+            e.Property(k => k.KeyHash).HasMaxLength(128).IsRequired();
+            e.Property(k => k.KeyPrefix).HasMaxLength(8).IsRequired();
+            e.Property(k => k.Name).HasMaxLength(200).IsRequired();
+            e.Property(k => k.CreatedByUserId).HasMaxLength(450).IsRequired();
+            e.Property(k => k.IsActive).HasDefaultValue(true);
+
+            e.HasOne(k => k.Workstation)
+                .WithMany(w => w.ApiKeys)
+                .HasForeignKey(k => k.WorkstationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- ScanEvent (append-only, not BaseEntity) ---
+        modelBuilder.Entity<ScanEvent>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.Property(s => s.ScannedBarcode).HasMaxLength(500).IsRequired();
+            e.Property(s => s.Result).HasConversion<string>().HasMaxLength(30);
+            e.Property(s => s.ErrorMessage).HasMaxLength(2000);
+
+            e.HasOne(s => s.Workstation)
+                .WithMany()
+                .HasForeignKey(s => s.WorkstationId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(s => s.ApiKey)
+                .WithMany()
+                .HasForeignKey(s => s.ApiKeyId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(s => s.Item)
+                .WithMany()
+                .HasForeignKey(s => s.ItemId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(s => s.Transaction)
+                .WithMany()
+                .HasForeignKey(s => s.TransactionId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasQueryFilter(s =>
+                _tenantContext == null
+                || _tenantContext.IsPlatformAdmin
+                || s.TenantId == _tenantContext.CurrentTenantId);
+
+            e.HasIndex(s => s.WorkstationId);
+            e.HasIndex(s => s.ScannedAt);
+        });
+
+        // --- Barcode unique indexes on Item, Kind, StorageLocation ---
+        modelBuilder.Entity<Item>(e2 =>
+        {
+            e2.HasIndex(i => i.Barcode).IsUnique().HasFilter(null);
+        });
+        modelBuilder.Entity<Kind>(e2 =>
+        {
+            e2.HasIndex(k => k.Barcode).IsUnique().HasFilter(null);
+            e2.Property(k => k.Barcode).HasMaxLength(200);
+        });
+        modelBuilder.Entity<StorageLocation>(e2 =>
+        {
+            e2.HasIndex(sl => sl.Barcode).IsUnique().HasFilter(null);
+            e2.Property(sl => sl.Barcode).HasMaxLength(200);
+        });
+
+        // --- Supplier ---
+        modelBuilder.Entity<Supplier>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.HasIndex(s => s.Code).IsUnique();
+            e.Property(s => s.Code).HasMaxLength(50).IsRequired();
+            e.Property(s => s.Name).HasMaxLength(200).IsRequired();
+            e.Property(s => s.Status).HasConversion<string>().HasMaxLength(30);
+            e.Property(s => s.ContactName).HasMaxLength(200);
+            e.Property(s => s.ContactEmail).HasMaxLength(200);
+            e.Property(s => s.ContactPhone).HasMaxLength(50);
+            e.Property(s => s.Address).HasMaxLength(500);
+            e.Property(s => s.Notes).HasMaxLength(4000);
+            e.Property(s => s.IsActive).HasDefaultValue(true);
+        });
+
+        // --- SupplierEvaluation ---
+        modelBuilder.Entity<SupplierEvaluation>(e =>
+        {
+            e.HasKey(ev => ev.Id);
+            e.Property(ev => ev.EvaluatedByUserId).HasMaxLength(450);
+            e.Property(ev => ev.Notes).HasMaxLength(4000);
+
+            e.HasOne(ev => ev.Supplier)
+                .WithMany(s => s.Evaluations)
+                .HasForeignKey(ev => ev.SupplierId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(ev => new { ev.SupplierId, ev.EvaluationDate });
+        });
+
+        // --- CapaRecord ---
+        modelBuilder.Entity<CapaRecord>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.HasIndex(c => c.Code).IsUnique();
+            e.Property(c => c.Code).HasMaxLength(50).IsRequired();
+            e.Property(c => c.Type).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.SourceType).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.Status).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.ProblemStatement).HasMaxLength(4000).IsRequired();
+            e.Property(c => c.ContainmentAction).HasMaxLength(4000);
+            e.Property(c => c.RootCauseAnalysisType).HasMaxLength(30);
+            e.Property(c => c.PermanentCorrectiveAction).HasMaxLength(4000);
+            e.Property(c => c.PreventiveAction).HasMaxLength(4000);
+            e.Property(c => c.VerificationMethod).HasMaxLength(4000);
+            e.Property(c => c.VerifiedByUserId).HasMaxLength(450);
+            e.Property(c => c.EffectivenessVerifiedByUserId).HasMaxLength(450);
+            e.Property(c => c.OwnerUserId).HasMaxLength(450).IsRequired();
+            e.Property(c => c.OwnerDisplayName).HasMaxLength(200);
+            e.Property(c => c.TeamMemberIds).HasMaxLength(4000);
+            e.HasIndex(c => c.Status);
+            e.HasIndex(c => c.OwnerUserId);
+        });
+
+        // --- CapaStep ---
+        modelBuilder.Entity<CapaStep>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.Property(s => s.StepType).HasMaxLength(50).IsRequired();
+            e.Property(s => s.CompletedByUserId).HasMaxLength(450);
+            e.Property(s => s.CompletedByDisplayName).HasMaxLength(200);
+            e.Property(s => s.Notes).HasMaxLength(4000);
+            e.Property(s => s.AttachmentFileName).HasMaxLength(500);
+
+            e.HasOne(s => s.CapaRecord)
+                .WithMany(c => c.Steps)
+                .HasForeignKey(s => s.CapaRecordId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(s => s.CapaRecordId);
+        });
+
+        // --- CalibrationRecord ---
+        modelBuilder.Entity<CalibrationRecord>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.Property(c => c.CalibrationType).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.Result).HasConversion<string>().HasMaxLength(20);
+            e.Property(c => c.CertificateNumber).HasMaxLength(100);
+            e.Property(c => c.CertificateFileName).HasMaxLength(500);
+            e.Property(c => c.PerformedBy).HasMaxLength(200);
+            e.Property(c => c.StandardsUsed).HasMaxLength(500);
+            e.Property(c => c.TemperatureHumidity).HasMaxLength(200);
+            e.Property(c => c.AsFoundReading).HasMaxLength(500);
+            e.Property(c => c.AsLeftReading).HasMaxLength(500);
+            e.Property(c => c.Uncertainty).HasColumnType("decimal(18,6)");
+            e.Property(c => c.Notes).HasMaxLength(4000);
+
+            e.HasOne(c => c.Equipment)
+                .WithMany()
+                .HasForeignKey(c => c.EquipmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(c => c.EquipmentId);
+            e.HasIndex(c => c.NextDueDate);
+        });
+
+        // --- CalibrationSchedule ---
+        modelBuilder.Entity<CalibrationSchedule>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.Property(s => s.IntervalAdjustmentMethod).HasConversion<string>().HasMaxLength(30);
+            e.HasIndex(s => s.EquipmentId).IsUnique();
+
+            e.HasOne(s => s.Equipment)
+                .WithMany()
+                .HasForeignKey(s => s.EquipmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- GageStudy ---
+        modelBuilder.Entity<GageStudy>(e =>
+        {
+            e.HasKey(g => g.Id);
+            e.Property(g => g.Name).HasMaxLength(200).IsRequired();
+            e.Property(g => g.StudyType).HasConversion<string>().HasMaxLength(30);
+            e.Property(g => g.Status).HasConversion<string>().HasMaxLength(20);
+            e.Property(g => g.CharacteristicName).HasMaxLength(200);
+            e.Property(g => g.Tolerance).HasColumnType("decimal(18,6)");
+            e.Property(g => g.LSL).HasColumnType("decimal(18,6)");
+            e.Property(g => g.USL).HasColumnType("decimal(18,6)");
+            e.Property(g => g.GrrPercent).HasColumnType("decimal(18,4)");
+            e.Property(g => g.AcceptanceDecision).HasMaxLength(30);
+
+            e.HasOne(g => g.Equipment)
+                .WithMany()
+                .HasForeignKey(g => g.EquipmentId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(g => g.Process)
+                .WithMany()
+                .HasForeignKey(g => g.ProcessId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasIndex(g => g.EquipmentId);
+            e.HasIndex(g => g.Status);
+        });
+
+        // --- GageStudyMeasurement ---
+        modelBuilder.Entity<GageStudyMeasurement>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.Property(m => m.OperatorId).HasMaxLength(100).IsRequired();
+            e.Property(m => m.MeasuredValue).HasColumnType("decimal(18,6)");
+            e.HasIndex(m => new { m.GageStudyId, m.PartNumber, m.OperatorId, m.TrialNumber }).IsUnique();
+
+            e.HasOne(m => m.GageStudy)
+                .WithMany(g => g.Measurements)
+                .HasForeignKey(m => m.GageStudyId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- ShiftDefinition (Phase 29: OEE) ---
+        modelBuilder.Entity<ShiftDefinition>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.HasIndex(s => s.Code).IsUnique();
+            e.Property(s => s.Code).HasMaxLength(20).IsRequired();
+            e.Property(s => s.Name).HasMaxLength(100).IsRequired();
+        });
+
+        // --- ChangeOrder (Phase 32: Change Management & ECO) ---
+        modelBuilder.Entity<ChangeOrder>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.HasIndex(c => c.Code).IsUnique();
+            e.Property(c => c.Code).HasMaxLength(50).IsRequired();
+            e.Property(c => c.Title).HasMaxLength(500).IsRequired();
+            e.Property(c => c.Description).HasMaxLength(4000);
+            e.Property(c => c.Justification).HasMaxLength(4000);
+            e.Property(c => c.RejectionReason).HasMaxLength(4000);
+            e.Property(c => c.Type).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.Priority).HasConversion<string>().HasMaxLength(20);
+            e.Property(c => c.Status).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.RequestedByUserId).HasMaxLength(450);
+            e.Property(c => c.RequestedByDisplayName).HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<ChangeOrderImpact>(e =>
+        {
+            e.HasKey(i => i.Id);
+            e.Property(i => i.AffectedEntityType).HasConversion<string>().HasMaxLength(30);
+            e.Property(i => i.AffectedEntityName).HasMaxLength(200);
+            e.Property(i => i.ImpactDescription).HasMaxLength(4000);
+            e.Property(i => i.MitigationPlan).HasMaxLength(4000);
+
+            e.HasOne(i => i.ChangeOrder)
+                .WithMany(c => c.Impacts)
+                .HasForeignKey(i => i.ChangeOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(i => i.ChangeOrderId);
+        });
+
+        modelBuilder.Entity<ChangeOrderApprover>(e =>
+        {
+            e.HasKey(a => a.Id);
+            e.Property(a => a.UserId).HasMaxLength(450).IsRequired();
+            e.Property(a => a.DisplayName).HasMaxLength(200);
+            e.Property(a => a.Role).HasMaxLength(100);
+            e.Property(a => a.Decision).HasConversion<string>().HasMaxLength(20);
+            e.Property(a => a.Comments).HasMaxLength(4000);
+
+            e.HasOne(a => a.ChangeOrder)
+                .WithMany(c => c.Approvers)
+                .HasForeignKey(a => a.ChangeOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(a => a.ChangeOrderId);
+        });
+
+        modelBuilder.Entity<ChangeOrderTask>(e =>
+        {
+            e.HasKey(t => t.Id);
+            e.Property(t => t.Title).HasMaxLength(500).IsRequired();
+            e.Property(t => t.Description).HasMaxLength(4000);
+            e.Property(t => t.AssigneeUserId).HasMaxLength(450);
+            e.Property(t => t.AssigneeDisplayName).HasMaxLength(200);
+            e.Property(t => t.Status).HasConversion<string>().HasMaxLength(30);
+            e.Property(t => t.CompletedByUserId).HasMaxLength(450);
+            e.Property(t => t.Notes).HasMaxLength(4000);
+
+            e.HasOne(t => t.ChangeOrder)
+                .WithMany(c => c.Tasks)
+                .HasForeignKey(t => t.ChangeOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(t => t.ChangeOrderId);
+        });
+
+        // --- CustomerComplaint (Phase 34: Customer Complaint Management) ---
+        modelBuilder.Entity<CustomerComplaint>(e =>
+        {
+            e.HasKey(c => c.Id);
+            e.HasIndex(c => c.Code).IsUnique();
+            e.Property(c => c.Code).HasMaxLength(20).IsRequired();
+            e.Property(c => c.CustomerName).HasMaxLength(200).IsRequired();
+            e.Property(c => c.CustomerReference).HasMaxLength(200);
+            e.Property(c => c.LotNumber).HasMaxLength(100);
+            e.Property(c => c.Category).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.Severity).HasConversion<string>().HasMaxLength(30);
+            e.Property(c => c.Description).HasMaxLength(4000).IsRequired();
+            e.Property(c => c.Status).HasConversion<string>().HasMaxLength(40);
+            e.Property(c => c.OwnerUserId).HasMaxLength(450).IsRequired();
+            e.Property(c => c.OwnerDisplayName).HasMaxLength(200);
+
+            e.HasIndex(c => c.Status);
+            e.HasIndex(c => c.Severity);
+            e.HasIndex(c => c.Category);
+        });
+
+        modelBuilder.Entity<ComplaintInvestigation>(e =>
+        {
+            e.HasKey(i => i.Id);
+            e.Property(i => i.InvestigationType).HasConversion<string>().HasMaxLength(30);
+            e.Property(i => i.Findings).HasMaxLength(4000).IsRequired();
+            e.Property(i => i.InvestigatedByUserId).HasMaxLength(450).IsRequired();
+            e.Property(i => i.InvestigatedByDisplayName).HasMaxLength(200);
+
+            e.HasOne<CustomerComplaint>()
+                .WithMany(c => c.Investigations)
+                .HasForeignKey(i => i.CustomerComplaintId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(i => i.CustomerComplaintId);
+        });
+
+        modelBuilder.Entity<ComplaintResponse>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.ResponseType).HasConversion<string>().HasMaxLength(30);
+            e.Property(r => r.Content).HasMaxLength(4000).IsRequired();
+            e.Property(r => r.SentByUserId).HasMaxLength(450).IsRequired();
+            e.Property(r => r.SentByDisplayName).HasMaxLength(200);
+
+            e.HasOne<CustomerComplaint>()
+                .WithMany(c => c.Responses)
+                .HasForeignKey(r => r.CustomerComplaintId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(r => r.CustomerComplaintId);
+        });
+
+        // --- QualityCost (Phase 35: Cost of Quality) ---
+        modelBuilder.Entity<QualityCost>(e =>
+        {
+            e.HasKey(q => q.Id);
+            e.Property(q => q.SourceType).HasConversion<string>().HasMaxLength(30);
+            e.Property(q => q.SourceEntityCode).HasMaxLength(100);
+            e.Property(q => q.Amount).HasColumnType("decimal(18,2)");
+            e.Property(q => q.Currency).HasMaxLength(10).HasDefaultValue("USD");
+            e.Property(q => q.CostCategory).HasConversion<string>().HasMaxLength(30);
+            e.Property(q => q.KindName).HasMaxLength(200);
+            e.Property(q => q.Description).HasMaxLength(2000);
+            e.Property(q => q.RecordedByUserId).HasMaxLength(450).IsRequired();
+            e.Property(q => q.RecordedByDisplayName).HasMaxLength(200);
+
+            e.HasIndex(q => q.SourceEntityId);
+            e.HasIndex(q => q.CostCategory);
+            e.HasIndex(q => q.RecordedAt);
+        });
+
+        modelBuilder.Entity<QualityCostRule>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.Property(r => r.TriggerEvent).HasConversion<string>().HasMaxLength(40);
+            e.Property(r => r.DefaultCategory).HasConversion<string>().HasMaxLength(30);
+            e.Property(r => r.DefaultSourceType).HasConversion<string>().HasMaxLength(30);
+            e.Property(r => r.DefaultAmount).HasColumnType("decimal(18,2)");
+            e.Property(r => r.Description).HasMaxLength(500);
+
+            e.HasIndex(r => r.TriggerEvent);
+        });
+
+        // ── Phase 50: Strategy Management — Balanced Scorecard ───────────────
+
+        modelBuilder.Entity<Scorecard>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.HasIndex(s => new { s.TenantId, s.Code }).IsUnique();
+            e.Property(s => s.Code).HasMaxLength(50).IsRequired();
+            e.Property(s => s.Name).HasMaxLength(200).IsRequired();
+            e.Property(s => s.MissionStatement).HasMaxLength(2000);
+            e.Property(s => s.VisionStatement).HasMaxLength(2000);
+            e.Property(s => s.StrategyNotes).HasMaxLength(4000);
+            e.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
+
+            e.HasOne(s => s.OwnerOrgUnit)
+                .WithMany()
+                .HasForeignKey(s => s.OwnerOrgUnitId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ScorecardPerspective>(e =>
+        {
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            e.Property(p => p.Description).HasMaxLength(2000);
+
+            e.HasOne(p => p.Scorecard)
+                .WithMany(s => s.Perspectives)
+                .HasForeignKey(p => p.ScorecardId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(p => p.ScorecardId);
+        });
+
+        modelBuilder.Entity<StrategicObjective>(e =>
+        {
+            e.HasKey(o => o.Id);
+            e.HasIndex(o => new { o.TenantId, o.Code }).IsUnique();
+            e.Property(o => o.Code).HasMaxLength(50).IsRequired();
+            e.Property(o => o.Name).HasMaxLength(300).IsRequired();
+            e.Property(o => o.Description).HasMaxLength(4000);
+            e.Property(o => o.Status).HasConversion<string>().HasMaxLength(20);
+
+            e.HasOne(o => o.Perspective)
+                .WithMany(p => p.Objectives)
+                .HasForeignKey(o => o.PerspectiveId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(o => o.OwnerOrgUnit)
+                .WithMany()
+                .HasForeignKey(o => o.OwnerOrgUnitId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasIndex(o => o.PerspectiveId);
+        });
+
+        modelBuilder.Entity<ObjectiveMeasure>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.Property(m => m.Name).HasMaxLength(300).IsRequired();
+            e.Property(m => m.Units).HasMaxLength(50);
+            e.Property(m => m.Direction).HasConversion<string>().HasMaxLength(20);
+            e.Property(m => m.SourceType).HasConversion<string>().HasMaxLength(30);
+            e.Property(m => m.SourceParameter).HasMaxLength(200);
+            e.Property(m => m.BaselineValue).HasColumnType("decimal(18,4)");
+            e.Property(m => m.TargetValue).HasColumnType("decimal(18,4)");
+            e.Property(m => m.GreenThreshold).HasColumnType("decimal(18,4)");
+            e.Property(m => m.RedThreshold).HasColumnType("decimal(18,4)");
+
+            e.HasOne(m => m.Objective)
+                .WithMany(o => o.Measures)
+                .HasForeignKey(m => m.ObjectiveId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(m => m.ObjectiveId);
+        });
+
+        modelBuilder.Entity<MeasureSnapshot>(e =>
+        {
+            e.HasKey(s => s.Id);
+            e.Property(s => s.Value).HasColumnType("decimal(18,4)");
+            e.Property(s => s.CaptureSource).HasConversion<string>().HasMaxLength(10);
+            e.Property(s => s.Note).HasMaxLength(2000);
+
+            e.HasOne(s => s.Measure)
+                .WithMany(m => m.Snapshots)
+                .HasForeignKey(s => s.MeasureId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(s => new { s.MeasureId, s.CapturedAt });
+        });
+
+        modelBuilder.Entity<ObjectiveCauseLink>(e =>
+        {
+            e.HasKey(l => l.Id);
+            e.HasIndex(l => new { l.SourceObjectiveId, l.TargetObjectiveId }).IsUnique();
+            e.Property(l => l.Description).HasMaxLength(1000);
+
+            e.HasOne(l => l.Scorecard)
+                .WithMany(s => s.CauseLinks)
+                .HasForeignKey(l => l.ScorecardId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Cause links are removed explicitly by the controller when an
+            // objective is deleted; Restrict avoids multiple cascade paths.
+            e.HasOne(l => l.SourceObjective)
+                .WithMany()
+                .HasForeignKey(l => l.SourceObjectiveId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(l => l.TargetObjective)
+                .WithMany()
+                .HasForeignKey(l => l.TargetObjectiveId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ObjectiveProcessLink>(e =>
+        {
+            e.HasKey(l => l.Id);
+            e.Property(l => l.Note).HasMaxLength(1000);
+
+            e.HasOne(l => l.Objective)
+                .WithMany(o => o.ProcessLinks)
+                .HasForeignKey(l => l.ObjectiveId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(l => l.Process)
+                .WithMany()
+                .HasForeignKey(l => l.ProcessId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(l => l.Workflow)
+                .WithMany()
+                .HasForeignKey(l => l.WorkflowId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasIndex(l => l.ObjectiveId);
+        });
+
+        ApplyTenantQueryFilters(modelBuilder);
+    }
+
+    /// <summary>
+    /// Apply a global query filter of the form <c>e =&gt; e.TenantId == _tenantContext.CurrentTenantId
+    /// || _tenantContext.IsPlatformAdmin</c> to every entity that inherits <see cref="BaseEntity"/>.
+    /// Built via expression trees because <c>HasQueryFilter</c> requires a strongly-typed lambda.
+    /// </summary>
+    private void ApplyTenantQueryFilters(ModelBuilder modelBuilder)
+    {
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            var clr = entityType.ClrType;
+            if (!typeof(BaseEntity).IsAssignableFrom(clr)) continue;
+
+            // Build: (TEntity e) => e.TenantId == ctx.CurrentTenantId || ctx.IsPlatformAdmin || ctx == null
+            var method = typeof(ProcessManagerDbContext)
+                .GetMethod(nameof(BuildTenantFilter),
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+                .MakeGenericMethod(clr);
+
+            var filter = method.Invoke(this, null);
+            modelBuilder.Entity(clr).HasQueryFilter((LambdaExpression)filter!);
+        }
+    }
+
+    private LambdaExpression BuildTenantFilter<TEntity>() where TEntity : BaseEntity
+    {
+        // The filter captures _this_ context so it re-evaluates on every query against
+        // the current request's tenant context.
+        Expression<Func<TEntity, bool>> filter = e =>
+            _tenantContext == null
+            || _tenantContext.IsPlatformAdmin
+            || e.TenantId == _tenantContext.CurrentTenantId;
+        return filter;
     }
 
     public override int SaveChanges()

@@ -1,0 +1,84 @@
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+
+<div class="photo-capture">
+    <input type="file" accept="image/*" capture="environment" id="@_inputId"
+           class="d-none" @onchange="HandleFileSelected" />
+
+    @if (!string.IsNullOrEmpty(_previewDataUrl))
+    {
+        <div class="position-relative d-inline-block">
+            <img src="@_previewDataUrl" class="img-fluid rounded" style="max-height:200px" alt="Captured photo" />
+            <button class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1" @onclick="ClearPhoto"
+                    title="Remove photo">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div class="text-muted small mt-1">@_compressedSizeKb KB (was @_originalSizeKb KB)</div>
+    }
+    else
+    {
+        <button class="btn btn-outline-primary" @onclick="TriggerCapture" disabled="@_processing">
+            @if (_processing)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            <i class="bi bi-camera me-1"></i>@ButtonLabel
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter] public string ButtonLabel { get; set; } = "Take Photo";
+    [Parameter] public int MaxWidth { get; set; } = 1920;
+    [Parameter] public int MaxHeight { get; set; } = 1440;
+    [Parameter] public double Quality { get; set; } = 0.8;
+    [Parameter] public EventCallback<PhotoResult> OnCaptured { get; set; }
+
+    private string _inputId = $"photo-input-{Guid.NewGuid():N}";
+    private bool _processing;
+    private string? _previewDataUrl;
+    private int _originalSizeKb;
+    private int _compressedSizeKb;
+
+    private async Task TriggerCapture()
+    {
+        await JS.InvokeVoidAsync("eval", $"document.getElementById('{_inputId}').click()");
+    }
+
+    private async Task HandleFileSelected()
+    {
+        _processing = true;
+        StateHasChanged();
+
+        try
+        {
+            var result = await JS.InvokeAsync<PhotoCaptureResult?>(
+                "PhotoCapture.captureAndCompress", _inputId, MaxWidth, MaxHeight, Quality);
+
+            if (result is not null)
+            {
+                _previewDataUrl = $"data:{result.MimeType};base64,{result.Base64}";
+                _originalSizeKb = result.OriginalSizeKb;
+                _compressedSizeKb = result.CompressedSizeKb;
+                await OnCaptured.InvokeAsync(new PhotoResult(result.Base64, result.FileName, result.MimeType));
+            }
+        }
+        catch { /* capture cancelled or failed */ }
+        finally
+        {
+            _processing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ClearPhoto()
+    {
+        _previewDataUrl = null;
+        await OnCaptured.InvokeAsync(null);
+    }
+
+    public record PhotoResult(string Base64, string FileName, string MimeType);
+
+    private record PhotoCaptureResult(string Base64, string FileName, string MimeType, int OriginalSizeKb, int CompressedSizeKb);
+}

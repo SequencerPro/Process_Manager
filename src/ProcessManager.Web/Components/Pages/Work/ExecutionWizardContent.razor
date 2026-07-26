@@ -29,6 +29,7 @@ else if (_se.Status == "Completed")
 }
 else
 {
+<div class="execution-wizard">
     <!-- Header progress bar -->
     <div class="position-sticky top-0 bg-white border-bottom shadow-sm py-2 px-3 mb-3" style="z-index:100">
         <div class="d-flex align-items-center justify-content-between flex-wrap gap-1">
@@ -37,6 +38,7 @@ else
                 <span class="text-muted small ms-2 d-none d-sm-inline">@(string.IsNullOrEmpty(_se.JobCode) ? "" : $"Job {_se.JobCode}")</span>
             </div>
             <div class="d-flex gap-2 align-items-center">
+                <SyncStatus />
                 @* ── Mobile compact phase indicator ── *@
                 @{
                     var mobileLabel = _phase switch { 1 => "Setup", 2 => "Safety", 3 => "Reference", 4 => "Execution", _ => "Sign-off" };
@@ -355,13 +357,23 @@ else
                                         </div>
                                     }
                                 }
-                                else if (block.PromptType is "TextEntry" or "Scan")
+                                else if (block.PromptType == "Scan")
                                 {
                                     <div class="input-group">
-                                        @if (block.PromptType == "Scan")
-                                        {
-                                            <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
-                                        }
+                                        <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
+                                        <input type="text" class="form-control"
+                                               value="@GetPromptValue(block.Id)"
+                                               @oninput="e => SetPromptValue(block.Id, e.Value?.ToString() ?? string.Empty)"
+                                               placeholder="@block.Label" />
+                                        <button class="btn btn-outline-primary" @onclick="() => OpenBarcodeScanner(block.Id)"
+                                                title="Scan with camera">
+                                            <i class="bi bi-camera"></i>
+                                        </button>
+                                    </div>
+                                }
+                                else if (block.PromptType == "TextEntry")
+                                {
+                                    <div class="input-group">
                                         <input type="text" class="form-control"
                                                value="@GetPromptValue(block.Id)"
                                                @oninput="e => SetPromptValue(block.Id, e.Value?.ToString() ?? string.Empty)"
@@ -549,6 +561,18 @@ else
                 </div>
             }
 
+            <!-- Photo Evidence -->
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Photo Evidence</label>
+                <PhotoCapture OnCaptured="HandlePhotoCaptured" ButtonLabel="Capture Photo Evidence" />
+            </div>
+
+            <!-- Operator Signature -->
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Operator Signature</label>
+                <SignatureCanvas @ref="_signatureCanvas" Width="600" Height="180" LineWidth="3" />
+            </div>
+
             <!-- Notes -->
             <div class="mb-3">
                 <label class="form-label fw-semibold">Operator Notes</label>
@@ -575,16 +599,20 @@ else
 
             <div class="d-flex justify-content-between mt-3">
                 <button class="btn btn-outline-secondary" @onclick="() => AdvanceTo(4)">← Back to Execution</button>
-                <button class="btn btn-success btn-lg px-4"
-                        disabled="@(_saving || _openNcs.Any(n => n.DispositionStatus == "Pending"))"
-                        @onclick="CompleteStep">
+                <HoldConfirmButton CssClass="btn btn-success btn-lg px-4"
+                                   Disabled="@(_saving || _openNcs.Any(n => n.DispositionStatus == "Pending"))"
+                                   OnConfirmed="CompleteStep">
                     @if (_saving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                    Complete Step
-                </button>
+                    <i class="bi bi-check-circle me-1"></i>Hold to Complete Step
+                </HoldConfirmButton>
             </div>
         </div>
     }
+</div>@* execution-wizard *@
 }
+
+<!-- ══ Barcode Scanner Modal ══ -->
+<BarcodeScannerModal @ref="_barcodeScanner" OnScanned="HandleBarcodeScanned" />
 
 <!-- ══ NC Disposition Modal ══ -->
 @if (_showNcModal)
@@ -685,16 +713,41 @@ else
     // UserPicker prompt support
     private List<UserPickerDto> _userPickerList = new();
 
-    protected override Task OnAfterRenderAsync(bool firstRender)
+    // Barcode scanner
+    private BarcodeScannerModal? _barcodeScanner;
+    private Guid _barcodeScanTargetBlockId;
+
+    // Signature canvas
+    private SignatureCanvas? _signatureCanvas;
+
+    // Photo capture
+    private string? _capturedPhotoBase64;
+
+    // Unsaved changes guard
+    private HashSet<Guid> _dirtyPrompts = new();
+    private bool HasUnsavedChanges => _dirtyPrompts.Any();
+
+    private bool _beforeUnloadRegistered;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        // Fire-and-forget so the render pipeline is never blocked — users can interact
-        // with the rest of the page while the 3D model loads in the background.
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("eval",
+                "window.__ewizBeforeUnload = function(e) { e.preventDefault(); e.returnValue = ''; }");
+            _beforeUnloadRegistered = true;
+        }
+
+        if (HasUnsavedChanges && _beforeUnloadRegistered)
+            await JS.InvokeVoidAsync("eval", "window.addEventListener('beforeunload', window.__ewizBeforeUnload)");
+        else if (_beforeUnloadRegistered)
+            await JS.InvokeVoidAsync("eval", "window.removeEventListener('beforeunload', window.__ewizBeforeUnload)");
+
         if (_phase == 4 && _pendingWizardModelViewerInit && !_wizardModelViewerInitialized)
         {
             _pendingWizardModelViewerInit = false;
             _ = InitWizardModelViewer();
         }
-        return Task.CompletedTask;
     }
 
     protected override async Task OnInitializedAsync()
@@ -718,6 +771,7 @@ else
             await LoadNonConformances();
             await LoadPickList();
             _userPickerList = await Api.GetUserPickerListAsync() ?? new();
+            try { await JS.InvokeVoidAsync("OperatorSync.setApiBase", _apiBaseUrl); } catch { }
         }
         catch (Exception ex) { _error = ex.Message; }
         finally { _loading = false; }
@@ -808,12 +862,18 @@ else
             _pendingWizardModelViewerInit = (_se?.HasStepModel == true) || (_se?.KindModelRefId.HasValue == true);
     }
 
-    private void TryNavigateToPhase(int phase)
+    private async Task TryNavigateToPhase(int phase)
     {
         if (phase <= _phase)
         {
+            if (_phase == 4 && phase != 4 && HasUnsavedChanges)
+            {
+                var confirmed = await JS.InvokeAsync<bool>("confirm",
+                    "You have unsaved changes. Are you sure you want to leave this phase?");
+                if (!confirmed) return;
+            }
             if (_phase == 4 && phase != 4)
-                _ = DestroyWizardModelViewer();
+                await DestroyWizardModelViewer();
             _phase = phase;
             if (phase == 4)
                 _pendingWizardModelViewerInit = (_se?.HasStepModel == true) || (_se?.KindModelRefId.HasValue == true);
@@ -837,7 +897,7 @@ else
     private void SetPromptValue(Guid blockId, string value)
     {
         _promptValues[blockId] = value;
-        // Auto-save prompt responses in background
+        _dirtyPrompts.Add(blockId);
         _ = SavePromptResponse(blockId, value);
     }
 
@@ -853,6 +913,7 @@ else
                         ResponseValue: value,
                         OverrideNote: null)
                 }));
+            _dirtyPrompts.Remove(contentBlockId);
         }
         catch { /* best-effort auto-save */ }
     }
@@ -977,6 +1038,23 @@ else
         finally { _ncSaving = false; }
     }
 
+    private async Task OpenBarcodeScanner(Guid blockId)
+    {
+        _barcodeScanTargetBlockId = blockId;
+        if (_barcodeScanner is not null)
+            await _barcodeScanner.Open();
+    }
+
+    private void HandleBarcodeScanned(string value)
+    {
+        SetPromptValue(_barcodeScanTargetBlockId, value);
+    }
+
+    private void HandlePhotoCaptured(PhotoCapture.PhotoResult? result)
+    {
+        _capturedPhotoBase64 = result?.Base64;
+    }
+
     private async Task CompleteStep()
     {
         if (HasAnyPendingNc()) return;
@@ -1072,5 +1150,11 @@ else
     public async ValueTask DisposeAsync()
     {
         await DestroyWizardModelViewer();
+        try
+        {
+            await JS.InvokeVoidAsync("eval",
+                "window.removeEventListener('beforeunload', window.__ewizBeforeUnload)");
+        }
+        catch { }
     }
 }

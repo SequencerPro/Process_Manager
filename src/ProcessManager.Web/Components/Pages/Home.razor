@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @using ProcessManager.Api.DTOs
 @inject ApiClient Api
+@inject FeatureFlagService Flags
 
 <PageTitle>Dashboard — Process Manager</PageTitle>
 
@@ -229,6 +230,74 @@
 
 </div>
 
+@* ── Strategy snapshot (Balanced Scorecard) ───────────────────────────────── *@
+@if (Flags.ShowStrategyTools && _strategy is not null && _strategy.ScorecardId is not null)
+{
+    var totalMeasures = _strategy.GreenCount + _strategy.AmberCount + _strategy.RedCount + _strategy.NoDataCount;
+    <div class="row g-4 mt-2">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center bg-transparent">
+                    <span class="fw-semibold">
+                        <i class="bi bi-bullseye me-2 text-primary"></i>Strategy — @_strategy.ScorecardName
+                        <code class="text-secondary ms-1">@_strategy.ScorecardCode</code>
+                    </span>
+                    <a href="strategy/scorecards/@_strategy.ScorecardId" class="btn btn-sm btn-outline-primary">Open scorecard</a>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3 align-items-center">
+                        @* RAG rollup *@
+                        <div class="col-md-5">
+                            <div class="d-flex gap-2 flex-wrap mb-2">
+                                <span class="badge bg-success">@_strategy.GreenCount Green</span>
+                                <span class="badge bg-warning text-dark">@_strategy.AmberCount Amber</span>
+                                <span class="badge bg-danger">@_strategy.RedCount Red</span>
+                                <span class="badge bg-secondary">@_strategy.NoDataCount No data</span>
+                            </div>
+                            @if (totalMeasures > 0)
+                            {
+                                <div class="progress" style="height:.5rem">
+                                    <div class="progress-bar bg-success" style="width:@(Pct(_strategy.GreenCount, totalMeasures))%"></div>
+                                    <div class="progress-bar bg-warning" style="width:@(Pct(_strategy.AmberCount, totalMeasures))%"></div>
+                                    <div class="progress-bar bg-danger" style="width:@(Pct(_strategy.RedCount, totalMeasures))%"></div>
+                                    <div class="progress-bar bg-secondary" style="width:@(Pct(_strategy.NoDataCount, totalMeasures))%"></div>
+                                </div>
+                            }
+                            @if (_strategy.ActiveScorecardCount > 1)
+                            {
+                                <div class="small text-muted mt-2">+ @(_strategy.ActiveScorecardCount - 1) other active scorecard(s)</div>
+                            }
+                        </div>
+                        @* At-risk objectives *@
+                        <div class="col-md-7">
+                            @if (!_strategy.AtRiskObjectives.Any())
+                            {
+                                <div class="text-success small"><i class="bi bi-check-circle-fill me-1"></i>No objectives are off track.</div>
+                            }
+                            else
+                            {
+                                <div class="small fw-semibold text-muted mb-1">Objectives needing attention</div>
+                                <div class="list-group list-group-flush">
+                                    @foreach (var obj in _strategy.AtRiskObjectives)
+                                    {
+                                        <a href="strategy/scorecards/@_strategy.ScorecardId"
+                                           class="list-group-item list-group-item-action d-flex align-items-center gap-2 px-0 py-1 border-0">
+                                            <span class="rounded-circle flex-shrink-0 @(obj.Rag == "Red" ? "bg-danger" : "bg-warning")"
+                                                  style="width:.6rem;height:.6rem;display:inline-block"></span>
+                                            <span class="text-truncate">@obj.Name</span>
+                                            <span class="badge bg-light text-muted border ms-auto flex-shrink-0" style="font-size:.6rem">@obj.PerspectiveName</span>
+                                        </a>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @* ── Quick links footer ───────────────────────────────────────────────────── *@
 <div class="row g-3 mt-2">
     @foreach (var (href, icon, label) in _quickLinks)
@@ -262,6 +331,7 @@
     private List<JobResponseDto> _onHoldJobs = new();
     private List<StepExecutionResponseDto> _failedSteps = new();
     private int _activeJobsTotal;
+    private ScorecardDashboardDto? _strategy;
 
     private static readonly (string href, string icon, string label)[] _quickLinks =
     [
@@ -315,6 +385,13 @@
             _kpis["stepsInProgress"]  = stepIPResult?.TotalCount    ?? 0;
             _kpis["stepsPending"]     = stepPendResult?.TotalCount  ?? 0;
             _kpis["stepsFailed"]      = failedResult?.TotalCount    ?? 0;
+
+            // Strategy snapshot — best-effort, only when the module is enabled.
+            if (Flags.ShowStrategyTools)
+            {
+                try { _strategy = await Api.GetScorecardDashboardAsync(); }
+                catch { _strategy = null; }
+            }
         }
         catch
         {
@@ -329,6 +406,8 @@
 
     private string Kpi(string key) =>
         _loading ? "—" : (_kpis.TryGetValue(key, out var v) ? v.ToString() : "0");
+
+    private static int Pct(int part, int total) => total == 0 ? 0 : (int)Math.Round((double)part / total * 100);
 
     private static string FormatAge(DateTime dt)
     {

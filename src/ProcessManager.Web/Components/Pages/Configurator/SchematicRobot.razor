@@ -1,0 +1,126 @@
+@* Parametric SVG schematic of the 6-axis arm (ported from robot.js).
+   Link lengths scale with reach, the effector swaps by type, a 7th-axis rail
+   appears when configured, and the payload badge mirrors the arm selection. *@
+
+<svg viewBox="0 0 560 250" width="100%" style="display:block" xmlns="http://www.w3.org/2000/svg">
+    @* ground shadow + floor *@
+    <ellipse cx="280" cy="@(FloorY + 16)" rx="210" ry="11" fill="rgba(33,33,33,0.10)" />
+    <line x1="60" y1="@(FloorY + 14)" x2="500" y2="@(FloorY + 14)" stroke="#d4d4d4" stroke-width="2" />
+
+    @if (HasRail)
+    {
+        <g>
+            <rect x="100" y="@(FloorY + 2)" width="360" height="9" rx="2" fill="#3d434c" />
+            @for (var i = 0; i < 6; i++)
+            {
+                <line x1="@(118 + i * 66)" y1="@(FloorY + 2)" x2="@(118 + i * 66)" y2="@(FloorY + 11)" stroke="#5e6570" stroke-width="2" />
+            }
+            <rect x="@(Bx - 44)" y="@(FloorY - 8)" width="88" height="12" rx="3" fill="#2b2f36" />
+        </g>
+    }
+
+    @* pedestal *@
+    <path d="@PedestalPath" fill="@Color" stroke="rgba(0,0,0,0.25)" stroke-width="1.5" stroke-linejoin="round" />
+    <rect x="@(Bx - 30)" y="@(PedTop - 10)" width="60" height="14" rx="4" fill="@Color" stroke="rgba(0,0,0,0.25)" stroke-width="1.2" />
+
+    @* arm links *@
+    <line x1="@F(J1x)" y1="@F(J1y)" x2="@F(J2x)" y2="@F(J2y)" stroke="@Color" stroke-width="26" stroke-linecap="round" />
+    <line x1="@F(J1x)" y1="@F(J1y)" x2="@F(J2x)" y2="@F(J2y)" stroke="rgba(0,0,0,0.25)" stroke-width="26" stroke-linecap="round" opacity="0.18" />
+    <line x1="@F(J2x)" y1="@F(J2y)" x2="@F(J3x)" y2="@F(J3y)" stroke="@Color" stroke-width="19" stroke-linecap="round" />
+
+    @* joints *@
+    @Joint(J1x, J1y, 17)
+    @Joint(J2x, J2y, 13)
+    @Joint(J3x, J3y, 9)
+
+    @* end effector *@
+    @EffectorGlyph()
+
+    @* payload badge *@
+    <g>
+        <rect x="250" y="228" width="62" height="20" rx="10" fill="@BadgeFill" />
+        <text x="281" y="242" text-anchor="middle" font-size="11" font-weight="700" font-family="'IBM Plex Mono', monospace" fill="#fff">@Badge</text>
+    </g>
+</svg>
+
+@code {
+    [Parameter] public string Color { get; set; } = "#e95b15";
+    [Parameter] public double Reach { get; set; } = 1300;
+    [Parameter] public string Effector { get; set; } = "none";
+    [Parameter] public string Badge { get; set; } = "10 KG";
+    [Parameter] public bool HasRail { get; set; }
+
+    const double FloorY = 210;
+    double S => Math.Max(0.8, Math.Min(1.3, Reach / 1300.0));
+    double Bx => HasRail ? 210 : 240;
+    double J1x => Bx;
+    double J1y => 168;
+    double L1 => 92 * S;
+    double L2 => 128 * S;
+    double A1 => 64 * Math.PI / 180;
+    double J2x => J1x + Math.Cos(A1) * L1;
+    double J2y => J1y - Math.Sin(A1) * L1;
+    double A2 => -14 * Math.PI / 180;
+    double J3x => J2x + Math.Cos(A2) * L2;
+    double J3y => J2y - Math.Sin(A2) * L2;
+    double PedTop => J1y + 14;
+
+    string BadgeFill => Badge == "20 KG" ? "#e95b15" : Badge == "5 KG" ? "#3d3d3d" : "#529bde";
+
+    string PedestalPath
+    {
+        get
+        {
+            var top = HasRail ? FloorY - 8 : FloorY + 2;
+            return $"M{F(Bx - 42)},{F(top)} L{F(Bx + 42)},{F(top)} L{F(Bx + 26)},{F(PedTop)} L{F(Bx - 26)},{F(PedTop)} Z";
+        }
+    }
+
+    static string F(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    RenderFragment Joint(double cx, double cy, double r) => @<g>
+        <circle cx="@F(cx)" cy="@F(cy)" r="@F(r)" fill="#2b2f36" stroke="#15171b" stroke-width="1.5" />
+        <circle cx="@F(cx)" cy="@F(cy)" r="@F(r * 0.45)" fill="#9aa0a8" />
+    </g>;
+
+    RenderFragment EffectorGlyph()
+    {
+        var wx = J3x; var wy = J3y; const string g = "#3d434c";
+        switch (Effector)
+        {
+            case "grip":
+                return @<g>
+                    <rect x="@F(wx + 8)" y="@F(wy - 8)" width="12" height="16" rx="2" fill="@g" />
+                    <path d="@($"M{F(wx + 20)},{F(wy - 8)} h16 l4,5 h-20 Z")" fill="#5e6570" />
+                    <path d="@($"M{F(wx + 20)},{F(wy + 8)} h16 l4,-5 h-20 Z")" fill="#5e6570" />
+                </g>;
+            case "vac":
+                return @<g>
+                    <rect x="@F(wx + 8)" y="@F(wy - 14)" width="8" height="28" rx="2" fill="@g" />
+                    @foreach (var dy in new[] { -10, -3, 4, 11 })
+                    {
+                        <line x1="@F(wx + 16)" y1="@F(wy + dy + 1.5)" x2="@F(wx + 24)" y2="@F(wy + dy + 1.5)" stroke="@g" stroke-width="2" />
+                        <path d="@($"M{F(wx + 24)},{F(wy + dy - 2)} q7,3.5 0,7 Z")" fill="#5e6570" />
+                    }
+                </g>;
+            case "weld":
+                return @<g>
+                    <rect x="@F(wx + 8)" y="@F(wy - 5)" width="14" height="10" rx="2" fill="@g" />
+                    <line x1="@F(wx + 22)" y1="@F(wy)" x2="@F(wx + 38)" y2="@F(wy + 10)" stroke="#5e6570" stroke-width="5" stroke-linecap="round" />
+                    <circle cx="@F(wx + 41)" cy="@F(wy + 12)" r="3.5" fill="#f1c40f" />
+                    @foreach (var (dx, dy) in new[] { (8, 2), (10, -4), (4, -8) })
+                    {
+                        <line x1="@F(wx + 41)" y1="@F(wy + 12)" x2="@F(wx + 41 + dx)" y2="@F(wy + 12 + dy)" stroke="#e95b15" stroke-width="1.6" stroke-linecap="round" />
+                    }
+                </g>;
+            default:
+                return @<g>
+                    <rect x="@F(wx + 8)" y="@F(wy - 9)" width="6" height="18" rx="1.5" fill="@g" />
+                    @foreach (var dy in new[] { -5, 0, 5 })
+                    {
+                        <circle cx="@F(wx + 11)" cy="@F(wy + dy)" r="1.3" fill="#9aa0a8" />
+                    }
+                </g>;
+        }
+    }
+}

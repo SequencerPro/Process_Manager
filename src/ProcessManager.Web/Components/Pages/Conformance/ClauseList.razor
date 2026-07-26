@@ -1,0 +1,284 @@
+@page "/conformance/clauses"
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Standards Clauses — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-list-check me-2 text-primary"></i>Standards Clauses</h3>
+        <p class="text-muted small mb-0 d-none d-md-block">Browse clause requirements, coverage status, and evidence links</p>
+    </div>
+    <div class="d-flex gap-2">
+        <select class="form-select form-select-sm" style="width:auto" @onchange="OnStandardFilter">
+            <option value="">All Standards</option>
+            <option value="Iso9001_2015">ISO 9001:2015</option>
+            <option value="As9100RevD">AS9100 Rev D</option>
+        </select>
+        <button class="btn btn-sm btn-outline-secondary" @onclick="LoadData" disabled="@_loading">
+            <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "") me-1"></i>Refresh
+        </button>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_clauses is not null)
+{
+    <div class="card shadow-sm mb-3">
+        <div class="card-body py-2 d-flex flex-wrap gap-3 small text-muted">
+            <span>@_clauses.Count clauses</span>
+            <span class="badge bg-success">@_clauses.Count(c => c.CoverageStatus == "Covered") Covered</span>
+            <span class="badge bg-warning text-dark">@_clauses.Count(c => c.CoverageStatus == "PartialCoverage") Partial</span>
+            <span class="badge bg-secondary">@_clauses.Count(c => c.CoverageStatus == "Gap") Gap</span>
+            <span class="badge bg-danger">@_clauses.Count(c => c.CoverageStatus == "OpenMajorFinding") Major Finding</span>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:100px">Clause</th>
+                    <th>Title</th>
+                    <th class="col-hide-mobile">Standard</th>
+                    <th class="text-center" style="width:80px">Evidence</th>
+                    <th class="text-center" style="width:120px">Coverage</th>
+                    <th style="width:60px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var c in _clauses)
+                {
+                    <tr>
+                        <td class="fw-semibold">@c.ClauseNumber</td>
+                        <td>
+                            @c.Title
+                            @if (c.IsAs9100Addition)
+                            {
+                                <span class="badge bg-info ms-1" style="font-size:.6rem">AS9100</span>
+                            }
+                        </td>
+                        <td class="col-hide-mobile small text-muted">@FormatStandard(c.Standard)</td>
+                        <td class="text-center">
+                            @if (c.EvidenceLinkCount > 0)
+                            {
+                                <span class="badge bg-primary rounded-pill">@c.EvidenceLinkCount</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                        </td>
+                        <td class="text-center">
+                            <span class="badge @CoverageBadge(c.CoverageStatus)">@FormatCoverage(c.CoverageStatus)</span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectClause(c.Id)">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @* ── Clause Detail Side Panel ── *@
+    @if (_selectedClause is not null)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <span class="badge @CoverageBadge(_selectedClause.CoverageStatus) me-2">@_selectedClause.ClauseNumber</span>
+                            @_selectedClause.Title
+                        </h5>
+                        <button type="button" class="btn-close" @onclick="() => _selectedClause = null"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>@_selectedClause.RequirementSummary</p>
+
+                        <div class="d-flex gap-3 mb-3 small">
+                            <span>Evidence: <strong>@_selectedClause.EvidenceLinkCount</strong></span>
+                            <span>Open Findings: <strong>@_selectedClause.OpenFindingCount</strong></span>
+                        </div>
+
+                        <h6 class="fw-semibold mt-4"><i class="bi bi-link-45deg me-1"></i>Evidence Links</h6>
+                        @if (_evidenceLinks is null)
+                        {
+                            <div class="text-muted small">Loading evidence…</div>
+                        }
+                        else if (_evidenceLinks.Count == 0)
+                        {
+                            <div class="text-muted small mb-2">No evidence linked yet.</div>
+                        }
+                        else
+                        {
+                            <ul class="list-group list-group-flush small mb-3">
+                                @foreach (var link in _evidenceLinks)
+                                {
+                                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <div>
+                                            <span class="badge bg-light text-dark border me-1">@link.EntityType</span>
+                                            @(link.EntityName ?? link.EntityId.ToString())
+                                            @if (link.IsAutoLinked)
+                                            {
+                                                <span class="badge bg-secondary ms-1" style="font-size:.55rem">Auto</span>
+                                            }
+                                            @if (!string.IsNullOrEmpty(link.EvidenceNote))
+                                            {
+                                                <div class="text-muted" style="font-size:.75rem">@link.EvidenceNote</div>
+                                            }
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteEvidenceLink(link)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </li>
+                                }
+                            </ul>
+                        }
+
+                        @* ── Add Evidence Link ── *@
+                        <div class="card bg-light mt-2">
+                            <div class="card-body py-2">
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1">Entity Type</label>
+                                        <select class="form-select form-select-sm" @bind="_newLinkType">
+                                            <option value="">Select…</option>
+                                            <option value="Process">Process</option>
+                                            <option value="QmsDocument">QMS Document</option>
+                                            <option value="ControlPlan">Control Plan</option>
+                                            <option value="Pfmea">PFMEA</option>
+                                            <option value="ManagementReview">Mgmt Review</option>
+                                            <option value="NonConformance">NC</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label small mb-1">Entity ID</label>
+                                        <input class="form-control form-control-sm" @bind="_newLinkEntityId" placeholder="GUID" />
+                                    </div>
+                                    <div class="col-md-4">
+                                        <button class="btn btn-sm btn-primary w-100" @onclick="AddEvidenceLink"
+                                                disabled="@(string.IsNullOrEmpty(_newLinkType) || string.IsNullOrEmpty(_newLinkEntityId))">
+                                            <i class="bi bi-plus-lg me-1"></i>Add Link
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="mt-1">
+                                    <input class="form-control form-control-sm" @bind="_newLinkNote" placeholder="Evidence note (optional)" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <div class="text-muted text-center py-5">No clauses found. Run the data seeder to populate standards clauses.</div>
+}
+
+@code {
+    private List<StandardsClauseSummaryDto>? _clauses;
+    private StandardsClauseDto? _selectedClause;
+    private List<ClauseEvidenceLinkDto>? _evidenceLinks;
+    private bool _loading = true;
+    private string? _standardFilter;
+
+    private string _newLinkType = "";
+    private string _newLinkEntityId = "";
+    private string _newLinkNote = "";
+
+    [SupplyParameterFromQuery(Name = "clause")]
+    public string? ClauseIdParam { get; set; }
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Guid.TryParse(ClauseIdParam, out var cid) && (_selectedClause is null || _selectedClause.Id != cid))
+            await SelectClause(cid);
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try { _clauses = await Api.GetStandardsClausesAsync(_standardFilter); } catch { }
+        _loading = false;
+    }
+
+    private async Task OnStandardFilter(ChangeEventArgs e)
+    {
+        _standardFilter = e.Value?.ToString();
+        await LoadData();
+    }
+
+    private async Task SelectClause(Guid id)
+    {
+        try
+        {
+            _selectedClause = await Api.GetStandardsClauseAsync(id);
+            _evidenceLinks = await Api.GetClauseEvidenceLinksAsync(id);
+        }
+        catch { }
+    }
+
+    private async Task AddEvidenceLink()
+    {
+        if (_selectedClause is null || string.IsNullOrEmpty(_newLinkType) || !Guid.TryParse(_newLinkEntityId, out var eid)) return;
+        try
+        {
+            var dto = new CreateClauseEvidenceLinkDto(_selectedClause.Id, _newLinkType, eid, string.IsNullOrWhiteSpace(_newLinkNote) ? null : _newLinkNote);
+            await Api.AddClauseEvidenceLinkAsync(_selectedClause.Id, dto);
+            _newLinkType = ""; _newLinkEntityId = ""; _newLinkNote = "";
+            await SelectClause(_selectedClause.Id);
+            await LoadData();
+        }
+        catch { }
+    }
+
+    private async Task DeleteEvidenceLink(ClauseEvidenceLinkDto link)
+    {
+        try
+        {
+            await Api.DeleteClauseEvidenceLinkAsync(link.ClauseId, link.Id);
+            await SelectClause(link.ClauseId);
+            await LoadData();
+        }
+        catch { }
+    }
+
+    private static string CoverageBadge(string status) => status switch
+    {
+        "Covered" => "bg-success",
+        "PartialCoverage" => "bg-warning text-dark",
+        "Gap" => "bg-secondary",
+        "OpenMajorFinding" => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private static string FormatCoverage(string status) => status switch
+    {
+        "PartialCoverage" => "Partial",
+        "OpenMajorFinding" => "Major Finding",
+        _ => status
+    };
+
+    private static string FormatStandard(string s) => s switch
+    {
+        "Iso9001_2015" => "ISO 9001:2015",
+        "As9100RevD" => "AS9100 Rev D",
+        _ => s
+    };
+}

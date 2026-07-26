@@ -8,6 +8,7 @@
 | 0.2     | 2026-02-22 | Added RoutingType clarification; minor wording updates to reflect implemented system |
 | 0.3     | 2026-02-27 | Extended Port model with PortType (Material, Parameter, Characteristic, Condition); updated §1.4, §1.5, §6 |
 | 0.4     | 2026-03-15 | Added §3.5 Workorder; updated §7 vocabulary mapping |
+| 0.5     | 2026-06-09 | Added §8 Strategy Concepts (Balanced Scorecard) for Phase 50 |
 
 ---
 
@@ -258,3 +259,37 @@ The system uses generic terms internally. These are mapped to domain-specific la
 | Workflow        | Process Flow     | Value Stream          | Procedure        |
 | Process         | Process          | Process               | Process          |
 | Step            | Operation        | Operation             | Task             |
+
+---
+
+## 8. Strategy Concepts (Balanced Scorecard — Phase 50)
+
+Terms from Kaplan & Norton's Balanced Scorecard as used in the Strategy module.
+
+### 8.1 Scorecard
+
+The top-level strategy container for an organization (or business unit): mission, vision, and a set of **Perspectives**. The strategic counterpart to a Workflow — it organizes intent rather than work.
+
+### 8.2 Perspective
+
+A bucket of strategic objectives representing one lens on the business. The four Kaplan-Norton defaults are **Financial**, **Customer**, **Internal Business Process**, and **Learning & Growth**, seeded on creation but customizable (the four perspectives are a template, not a straitjacket).
+
+### 8.3 Strategic Objective
+
+A concise statement of something the strategy must achieve, owned by an **OrgUnit**, living in exactly one Perspective. Objectives are connected by cause-and-effect links and realized by linked **Processes**, **Workflows**, and **Initiatives**.
+
+### 8.4 Measure
+
+A quantified indicator on an Objective with a baseline, a **Target**, and Green/Red thresholds (RAG status). A Measure is either entered manually or resolved live from operational data — e.g., the **yield** of a linked Process (good-grade output ÷ input), a step **maturity score**, SPC Cpk, action-item close rate, OEE, training compliance, or cost of quality. A linked Process's yield can be read as the maturity of the Objective it serves.
+
+### 8.5 Target
+
+The value a Measure should reach, interpreted by direction (higher-is-better, lower-is-better, or target-is-best).
+
+### 8.6 Initiative
+
+A discrete action launched to close the gap between a Measure's current value and its Target. Implemented as an **ActionItem** with `SourceType = StrategicObjective` — it inherits assignment, due dates, and two-step verification from the Accountability module.
+
+### 8.7 Strategy Map
+
+The directed graph of cause-and-effect links between Objectives, drawn with Perspectives as layers: Learning & Growth drives Internal Process, which drives Customer outcomes, which drive Financial results.

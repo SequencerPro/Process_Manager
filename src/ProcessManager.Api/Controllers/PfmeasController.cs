@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProcessManager.Api.Data;
 using ProcessManager.Api.DTOs;
+using ProcessManager.Api.Services;
 using ProcessManager.Domain.Entities;
 
 namespace ProcessManager.Api.Controllers;
@@ -13,7 +14,18 @@ namespace ProcessManager.Api.Controllers;
 public class PfmeasController : ControllerBase
 {
     private readonly ProcessManagerDbContext _db;
-    public PfmeasController(ProcessManagerDbContext db) => _db = db;
+    private readonly IUsageMeteringService _usageMetering;
+    private readonly IWebHostEnvironment _env;
+
+    public PfmeasController(
+        ProcessManagerDbContext db,
+        IUsageMeteringService usageMetering,
+        IWebHostEnvironment env)
+    {
+        _db = db;
+        _usageMetering = usageMetering;
+        _env = env;
+    }
 
     // ─── PFMEA CRUD ────────────────────────────────────────────────────────
 
@@ -337,6 +349,25 @@ public class PfmeasController : ControllerBase
 
         var result = await LoadPfmea(pfmeaId);
         return Ok(MapToDto(result!));
+    }
+
+    // ─── PDF Export ─────────────────────────────────────────────────────
+
+    [HttpGet("{id:guid}/pdf")]
+    public async Task<IActionResult> ExportPdf(Guid id)
+    {
+        var pfmea = await LoadPfmea(id);
+        if (pfmea is null) return NotFound();
+
+        var dto = MapToDto(pfmea);
+        var branding = await _db.TenantBrandings.FirstOrDefaultAsync();
+        var logoBytes = await TenantLogoLoader.LoadAsync(_env, branding);
+        var pdfBytes = Services.PfmeaPdfGenerator.Generate(dto, branding, logoBytes);
+
+        await _usageMetering.IncrementAsync(UsageMetricType.PdfExports);
+
+        return File(pdfBytes, "application/pdf",
+            $"PFMEA-{pfmea.Code.Replace(" ", "_")}.pdf");
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────

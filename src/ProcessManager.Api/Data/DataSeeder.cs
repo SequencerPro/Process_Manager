@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using ProcessManager.Domain.Entities;
 using ProcessManager.Domain.Enums;
 
@@ -3213,6 +3214,241 @@ public static class DataSeeder
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // Phase 17 — Standards Conformance: clause register + auto-link seeder
+    // ═══════════════════════════════════════════════════════════════════════
+
+    public static async Task SeedStandardsClausesAsync(ProcessManagerDbContext db)
+    {
+        if (db.StandardsClauses.Any(c => c.ClauseNumber == "4.1")) return;
+
+        var now = DateTime.UtcNow;
+        var clauses = new List<StandardsClause>();
+
+        void Add(ConformanceStandard std, string number, string title, string summary, bool as9100Only = false)
+        {
+            clauses.Add(new StandardsClause
+            {
+                Id = Guid.NewGuid(), CreatedAt = now, UpdatedAt = now,
+                Standard = std, ClauseNumber = number, Title = title,
+                RequirementSummary = summary, IsAs9100Addition = as9100Only
+            });
+        }
+
+        var iso = ConformanceStandard.Iso9001_2015;
+
+        // ── ISO 9001:2015 clauses 4–10 ──────────────────────────────────
+        Add(iso, "4.1", "Understanding the Organization and Its Context",
+            "Determine external and internal issues relevant to the QMS purpose and strategic direction.");
+        Add(iso, "4.2", "Understanding the Needs and Expectations of Interested Parties",
+            "Determine interested parties relevant to the QMS and their requirements.");
+        Add(iso, "4.3", "Determining the Scope of the QMS",
+            "Determine the boundaries and applicability of the QMS, considering internal/external issues and interested party requirements.");
+        Add(iso, "4.4", "Quality Management System and Its Processes",
+            "Establish, implement, maintain and continually improve the QMS including needed processes and their interactions.");
+
+        Add(iso, "5.1", "Leadership and Commitment",
+            "Top management shall demonstrate leadership and commitment to the QMS, ensuring quality policy, objectives, resources, and continual improvement.");
+        Add(iso, "5.2", "Quality Policy",
+            "Top management shall establish, implement and maintain a quality policy appropriate to the organization's purpose and context.");
+        Add(iso, "5.3", "Organizational Roles, Responsibilities and Authorities",
+            "Top management shall ensure responsibilities and authorities for relevant roles are assigned, communicated and understood.");
+
+        Add(iso, "6.1", "Actions to Address Risks and Opportunities",
+            "Plan actions to address risks and opportunities related to the QMS, integrate them into QMS processes, and evaluate their effectiveness.");
+        Add(iso, "6.2", "Quality Objectives and Planning to Achieve Them",
+            "Establish quality objectives at relevant functions, levels and processes; plan how to achieve them.");
+        Add(iso, "6.3", "Planning of Changes",
+            "When changes to the QMS are needed, carry them out in a planned manner considering purpose, integrity, resources and responsibilities.");
+
+        Add(iso, "7.1", "Resources",
+            "Determine and provide resources needed for the QMS including people, infrastructure, environment, monitoring/measuring resources, and organizational knowledge.");
+        Add(iso, "7.1.5", "Monitoring and Measuring Resources",
+            "Determine and provide resources needed to ensure valid and reliable monitoring and measurement results, including calibration.");
+        Add(iso, "7.1.6", "Organizational Knowledge",
+            "Determine the knowledge necessary for the operation of processes and achievement of conformity of products and services.");
+        Add(iso, "7.2", "Competence",
+            "Determine necessary competence of persons doing work affecting QMS performance, ensure they are competent, and retain documented information as evidence.");
+        Add(iso, "7.3", "Awareness",
+            "Ensure persons doing work under the organization's control are aware of the quality policy, objectives, their contribution, and implications of not conforming.");
+        Add(iso, "7.4", "Communication",
+            "Determine internal and external communications relevant to the QMS including what, when, with whom, how, and who communicates.");
+        Add(iso, "7.5", "Documented Information",
+            "The QMS shall include documented information required by the standard and determined by the organization as necessary for QMS effectiveness.");
+
+        Add(iso, "8.1", "Operational Planning and Control",
+            "Plan, implement, and control processes needed to meet requirements for provision of products and services.");
+        Add(iso, "8.2", "Requirements for Products and Services",
+            "Determine and review requirements related to products and services, including customer communication and changes to requirements.");
+        Add(iso, "8.3", "Design and Development of Products and Services",
+            "Establish, implement and maintain a design and development process, including planning, inputs, controls, outputs, and changes.");
+        Add(iso, "8.4", "Control of Externally Provided Processes, Products and Services",
+            "Ensure externally provided processes, products and services conform to requirements through evaluation, selection, monitoring and re-evaluation of external providers.");
+        Add(iso, "8.5", "Production and Service Provision",
+            "Implement production and service provision under controlled conditions including documented information, monitoring, infrastructure, competent persons, validation, and traceability.");
+        Add(iso, "8.5.1", "Control of Production and Service Provision",
+            "Implement controlled conditions for production and service provision including availability of documented information defining characteristics.");
+        Add(iso, "8.5.2", "Identification and Traceability",
+            "Use suitable means to identify outputs and their status with respect to monitoring and measurement requirements throughout production and service provision.");
+        Add(iso, "8.5.3", "Property Belonging to Customers or External Providers",
+            "Exercise care with property belonging to customers or external providers while under the organization's control or use.");
+        Add(iso, "8.5.4", "Preservation",
+            "Preserve the outputs during production and service provision to ensure conformity to requirements.");
+        Add(iso, "8.5.5", "Post-Delivery Activities",
+            "Meet requirements for post-delivery activities associated with products and services.");
+        Add(iso, "8.5.6", "Control of Changes",
+            "Review and control changes for production or service provision to ensure continuing conformity with requirements.");
+        Add(iso, "8.6", "Release of Products and Services",
+            "Implement planned arrangements to verify that product and service requirements have been met, retaining documented information on release.");
+        Add(iso, "8.7", "Control of Nonconforming Outputs",
+            "Ensure outputs that do not conform to requirements are identified and controlled to prevent unintended use or delivery.");
+
+        Add(iso, "9.1", "Monitoring, Measurement, Analysis and Evaluation",
+            "Determine what needs to be monitored and measured, and the methods for analysis and evaluation to ensure valid results.");
+        Add(iso, "9.1.2", "Customer Satisfaction",
+            "Monitor customers' perceptions of the degree to which their needs and expectations have been fulfilled.");
+        Add(iso, "9.1.3", "Analysis and Evaluation",
+            "Analyse and evaluate appropriate data and information arising from monitoring and measurement.");
+        Add(iso, "9.2", "Internal Audit",
+            "Conduct internal audits at planned intervals to provide information on whether the QMS conforms to requirements and is effectively implemented and maintained.");
+        Add(iso, "9.3", "Management Review",
+            "Top management shall review the QMS at planned intervals to ensure its continuing suitability, adequacy, effectiveness and alignment with strategic direction.");
+
+        Add(iso, "10.1", "General — Improvement",
+            "Determine and select opportunities for improvement and implement necessary actions to meet customer requirements and enhance satisfaction.");
+        Add(iso, "10.2", "Nonconformity and Corrective Action",
+            "React to nonconformities, evaluate the need for action to eliminate the cause, implement action needed, review effectiveness, and update risks/opportunities.");
+        Add(iso, "10.3", "Continual Improvement",
+            "Continually improve the suitability, adequacy and effectiveness of the QMS considering analysis, evaluation, and management review outputs.");
+
+        // ── AS9100 Rev D additions ──────────────────────────────────────
+        var as9 = ConformanceStandard.As9100RevD;
+
+        Add(as9, "8.1.1", "Operational Risk Management",
+            "Plan, implement and control a process for managing operational risks to achieve applicable requirements.", true);
+        Add(as9, "8.1.2", "Configuration Management",
+            "Plan, implement and control a configuration management process appropriate to the organization and its products.", true);
+        Add(as9, "8.1.3", "Product Safety",
+            "Plan, implement and control processes needed to assure product safety during the product life cycle.", true);
+        Add(as9, "8.1.4", "Prevention of Counterfeit Parts",
+            "Plan, implement and control processes appropriate to the organization and its products for the prevention of counterfeit or suspect counterfeit part use.", true);
+        Add(as9, "8.4.3", "Information for External Providers (AS9100)",
+            "Communicate applicable requirements to external providers including approval of products, processes, methods, equipment, and release; competence and qualifications of personnel; QMS requirements.", true);
+        Add(as9, "8.5.1.3", "Production Process Verification",
+            "Implement production process verification activities to ensure that the production process is capable of producing parts that meet requirements.", true);
+        Add(as9, "8.5.2.1", "Identification and Traceability — AS9100",
+            "Maintain identification of configuration of products and services to identify any differences between actual configuration and required configuration.", true);
+        Add(as9, "8.5.4.1", "Preservation — AS9100",
+            "Include provisions for handling, packaging, and prevention of damage and deterioration as applicable to the products.", true);
+        Add(as9, "8.5.5.1", "Post-Delivery — AS9100",
+            "Collection and analysis of in-service data, actions from data including investigation and reporting, and communication with interested parties.", true);
+        Add(as9, "8.7.1", "Nonconforming Outputs — AS9100",
+            "Additional requirements: timely reporting of delivered nonconforming products; disposition by authorized personnel; use-as-is and repair concession by customer when required.", true);
+
+        db.StandardsClauses.AddRange(clauses);
+        await db.SaveChangesAsync();
+
+        // ── Auto-link QMS documents to their governing clauses ──────────
+        await SeedClauseEvidenceLinksAsync(db, clauses);
+    }
+
+    private static async Task SeedClauseEvidenceLinksAsync(
+        ProcessManagerDbContext db,
+        List<StandardsClause> clauses)
+    {
+        var clauseMap = clauses.ToDictionary(c => c.ClauseNumber, c => c.Id);
+        var links = new List<ClauseEvidenceLink>();
+        var now = DateTime.UtcNow;
+
+        var qmsDocs = await db.Processes
+            .Where(p => p.ProcessRole == ProcessRole.QmsDocument && p.Status == ProcessStatus.Released)
+            .Select(p => new { p.Id, p.Code })
+            .ToListAsync();
+
+        var qmsMap = qmsDocs.ToDictionary(d => d.Code, d => d.Id);
+
+        void Link(string clauseNumber, ClauseEvidenceEntityType entityType, Guid entityId, string? note = null)
+        {
+            if (!clauseMap.ContainsKey(clauseNumber)) return;
+            links.Add(new ClauseEvidenceLink
+            {
+                Id = Guid.NewGuid(), CreatedAt = now, UpdatedAt = now,
+                ClauseId = clauseMap[clauseNumber],
+                EntityType = entityType,
+                EntityId = entityId,
+                EvidenceNote = note,
+                IsAutoLinked = true
+            });
+        }
+
+        void LinkQms(string clauseNumber, string qmsCode, string? note = null)
+        {
+            if (qmsMap.TryGetValue(qmsCode, out var id))
+                Link(clauseNumber, ClauseEvidenceEntityType.QmsDocument, id, note);
+        }
+
+        // Auto-link seeded QMS documents to clauses
+        LinkQms("4.1", "QMS-001", "Defines QMS scope and organizational context");
+        LinkQms("4.2", "QMS-004", "Quality Manual covers interested party requirements");
+        LinkQms("5.2", "QMS-002", "Quality Policy document");
+        LinkQms("6.1", "QMS-005", "Risk Management procedure");
+        LinkQms("6.2", "QMS-003", "Quality Objectives document");
+        LinkQms("7.1.5", "QMS-008", "Calibration procedure");
+        LinkQms("7.2", "QMS-007", "Competence and Training procedure");
+        LinkQms("7.3", "QMS-007", "Awareness — covered by training procedure");
+        LinkQms("7.5", "QMS-006", "Document Control procedure");
+        LinkQms("8.2", "QMS-009", "Customer Communication procedure");
+        LinkQms("8.2", "QMS-010", "Requirements Review procedure");
+        LinkQms("8.3", "QMS-011", "Design and Development procedure");
+        LinkQms("8.4", "QMS-012", "Supplier Control procedure");
+        LinkQms("8.5", "QMS-013", "Production Planning procedure");
+        LinkQms("8.6", "QMS-014", "Inspection and Testing procedure");
+        LinkQms("8.7", "QMS-016", "Nonconformance Control procedure");
+        LinkQms("9.1.2", "QMS-017", "Customer Satisfaction procedure");
+        LinkQms("9.2", "QMS-018", "Internal Audit procedure");
+        LinkQms("9.3", "QMS-019", "Management Review procedure");
+        LinkQms("10.2", "QMS-020", "Corrective Action procedure");
+
+        // Auto-link released manufacturing processes to clause 8.5
+        var mfgProcesses = await db.Processes
+            .Where(p => p.ProcessRole == ProcessRole.ManufacturingProcess && p.Status == ProcessStatus.Released)
+            .Select(p => p.Id)
+            .ToListAsync();
+
+        foreach (var pid in mfgProcesses)
+            Link("8.5", ClauseEvidenceEntityType.Process, pid);
+
+        // Auto-link control plans to clause 8.6
+        var controlPlans = await db.ControlPlans
+            .Select(c => c.Id)
+            .ToListAsync();
+
+        foreach (var cpId in controlPlans)
+            Link("8.6", ClauseEvidenceEntityType.ControlPlan, cpId);
+
+        // Auto-link non-conformances to clause 8.7
+        var ncs = await db.NonConformances
+            .Select(n => n.Id)
+            .ToListAsync();
+
+        foreach (var ncId in ncs)
+            Link("8.7", ClauseEvidenceEntityType.NonConformance, ncId);
+
+        // Auto-link management reviews to clause 9.3
+        var reviews = await db.ManagementReviews
+            .Select(r => r.Id)
+            .ToListAsync();
+
+        foreach (var rId in reviews)
+            Link("9.3", ClauseEvidenceEntityType.ManagementReview, rId);
+
+        if (links.Count > 0)
+        {
+            db.ClauseEvidenceLinks.AddRange(links);
+            await db.SaveChangesAsync();
+        }
+    }
+
     private static DateTime Utc(int daysOffset) =>
         DateTime.UtcNow.AddDays(daysOffset);
 
@@ -3246,6 +3482,490 @@ public static class DataSeeder
                 job.Id, steps[i], i + 1,
                 StepExecutionStatus.Completed, stepStart, stepEnd));
         }
+    }
+
+    // =========================================================================
+    // M2 — Onboarding sample content
+    // =========================================================================
+
+    /// <summary>IDs of the seeded sample artifacts — returned so the caller can store them on onboarding state.</summary>
+    public record SampleProcessIds(Guid KindId, Guid StepTemplateId, Guid ProcessId);
+
+    /// <summary>Default domain-vocabulary name for a signup industry choice.</summary>
+    public static string ResolveDefaultVocabularyName(OnboardingIndustry industry) => industry switch
+    {
+        OnboardingIndustry.CNC     => "CNC Machining",
+        OnboardingIndustry.PCBA    => "PCB Assembly",
+        OnboardingIndustry.Medical => "Medical Device",
+        _                          => "General Manufacturing"
+    };
+
+    /// <summary>Default "Kind" label for a signup industry choice.</summary>
+    public static string ResolveDefaultKindLabel(OnboardingIndustry industry) => industry switch
+    {
+        OnboardingIndustry.CNC     => "Part",
+        OnboardingIndustry.PCBA    => "Board",
+        OnboardingIndustry.Medical => "Device",
+        _                          => "Part"
+    };
+
+    /// <summary>
+    /// Seed a tiny, runnable sample: one Kind (with default Grade), one StepTemplate
+    /// (input Material port + Inspection prompt + output Material port), one Process
+    /// containing that single step, all in Released state. Returns the IDs so the
+    /// onboarding wizard can deep-link to them.
+    ///
+    /// The <paramref name="tenantId"/> is honoured via the tenant context scope the
+    /// caller has already opened; we still set it explicitly to be robust against
+    /// callers that do not wrap the call in a scope.
+    /// </summary>
+    public static async Task<SampleProcessIds> SeedSampleProcessAsync(
+        ProcessManagerDbContext db,
+        OnboardingIndustry industry,
+        Guid tenantId)
+    {
+        // Industry-specific labels. Codes carry the tenant suffix to avoid clashes
+        // because Code uniqueness is enforced across rows without tenant awareness.
+        var (kindCode, kindName, kindDesc, stepCode, stepName, procCode, procName, inspectLabel, units, min, max, nominal) = industry switch
+        {
+            OnboardingIndustry.CNC => (
+                "SAMPLE-SHAFT", "Sample Shaft", "A demo CNC-turned shaft used by the onboarding wizard.",
+                "SAMPLE-TURN", "Turn Outside Diameter",
+                "SAMPLE-PROC", "Sample Shaft Turning",
+                "Outside diameter (mm)", "mm", 9.95m, 10.05m, 10.00m),
+            OnboardingIndustry.PCBA => (
+                "SAMPLE-PCB", "Sample PCB", "A demo PCB panel used by the onboarding wizard.",
+                "SAMPLE-AOI", "Automated Optical Inspection",
+                "SAMPLE-PROC", "Sample PCB Inspection",
+                "AOI defect count", "defects", 0m, 0m, 0m),
+            OnboardingIndustry.Medical => (
+                "SAMPLE-DEV", "Sample Device", "A demo medical device used by the onboarding wizard.",
+                "SAMPLE-QC", "Final QC Inspection",
+                "SAMPLE-PROC", "Sample Device Final QC",
+                "Leak test pressure (kPa)", "kPa", 98.0m, 102.0m, 100.0m),
+            _ => (
+                "SAMPLE-WIDGET", "Sample Widget", "A demo widget used by the onboarding wizard.",
+                "SAMPLE-INSP", "Widget Inspection",
+                "SAMPLE-PROC", "Sample Widget Inspection",
+                "Widget weight (g)", "g", 49.0m, 51.0m, 50.0m)
+        };
+
+        // Short suffix ensures re-runnability (e.g. dogfood testing) — each call
+        // creates fresh content if existing sample codes are already in the DB.
+        var suffix = tenantId.ToString()[..6].ToUpperInvariant();
+        kindCode  = $"{kindCode}-{suffix}";
+        stepCode  = $"{stepCode}-{suffix}";
+        procCode  = $"{procCode}-{suffix}";
+
+        var now = DateTime.UtcNow;
+
+        // ── Kind + default Grade ─────────────────────────────────────────────
+        var kind = new Kind
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            Code = kindCode, Name = kindName, Description = kindDesc,
+            IsSerialized = false, IsBatchable = true,
+            SourceType = KindSourceType.Make,
+            UnitOfMeasure = "Each"
+        };
+        var gradeNew = new Grade
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            KindId = kind.Id, Code = "NEW", Name = "New", IsDefault = true, SortOrder = 1
+        };
+        var gradePass = new Grade
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            KindId = kind.Id, Code = "PASS", Name = "Passed", IsDefault = false, SortOrder = 2
+        };
+        kind.Grades.Add(gradeNew);
+        kind.Grades.Add(gradePass);
+        db.Kinds.Add(kind);
+
+        // ── StepTemplate with one input port, one output port, one prompt ───
+        var step = new StepTemplate
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            Code = stepCode, Name = stepName,
+            Description = "Sample step seeded by the onboarding wizard. Safe to edit or delete.",
+            Pattern = StepPattern.Transform,
+            Version = 1, IsActive = true,
+            Status = ProcessStatus.Released,
+            IsShared = true,
+            ExpectedDurationMinutes = 5
+        };
+        var inPort = new Port
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            StepTemplateId = step.Id,
+            Name = "Incoming", Direction = PortDirection.Input, PortType = PortType.Material,
+            KindId = kind.Id, GradeId = gradeNew.Id,
+            QtyRuleMode = QuantityRuleMode.Exactly, QtyRuleN = 1,
+            SortOrder = 1
+        };
+        var outPort = new Port
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            StepTemplateId = step.Id,
+            Name = "Inspected", Direction = PortDirection.Output, PortType = PortType.Material,
+            KindId = kind.Id, GradeId = gradePass.Id,
+            QtyRuleMode = QuantityRuleMode.Exactly, QtyRuleN = 1,
+            SortOrder = 1
+        };
+        step.Ports.Add(inPort);
+        step.Ports.Add(outPort);
+
+        // One simple numeric prompt — gives the ExecutionWizard something to render.
+        var prompt = SeederStepBuilder.Numeric(step, 40, inspectLabel, units: units, min: min, max: max, nominal: nominal);
+        prompt.TenantId = tenantId;
+        step.Contents.Add(prompt);
+
+        var setup = SeederStepBuilder.Setup(step, 0,
+            "This is a sample step seeded automatically by onboarding. Modify or delete it once you've explored the wizard.");
+        setup.TenantId = tenantId;
+        step.Contents.Add(setup);
+
+        db.StepTemplates.Add(step);
+
+        // ── Process containing the single step ───────────────────────────────
+        var process = new Process
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            Code = procCode, Name = procName,
+            Description = "Sample process seeded by the onboarding wizard.",
+            Version = 1, IsActive = true,
+            Status = ProcessStatus.Released,
+            RevisionCode = "A", EffectiveDate = now
+        };
+        var processStep = new ProcessStep
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId,
+            CreatedAt = now, UpdatedAt = now,
+            ProcessId = process.Id,
+            StepTemplateId = step.Id,
+            Sequence = 1
+        };
+        process.ProcessSteps.Add(processStep);
+        db.Processes.Add(process);
+
+        await db.SaveChangesAsync();
+        return new SampleProcessIds(kind.Id, step.Id, process.Id);
+    }
+
+    /// <summary>
+    /// Phase 50: seeds a complete example Balanced Scorecard that exhibits every capability
+    /// of the strategy tool — four Kaplan-Norton perspectives, objectives in each, manual
+    /// measures with six months of snapshot history, live measures fed by a seeded process
+    /// with real execution data (yield, maturity), org-wide live measures (action close rate,
+    /// open NCs, cost of quality), process links, initiatives (ActionItems), and a full
+    /// cause-and-effect chain for the strategy map. Idempotent per tenant — re-running
+    /// returns the existing demo scorecard.
+    /// </summary>
+    public static async Task<Guid> SeedBalancedScorecardDemoAsync(ProcessManagerDbContext db, Guid tenantId)
+    {
+        var suffix = tenantId.ToString()[..6].ToUpperInvariant();
+        var scorecardCode = $"BSC-DEMO-{suffix}";
+
+        var existing = await db.Scorecards.FirstOrDefaultAsync(s => s.Code == scorecardCode);
+        if (existing is not null) return existing.Id;
+
+        var now = DateTime.UtcNow;
+
+        // ── Operational backdrop: a finished widget process with real execution data ──
+
+        var kind = new Kind
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            Code = $"BSCDEMO-WIDGET-{suffix}", Name = "Demo Precision Widget",
+            Description = "Backing part for the Balanced Scorecard demo. Safe to delete with the demo scorecard.",
+            IsSerialized = false, IsBatchable = true,
+            SourceType = KindSourceType.Make, UnitOfMeasure = "Each"
+        };
+        var gradeNew  = new Grade { Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now, KindId = kind.Id, Code = "NEW",  Name = "New",    IsDefault = true,  SortOrder = 1 };
+        var gradePass = new Grade { Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now, KindId = kind.Id, Code = "PASS", Name = "Passed", IsDefault = false, SortOrder = 2 };
+        var gradeFail = new Grade { Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now, KindId = kind.Id, Code = "FAIL", Name = "Failed", IsDefault = false, SortOrder = 3 };
+        kind.Grades.Add(gradeNew);
+        kind.Grades.Add(gradePass);
+        kind.Grades.Add(gradeFail);
+        db.Kinds.Add(kind);
+
+        var step = new StepTemplate
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            Code = $"BSCDEMO-FPI-{suffix}", Name = "Final Precision Inspection",
+            Description = "Inspection step backing the demo scorecard's yield and maturity measures.",
+            Pattern = StepPattern.Transform, Version = 1, IsActive = true,
+            Status = ProcessStatus.Released, IsShared = true, ExpectedDurationMinutes = 8
+        };
+        step.Ports.Add(new Port
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            StepTemplateId = step.Id, Name = "Incoming", Direction = PortDirection.Input,
+            PortType = PortType.Material, KindId = kind.Id, GradeId = gradeNew.Id,
+            QtyRuleMode = QuantityRuleMode.Exactly, QtyRuleN = 1, SortOrder = 1
+        });
+        step.Ports.Add(new Port
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            StepTemplateId = step.Id, Name = "Inspected", Direction = PortDirection.Output,
+            PortType = PortType.Material, KindId = kind.Id, GradeId = gradePass.Id,
+            QtyRuleMode = QuantityRuleMode.Exactly, QtyRuleN = 1, SortOrder = 1
+        });
+
+        // Content blocks so the ProcessMaturity measure scores meaningfully (Phase 8 rules).
+        var setupBlock = SeederStepBuilder.Setup(step, 0,
+            "Mount the widget in the inspection fixture and zero the gauge before measuring.");
+        setupBlock.TenantId = tenantId;
+        step.Contents.Add(setupBlock);
+        var safetyBlock = SeederStepBuilder.Safety(step, 20,
+            "Wear cut-resistant gloves when handling unfinished widgets — edges may be sharp.");
+        safetyBlock.TenantId = tenantId;
+        step.Contents.Add(safetyBlock);
+        var inspectPrompt = SeederStepBuilder.Numeric(step, 40, "Outside diameter (mm)",
+            units: "mm", min: 24.95m, max: 25.05m, nominal: 25.00m);
+        inspectPrompt.TenantId = tenantId;
+        step.Contents.Add(inspectPrompt);
+        db.StepTemplates.Add(step);
+
+        var process = new Process
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            Code = $"BSCDEMO-PROC-{suffix}", Name = "Precision Widget Finishing",
+            Description = "Demo process realizing the scorecard's first-pass-yield objective.",
+            Version = 1, IsActive = true, Status = ProcessStatus.Released,
+            RevisionCode = "A", EffectiveDate = now
+        };
+        process.ProcessSteps.Add(new ProcessStep
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            ProcessId = process.Id, StepTemplateId = step.Id, Sequence = 1
+        });
+        db.Processes.Add(process);
+
+        // A completed job with 18 passed / 2 failed items → 90 % first-pass yield.
+        var job = new Job
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            Code = $"BSCDEMO-JOB-{suffix}", Name = "Widget Finishing Run 42",
+            Description = "Demo execution run feeding the scorecard's yield measure.",
+            ProcessId = process.Id, ProcessVersion = 1,
+            Status = JobStatus.Completed, StartedAt = now.AddDays(-7), CompletedAt = now.AddDays(-6)
+        };
+        db.Jobs.Add(job);
+
+        for (var i = 0; i < 20; i++)
+        {
+            db.Items.Add(new Item
+            {
+                Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+                KindId = kind.Id, GradeId = i < 18 ? gradePass.Id : gradeFail.Id,
+                JobId = job.Id, Status = ItemStatus.Completed
+            });
+        }
+
+        // Cost-of-quality records feeding the Financial perspective (450 total, 30-day window).
+        db.QualityCosts.Add(new QualityCost
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            SourceType = QualityCostSourceType.Scrap, Amount = 320m, Currency = "USD",
+            CostCategory = QualityCostCategory.InternalFailure,
+            Description = "Demo: scrapped widgets from finishing run 42",
+            RecordedByUserId = "demo-seeder", RecordedByDisplayName = "Demo Seeder",
+            RecordedAt = now.AddDays(-10)
+        });
+        db.QualityCosts.Add(new QualityCost
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            SourceType = QualityCostSourceType.Rework, Amount = 130m, Currency = "USD",
+            CostCategory = QualityCostCategory.InternalFailure,
+            Description = "Demo: rework labor on returned widgets",
+            RecordedByUserId = "demo-seeder", RecordedByDisplayName = "Demo Seeder",
+            RecordedAt = now.AddDays(-3)
+        });
+
+        // ── The scorecard itself ─────────────────────────────────────────────
+
+        var scorecard = new Scorecard
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            Code = scorecardCode, Name = "Demo: Widget Co. Strategy",
+            MissionStatement = "Make the most reliable precision widgets in the market.",
+            VisionStatement = "Every customer order delivered on time, defect-free, at industry-leading margin.",
+            StrategyNotes = "Seeded example exhibiting all Balanced Scorecard capabilities. Safe to delete.",
+            Status = ScorecardStatus.Active
+        };
+
+        ScorecardPerspective Perspective(string name, string description, int order)
+        {
+            var p = new ScorecardPerspective
+            {
+                Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+                ScorecardId = scorecard.Id, Name = name, Description = description, SortOrder = order
+            };
+            scorecard.Perspectives.Add(p);
+            return p;
+        }
+
+        var financial = Perspective("Financial", "How do we look to shareholders?", 0);
+        var customer  = Perspective("Customer", "How do customers see us?", 1);
+        var internalP = Perspective("Internal Business Process", "What must we excel at?", 2);
+        var learning  = Perspective("Learning & Growth", "Can we continue to improve and create value?", 3);
+
+        var objSeq = 0;
+        StrategicObjective Objective(ScorecardPerspective p, string name, string description)
+        {
+            var o = new StrategicObjective
+            {
+                Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+                PerspectiveId = p.Id, Code = $"OBJ-DEMO-{suffix}-{++objSeq:D2}",
+                Name = name, Description = description,
+                Status = StrategicObjectiveStatus.Active, SortOrder = p.Objectives.Count
+            };
+            p.Objectives.Add(o);
+            return o;
+        }
+
+        ObjectiveMeasure Measure(StrategicObjective o, string name, string? units,
+            MeasureDirection direction, decimal target, decimal? green, decimal? red,
+            MeasureSourceType sourceType, Guid? sourceEntityId = null, string? sourceParameter = null)
+        {
+            var m = new ObjectiveMeasure
+            {
+                Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+                ObjectiveId = o.Id, Name = name, Units = units, Direction = direction,
+                TargetValue = target, GreenThreshold = green, RedThreshold = red,
+                SourceType = sourceType, SourceEntityId = sourceEntityId, SourceParameter = sourceParameter
+            };
+            o.Measures.Add(m);
+            return m;
+        }
+
+        void Snapshots(ObjectiveMeasure m, params decimal[] monthlyValues)
+        {
+            for (var i = 0; i < monthlyValues.Length; i++)
+            {
+                m.Snapshots.Add(new MeasureSnapshot
+                {
+                    Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+                    MeasureId = m.Id, Value = monthlyValues[i],
+                    CapturedAt = now.AddDays(-30 * (monthlyValues.Length - 1 - i)),
+                    CaptureSource = MeasureCaptureSource.Manual,
+                    Note = i == monthlyValues.Length - 1 ? "Latest monthly review" : null
+                });
+            }
+            m.BaselineValue = monthlyValues[0];
+        }
+
+        // Financial
+        var objMargin = Objective(financial, "Grow margin through quality",
+            "Reduce the cost of poor quality so finished-goods margin expands without price increases.");
+        Measure(objMargin, "Cost of quality (30-day)", "$", MeasureDirection.LowerIsBetter,
+            500m, 500m, 1000m, MeasureSourceType.QualityCost);
+        var mRevenue = Measure(objMargin, "Revenue per employee", "k$", MeasureDirection.HigherIsBetter,
+            220m, 210m, 180m, MeasureSourceType.Manual);
+        Snapshots(mRevenue, 188m, 192m, 199m, 204m, 208m, 212m);
+
+        // Customer
+        var objOnTime = Objective(customer, "Deliver on time, every time",
+            "Hit promised ship dates so customers can plan their lines around our deliveries.");
+        var mOtd = Measure(objOnTime, "On-time delivery", "%", MeasureDirection.HigherIsBetter,
+            98m, 95m, 85m, MeasureSourceType.Manual);
+        Snapshots(mOtd, 88m, 90m, 91m, 93m, 95m, 96m);
+        var objEscapes = Objective(customer, "Eliminate customer-visible defects",
+            "No defect that reaches inspection should ever reach a customer.");
+        Measure(objEscapes, "Open non-conformances", "NCs", MeasureDirection.LowerIsBetter,
+            0m, 0m, 5m, MeasureSourceType.OpenNonConformances);
+
+        // Internal Business Process
+        var objYield = Objective(internalP, "Achieve world-class first-pass yield",
+            "Finishing yield is the single best proxy for how mature this objective is — it reads live from the linked process.");
+        Measure(objYield, "Finishing first-pass yield", "%", MeasureDirection.HigherIsBetter,
+            95m, 90m, 75m, MeasureSourceType.ProcessYield, process.Id, gradePass.Id.ToString());
+        var objMature = Objective(internalP, "Mature core process documentation",
+            "Every released step carries setup, safety, and inspection content with hard limits.");
+        Measure(objMature, "Mean step maturity score", "pts", MeasureDirection.HigherIsBetter,
+            85m, 80m, 50m, MeasureSourceType.ProcessMaturity, process.Id);
+
+        // Learning & Growth
+        var objAccountable = Objective(learning, "Build a culture of accountability",
+            "Actions raised in reviews get owners, due dates, and verified closure.");
+        Measure(objAccountable, "30-day action close rate", "%", MeasureDirection.HigherIsBetter,
+            90m, 80m, 50m, MeasureSourceType.ActionCloseRate);
+        var objCertify = Objective(learning, "Grow workforce certification",
+            "Cross-train operators so every shift can run the finishing line unassisted.");
+        var mCert = Measure(objCertify, "Operators certified on finishing", "%", MeasureDirection.HigherIsBetter,
+            100m, 90m, 60m, MeasureSourceType.Manual);
+        Snapshots(mCert, 55m, 62m, 70m, 78m, 85m, 92m);
+
+        db.Scorecards.Add(scorecard);
+
+        // Link the operational work that realizes the internal-process objectives.
+        db.ObjectiveProcessLinks.Add(new ObjectiveProcessLink
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            ObjectiveId = objYield.Id, ProcessId = process.Id,
+            Note = "Finishing process whose yield expresses this objective's maturity."
+        });
+        db.ObjectiveProcessLinks.Add(new ObjectiveProcessLink
+        {
+            Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+            ObjectiveId = objMature.Id, ProcessId = process.Id,
+            Note = "Documentation maturity is scored against this process's steps."
+        });
+
+        // Initiatives: ActionItems sourced from a strategic objective (Phase 15 machinery).
+        void Initiative(string title, ActionItemStatus status, int createdDaysAgo, DateTime? completedAt)
+        {
+            db.ActionItems.Add(new ActionItem
+            {
+                Id = Guid.NewGuid(), TenantId = tenantId,
+                CreatedAt = now.AddDays(-createdDaysAgo), UpdatedAt = now,
+                Title = title,
+                Description = "Demo initiative spawned from the Balanced Scorecard example.",
+                AssignedToUserId = "demo-seeder", AssignedToDisplayName = "Demo Operator",
+                AssignedByUserId = "demo-seeder", AssignedByDisplayName = "Demo Manager",
+                DueDate = now.AddDays(7), Priority = ActionItemPriority.Medium,
+                Status = status,
+                SourceType = ActionItemSourceType.StrategicObjective,
+                SourceEntityId = objAccountable.Id,
+                CompletedAt = completedAt,
+                CompletedBy = completedAt is null ? null : "Demo Operator"
+            });
+        }
+
+        Initiative("Stand up daily yield huddle at the finishing line", ActionItemStatus.Complete, 20, now.AddDays(-12));
+        Initiative("Add hard limits to all finishing inspection prompts", ActionItemStatus.Complete, 18, now.AddDays(-9));
+        Initiative("Train second-shift operators on the OD gauge", ActionItemStatus.Complete, 14, now.AddDays(-6));
+        Initiative("Pilot SPC chart on outside-diameter readings", ActionItemStatus.Complete, 10, now.AddDays(-2));
+        Initiative("Document fixture changeover as a Setup block", ActionItemStatus.Open, 5, null);
+
+        // Cause-and-effect chain across all four perspectives (the strategy map).
+        void CauseLink(StrategicObjective source, StrategicObjective target, string description) =>
+            db.ObjectiveCauseLinks.Add(new ObjectiveCauseLink
+            {
+                Id = Guid.NewGuid(), TenantId = tenantId, CreatedAt = now, UpdatedAt = now,
+                ScorecardId = scorecard.Id,
+                SourceObjectiveId = source.Id, TargetObjectiveId = target.Id,
+                Description = description
+            });
+
+        CauseLink(objAccountable, objYield, "Verified closure of line actions removes recurring yield detractors.");
+        CauseLink(objCertify, objMature, "Certified operators surface gaps that harden work instructions.");
+        CauseLink(objMature, objYield, "Mature instructions reduce operator-induced variation.");
+        CauseLink(objYield, objOnTime, "Higher first-pass yield removes rework queues that slip ship dates.");
+        CauseLink(objYield, objEscapes, "Catching defects at finishing keeps them out of customer shipments.");
+        CauseLink(objOnTime, objMargin, "Reliable delivery wins repeat business at better prices.");
+        CauseLink(objEscapes, objMargin, "Fewer escapes cut warranty and goodwill spend.");
+
+        await db.SaveChangesAsync();
+        return scorecard.Id;
     }
 }
 

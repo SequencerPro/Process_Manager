@@ -129,6 +129,17 @@ public record ReorderStepTemplateContentBlocksDto(
     [System.ComponentModel.DataAnnotations.Required] List<Guid> OrderedIds
 );
 
+/// <summary>
+/// Phase 36.3 (T3.6) — promote a private/inline step template into the
+/// shared library so it can be reused by other processes. Optional Code/Name
+/// overrides allow renaming during promotion; both default to the existing
+/// values when null.
+/// </summary>
+public record PromoteInlineStepTemplateDto(
+    [System.ComponentModel.DataAnnotations.StringLength(50, MinimumLength = 1)] string? Code = null,
+    [System.ComponentModel.DataAnnotations.StringLength(200, MinimumLength = 1)] string? Name = null
+);
+
 /// <summary>PATCH payload for updating the ContentCategory of any block type (including images).</summary>
 public record PatchContentCategoryDto(
     string? ContentCategory,

@@ -1,0 +1,256 @@
+/* ============================================================
+   BoM / Product Configurator — SequencerPro design-system styling
+   Scoped under .bom-cfg so it never leaks into the rest of the app.
+   Tokens ported from design-system/tokens.
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Coda:wght@400;800&family=Mulish:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+.bom-cfg {
+  /* brand */
+  --gold: #f1c40f;
+  --gold-50: #fef9e7;
+  --teal: #1da086;
+  --blue: #529bde;
+  --orange: #e95b15;
+  --slate: #212121;
+  --charcoal: #3d3d3d;
+  --grey: #adadad;
+  --status-fail: #d64545;
+  /* surfaces */
+  --bg-app: #f6f6f6;
+  --bg-surface: #ffffff;
+  --bg-sunken: #f0f0f0;
+  --border-c: #e6e6e6;
+  --border-strong: #d4d4d4;
+  --text-primary: #212121;
+  --text-secondary: #5c5c5c;
+  --text-muted: #8a8a8a;
+  /* type */
+  --font-display: 'Coda', system-ui, sans-serif;
+  --font-sans: 'Mulish', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --radius-chip: 3px;
+  --radius-btn: 5px;
+  --radius: 8px;
+  --radius-modal: 12px;
+  --shadow-sm: 0 1px 3px rgba(33,33,33,.08);
+  --shadow-md: 0 4px 12px rgba(33,33,33,.10);
+
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  background: var(--bg-app);
+}
+
+.bom-cfg * { box-sizing: border-box; }
+.bom-cfg .mono { font-family: var(--font-mono); }
+
+/* ── shell ──────────────────────────────────────────────── */
+.bom-cfg .cfg-header {
+  display: flex; align-items: center; gap: 16px; padding: 10px 18px;
+  background: var(--slate); color: #fff; border-radius: var(--radius) var(--radius) 0 0;
+}
+.bom-cfg .cfg-brand-title { font-family: var(--font-display); font-weight: 800; font-size: 15px; line-height: 1.1; letter-spacing: .2px; }
+.bom-cfg .cfg-brand-sub { font-size: 11px; color: #b9b9b9; }
+.bom-cfg .cfg-tabs { display: flex; gap: 2px; background: #2f2f2f; border-radius: var(--radius-btn); padding: 3px; }
+.bom-cfg .cfg-tab {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 14px; border: none; cursor: pointer;
+  border-radius: var(--radius-chip); font-size: 13px; font-weight: 600; background: transparent; color: #c8c8c8;
+  transition: background .15s, color .15s;
+}
+.bom-cfg .cfg-tab:hover { color: #fff; }
+.bom-cfg .cfg-tab.on { background: var(--gold); color: var(--slate); }
+.bom-cfg .cfg-msrp { font-size: 12px; color: #cfcfcf; }
+.bom-cfg .cfg-msrp b { font-family: var(--font-mono); color: #fff; }
+
+/* ── layout ─────────────────────────────────────────────── */
+.bom-cfg .cfg-body { display: grid; grid-template-columns: 210px 1fr 340px; gap: 0; background: var(--bg-app); min-height: 620px; border: 1px solid var(--border-c); border-top: none; border-radius: 0 0 var(--radius) var(--radius); overflow: hidden; }
+.bom-cfg .cfg-stepper { border-right: 1px solid var(--border-c); background: var(--bg-surface); padding: 12px 8px; overflow-y: auto; }
+.bom-cfg .cfg-center { padding: 16px 18px; overflow-y: auto; }
+.bom-cfg .cfg-rail { border-left: 1px solid var(--border-c); background: var(--bg-surface); padding: 14px; overflow-y: auto; }
+
+/* ── stepper ────────────────────────────────────────────── */
+.bom-cfg .step {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: none; background: transparent;
+  padding: 9px 10px; border-radius: var(--radius-btn); cursor: pointer; color: var(--text-secondary); font-size: 13px; font-weight: 600;
+  transition: background .12s;
+}
+.bom-cfg .step:hover { background: var(--bg-sunken); }
+.bom-cfg .step.on { background: var(--gold-50); color: var(--text-primary); box-shadow: inset 2px 0 0 var(--gold); }
+.bom-cfg .step .step-ic { width: 20px; text-align: center; font-size: 15px; color: var(--text-muted); }
+.bom-cfg .step.on .step-ic { color: var(--charcoal); }
+.bom-cfg .step-name { flex: 1; }
+.bom-cfg .step-tick { font-size: 13px; color: var(--teal); }
+.bom-cfg .step-tick.req { color: var(--border-strong); }
+
+/* ── option cards ───────────────────────────────────────── */
+.bom-cfg .grp-title { font-family: var(--font-display); font-weight: 800; font-size: 20px; margin: 0 0 2px; }
+.bom-cfg .grp-hint { color: var(--text-secondary); font-size: 13px; margin: 0 0 14px; }
+.bom-cfg .opt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.bom-cfg .opt {
+  position: relative; text-align: left; background: var(--bg-surface); border: 1px solid var(--border-c); border-radius: var(--radius);
+  padding: 12px 13px; cursor: pointer; transition: border-color .15s, box-shadow .15s, background .15s; width: 100%;
+}
+.bom-cfg .opt:hover:not(.dis) { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.bom-cfg .opt.sel { border: 2px solid var(--gold); background: var(--gold-50); padding: 11px 12px; }
+.bom-cfg .opt.dis { opacity: .45; cursor: not-allowed; }
+.bom-cfg .opt-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.bom-cfg .opt-name { font-weight: 700; font-size: 14px; }
+.bom-cfg .opt-sub { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
+.bom-cfg .opt-delta { font-family: var(--font-mono); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.bom-cfg .opt-delta.inc { color: var(--charcoal); }
+.bom-cfg .opt-delta.zero { color: var(--text-muted); }
+.bom-cfg .opt-badge { display: inline-block; font-family: var(--font-mono); font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: var(--radius-chip); background: var(--slate); color: #fff; margin-top: 8px; }
+.bom-cfg .opt-swatch { width: 16px; height: 16px; border-radius: 4px; border: 1px solid rgba(0,0,0,.15); display: inline-block; vertical-align: middle; }
+.bom-cfg .opt-lock { position: absolute; top: 10px; right: 10px; color: var(--status-fail); font-size: 14px; }
+.bom-cfg .opt-lock-note { font-size: 11px; color: var(--status-fail); margin-top: 8px; display: flex; align-items: flex-start; gap: 5px; }
+.bom-cfg .opt-check { color: var(--gold); font-size: 16px; }
+
+/* ── sliders / attributes ───────────────────────────────── */
+.bom-cfg .attr { background: var(--bg-surface); border: 1px solid var(--border-c); border-radius: var(--radius); padding: 13px 15px; margin-bottom: 10px; }
+.bom-cfg .attr-top { display: flex; justify-content: space-between; align-items: baseline; }
+.bom-cfg .attr-name { font-weight: 700; font-size: 14px; }
+.bom-cfg .attr-val { font-family: var(--font-mono); font-weight: 600; font-size: 14px; }
+.bom-cfg .attr-hint { color: var(--text-secondary); font-size: 12px; margin: 4px 0 10px; }
+.bom-cfg input[type=range] { width: 100%; accent-color: var(--gold); height: 4px; }
+.bom-cfg .attr.clamped input[type=range] { accent-color: var(--blue); }
+.bom-cfg .attr.viol input[type=range] { accent-color: var(--orange); }
+.bom-cfg .attr-scale { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.bom-cfg .attr-note { font-size: 11px; margin-top: 8px; display: flex; align-items: flex-start; gap: 5px; }
+.bom-cfg .attr-note.blue { color: var(--blue); }
+.bom-cfg .attr-note.orange { color: var(--orange); }
+.bom-cfg .attr-note a { color: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+
+/* ── calc chips ─────────────────────────────────────────── */
+.bom-cfg .calc-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.bom-cfg .calc-chip { background: var(--bg-sunken); border-radius: var(--radius-btn); padding: 6px 10px; font-size: 12px; }
+.bom-cfg .calc-chip b { font-family: var(--font-mono); color: var(--teal); }
+
+/* ── preview ────────────────────────────────────────────── */
+.bom-cfg .preview { background: linear-gradient(180deg,#fbfbfb,#eef0f2); border: 1px solid var(--border-c); border-radius: var(--radius); padding: 8px 12px; margin-bottom: 16px; }
+
+/* ── right rail panels ──────────────────────────────────── */
+.bom-cfg .panel { margin-bottom: 16px; }
+.bom-cfg .panel-title { font-family: var(--font-display); font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-secondary); margin: 0 0 8px; display: flex; align-items: center; gap: 6px; }
+.bom-cfg .issues { border: 1px solid var(--orange); background: #fdf0ea; border-radius: var(--radius); padding: 10px 12px; }
+.bom-cfg .issues.ok { border-color: var(--teal); background: #eafaf6; }
+.bom-cfg .issue { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; font-size: 12px; padding: 6px 0; border-top: 1px dashed #f0c9b6; }
+.bom-cfg .issue:first-of-type { border-top: none; }
+.bom-cfg .issue-msg { color: #a3421a; }
+.bom-cfg .issue-tag { font-family: var(--font-mono); font-weight: 700; color: var(--orange); }
+.bom-cfg .fix-btn { border: 1px solid var(--orange); background: #fff; color: var(--orange); font-size: 11px; font-weight: 700; border-radius: var(--radius-chip); padding: 3px 8px; cursor: pointer; white-space: nowrap; }
+.bom-cfg .fix-btn:hover { background: var(--orange); color: #fff; }
+
+/* BoM tree */
+.bom-cfg .bom-sys { font-size: 12px; font-weight: 700; color: var(--text-secondary); margin: 10px 0 4px; display: flex; justify-content: space-between; }
+.bom-cfg .bom-line { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; font-size: 12px; padding: 3px 0; align-items: baseline; }
+.bom-cfg .bom-line.child { padding-left: 16px; color: var(--text-secondary); }
+.bom-cfg .bom-code { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+.bom-cfg .bom-qty { font-family: var(--font-mono); text-align: right; }
+.bom-cfg .bom-qty .fx { color: var(--teal); font-weight: 700; cursor: help; }
+.bom-cfg .bom-price { font-family: var(--font-mono); text-align: right; color: var(--text-secondary); }
+
+/* price rollup */
+.bom-cfg .price-line { display: flex; justify-content: space-between; font-size: 13px; padding: 4px 0; }
+.bom-cfg .price-line .amt { font-family: var(--font-mono); }
+.bom-cfg .price-line.formula .lbl::after { content: 'ƒ'; color: var(--blue); font-weight: 700; margin-left: 5px; }
+.bom-cfg .price-total { display: flex; justify-content: space-between; border-top: 2px solid var(--slate); margin-top: 6px; padding-top: 8px; font-weight: 800; }
+.bom-cfg .price-total .amt { font-family: var(--font-mono); font-size: 16px; }
+
+/* routing */
+.bom-cfg .route-op { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 3px 0; }
+.bom-cfg .route-seq { width: 22px; height: 22px; border-radius: 50%; background: var(--bg-sunken); display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 11px; font-weight: 700; flex: none; }
+.bom-cfg .route-code { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+
+/* buttons */
+.bom-cfg .btn-release { width: 100%; background: var(--gold); color: var(--slate); border: none; border-radius: var(--radius-btn); padding: 11px; font-weight: 800; font-size: 14px; cursor: pointer; transition: filter .15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.bom-cfg .btn-release:hover:not(:disabled) { filter: brightness(1.05); }
+.bom-cfg .btn-release:disabled { background: var(--border-strong); color: #fff; cursor: not-allowed; }
+.bom-cfg .btn-ghost { background: transparent; border: 1px solid rgba(255,255,255,.3); color: #fff; border-radius: var(--radius-btn); padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.bom-cfg .btn-ghost:hover { background: rgba(255,255,255,.12); }
+.bom-cfg .btn-dark { background: var(--slate); color: #fff; border: none; border-radius: var(--radius-btn); padding: 8px 16px; font-weight: 700; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
+.bom-cfg .btn-dark:hover { background: #000; }
+.bom-cfg .btn-line { background: #fff; color: var(--slate); border: 1px solid var(--border-strong); border-radius: var(--radius-btn); padding: 8px 14px; font-weight: 700; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
+.bom-cfg .btn-line:hover { border-color: var(--slate); }
+
+/* notes toast */
+.bom-cfg .auto-note { background: #eef6ff; border: 1px solid var(--blue); color: #2e5f8a; border-radius: var(--radius); font-size: 12px; padding: 8px 12px; margin-bottom: 12px; display: flex; gap: 8px; align-items: flex-start; }
+
+/* ── modal ──────────────────────────────────────────────── */
+.bom-cfg-modal-backdrop { position: fixed; inset: 0; background: rgba(20,20,20,.55); z-index: 1080; display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; }
+.bom-cfg-modal { width: 680px; max-width: 100%; background: #fff; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.35); font-family: 'Mulish', system-ui, sans-serif; }
+.bom-cfg-modal .m-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #e6e6e6; }
+.bom-cfg-modal .m-title { font-family: 'Coda', sans-serif; font-weight: 800; font-size: 18px; }
+.bom-cfg-modal .m-stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; padding: 16px 20px; }
+.bom-cfg-modal .m-stat { background: #f0f0f0; border-radius: 8px; padding: 10px 12px; }
+.bom-cfg-modal .m-stat .v { font-family: 'IBM Plex Mono', monospace; font-weight: 700; font-size: 18px; }
+.bom-cfg-modal .m-stat .k { font-size: 11px; color: #8a8a8a; text-transform: uppercase; letter-spacing: .4px; }
+.bom-cfg-modal .m-tabs { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid #e6e6e6; }
+.bom-cfg-modal .m-tab { border: none; background: none; padding: 10px 12px; font-size: 13px; font-weight: 600; color: #5c5c5c; cursor: pointer; border-bottom: 2px solid transparent; }
+.bom-cfg-modal .m-tab.on { color: #212121; border-bottom-color: #f1c40f; }
+.bom-cfg-modal .m-body { padding: 16px 20px; max-height: 46vh; overflow-y: auto; }
+.bom-cfg-modal .m-foot { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; padding: 14px 20px; border-top: 1px solid #e6e6e6; }
+.bom-cfg-modal pre { background: #f0f0f0; border-radius: 8px; padding: 12px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; overflow-x: auto; margin: 0; white-space: pre-wrap; word-break: break-word; }
+.bom-cfg-modal table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.bom-cfg-modal th { text-align: left; font-size: 11px; text-transform: uppercase; color: #8a8a8a; padding: 6px 8px; border-bottom: 1px solid #e6e6e6; }
+.bom-cfg-modal td { padding: 5px 8px; border-bottom: 1px solid #f0f0f0; }
+.bom-cfg-modal td.num { font-family: 'IBM Plex Mono', monospace; text-align: right; }
+.bom-cfg-modal .lvl2 td:first-child { padding-left: 22px; color: #5c5c5c; }
+
+/* ── author view ────────────────────────────────────────── */
+.bom-cfg .rule-card { background: var(--bg-surface); border: 1px solid var(--border-c); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 10px; }
+.bom-cfg .rule-card.off { opacity: .55; }
+.bom-cfg .rule-tag { font-family: var(--font-mono); font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: var(--radius-chip); color: #fff; text-transform: uppercase; }
+.bom-cfg .rule-tag.requires, .bom-cfg .rule-tag.requiresOneOf { background: var(--teal); }
+.bom-cfg .rule-tag.excludes { background: var(--orange); }
+.bom-cfg .rule-tag.formula { background: var(--blue); }
+.bom-cfg .rule-expr { font-family: var(--font-mono); font-size: 12px; background: var(--bg-sunken); border: 1px solid var(--border-c); border-radius: var(--radius-btn); padding: 6px 8px; width: 100%; margin-top: 8px; }
+.bom-cfg .rule-expr.bad { border-color: var(--orange); color: var(--orange); }
+.bom-cfg .expr-err { color: var(--orange); font-size: 11px; margin-top: 4px; }
+
+/* toggle switch */
+.bom-cfg .sw { position: relative; width: 38px; height: 22px; }
+.bom-cfg .sw input { opacity: 0; width: 0; height: 0; }
+.bom-cfg .sw .track { position: absolute; inset: 0; background: var(--border-strong); border-radius: 22px; transition: .15s; cursor: pointer; }
+.bom-cfg .sw .track::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .15s; }
+.bom-cfg .sw input:checked + .track { background: var(--teal); }
+.bom-cfg .sw input:checked + .track::before { transform: translateX(16px); }
+
+/* ── product tree ───────────────────────────────────────── */
+.bom-cfg .tree-wrap { padding: 20px; overflow: auto; }
+.bom-cfg .tree-root { display: inline-block; min-width: 100%; }
+.bom-cfg .tree-node { border-radius: var(--radius); padding: 10px 14px; font-weight: 700; font-size: 13px; display: inline-block; }
+.bom-cfg .tree-platform { border: 2px solid var(--slate); background: #fff; }
+.bom-cfg .tree-base { border: 1px solid var(--gold); background: var(--gold-50); }
+.bom-cfg .tree-group { background: var(--charcoal); color: #fff; }
+.bom-cfg .tree-cols { display: flex; gap: 18px; margin-top: 18px; align-items: flex-start; }
+.bom-cfg .tree-col { display: flex; flex-direction: column; gap: 10px; }
+.bom-cfg .tree-card { width: 190px; background: #fff; border: 1px solid var(--border-c); border-radius: var(--radius); padding: 10px 12px; position: relative; }
+.bom-cfg .tree-card.cur { box-shadow: 0 0 0 2px var(--gold); }
+.bom-cfg .tree-card .cur-check { position: absolute; top: -8px; right: -8px; background: var(--gold); color: var(--slate); border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+.bom-cfg .tree-badges { display: flex; gap: 5px; margin-top: 6px; }
+.bom-cfg .tree-badge { font-size: 10px; font-family: var(--font-mono); font-weight: 700; padding: 1px 5px; border-radius: var(--radius-chip); }
+.bom-cfg .tree-badge.f { background: #e3f6f1; color: var(--teal); }
+.bom-cfg .tree-badge.r { background: #e9f2fb; color: var(--blue); }
+.bom-cfg .tree-badge.o { background: var(--bg-sunken); color: var(--text-secondary); }
+.bom-cfg .tree-parts { margin-top: 8px; border-top: 1px dashed var(--border-c); padding-top: 6px; font-size: 11px; }
+
+/* ── product tree authoring: Kind palette + drag-drop ──── */
+.bom-cfg .kind-palette { width: 250px; flex: none; border-right: 1px solid var(--border-c); background: var(--bg-surface); padding: 14px 12px; overflow-y: auto; max-height: 760px; }
+.bom-cfg .kind-card { display: flex; align-items: center; gap: 7px; background: var(--bg-surface); border: 1px solid var(--border-c); border-radius: var(--radius-btn); padding: 7px 9px; margin-bottom: 6px; cursor: grab; transition: border-color .12s, box-shadow .12s; }
+.bom-cfg .kind-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.bom-cfg .kind-card:active { cursor: grabbing; }
+.bom-cfg .drop-zone { display: flex; flex-direction: column; gap: 10px; border-radius: var(--radius); padding: 6px; margin: -6px; transition: background .12s, outline .12s; }
+.bom-cfg .drop-zone.hot { background: var(--gold-50); outline: 2px dashed var(--gold); }
+.bom-cfg .tree-card.hot-card { outline: 2px dashed var(--teal); background: #eafaf6; }
+.bom-cfg .drop-hint { border: 2px dashed var(--border-strong); border-radius: var(--radius); color: var(--text-muted); font-size: 11px; text-align: center; padding: 16px 10px; width: 190px; }
+.bom-cfg .tree-x { border: none; background: transparent; color: var(--text-muted); font-size: 11px; padding: 1px 4px; cursor: pointer; border-radius: 3px; }
+.bom-cfg .tree-x:hover { color: var(--status-fail); background: var(--bg-sunken); }
+.bom-cfg .tree-x.light { color: rgba(255,255,255,.7); }
+.bom-cfg .tree-x.light:hover { color: #fff; background: rgba(255,255,255,.15); }
+
+/* print sheet (see PrintSpecSheet component) */
+@media print {
+  body.bom-printing > *:not(#bom-print-root) { display: none !important; }
+  #bom-print-root { display: block !important; }
+}
+#bom-print-root { display: none; }

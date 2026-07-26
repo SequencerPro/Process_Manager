@@ -1,0 +1,505 @@
+@page "/audit-programs/{Id:guid}"
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@rendermode InteractiveServer
+@inject ApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Audit Programme — Process Manager</PageTitle>
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+}
+else if (_program is null)
+{
+    <div class="text-center py-5 text-muted">Programme not found.</div>
+}
+else
+{
+    @* ── Header ── *@
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="audit-programs">Audit Programmes</a></li>
+            <li class="breadcrumb-item active">@_program.Name</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
+        <div>
+            <h3 class="mb-0">
+                <i class="bi bi-clipboard-check me-2 text-info"></i>@_program.Name
+                <span class="badge @StatusBadge(_program.Status) ms-2" style="font-size:.65rem">@_program.Status</span>
+            </h3>
+            <p class="text-muted small mb-0">
+                @FormatStandard(_program.Standard) · @_program.Year · Lead: @_program.LeadAuditor
+            </p>
+        </div>
+        <div class="d-flex gap-2">
+            @if (_program.Status == "Planning")
+            {
+                <button class="btn btn-sm btn-outline-primary" @onclick="() => _showEdit = true">
+                    <i class="bi bi-pencil me-1"></i>Edit
+                </button>
+                <button class="btn btn-sm btn-success" @onclick="Activate">
+                    <i class="bi bi-play-fill me-1"></i>Activate
+                </button>
+            }
+            @if (_program.Status == "Active")
+            {
+                <button class="btn btn-sm btn-outline-dark" @onclick="Close">
+                    <i class="bi bi-check-circle me-1"></i>Close
+                </button>
+            }
+        </div>
+    </div>
+
+    @* ── KPI Cards ── *@
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-6">
+            <div class="card shadow-sm text-center">
+                <div class="card-body py-3">
+                    <div class="fs-2 fw-bold text-primary">@_program.AuditCount</div>
+                    <div class="small text-muted">Audits</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6">
+            <div class="card shadow-sm text-center">
+                <div class="card-body py-3">
+                    <div class="fs-2 fw-bold text-danger">@_program.OpenFindingCount</div>
+                    <div class="small text-muted">Open Findings</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ── Audits Table ── *@
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span class="fw-semibold"><i class="bi bi-search me-2"></i>Audits</span>
+            <button class="btn btn-sm btn-primary" @onclick="() => _showCreateAudit = true">
+                <i class="bi bi-plus-lg me-1"></i>Schedule Audit
+            </button>
+        </div>
+        <div class="card-body p-0">
+            @if (_audits is null || !_audits.Items.Any())
+            {
+                <div class="text-muted text-center py-4">No audits scheduled yet.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Type</th>
+                                <th>Scope</th>
+                                <th class="col-hide-mobile">Planned</th>
+                                <th class="col-hide-mobile">Actual</th>
+                                <th>Auditor</th>
+                                <th class="text-center" style="width:80px">Findings</th>
+                                <th class="text-center" style="width:100px">Status</th>
+                                <th style="width:120px"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var a in _audits.Items)
+                            {
+                                <tr>
+                                    <td class="small">@a.AuditType</td>
+                                    <td class="small">@(a.Scope.Length > 60 ? a.Scope[..60] + "…" : a.Scope)</td>
+                                    <td class="col-hide-mobile small">@a.PlannedDate.ToString("MMM d, yyyy")</td>
+                                    <td class="col-hide-mobile small">@(a.ActualDate?.ToString("MMM d, yyyy") ?? "—")</td>
+                                    <td class="small">@a.LeadAuditor</td>
+                                    <td class="text-center">
+                                        @if (a.FindingCount > 0)
+                                        {
+                                            <span class="badge bg-warning text-dark rounded-pill">@a.FindingCount</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td class="text-center"><span class="badge @AuditStatusBadge(a.Status)">@a.Status</span></td>
+                                    <td class="text-end">
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-primary" @onclick="() => SelectAudit(a.Id)" title="View findings">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            @if (a.Status == "Planned")
+                                            {
+                                                <button class="btn btn-outline-success" @onclick="() => StartAudit(a.Id)" title="Start">
+                                                    <i class="bi bi-play-fill"></i>
+                                                </button>
+                                            }
+                                            @if (a.Status == "InProgress")
+                                            {
+                                                <button class="btn btn-outline-dark" @onclick="() => CompleteAudit(a.Id)" title="Complete">
+                                                    <i class="bi bi-check-circle"></i>
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* ── Audit Findings Panel (when audit selected) ── *@
+    @if (_selectedAudit is not null)
+    {
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">
+                    <i class="bi bi-flag me-2"></i>Findings — @_selectedAudit.AuditType audit (@_selectedAudit.Status)
+                </span>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-primary" @onclick="() => _showCreateFinding = true">
+                        <i class="bi bi-plus-lg me-1"></i>Add Finding
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => { _selectedAudit = null; _findings = null; }">
+                        Close
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="d-flex gap-3 mb-3 small">
+                    <span>Major: <strong class="text-danger">@_selectedAudit.MajorCount</strong></span>
+                    <span>Minor: <strong class="text-warning">@_selectedAudit.MinorCount</strong></span>
+                    <span>Observation: <strong>@_selectedAudit.ObservationCount</strong></span>
+                    <span>OFI: <strong>@_selectedAudit.OfiCount</strong></span>
+                </div>
+
+                @if (_findings is null || !_findings.Any())
+                {
+                    <div class="text-muted text-center py-3">No findings recorded.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:100px">Clause</th>
+                                    <th style="width:100px">Type</th>
+                                    <th>Description</th>
+                                    <th class="col-hide-mobile">Evidence</th>
+                                    <th class="text-center" style="width:110px">Status</th>
+                                    <th style="width:140px"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var f in _findings)
+                                {
+                                    <tr>
+                                        <td class="small fw-semibold">@f.ClauseNumber</td>
+                                        <td><span class="badge @FindingTypeBadge(f.FindingType)">@f.FindingType</span></td>
+                                        <td class="small">@(f.Description.Length > 80 ? f.Description[..80] + "…" : f.Description)</td>
+                                        <td class="col-hide-mobile small text-muted">@(f.ObjectiveEvidence.Length > 60 ? f.ObjectiveEvidence[..60] + "…" : f.ObjectiveEvidence)</td>
+                                        <td class="text-center"><span class="badge @FindingStatusBadge(f.Status)">@f.Status</span></td>
+                                        <td class="text-end">
+                                            <div class="btn-group btn-group-sm">
+                                                @if (f.Status != "Closed" && f.ActionItemId is null &&
+                                                     (f.FindingType == "MajorNonconformance" || f.FindingType == "MinorNonconformance"))
+                                                {
+                                                    <button class="btn btn-outline-warning" title="Raise CA"
+                                                            @onclick="() => RaiseCa(f)">CA</button>
+                                                }
+                                                @if (f.Status != "Closed")
+                                                {
+                                                    <button class="btn btn-outline-dark" title="Close"
+                                                            @onclick="() => CloseFinding(f)">
+                                                        <i class="bi bi-check-circle"></i>
+                                                    </button>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @* ── Create Audit Modal ── *@
+    @if (_showCreateAudit)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Schedule Audit</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showCreateAudit = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Audit Type</label>
+                            <select class="form-select" @bind="_auditType">
+                                <option value="Internal">Internal</option>
+                                <option value="External">External</option>
+                                <option value="Supplier">Supplier</option>
+                                <option value="Surveillance">Surveillance</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Scope</label>
+                            <textarea class="form-control" rows="2" @bind="_auditScope" placeholder="Processes and areas to be audited"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Planned Date</label>
+                            <input type="date" class="form-control" @bind="_auditPlannedDate" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Lead Auditor</label>
+                            <input class="form-control" @bind="_auditLeadAuditor" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showCreateAudit = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="CreateAudit"
+                                disabled="@(string.IsNullOrWhiteSpace(_auditScope) || string.IsNullOrWhiteSpace(_auditLeadAuditor))">
+                            Schedule
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ── Create Finding Modal ── *@
+    @if (_showCreateFinding && _selectedAudit is not null)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add Finding</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showCreateFinding = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Clause</label>
+                            <select class="form-select" @bind="_findingClauseId">
+                                <option value="">Select clause…</option>
+                                @if (_allClauses is not null)
+                                {
+                                    @foreach (var c in _allClauses)
+                                    {
+                                        <option value="@c.Id">@c.ClauseNumber — @c.Title</option>
+                                    }
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Finding Type</label>
+                            <select class="form-select" @bind="_findingType">
+                                <option value="MajorNonconformance">Major Nonconformance</option>
+                                <option value="MinorNonconformance">Minor Nonconformance</option>
+                                <option value="Observation">Observation</option>
+                                <option value="OpportunityForImprovement">Opportunity for Improvement</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" rows="3" @bind="_findingDescription"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Objective Evidence</label>
+                            <textarea class="form-control" rows="2" @bind="_findingEvidence"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showCreateFinding = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="CreateFinding"
+                                disabled="@(string.IsNullOrEmpty(_findingClauseId) || string.IsNullOrWhiteSpace(_findingDescription) || string.IsNullOrWhiteSpace(_findingEvidence))">
+                            Add Finding
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ── Edit Programme Modal ── *@
+    @if (_showEdit)
+    {
+        <div class="modal fade show d-block" tabindex="-1" style="background:rgba(0,0,0,.4)">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Programme</h5>
+                        <button type="button" class="btn-close" @onclick="() => _showEdit = false"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="_editName" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Standard</label>
+                            <select class="form-select" @bind="_editStandard">
+                                <option value="Iso9001_2015">ISO 9001:2015</option>
+                                <option value="As9100RevD">AS9100 Rev D</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Year</label>
+                            <input type="number" class="form-control" @bind="_editYear" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Lead Auditor</label>
+                            <input class="form-control" @bind="_editLeadAuditor" />
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="() => _showEdit = false">Cancel</button>
+                        <button class="btn btn-primary" @onclick="UpdateProgram">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private AuditProgramDto? _program;
+    private PaginatedResponse<AuditSummaryDto>? _audits;
+    private AuditDto? _selectedAudit;
+    private List<AuditFindingDto>? _findings;
+    private List<StandardsClauseSummaryDto>? _allClauses;
+    private bool _loading = true;
+
+    // Create audit
+    private bool _showCreateAudit;
+    private string _auditType = "Internal";
+    private string _auditScope = "";
+    private DateTime _auditPlannedDate = DateTime.UtcNow.AddDays(30);
+    private string _auditLeadAuditor = "";
+
+    // Create finding
+    private bool _showCreateFinding;
+    private string _findingClauseId = "";
+    private string _findingType = "MinorNonconformance";
+    private string _findingDescription = "";
+    private string _findingEvidence = "";
+
+    // Edit programme
+    private bool _showEdit;
+    private string _editName = "";
+    private string _editStandard = "";
+    private int _editYear;
+    private string _editLeadAuditor = "";
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            _program = await Api.GetAuditProgramAsync(Id);
+            _audits = await Api.GetAuditsAsync(programId: Id);
+            if (_program is not null)
+            {
+                _editName = _program.Name;
+                _editStandard = _program.Standard;
+                _editYear = _program.Year;
+                _editLeadAuditor = _program.LeadAuditor;
+            }
+        }
+        catch { }
+        _loading = false;
+    }
+
+    private async Task SelectAudit(Guid auditId)
+    {
+        try
+        {
+            _selectedAudit = await Api.GetAuditAsync(auditId);
+            _findings = await Api.GetAuditFindingsAsync(auditId);
+            _allClauses ??= await Api.GetStandardsClausesAsync();
+        }
+        catch { }
+    }
+
+    private async Task Activate() { try { await Api.ActivateAuditProgramAsync(Id); await LoadData(); } catch { } }
+    private async Task Close() { try { await Api.CloseAuditProgramAsync(Id); await LoadData(); } catch { } }
+
+    private async Task UpdateProgram()
+    {
+        try
+        {
+            await Api.UpdateAuditProgramAsync(Id, new UpdateAuditProgramDto(_editName, _editStandard, _editYear, _editLeadAuditor));
+            _showEdit = false;
+            await LoadData();
+        }
+        catch { }
+    }
+
+    private async Task CreateAudit()
+    {
+        try
+        {
+            var dto = new CreateAuditDto(Id, _auditType, _auditScope, _auditPlannedDate, _auditLeadAuditor);
+            await Api.CreateAuditAsync(dto);
+            _showCreateAudit = false;
+            _auditScope = ""; _auditLeadAuditor = "";
+            await LoadData();
+        }
+        catch { }
+    }
+
+    private async Task StartAudit(Guid id) { try { await Api.StartAuditAsync(id); await LoadData(); } catch { } }
+    private async Task CompleteAudit(Guid id) { try { await Api.CompleteAuditAsync(id); await LoadData(); } catch { } }
+
+    private async Task CreateFinding()
+    {
+        if (_selectedAudit is null || !Guid.TryParse(_findingClauseId, out var cid)) return;
+        try
+        {
+            var dto = new CreateAuditFindingDto(cid, _findingType, _findingDescription, _findingEvidence);
+            await Api.AddAuditFindingAsync(_selectedAudit.Id, dto);
+            _showCreateFinding = false;
+            _findingClauseId = ""; _findingDescription = ""; _findingEvidence = "";
+            await SelectAudit(_selectedAudit.Id);
+            await LoadData();
+        }
+        catch { }
+    }
+
+    private async Task RaiseCa(AuditFindingDto f)
+    {
+        if (_selectedAudit is null) return;
+        try { await Api.RaiseCorrectiveActionAsync(_selectedAudit.Id, f.Id); await SelectAudit(_selectedAudit.Id); } catch { }
+    }
+
+    private async Task CloseFinding(AuditFindingDto f)
+    {
+        if (_selectedAudit is null) return;
+        try
+        {
+            await Api.CloseAuditFindingAsync(_selectedAudit.Id, f.Id, new CloseAuditFindingDto("Closed via audit programme review."));
+            await SelectAudit(_selectedAudit.Id);
+            await LoadData();
+        }
+        catch { }
+    }
+
+    private static string StatusBadge(string s) => s switch { "Planning" => "bg-secondary", "Active" => "bg-success", "Closed" => "bg-dark", _ => "bg-secondary" };
+    private static string AuditStatusBadge(string s) => s switch { "Planned" => "bg-secondary", "InProgress" => "bg-primary", "Complete" => "bg-success", _ => "bg-secondary" };
+    private static string FindingTypeBadge(string s) => s switch { "MajorNonconformance" => "bg-danger", "MinorNonconformance" => "bg-warning text-dark", "Observation" => "bg-info", "OpportunityForImprovement" => "bg-light text-dark border", _ => "bg-secondary" };
+    private static string FindingStatusBadge(string s) => s switch { "Open" => "bg-danger", "CorrectiveActionRaised" => "bg-warning text-dark", "Closed" => "bg-success", _ => "bg-secondary" };
+    private static string FormatStandard(string s) => s switch { "Iso9001_2015" => "ISO 9001:2015", "As9100RevD" => "AS9100 Rev D", _ => s };
+}

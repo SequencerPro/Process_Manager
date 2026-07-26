@@ -1,0 +1,464 @@
+@* Author view: fully custom authoring of the model's behaviour —
+   numeric attributes (sliders in Configure), calculated attributes,
+   and the constraint rule set (with a 5-mode new-rule builder).
+   Structure (groups/options/parts) is authored in the Product tree tab. *@
+@using ProcessManager.Domain.Configurator
+
+<div class="p-4" style="max-width:920px;margin:0 auto;width:100%">
+    <h2 class="grp-title"><i class="bi bi-diagram-3 me-2" style="color:var(--blue)"></i>Rule author</h2>
+    <p class="grp-hint">
+        Define the numeric attributes and calculated values your formulas can use, then build constraint
+        rules over the options you created in the <b>Product tree</b>. Everything here is saved with the
+        model when you save a revision.
+    </p>
+
+    @* ───────────────────────── numeric attributes ───────────────────────── *@
+    <div class="panel-title mt-3"><i class="bi bi-sliders"></i>Numeric attributes <span class="text-muted fw-normal text-lowercase" style="letter-spacing:0">— sliders on the "Dimensions &amp; Quantity" panel</span></div>
+    @foreach (var a in Engine.Platform.Attributes)
+    {
+        <div class="rule-card">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="mono text-muted" style="font-size:11px;width:90px;flex:none" title="Identifier used in formulas">@a.Id</span>
+                <input class="form-control form-control-sm" style="width:180px" value="@a.Name" @onchange="e => { a.Name = S(e); Changed(); }" placeholder="Name" />
+                <input class="form-control form-control-sm" style="width:70px" value="@a.Unit" @onchange="e => { a.Unit = S(e); Changed(); }" placeholder="unit" />
+                <span class="text-muted small">min</span>
+                <input type="number" class="form-control form-control-sm" style="width:85px" value="@a.Min" @onchange="e => { a.Min = D(e, a.Min); Changed(); }" />
+                <span class="text-muted small">max</span>
+                <input type="number" class="form-control form-control-sm" style="width:85px" value="@a.Max" @onchange="e => { a.Max = D(e, a.Max); Changed(); }" />
+                <span class="text-muted small">step</span>
+                <input type="number" class="form-control form-control-sm" style="width:75px" value="@a.Step" @onchange="e => { a.Step = D(e, a.Step); Changed(); }" />
+                <span class="text-muted small">default</span>
+                <input type="number" class="form-control form-control-sm" style="width:85px" value="@a.Default" @onchange="e => { a.Default = D(e, a.Default); Changed(); }" />
+                <button class="btn btn-sm btn-outline-danger ms-auto" title="Delete attribute" @onclick="() => DeleteAttr(a)"><i class="bi bi-trash"></i></button>
+            </div>
+            <input class="form-control form-control-sm mt-2" value="@a.Hint" @onchange="e => { a.Hint = S(e); Changed(); }" placeholder="Hint shown under the slider (optional)" />
+        </div>
+    }
+    <div class="rule-card" style="border-style:dashed">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <i class="bi bi-plus-lg text-muted"></i>
+            <input class="form-control form-control-sm" style="width:200px" @bind="_newAttrName" placeholder="New attribute name" />
+            <input class="form-control form-control-sm" style="width:70px" @bind="_newAttrUnit" placeholder="unit" />
+            <span class="text-muted small">min</span>
+            <input type="number" class="form-control form-control-sm" style="width:85px" @bind="_newAttrMin" />
+            <span class="text-muted small">max</span>
+            <input type="number" class="form-control form-control-sm" style="width:85px" @bind="_newAttrMax" />
+            <span class="text-muted small">step</span>
+            <input type="number" class="form-control form-control-sm" style="width:75px" @bind="_newAttrStep" />
+            <button class="btn btn-sm btn-dark" disabled="@(string.IsNullOrWhiteSpace(_newAttrName))" @onclick="AddAttr">Add attribute</button>
+        </div>
+    </div>
+
+    @* ───────────────────────── calculated attributes ───────────────────────── *@
+    <div class="panel-title mt-4"><i class="bi bi-calculator"></i>Calculated attributes</div>
+    @foreach (var c in Engine.Platform.Calc)
+    {
+        var val = _calcValues.TryGetValue(c.Id, out var v) ? v : 0;
+        <div class="rule-card">
+            <div class="d-flex align-items-center gap-2">
+                <span class="mono text-muted" style="font-size:11px;width:90px;flex:none" title="Identifier used in formulas">@c.Id</span>
+                <input class="form-control form-control-sm" style="width:160px;flex:none" value="@c.Name" @onchange="e => { c.Name = S(e); Changed(); }" />
+                <input class="rule-expr mono @(_calcErrors.ContainsKey(c.Id) ? "bad" : "")" style="flex:1;margin-top:0"
+                       value="@GetCalcDraft(c)" @oninput="e => OnCalcInput(c, e)" />
+                <span style="font-family:var(--font-display);font-weight:800;color:var(--gold);width:44px;text-align:right;flex:none">@ConfiguratorEngine.Fmt(val)</span>
+                <button class="btn btn-sm btn-outline-danger" title="Delete calculated attribute" @onclick="() => DeleteCalc(c)"><i class="bi bi-trash"></i></button>
+            </div>
+            @if (_calcErrors.TryGetValue(c.Id, out var err))
+            {
+                <div class="expr-err"><i class="bi bi-exclamation-triangle me-1"></i>@err</div>
+            }
+        </div>
+    }
+    <div class="rule-card" style="border-style:dashed">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-plus-lg text-muted"></i>
+            <input class="form-control form-control-sm" style="width:180px;flex:none" @bind="_newCalcName" placeholder="New calc name" />
+            <input class="rule-expr mono @(_newCalcError != null ? "bad" : "")" style="flex:1;margin-top:0" @bind="_newCalcExpr" @bind:event="oninput"
+                   placeholder="expression — e.g. ceil(length / 1000)" />
+            <button class="btn btn-sm btn-dark" disabled="@(string.IsNullOrWhiteSpace(_newCalcName) || string.IsNullOrWhiteSpace(_newCalcExpr))" @onclick="AddCalc">Add</button>
+        </div>
+        @if (_newCalcError != null)
+        {
+            <div class="expr-err"><i class="bi bi-exclamation-triangle me-1"></i>@_newCalcError</div>
+        }
+    </div>
+
+    @* ───────────────────────── constraint rules ───────────────────────── *@
+    <div class="panel-title mt-4"><i class="bi bi-shield-check"></i>Constraint rules</div>
+    @if (!Engine.Platform.Rules.Any())
+    {
+        <p class="text-muted small">No rules yet — build one below.</p>
+    }
+    @foreach (var r in Engine.Platform.Rules.ToList())
+    {
+        var on = Enabled.Contains(r.Id);
+        <div class="rule-card @(on ? "" : "off")">
+            <div class="d-flex align-items-center gap-2">
+                <span class="rule-tag @r.Type">@r.Type</span>
+                <span class="mono text-muted" style="font-size:11px">@r.Id</span>
+                <input class="form-control form-control-sm flex-grow-1" value="@r.Msg" @onchange="e => { r.Msg = S(e); Changed(); }" title="Validation message shown to the user" />
+                <label class="sw" title="Enable / disable">
+                    <input type="checkbox" checked="@on" @onchange="() => ToggleRule(r.Id)" />
+                    <span class="track"></span>
+                </label>
+                <button class="btn btn-sm btn-outline-danger" title="Delete rule" @onclick="() => DeleteRule(r)"><i class="bi bi-trash"></i></button>
+            </div>
+
+            @if (r.Type == "formula")
+            {
+                <input class="rule-expr mono @(_ruleErrors.ContainsKey(r.Id) ? "bad" : "")"
+                       value="@GetRuleDraft(r)" @oninput="e => OnRuleInput(r, e)" />
+                @if (_ruleErrors.TryGetValue(r.Id, out var err))
+                {
+                    <div class="expr-err"><i class="bi bi-exclamation-triangle me-1"></i>@err</div>
+                }
+            }
+            else
+            {
+                <div class="mono text-muted mt-2" style="font-size:11px">
+                    @OptLabel(r.When) <i class="bi bi-arrow-right"></i> @OptLabel(r.Then)
+                </div>
+            }
+        </div>
+    }
+
+    @* ── new rule builder ── *@
+    <div class="rule-card" style="border:1px solid var(--blue)">
+        <div class="fw-bold mb-2"><i class="bi bi-plus-circle me-1" style="color:var(--blue)"></i>New rule</div>
+        <div class="d-flex gap-1 mb-3 flex-wrap">
+            @foreach (var (id, label) in new[] { ("requires", "Requires"), ("requiresOneOf", "Requires one of"), ("excludes", "Excludes"), ("formula", "Formula"), ("bound", "Min/Max bound") })
+            {
+                <button class="cfg-tab @(_nrMode == id ? "on" : "")" style="background:@(_nrMode == id ? "var(--blue)" : "var(--bg-sunken)");color:@(_nrMode == id ? "#fff" : "var(--text-secondary)")"
+                        @onclick="() => _nrMode = id">@label</button>
+            }
+        </div>
+
+        @if (AllOptions.Count == 0 && _nrMode != "formula" && _nrMode != "bound")
+        {
+            <p class="text-muted small mb-0">Add options in the <b>Product tree</b> first — option rules link one option to another.</p>
+        }
+        else if (_nrMode is "requires" or "requiresOneOf" or "excludes")
+        {
+            <div class="d-flex gap-3 flex-wrap">
+                <div>
+                    <label class="form-label small fw-bold mb-1">When this is selected</label>
+                    <select class="form-select form-select-sm" @bind="_nrWhen">
+                        <option value="">— choose option —</option>
+                        @foreach (var (gname, o) in AllOptions)
+                        {
+                            <option value="@o.Id">@gname · @o.Name</option>
+                        }
+                    </select>
+                </div>
+                <div style="min-width:260px">
+                    <label class="form-label small fw-bold mb-1">
+                        @(_nrMode == "excludes" ? "These are blocked" : _nrMode == "requiresOneOf" ? "One of these is required" : "These are required")
+                    </label>
+                    <div style="max-height:150px;overflow-y:auto;border:1px solid var(--border-c);border-radius:5px;padding:6px 10px;background:#fff">
+                        @foreach (var (gname, o) in AllOptions.Where(x => x.Option.Id != _nrWhen))
+                        {
+                            <label class="d-block small" style="cursor:pointer">
+                                <input type="checkbox" class="form-check-input me-1" checked="@_nrThen.Contains(o.Id)"
+                                       @onchange="e => { if ((bool)e.Value!) _nrThen.Add(o.Id); else _nrThen.Remove(o.Id); }" />
+                                @gname · @o.Name
+                            </label>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+        else if (_nrMode == "formula")
+        {
+            <label class="form-label small fw-bold mb-1">Boolean expression that must stay true</label>
+            <input class="rule-expr mono @(_nrExprError != null ? "bad" : "")" style="margin-top:0" @bind="_nrExpr" @bind:event="oninput"
+                   placeholder="e.g. has('opt-a') ? length > 0 : true" />
+            @if (_nrExprError != null)
+            {
+                <div class="expr-err"><i class="bi bi-exclamation-triangle me-1"></i>@_nrExprError</div>
+            }
+            <div class="form-text">Use attribute ids, calculated ids, <code>has('optionId')</code>, ceil/floor/round/min/max.</div>
+        }
+        else
+        {
+            <div class="d-flex gap-2 align-items-end flex-wrap">
+                <div>
+                    <label class="form-label small fw-bold mb-1">Attribute</label>
+                    <select class="form-select form-select-sm" @bind="_nrAttr">
+                        <option value="">— choose —</option>
+                        @foreach (var a in Engine.Platform.Attributes)
+                        {
+                            <option value="@a.Id">@a.Name (@a.Id)</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label small fw-bold mb-1">Min <span class="text-muted fw-normal">(blank = none)</span></label>
+                    <input class="form-control form-control-sm" style="width:110px" @bind="_nrMin" />
+                </div>
+                <div>
+                    <label class="form-label small fw-bold mb-1">Max <span class="text-muted fw-normal">(blank = none)</span></label>
+                    <input class="form-control form-control-sm" style="width:110px" @bind="_nrMax" />
+                </div>
+            </div>
+        }
+
+        <div class="d-flex gap-2 align-items-center mt-3">
+            <input class="form-control form-control-sm flex-grow-1" @bind="_nrMsg" placeholder="Validation message shown when the rule fires (optional — one is generated)" />
+            <button class="btn btn-sm btn-dark" disabled="@(!NewRuleValid)" @onclick="AddRule"><i class="bi bi-plus-lg me-1"></i>Add rule</button>
+        </div>
+        @if (_nrError != null)
+        {
+            <div class="expr-err mt-2"><i class="bi bi-exclamation-triangle me-1"></i>@_nrError</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ConfiguratorEngine Engine { get; set; } = default!;
+    [Parameter, EditorRequired] public HashSet<string> Enabled { get; set; } = default!;
+    [Parameter] public EventCallback OnChanged { get; set; }
+    /// <summary>Raised when the model definition itself changes — used for dirty tracking.</summary>
+    [Parameter] public EventCallback OnDefinitionChanged { get; set; }
+
+    private readonly Dictionary<string, string> _ruleDrafts = new();
+    private readonly Dictionary<string, string> _ruleErrors = new();
+    private readonly Dictionary<string, string> _calcDrafts = new();
+    private readonly Dictionary<string, string> _calcErrors = new();
+    private Dictionary<string, double> _calcValues = new();
+
+    // new-attribute form
+    private string _newAttrName = "";
+    private string _newAttrUnit = "";
+    private double _newAttrMin = 0;
+    private double _newAttrMax = 100;
+    private double _newAttrStep = 1;
+
+    // new-calc form
+    private string _newCalcName = "";
+    private string _newCalcExpr = "";
+    private string? _newCalcError;
+
+    // new-rule builder
+    private string _nrMode = "requires";
+    private string _nrWhen = "";
+    private readonly HashSet<string> _nrThen = new();
+    private string _nrMsg = "";
+    private string _nrExpr = "";
+    private string? _nrExprError;
+    private string _nrAttr = "";
+    private string _nrMin = "";
+    private string _nrMax = "";
+    private string? _nrError;
+
+    protected override void OnInitialized() => RefreshCalc();
+
+    private void RefreshCalc()
+    {
+        _calcValues = Engine.ComputeCalc(Engine.DefaultSelections()).ToDictionary(c => c.Id, c => c.Value);
+    }
+
+    private List<(string Group, ConfigOption Option)> AllOptions =>
+        Engine.Platform.Groups.SelectMany(g => g.Options.Select(o => (g.Name, o))).ToList();
+
+    private string OptLabel(List<string>? ids) =>
+        ids == null ? "" : string.Join(", ", ids.Select(id => Engine.Opt(id)?.Name ?? id));
+
+    private static string S(ChangeEventArgs e) => Convert.ToString(e.Value) ?? "";
+    private static double D(ChangeEventArgs e, double fallback) =>
+        double.TryParse(Convert.ToString(e.Value), System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : fallback;
+
+    private async Task Changed()
+    {
+        RefreshCalc();
+        await OnChanged.InvokeAsync();
+        await OnDefinitionChanged.InvokeAsync();
+    }
+
+    // ── identifier slugs ──────────────────────────────────────────────────────
+    /// <summary>camelCase identifier from a display name, unique among attributes/calc.</summary>
+    private string IdentSlug(string name)
+    {
+        var words = System.Text.RegularExpressions.Regex.Split(name.Trim(), @"[^A-Za-z0-9]+")
+            .Where(w => w.Length > 0).ToList();
+        var slug = words.Count == 0 ? "attr" :
+            words[0].ToLowerInvariant() + string.Concat(words.Skip(1).Select(w => char.ToUpperInvariant(w[0]) + w.Substring(1).ToLowerInvariant()));
+        if (char.IsDigit(slug[0])) slug = "a" + slug;
+        var taken = Engine.Platform.Attributes.Select(a => a.Id)
+            .Concat(Engine.Platform.Calc.Select(c => c.Id))
+            .Concat(new[] { "has", "ceil", "floor", "round", "abs", "min", "max", "roundup", "rounddown", "true", "false", "null" })
+            .ToHashSet();
+        var final = slug; var n = 2;
+        while (taken.Contains(final)) final = slug + n++;
+        return final;
+    }
+
+    // ── attributes ────────────────────────────────────────────────────────────
+    private async Task AddAttr()
+    {
+        Engine.Platform.Attributes.Add(new ConfigAttribute
+        {
+            Id = IdentSlug(_newAttrName),
+            Name = _newAttrName.Trim(),
+            Unit = _newAttrUnit.Trim(),
+            Kind = "range",
+            Min = Math.Min(_newAttrMin, _newAttrMax),
+            Max = Math.Max(_newAttrMin, _newAttrMax),
+            Step = _newAttrStep <= 0 ? 1 : _newAttrStep,
+            Default = Math.Min(Math.Max(_newAttrMin, 0), _newAttrMax),
+        });
+        _newAttrName = ""; _newAttrUnit = "";
+        await Changed();
+    }
+
+    private async Task DeleteAttr(ConfigAttribute a)
+    {
+        Engine.Platform.Attributes.Remove(a);
+        await Changed();
+    }
+
+    // ── calculated ────────────────────────────────────────────────────────────
+    private async Task AddCalc()
+    {
+        var res = Engine.ValidateExpr(_newCalcExpr);
+        if (!res.Ok) { _newCalcError = res.Error; return; }
+        _newCalcError = null;
+        Engine.Platform.Calc.Add(new CalcAttribute { Id = IdentSlug(_newCalcName), Name = _newCalcName.Trim(), Expr = _newCalcExpr.Trim() });
+        _newCalcName = ""; _newCalcExpr = "";
+        await Changed();
+    }
+
+    private async Task DeleteCalc(CalcAttribute c)
+    {
+        Engine.Platform.Calc.Remove(c);
+        _calcDrafts.Remove(c.Id);
+        _calcErrors.Remove(c.Id);
+        await Changed();
+    }
+
+    private string GetRuleDraft(ConfigRule r) => _ruleDrafts.TryGetValue(r.Id, out var d) ? d : (r.Expr ?? "");
+    private string GetCalcDraft(CalcAttribute c) => _calcDrafts.TryGetValue(c.Id, out var d) ? d : c.Expr;
+
+    // ── rules ─────────────────────────────────────────────────────────────────
+    private async Task ToggleRule(string id)
+    {
+        if (!Enabled.Remove(id)) Enabled.Add(id);
+        await OnChanged.InvokeAsync();
+    }
+
+    private async Task DeleteRule(ConfigRule r)
+    {
+        Engine.Platform.Rules.Remove(r);
+        Enabled.Remove(r.Id);
+        _ruleDrafts.Remove(r.Id);
+        _ruleErrors.Remove(r.Id);
+        await Changed();
+    }
+
+    private string NextRuleId(string prefix)
+    {
+        var n = 1;
+        foreach (var r in Engine.Platform.Rules)
+            if (r.Id.Length > 1 && r.Id[0] == prefix[0] && int.TryParse(r.Id.Substring(1), out var x) && x >= n)
+                n = x + 1;
+        return prefix + n;
+    }
+
+    private bool NewRuleValid => _nrMode switch
+    {
+        "requires" or "requiresOneOf" or "excludes" => _nrWhen != "" && _nrThen.Count > 0,
+        "formula" => !string.IsNullOrWhiteSpace(_nrExpr),
+        "bound" => _nrAttr != "" && (_nrMin.Trim() != "" || _nrMax.Trim() != ""),
+        _ => false,
+    };
+
+    private async Task AddRule()
+    {
+        _nrError = null;
+        ConfigRule rule;
+        var whenName = Engine.Opt(_nrWhen)?.Name;
+        var thenNames = string.Join(", ", _nrThen.Select(id => Engine.Opt(id)?.Name ?? id));
+
+        switch (_nrMode)
+        {
+            case "requires":
+                rule = new ConfigRule { Id = NextRuleId("R"), Type = "requires", When = new() { _nrWhen }, Then = _nrThen.ToList(),
+                    Msg = string.IsNullOrWhiteSpace(_nrMsg) ? $"{whenName} requires {thenNames}." : _nrMsg.Trim() };
+                break;
+            case "requiresOneOf":
+                rule = new ConfigRule { Id = NextRuleId("R"), Type = "requiresOneOf", When = new() { _nrWhen }, Then = _nrThen.ToList(),
+                    Msg = string.IsNullOrWhiteSpace(_nrMsg) ? $"{whenName} requires one of: {thenNames}." : _nrMsg.Trim() };
+                break;
+            case "excludes":
+                rule = new ConfigRule { Id = NextRuleId("X"), Type = "excludes", When = new() { _nrWhen }, Then = _nrThen.ToList(),
+                    Msg = string.IsNullOrWhiteSpace(_nrMsg) ? $"{whenName} excludes {thenNames}." : _nrMsg.Trim() };
+                break;
+            case "formula":
+            {
+                var res = Engine.ValidateExpr(_nrExpr);
+                if (!res.Ok) { _nrExprError = res.Error; return; }
+                _nrExprError = null;
+                var refs = Engine.Platform.Attributes.Where(a => _nrExpr.Contains(a.Id)).Select(a => a.Id).ToList();
+                rule = new ConfigRule { Id = NextRuleId("F"), Type = "formula", Expr = _nrExpr.Trim(), Refs = refs.Count > 0 ? refs : null,
+                    Msg = string.IsNullOrWhiteSpace(_nrMsg) ? "Configuration violates a formula constraint." : _nrMsg.Trim() };
+                break;
+            }
+            case "bound":
+            {
+                var attr = Engine.Platform.Attributes.FirstOrDefault(a => a.Id == _nrAttr);
+                if (attr == null) { _nrError = "Choose an attribute."; return; }
+                var clauses = new List<string>();
+                if (_nrMin.Trim() != "") clauses.Add($"{_nrAttr} >= {_nrMin.Trim()}");
+                if (_nrMax.Trim() != "") clauses.Add($"{_nrAttr} <= {_nrMax.Trim()}");
+                var expr = string.Join(" && ", clauses);
+                var res = Engine.ValidateExpr(expr);
+                if (!res.Ok) { _nrError = res.Error; return; }
+                var range = (_nrMin.Trim() != "" ? _nrMin.Trim() : "…") + "–" + (_nrMax.Trim() != "" ? _nrMax.Trim() : "…");
+                rule = new ConfigRule { Id = NextRuleId("F"), Type = "formula", Expr = expr, Refs = new() { _nrAttr },
+                    Msg = string.IsNullOrWhiteSpace(_nrMsg) ? $"{attr.Name} must stay within {range}{(attr.Unit != "" ? " " + attr.Unit : "")}." : _nrMsg.Trim() };
+                break;
+            }
+            default:
+                return;
+        }
+
+        Engine.Platform.Rules.Add(rule);
+        Enabled.Add(rule.Id);
+        _nrWhen = ""; _nrThen.Clear(); _nrMsg = ""; _nrExpr = ""; _nrAttr = ""; _nrMin = ""; _nrMax = "";
+        await Changed();
+    }
+
+    private async Task OnRuleInput(ConfigRule r, ChangeEventArgs e)
+    {
+        var expr = Convert.ToString(e.Value) ?? "";
+        _ruleDrafts[r.Id] = expr;
+        var res = Engine.ValidateExpr(expr);
+        if (res.Ok)
+        {
+            _ruleErrors.Remove(r.Id);
+            r.Expr = expr; // hot-apply
+            await Changed();
+        }
+        else
+        {
+            _ruleErrors[r.Id] = res.Error;
+        }
+    }
+
+    private async Task OnCalcInput(CalcAttribute c, ChangeEventArgs e)
+    {
+        var expr = Convert.ToString(e.Value) ?? "";
+        _calcDrafts[c.Id] = expr;
+        var res = Engine.ValidateExpr(expr);
+        if (res.Ok)
+        {
+            _calcErrors.Remove(c.Id);
+            c.Expr = expr; // hot-apply
+            await Changed();
+        }
+        else
+        {
+            _calcErrors[c.Id] = res.Error;
+        }
+    }
+}

@@ -27,6 +27,11 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<ToastService>();
 builder.Services.AddScoped<VocabularyService>();
+builder.Services.AddScoped<FeatureFlagService>();
+builder.Services.AddScoped<BrandingService>();
+// Phase 36.2 — builder draft autosave (localStorage-backed via IJSRuntime).
+builder.Services.AddScoped<IBuilderDraftStore, LocalStorageBuilderDraftStore>();
+builder.Services.AddScoped<BuilderDraftService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -51,10 +56,13 @@ builder.Services.AddAuthorization();
 // TokenHandler is scoped so it can depend on the circuit-scoped services
 // (TokenService, AuthenticationStateProvider).
 builder.Services.AddScoped<TokenHandler>();
+builder.Services.AddScoped<PlanEnforcementNotifier>();
+builder.Services.AddScoped<PlanEnforcementHandler>();
 builder.Services.AddHttpClient<ApiClient>(client =>
 {
     client.BaseAddress = new Uri(builder.Configuration["ApiBaseUrl"] ?? "http://localhost:5100");
-}).AddHttpMessageHandler<TokenHandler>();
+}).AddHttpMessageHandler<TokenHandler>()
+  .AddHttpMessageHandler<PlanEnforcementHandler>();
 
 builder.Services.AddSingleton(new JsonSerializerOptions
 {

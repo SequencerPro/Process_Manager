@@ -1,0 +1,63 @@
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<span class="sync-status d-inline-flex align-items-center gap-1 px-2 py-1 rounded small"
+      style="background:@(_isOnline ? (_pendingCount > 0 ? "#fff3cd" : "#d1e7dd") : "#f8d7da")">
+    @if (_syncing)
+    {
+        <span class="spinner-border spinner-border-sm" style="width:.75rem;height:.75rem"></span>
+        <span>Syncing…</span>
+    }
+    else if (!_isOnline)
+    {
+        <i class="bi bi-wifi-off text-danger"></i>
+        <span class="text-danger">Offline</span>
+        @if (_pendingCount > 0)
+        {
+            <span class="badge bg-danger ms-1">@_pendingCount</span>
+        }
+    }
+    else if (_pendingCount > 0)
+    {
+        <i class="bi bi-cloud-arrow-up text-warning"></i>
+        <span class="text-warning">@_pendingCount pending</span>
+    }
+    else
+    {
+        <i class="bi bi-cloud-check text-success"></i>
+        <span class="text-success">Synced</span>
+    }
+</span>
+
+@code {
+    private bool _isOnline = true;
+    private int _pendingCount;
+    private bool _syncing;
+    private DotNetObjectReference<SyncStatus>? _objRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _objRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("OperatorSync.init", _objRef);
+        }
+    }
+
+    [JSInvokable]
+    public Task OnSyncStatusChanged(bool isOnline, int pendingCount, bool syncing)
+    {
+        _isOnline = isOnline;
+        _pendingCount = pendingCount;
+        _syncing = syncing;
+        InvokeAsync(StateHasChanged);
+        return Task.CompletedTask;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("OperatorSync.dispose"); } catch { }
+        _objRef?.Dispose();
+    }
+}

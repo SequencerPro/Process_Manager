@@ -1,0 +1,482 @@
+@* Product tree — the structure EDITOR ("150% BoM"). Authors define the
+   Configuration panels (option groups) here, add options by hand or by
+   dragging Kinds from the item-master palette, drop Kinds onto options or the
+   base column to add BoM parts, pick Grades, and delete anything. Every edit
+   recomputes the live engine and marks the model dirty for revision save. *@
+@using ProcessManager.Domain.Configurator
+@using ProcessManager.Api.DTOs
+@inject ApiClient Api
+
+<div class="d-flex" style="min-height:600px">
+    @* ── Kind palette ── *@
+    <div class="kind-palette">
+        <div class="panel-title mb-2"><i class="bi bi-tag"></i>Kinds</div>
+        <input class="form-control form-control-sm mb-2" placeholder="Search kinds…" @bind="_kindSearch" @bind:event="oninput" @onkeyup="SearchKinds" />
+        @if (_kindsLoading)
+        {
+            <div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading…</div>
+        }
+        else if (_kinds.Count == 0)
+        {
+            <div class="text-muted small">No kinds found. Create Kinds under Execution → Items first.</div>
+        }
+        else
+        {
+            <div class="text-muted mb-2" style="font-size:11px">
+                Drag onto a <b>group</b> to create an option, onto an <b>option</b> to add a part,
+                or onto <b>Every build</b> for base parts.
+            </div>
+            @foreach (var k in _kinds)
+            {
+                <div class="kind-card" draggable="true"
+                     @ondragstart="() => _dragKind = k" @ondragend="() => { _dragKind = null; _dropKey = null; }">
+                    <i class="bi bi-grip-vertical text-muted"></i>
+                    <div class="flex-grow-1" style="min-width:0">
+                        <div class="fw-bold text-truncate" style="font-size:12px">@k.Name</div>
+                        <div class="mono text-muted" style="font-size:10px">@k.Code@(k.Grades.Count > 0 ? $" · {k.Grades.Count} grade{(k.Grades.Count > 1 ? "s" : "")}" : "")</div>
+                    </div>
+                    <span class="mono text-muted" style="font-size:11px">@(k.Price.HasValue ? ConfiguratorEngine.Money((double)k.Price.Value) : "—")</span>
+                </div>
+            }
+        }
+    </div>
+
+    @* ── tree ── *@
+    <div class="tree-wrap flex-grow-1">
+        <div class="text-center mb-3">
+            <span class="tree-node tree-platform">
+                <i class="bi bi-diagram-2 me-1"></i>@Engine.Platform.Platform.Name
+                <span class="text-muted ms-2 mono" style="font-size:11px">@Engine.Platform.Platform.Code</span>
+            </span>
+        </div>
+
+        <div class="tree-cols">
+            @* base "Every build" column *@
+            <div class="tree-col">
+                <div class="drop-zone @(_dropKey == "base" ? "hot" : "")"
+                     @ondrop="DropOnBase" @ondrop:preventDefault="true"
+                     @ondragover:preventDefault="true"
+                     @ondragenter='() => _dropKey = "base"' @ondragleave="() => _dropKey = null">
+                    <span class="tree-node tree-base"><i class="bi bi-box me-1"></i>Every build</span>
+                    @foreach (var b in Engine.Platform.BaseBom.ToList())
+                    {
+                        <div class="tree-card">
+                            <div class="d-flex justify-content-between align-items-start gap-1">
+                                <span class="fw-bold" style="font-size:12px">@b.Name</span>
+                                <button class="tree-x" title="Remove from base BoM" @onclick="() => RemoveBase(b)"><i class="bi bi-x-lg"></i></button>
+                            </div>
+                            <div class="bom-code">@b.Code · ×@b.Qty · @ConfiguratorEngine.Money(b.Price)</div>
+                            <div class="tree-badges">
+                                <span class="tree-badge o">@b.System</span>
+                                @if (b.KindId != null)
+                                {
+                                    <span class="tree-badge f" title="Linked to item master"><i class="bi bi-tag"></i> Kind</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                    @if (!Engine.Platform.BaseBom.Any())
+                    {
+                        <div class="drop-hint">Drop Kinds here for parts every build includes</div>
+                    }
+                </div>
+            </div>
+
+            @* one column per option group *@
+            @foreach (var g in Engine.Platform.Groups.ToList())
+            {
+                <div class="tree-col">
+                    <div class="drop-zone @(_dropKey == g.Id ? "hot" : "")"
+                         @ondrop="() => DropOnGroup(g)" @ondrop:preventDefault="true"
+                         @ondragover:preventDefault="true"
+                         @ondragenter="() => _dropKey = g.Id" @ondragleave="() => _dropKey = null">
+
+                        @if (_editGroupId == g.Id)
+                        {
+                            <div class="tree-card" style="width:220px">
+                                <input class="form-control form-control-sm mb-1" value="@g.Name" @onchange="e => g.Name = S(e)" placeholder="Panel name" />
+                                <div class="d-flex gap-1 mb-1">
+                                    <select class="form-select form-select-sm" value="@g.Icon" @onchange="e => g.Icon = S(e)">
+                                        @foreach (var ic in IconChoices)
+                                        {
+                                            <option value="@ic">@ic.Replace("bi-", "")</option>
+                                        }
+                                    </select>
+                                </div>
+                                <label class="d-block small"><input type="checkbox" class="form-check-input me-1" checked="@g.Multi" @onchange="e => g.Multi = (bool)e.Value!" />Multi-select</label>
+                                <label class="d-block small"><input type="checkbox" class="form-check-input me-1" checked="@g.Required" @onchange="e => g.Required = (bool)e.Value!" />Required</label>
+                                <input class="form-control form-control-sm mt-1" value="@g.Hint" @onchange="e => g.Hint = S(e)" placeholder="Hint text (optional)" />
+                                <div class="d-flex gap-1 mt-2">
+                                    <button class="btn btn-sm btn-dark flex-grow-1" @onclick="async () => { _editGroupId = null; await Changed(); }">Done</button>
+                                    <button class="btn btn-sm btn-outline-danger" title="Delete panel and its options" @onclick="() => DeleteGroup(g)"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <span class="tree-node tree-group">
+                                <i class="bi @g.Icon me-1"></i>@g.Name
+                                <span class="ms-1 opacity-75" style="font-size:10px">@(g.Multi ? "any" : "one")@(g.Required ? " · req" : "")</span>
+                                <button class="tree-x light ms-1" title="Edit panel" @onclick="() => _editGroupId = g.Id"><i class="bi bi-pencil"></i></button>
+                            </span>
+                        }
+
+                        @foreach (var o in g.Options.ToList())
+                        {
+                            var cur = Engine.IsSel(Sel, o.Id);
+                            <div class="tree-card @(cur ? "cur" : "") @(_dropKey == o.Id ? "hot-card" : "")"
+                                 @ondrop="() => DropOnOption(g, o)" @ondrop:preventDefault="true" @ondrop:stopPropagation="true"
+                                 @ondragover:preventDefault="true"
+                                 @ondragenter="() => _dropKey = o.Id" @ondragenter:stopPropagation="true"
+                                 @ondragleave="() => _dropKey = g.Id">
+                                @if (cur)
+                                {
+                                    <span class="cur-check"><i class="bi bi-check-lg"></i></span>
+                                }
+                                @if (_editOptId == o.Id)
+                                {
+                                    <input class="form-control form-control-sm mb-1" value="@o.Name" @onchange="e => o.Name = S(e)" placeholder="Option name" />
+                                    <input class="form-control form-control-sm mb-1" value="@o.Sub" @onchange="e => o.Sub = S(e)" placeholder="Subtitle (optional)" />
+                                    <div class="input-group input-group-sm mb-1">
+                                        <span class="input-group-text">+$</span>
+                                        <input type="number" class="form-control" value="@o.Price" @onchange="e => o.Price = DNum(e, o.Price)" title="Price delta" />
+                                    </div>
+                                    @if (GradesFor(o) is { Count: > 0 } grades)
+                                    {
+                                        <select class="form-select form-select-sm mb-1" value="@(o.GradeId?.ToString() ?? "")" @onchange="e => SetGrade(o, S(e))">
+                                            <option value="">Any grade</option>
+                                            @foreach (var gr in grades)
+                                            {
+                                                <option value="@gr.Id">@gr.Name (@gr.Code)</option>
+                                            }
+                                        </select>
+                                    }
+                                    <div class="d-flex gap-1">
+                                        <button class="btn btn-sm btn-dark flex-grow-1" @onclick="async () => { _editOptId = null; await Changed(); }">Done</button>
+                                        <button class="btn btn-sm btn-outline-danger" title="Delete option" @onclick="() => DeleteOption(g, o)"><i class="bi bi-trash"></i></button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="d-flex justify-content-between align-items-start gap-1">
+                                        <span class="fw-bold" style="font-size:12px">
+                                            @if (o.Swatch != null)
+                                            {
+                                                <span class="opt-swatch me-1" style="background:@o.Swatch"></span>
+                                            }
+                                            @o.Name
+                                        </span>
+                                        <span class="d-flex" style="flex:none">
+                                            <button class="tree-x" title="Edit option" @onclick="() => _editOptId = o.Id"><i class="bi bi-pencil"></i></button>
+                                            <button class="tree-x" title="Expand parts" @onclick="() => Toggle(o.Id)">
+                                                <i class="bi @(_expanded.Contains(o.Id) ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                                            </button>
+                                        </span>
+                                    </div>
+                                    <div class="tree-badges">
+                                        <span class="tree-badge o">@(o.PriceExpr != null ? "ƒ price" : (o.Price > 0 ? "+" + ConfiguratorEngine.Money(o.Price) : "Incl."))</span>
+                                        @if (o.KindId != null)
+                                        {
+                                            <span class="tree-badge f" title="@KindLabel(o)"><i class="bi bi-tag"></i> @(GradeName(o) ?? "Kind")</span>
+                                        }
+                                        @if (RulesFor(o.Id) is { Count: > 0 } rr)
+                                        {
+                                            <span class="tree-badge r" title="@string.Join("\n", rr.Select(r => r.Id + ": " + r.Msg))"><i class="bi bi-diagram-3"></i> @rr.Count</span>
+                                        }
+                                    </div>
+                                    @if (_expanded.Contains(o.Id))
+                                    {
+                                        <div class="tree-parts">
+                                            @if (!o.Bom.Any())
+                                            {
+                                                <div class="text-muted">No parts — drop a Kind here.</div>
+                                            }
+                                            @foreach (var b in o.Bom.ToList())
+                                            {
+                                                <div class="d-flex justify-content-between align-items-center gap-1">
+                                                    <span><span class="bom-code">@b.Code</span> @b.Name ×@b.Qty</span>
+                                                    <button class="tree-x" title="Remove part" @onclick="() => RemovePart(o, b)"><i class="bi bi-x-lg"></i></button>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        }
+
+                        <button class="btn btn-sm btn-outline-secondary w-100" style="border-style:dashed" @onclick="() => AddBlankOption(g)">
+                            <i class="bi bi-plus-lg me-1"></i>Add option
+                        </button>
+                        @if (!g.Options.Any())
+                        {
+                            <div class="drop-hint">Drop a Kind here to create an option</div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* add group *@
+            <div class="tree-col">
+                @if (_addingGroup)
+                {
+                    <div class="tree-card" style="width:220px">
+                        <input class="form-control form-control-sm mb-1" @bind="_newGroupName" placeholder="Panel name, e.g. Motor" />
+                        <label class="d-block small"><input type="checkbox" class="form-check-input me-1" @bind="_newGroupMulti" />Multi-select</label>
+                        <label class="d-block small"><input type="checkbox" class="form-check-input me-1" @bind="_newGroupRequired" />Required</label>
+                        <div class="d-flex gap-1 mt-2">
+                            <button class="btn btn-sm btn-dark flex-grow-1" disabled="@(string.IsNullOrWhiteSpace(_newGroupName))" @onclick="AddGroup">Add</button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => _addingGroup = false">Cancel</button>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <button class="btn btn-outline-secondary" style="border-style:dashed;white-space:nowrap" @onclick="StartAddGroup">
+                        <i class="bi bi-plus-lg me-1"></i>Add panel
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ConfiguratorEngine Engine { get; set; } = default!;
+    [Parameter, EditorRequired] public ConfigSelection Sel { get; set; } = default!;
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public EventCallback OnDefinitionChanged { get; set; }
+
+    private readonly HashSet<string> _expanded = new();
+    private string? _editGroupId;
+    private string? _editOptId;
+
+    // Kind palette
+    private List<KindResponseDto> _kinds = new();
+    private readonly Dictionary<Guid, KindResponseDto> _kindCache = new();
+    private bool _kindsLoading = true;
+    private string _kindSearch = "";
+    private KindResponseDto? _dragKind;
+    private string? _dropKey;
+
+    // add-group form
+    private bool _addingGroup;
+    private string _newGroupName = "";
+    private bool _newGroupMulti;
+    private bool _newGroupRequired = true;
+
+    private static readonly string[] IconChoices =
+    {
+        "bi-box", "bi-box-seam", "bi-cpu", "bi-gear", "bi-tools", "bi-wrench", "bi-plug",
+        "bi-lightning", "bi-palette", "bi-magic", "bi-droplet", "bi-arrows-move", "bi-robot",
+        "bi-code-square", "bi-grid", "bi-fan", "bi-battery-charging", "bi-thermometer-half",
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadKinds();
+        await ResolveOptionKinds();
+    }
+
+    private async Task LoadKinds()
+    {
+        _kindsLoading = true;
+        try
+        {
+            var page = await Api.GetKindsAsync(string.IsNullOrWhiteSpace(_kindSearch) ? null : _kindSearch, 1, 100);
+            _kinds = page?.Items?.ToList() ?? new();
+            foreach (var k in _kinds) _kindCache[k.Id] = k;
+        }
+        catch
+        {
+            _kinds = new();
+        }
+        _kindsLoading = false;
+    }
+
+    private async Task SearchKinds(KeyboardEventArgs _) => await LoadKinds();
+
+    /// <summary>Fetch Kinds referenced by existing options but not in the palette page (for grade names).</summary>
+    private async Task ResolveOptionKinds()
+    {
+        var missing = Engine.Platform.Groups.SelectMany(g => g.Options)
+            .Where(o => o.KindId != null && !_kindCache.ContainsKey(o.KindId.Value))
+            .Select(o => o.KindId!.Value).Distinct().ToList();
+        foreach (var id in missing)
+        {
+            try
+            {
+                var k = await Api.GetKindAsync(id);
+                if (k != null) _kindCache[id] = k;
+            }
+            catch { /* kind may have been deleted — badge just shows "Kind" */ }
+        }
+    }
+
+    private static string S(ChangeEventArgs e) => Convert.ToString(e.Value) ?? "";
+    private static double DNum(ChangeEventArgs e, double fallback) =>
+        double.TryParse(Convert.ToString(e.Value), System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var v) ? v : fallback;
+
+    private async Task Changed()
+    {
+        await OnChanged.InvokeAsync();
+        await OnDefinitionChanged.InvokeAsync();
+    }
+
+    private List<ConfigRule> RulesFor(string optId) =>
+        Engine.Platform.Rules.Where(r =>
+            (r.When?.Contains(optId) ?? false) || (r.Then?.Contains(optId) ?? false)).ToList();
+
+    private void Toggle(string id)
+    {
+        if (!_expanded.Add(id)) _expanded.Remove(id);
+    }
+
+    // ── slugs ────────────────────────────────────────────────────────────────
+    private string OptionSlug(string source)
+    {
+        var slug = System.Text.RegularExpressions.Regex.Replace(source.ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');
+        if (slug.Length == 0) slug = "opt";
+        var taken = Engine.Platform.Groups.SelectMany(g => g.Options).Select(o => o.Id).ToHashSet();
+        var final = slug; var n = 2;
+        while (taken.Contains(final)) final = slug + "-" + n++;
+        return final;
+    }
+
+    private string GroupSlug(string source)
+    {
+        var slug = System.Text.RegularExpressions.Regex.Replace(source.ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');
+        if (slug.Length == 0) slug = "group";
+        var taken = Engine.Platform.Groups.Select(g => g.Id).ToHashSet();
+        var final = slug; var n = 2;
+        while (taken.Contains(final)) final = slug + "-" + n++;
+        return final;
+    }
+
+    // ── groups (Configuration panels) ────────────────────────────────────────
+    private void StartAddGroup()
+    {
+        _addingGroup = true;
+        _newGroupName = "";
+    }
+
+    private async Task AddGroup()
+    {
+        Engine.Platform.Groups.Add(new OptionGroup
+        {
+            Id = GroupSlug(_newGroupName),
+            Name = _newGroupName.Trim(),
+            Icon = "bi-box",
+            Multi = _newGroupMulti,
+            Required = _newGroupRequired,
+        });
+        _addingGroup = false;
+        await Changed();
+    }
+
+    private async Task DeleteGroup(OptionGroup g)
+    {
+        Engine.Platform.Groups.Remove(g);
+        _editGroupId = null;
+        await Changed();
+    }
+
+    // ── options ──────────────────────────────────────────────────────────────
+    private async Task AddBlankOption(OptionGroup g)
+    {
+        var o = new ConfigOption { Id = OptionSlug(g.Id + "-option"), Name = "New option" };
+        g.Options.Add(o);
+        _editOptId = o.Id;
+        await Changed();
+    }
+
+    private async Task DeleteOption(OptionGroup g, ConfigOption o)
+    {
+        g.Options.Remove(o);
+        _editOptId = null;
+        await Changed();
+    }
+
+    private async Task RemovePart(ConfigOption o, BomAssembly b)
+    {
+        o.Bom.Remove(b);
+        await Changed();
+    }
+
+    private async Task RemoveBase(BomAssembly b)
+    {
+        Engine.Platform.BaseBom.Remove(b);
+        await Changed();
+    }
+
+    // ── grades ───────────────────────────────────────────────────────────────
+    private List<GradeResponseDto>? GradesFor(ConfigOption o) =>
+        o.KindId != null && _kindCache.TryGetValue(o.KindId.Value, out var k) ? k.Grades : null;
+
+    private string? GradeName(ConfigOption o)
+    {
+        if (o.GradeId == null) return null;
+        return GradesFor(o)?.FirstOrDefault(g => g.Id == o.GradeId)?.Name;
+    }
+
+    private string KindLabel(ConfigOption o) =>
+        o.KindId != null && _kindCache.TryGetValue(o.KindId.Value, out var k)
+            ? $"Item master: {k.Code} — {k.Name}" : "Linked to item master";
+
+    private void SetGrade(ConfigOption o, string gradeId)
+    {
+        o.GradeId = Guid.TryParse(gradeId, out var gid) ? gid : null;
+        // Stamp the grade onto the option's Kind-backed BoM lines too.
+        foreach (var b in o.Bom.Where(b => b.KindId == o.KindId)) b.GradeId = o.GradeId;
+    }
+
+    // ── drag & drop from the Kind palette ────────────────────────────────────
+    private BomAssembly AssemblyFromKind(KindResponseDto k, string system) => new()
+    {
+        System = system,
+        Code = k.Code,
+        Name = k.Name,
+        Qty = 1,
+        Price = (double)(k.Cost ?? k.Price ?? 0),
+        KindId = k.Id,
+    };
+
+    private async Task DropOnGroup(OptionGroup g)
+    {
+        _dropKey = null;
+        if (_dragKind is not { } k) return;
+        var o = new ConfigOption
+        {
+            Id = OptionSlug(k.Code),
+            Name = k.Name,
+            Sub = k.Code + (string.IsNullOrWhiteSpace(k.Description) ? "" : " · " + k.Description),
+            Price = (double)(k.Price ?? 0),
+            KindId = k.Id,
+            GradeId = k.Grades.FirstOrDefault(gr => gr.IsDefault)?.Id,
+            Bom = new() { AssemblyFromKind(k, g.Name) },
+        };
+        if (o.GradeId != null) o.Bom[0].GradeId = o.GradeId;
+        g.Options.Add(o);
+        _dragKind = null;
+        await Changed();
+    }
+
+    private async Task DropOnOption(OptionGroup g, ConfigOption o)
+    {
+        _dropKey = null;
+        if (_dragKind is not { } k) return;
+        o.Bom.Add(AssemblyFromKind(k, g.Name));
+        _expanded.Add(o.Id);
+        _dragKind = null;
+        await Changed();
+    }
+
+    private async Task DropOnBase()
+    {
+        _dropKey = null;
+        if (_dragKind is not { } k) return;
+        Engine.Platform.BaseBom.Add(AssemblyFromKind(k, "Base"));
+        _dragKind = null;
+        await Changed();
+    }
+}

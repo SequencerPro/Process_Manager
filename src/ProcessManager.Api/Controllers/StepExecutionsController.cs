@@ -541,6 +541,82 @@ public class StepExecutionsController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{id:guid}/prompt-responses/batch")]
+    public async Task<IActionResult> BatchPromptResponses(Guid id, BatchPromptResponsesDto dto)
+    {
+        if (!await _db.StepExecutions.AnyAsync(se => se.Id == id)) return NotFound();
+        if (!dto.Responses.Any()) return NoContent();
+
+        var clientIds = dto.Responses.Select(r => r.ClientId).ToList();
+        var alreadySaved = await _db.PromptResponses
+            .Where(r => r.StepExecutionId == id && r.ClientId != null && clientIds.Contains(r.ClientId))
+            .Select(r => r.ClientId!)
+            .ToListAsync();
+
+        var newItems = dto.Responses.Where(r => !alreadySaved.Contains(r.ClientId)).ToList();
+
+        foreach (var item in newItems)
+        {
+            if (item.ProcessStepContentId is null && item.StepTemplateContentId is null)
+                return BadRequest("Each response must reference either a ProcessStepContentId or StepTemplateContentId.");
+
+            bool isOutOfRange = false;
+            if (item.ProcessStepContentId.HasValue)
+            {
+                var content = await _db.ProcessStepContents.FindAsync(item.ProcessStepContentId);
+                if (content?.PromptType == PromptType.NumericEntry &&
+                    decimal.TryParse(item.ResponseValue, System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out var val))
+                {
+                    isOutOfRange = (content.MinValue.HasValue && val < content.MinValue) ||
+                                   (content.MaxValue.HasValue && val > content.MaxValue);
+                }
+            }
+            else if (item.StepTemplateContentId.HasValue)
+            {
+                var content = await _db.StepTemplateContents.FindAsync(item.StepTemplateContentId);
+                if (content?.PromptType == PromptType.NumericEntry &&
+                    decimal.TryParse(item.ResponseValue, System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out var val))
+                {
+                    isOutOfRange = (content.MinValue.HasValue && val < content.MinValue) ||
+                                   (content.MaxValue.HasValue && val > content.MaxValue);
+                }
+            }
+
+            var existing = await _db.PromptResponses.FirstOrDefaultAsync(r =>
+                r.StepExecutionId == id &&
+                r.ProcessStepContentId == item.ProcessStepContentId &&
+                r.StepTemplateContentId == item.StepTemplateContentId);
+
+            if (existing is not null)
+            {
+                existing.ResponseValue = item.ResponseValue;
+                existing.IsOutOfRange = isOutOfRange;
+                existing.OverrideNote = item.OverrideNote;
+                existing.ClientId = item.ClientId;
+                existing.RespondedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                _db.PromptResponses.Add(new PromptResponse
+                {
+                    StepExecutionId = id,
+                    ProcessStepContentId = item.ProcessStepContentId,
+                    StepTemplateContentId = item.StepTemplateContentId,
+                    ResponseValue = item.ResponseValue,
+                    IsOutOfRange = isOutOfRange,
+                    OverrideNote = item.OverrideNote,
+                    ClientId = item.ClientId,
+                    RespondedAt = DateTime.UtcNow
+                });
+            }
+        }
+
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     private static PromptResponseDto MapPromptResponseToDto(PromptResponse r, Dictionary<string, string>? userDisplayNames = null)
     {
         var label = r.ProcessStepContent?.Label ?? r.StepTemplateContent?.Label ?? "(deleted prompt)";
@@ -606,4 +682,133 @@ public class StepExecutionsController : ControllerBase
             ed.Id, ed.Key, ed.Value, ed.DataType, ed.UnitOfMeasure,
             ed.StepExecutionId, ed.BatchId, ed.ItemId, ed.CreatedAt);
     }
+
+    // ───── Phase 36.4: Phase audit, revisit & resume ─────
+
+    /// <summary>
+    /// Record the operator entering an execution phase (T4.2). Closes the
+    /// previous open phase event (sets ExitedAt) and opens a new one. Revisiting
+    /// an earlier phase is permitted while the step is still InProgress — only
+    /// after sign-off/completion does the history become read-only. This is the
+    /// behaviour change that lets operators go back and fix earlier phases.
+    /// </summary>
+    [HttpPost("{id:guid}/phase")]
+    public async Task<ActionResult<StepExecutionPhaseEventDto>> RecordPhase(Guid id, RecordPhaseDto dto)
+    {
+        var se = await _db.StepExecutions.FirstOrDefaultAsync(s => s.Id == id);
+        if (se is null) return NotFound();
+
+        // Once a step is finished, its phase history is immutable.
+        if (se.Status is StepExecutionStatus.Completed
+                       or StepExecutionStatus.Skipped
+                       or StepExecutionStatus.Failed)
+            return BadRequest($"Cannot change phase on a step execution with status '{se.Status}'.");
+
+        var now = DateTime.UtcNow;
+        var userId = User.FindFirstValue(ClaimTypes.Name);
+
+        // Close any still-open phase events for this execution.
+        var open = await _db.StepExecutionPhaseEvents
+            .Where(pe => pe.StepExecutionId == id && pe.ExitedAt == null)
+            .ToListAsync();
+        foreach (var pe in open)
+            pe.ExitedAt = now;
+
+        var evt = new StepExecutionPhaseEvent
+        {
+            StepExecutionId = id,
+            Phase = dto.Phase,
+            EnteredAt = now,
+            OperatorUserId = userId
+        };
+        _db.StepExecutionPhaseEvents.Add(evt);
+        await _db.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetPhaseHistory), new { id }, MapPhaseEventToDto(evt));
+    }
+
+    /// <summary>Full phase navigation history for a step execution (T4.2).</summary>
+    [HttpGet("{id:guid}/phase-history")]
+    public async Task<ActionResult<List<StepExecutionPhaseEventDto>>> GetPhaseHistory(Guid id)
+    {
+        if (!await _db.StepExecutions.AnyAsync(se => se.Id == id)) return NotFound();
+
+        var events = await _db.StepExecutionPhaseEvents
+            .Where(pe => pe.StepExecutionId == id)
+            .OrderBy(pe => pe.EnteredAt)
+            .ToListAsync();
+
+        return events.Select(MapPhaseEventToDto).ToList();
+    }
+
+    /// <summary>
+    /// Consolidated rehydration payload so an operator can resume a step on a
+    /// different device exactly where they left off (T4.4). Returns the current
+    /// phase (latest open event, else the last entered, else Setup), saved
+    /// response counts, and lifecycle status.
+    /// </summary>
+    [HttpGet("{id:guid}/resume")]
+    public async Task<ActionResult<StepExecutionResumeDto>> Resume(Guid id)
+    {
+        var se = await _db.StepExecutions.FirstOrDefaultAsync(s => s.Id == id);
+        if (se is null) return NotFound();
+
+        var events = await _db.StepExecutionPhaseEvents
+            .Where(pe => pe.StepExecutionId == id)
+            .OrderBy(pe => pe.EnteredAt)
+            .ToListAsync();
+
+        var currentPhase = events.LastOrDefault(pe => pe.ExitedAt == null)?.Phase
+                           ?? events.LastOrDefault()?.Phase
+                           ?? ExecutionPhase.Setup;
+
+        var promptCount = await _db.PromptResponses.CountAsync(r => r.StepExecutionId == id);
+        var portCount = await _db.PortTransactions.CountAsync(pt => pt.StepExecutionId == id);
+
+        var isResumable = se.Status is StepExecutionStatus.Pending or StepExecutionStatus.InProgress;
+
+        return new StepExecutionResumeDto(
+            se.Id,
+            se.JobId,
+            se.Status.ToString(),
+            currentPhase,
+            promptCount,
+            portCount,
+            isResumable,
+            se.StartedAt,
+            se.CompletedAt);
+    }
+
+    /// <summary>
+    /// Time-on-phase telemetry for a job (T4.5). Aggregates phase durations
+    /// across every step execution in the job and flags &gt;2σ outliers via the
+    /// pure-domain <see cref="ProcessManager.Domain.Services.PhaseTimingAnalyzer"/>.
+    /// </summary>
+    [HttpGet("phase-timings")]
+    public async Task<ActionResult<PhaseTimingReportDto>> GetPhaseTimings([FromQuery] Guid jobId)
+    {
+        if (jobId == Guid.Empty) return BadRequest("jobId is required.");
+        if (!await _db.Jobs.AnyAsync(j => j.Id == jobId)) return NotFound("Job not found.");
+
+        var stepExecIds = await _db.StepExecutions
+            .Where(se => se.JobId == jobId)
+            .Select(se => se.Id)
+            .ToListAsync();
+
+        var events = await _db.StepExecutionPhaseEvents
+            .Where(pe => stepExecIds.Contains(pe.StepExecutionId))
+            .ToListAsync();
+
+        var report = ProcessManager.Domain.Services.PhaseTimingAnalyzer.Analyze(events);
+
+        return new PhaseTimingReportDto(
+            report.PerPhase.Select(p => new PhaseTimingStatDto(
+                p.Phase, p.SampleCount, p.TotalSeconds, p.MeanSeconds, p.MedianSeconds, p.StdDevSeconds)).ToList(),
+            report.Outliers.Select(o => new PhaseTimingOutlierDto(
+                o.PhaseEventId, o.StepExecutionId, o.Phase, o.DurationSeconds, o.ThresholdSeconds)).ToList());
+    }
+
+    private static StepExecutionPhaseEventDto MapPhaseEventToDto(StepExecutionPhaseEvent pe) =>
+        new(pe.Id, pe.StepExecutionId, pe.Phase, pe.EnteredAt, pe.ExitedAt,
+            pe.Duration?.TotalSeconds, pe.OperatorUserId);
 }

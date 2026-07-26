@@ -46,12 +46,18 @@ public partial class McpController : ControllerBase
 
     private const string ProtocolVersion = "2024-11-05";
     private const string ServerName      = "ProcessManager";
-    private const string ServerVersion   = "3.0";
+    private const string ServerVersion   = "4.2";
 
-    public McpController(ProcessManagerDbContext db, IWebhookEventPublisher? webhooks = null)
+    private readonly IMeasureValueResolver? _measureResolver;
+
+    public McpController(
+        ProcessManagerDbContext db,
+        IWebhookEventPublisher? webhooks = null,
+        IMeasureValueResolver? measureResolver = null)
     {
         _db = db;
         _webhooks = webhooks;
+        _measureResolver = measureResolver;
     }
 
     // ─── Discovery endpoint ───────────────────────────────────────────────────
@@ -261,6 +267,102 @@ public partial class McpController : ControllerBase
                         ("user_id", "string", "Optional filter by user ID"),
                         ("action", "string", "Optional filter: Read, Create, Update, or Delete"),
                         ("top", "number", "Number of entries to return (default 50, max 200)"))),
+
+            // ── Phase 17: Standards Conformance ─────────────────────────
+            Tool("get_conformance_status",
+                 "Get the standards conformance status: clause coverage summary (Covered/Partial/Gap/OpenMajorFinding counts), list of open Major findings with clause reference, and next planned audit date. Requires authentication.",
+                 Schema(
+                     ("standard", "string", "Optional: Iso9001_2015 or As9100RevD — leave empty for all standards"),
+                     ("clause_number", "string", "Optional: filter to a specific clause number (e.g. 8.5.2)"))),
+
+            // ── Phase 24: SPC & Capability Analysis ─────────────────────
+            Tool("get_spc_status",
+                 "Get a summary of active SPC control charts with their current capability indices (Cp, Cpk) and out-of-control counts. Useful for identifying processes drifting out of control. Requires authentication.",
+                 Schema(
+                     ("process_id", "string", "Optional: filter to a specific process by GUID"),
+                     ("ooc_only", "string", "If 'true', only return charts with out-of-control points"))),
+
+            Tool("get_process_capability",
+                 "Get detailed process capability analysis for a specific SPC chart: X-bar, R-bar, control limits, Cp, Cpk, Pp, Ppk, and Nelson rule violations. Requires authentication.",
+                 Schema(
+                     ("chart_id", "string", "GUID of the SPC chart to analyse"))),
+
+            // ── Phase 21: Automatic Inventory Tracking ──────────────────
+            Tool("get_workstation_status",
+                 "Get all active workstations with their fixed locations, API key count, and last scan time. Useful for monitoring scanner health and workstation utilisation. Requires authentication.",
+                 Schema(
+                     ("active_only", "string", "If 'true' (default), only return active workstations"),
+                     ("workstation_code", "string", "Optional: filter to a specific workstation by code"))),
+
+            // ── Phase 25: Supplier Quality Management ────────────────────
+            Tool("get_supplier_quality_status",
+                 "Get a summary of supplier quality: status breakdown (Approved/Conditional/Suspended), at-risk suppliers, average evaluation scores, and suppliers with open non-conformances. Useful for supplier performance monitoring. Requires authentication.",
+                 Schema(
+                     ("status", "string", "Optional: filter by supplier status (Pending/Approved/Conditional/Suspended/Inactive)"),
+                     ("top", "number", "Number of suppliers to return (default 20, max 50)"))),
+
+            // ── Phase 27: CAPA Workflow ──────────────────────────────────
+            Tool("get_capa_status",
+                 "Get a summary of CAPA (Corrective and Preventive Action) records: open/overdue/closed counts, average days to close, source type breakdown, effectiveness rate, and overdue CAPAs list. Useful for monitoring corrective action programme health. Requires authentication.",
+                 Schema(
+                     ("status", "string", "Optional: filter by CAPA status (Open/Containment/RootCauseAnalysis/Implementation/Verification/EffectivenessReview/Closed)"),
+                     ("type", "string", "Optional: filter by CAPA type (Corrective/Preventive)"))),
+
+            // ── Phase 28: Calibration Management ────────────────────────
+            Tool("get_calibration_status",
+                 "Get calibration status summary: due/overdue equipment counts, pass/fail/limited record breakdown, overdue recall list, and upcoming calibrations. Useful for monitoring measurement system compliance (ISO 9001 7.1.5.2). Requires authentication.",
+                 Schema(
+                     ("equipment_id", "string", "Optional: filter to a specific equipment GUID"),
+                     ("include_history", "string", "If 'true', include last 5 calibration records per equipment"))),
+
+            // ── Phase 26: Measurement System Analysis (MSA/GR&R) ─────────
+            Tool("get_msa_status",
+                 "Get measurement system analysis (MSA/GR&R) status summary: total studies, acceptance breakdown (acceptable/marginal/unacceptable by %GRR), worst-performing gages, and in-progress studies. Useful for monitoring measurement system capability (IATF 16949 7.1.5.1.1). Requires authentication.",
+                 Schema(
+                     ("status", "string", "Optional: filter by study status (Draft/InProgress/Complete)"),
+                     ("equipment_id", "string", "Optional: filter to a specific equipment GUID"))),
+
+            // ── Phase 29: OEE Dashboard ────────────────────────────────────
+            Tool("get_oee_status",
+                 "Get OEE (Overall Equipment Effectiveness) summary: average OEE/availability/performance/quality percentages across active equipment, equipment below target, top loss categories (Pareto of downtime reasons). Useful for monitoring production efficiency and identifying improvement opportunities. Requires authentication.",
+                 Schema(
+                     ("equipment_id", "string", "Optional: filter to a specific equipment GUID"),
+                     ("days", "string", "Optional: number of days to look back (default 7)"),
+                     ("target_oee", "string", "Optional: target OEE percentage (default 85)"))),
+
+            // ── Phase 32: Change Management & ECO ─────────────────────────────
+            Tool("get_change_order_status",
+                 "Get change order (ECO) status summary: open/closed/rejected counts, average days to close, breakdown by status/type/priority, and overdue ECOs. Useful for monitoring engineering change control programme health (AS9100 8.5.6, IATF 16949 8.5.6). Requires authentication.",
+                 Schema(
+                     ("status", "string", "Optional: filter by ECO status (Draft/ImpactAnalysis/Approval/Implementation/Verification/Closed/Rejected)"),
+                     ("type", "string", "Optional: filter by ECO type (DesignChange/ProcessChange/DocumentChange/SupplierChange/DeviationRequest)"),
+                     ("priority", "string", "Optional: filter by priority (Routine/Urgent/Emergency)"))),
+
+            // ── Phase 34: Customer Complaint Management ──────────────────────
+            Tool("get_complaint_status",
+                 "Get customer complaint status summary: open/overdue/closed counts, average days to close, customer satisfaction rate, breakdown by status/category/severity, and overdue complaints. Useful for monitoring voice of customer and complaint handling programme health (ISO 9001 9.1.2, FDA 21 CFR 820.198, IATF 16949 10.2.5). Requires authentication.",
+                 Schema(
+                     ("status", "string", "Optional: filter by complaint status (New/UnderInvestigation/ContainmentInPlace/RootCauseIdentified/CorrectiveActionImplemented/ResponseSent/Closed)"),
+                     ("category", "string", "Optional: filter by category (ProductDefect/Packaging/Delivery/Documentation/Service/Regulatory)"),
+                     ("severity", "string", "Optional: filter by severity (Cosmetic/Minor/Major/Critical)"))),
+
+            // ── Phase 35: Cost of Quality (CoQ) ──────────────────────────────
+            Tool("get_cost_of_quality",
+                 "Get Cost of Quality (CoQ) summary: total costs this month/quarter/year, PAF (Prevention-Appraisal-Failure) category breakdown, source type breakdown, 12-month trend, and top cost drivers by product. Useful for quality economics reporting, management review input (ISO 9001 9.3), and justifying improvement investments (IATF 16949 6.1.2.1). Requires authentication.",
+                 Schema(
+                     ("category", "string", "Optional: filter by PAF category (Prevention/Appraisal/InternalFailure/ExternalFailure)"),
+                     ("source_type", "string", "Optional: filter by source type (Manual/Scrap/Rework/Warranty/InspectionLabor/ExternalFailure/PreventionCost/AppraisalCost/CustomerComplaint/Capa)"),
+                     ("days", "string", "Optional: number of days to look back (default all time)"))),
+
+            // ── Phase 50: Strategy Management — Balanced Scorecard ─────────────
+            Tool("get_scorecard_status",
+                 "Get a Balanced Scorecard status report: mission/vision, Green/Amber/Red rollup, and every perspective's objectives with their measures, current values (live-resolved from operational data), targets, and RAG status. Useful for answering 'how are we tracking against strategy?' and as management review input (ISO 9001 9.3). Requires authentication.",
+                 Schema(
+                     ("code", "string", "Optional: scorecard code (e.g. BSC-001). Defaults to the most recently created Active scorecard."))),
+            Tool("list_at_risk_objectives",
+                 "List strategic objectives whose measures are Red or Amber across all active Balanced Scorecards, with each off-track measure's current value, target, and gap. Useful for focusing leadership attention on the parts of the strategy that are off track. Requires authentication.",
+                 Schema(
+                     ("include_amber", "string", "Optional: 'false' to list only Red objectives (default includes Amber)"))),
         }
     };
 
@@ -371,6 +473,31 @@ public partial class McpController : ControllerBase
                 "transition_job"                 => await ToolTransitionJob(args),
                 // Audit log
                 "list_mcp_audit_log"             => await ToolListMcpAuditLog(args),
+                "get_conformance_status"         => await ToolGetConformanceStatus(args),
+                // SPC
+                "get_spc_status"                 => await ToolGetSpcStatus(args),
+                "get_process_capability"         => await ToolGetProcessCapability(args),
+                // Phase 21: Workstations
+                "get_workstation_status"          => await ToolGetWorkstationStatus(args),
+                // Phase 25: Supplier Quality
+                "get_supplier_quality_status"     => await ToolGetSupplierQualityStatus(args),
+                // Phase 27: CAPA
+                "get_capa_status"                => await ToolGetCapaStatus(args),
+                // Phase 28: Calibration
+                "get_calibration_status"         => await ToolGetCalibrationStatus(args),
+                // Phase 26: MSA/GR&R
+                "get_msa_status"                 => await ToolGetMsaStatus(args),
+                // Phase 29: OEE
+                "get_oee_status"                 => await ToolGetOeeStatus(args),
+                // Phase 32: Change Management & ECO
+                "get_change_order_status"        => await ToolGetChangeOrderStatus(args),
+                // Phase 34: Customer Complaint Management
+                "get_complaint_status"           => await ToolGetComplaintStatus(args),
+                // Phase 35: Cost of Quality
+                "get_cost_of_quality"            => await ToolGetCostOfQuality(args),
+                // Phase 50: Balanced Scorecard
+                "get_scorecard_status"           => await ToolGetScorecardStatus(args),
+                "list_at_risk_objectives"        => await ToolListAtRiskObjectives(args),
                 _                               => null
             };
 

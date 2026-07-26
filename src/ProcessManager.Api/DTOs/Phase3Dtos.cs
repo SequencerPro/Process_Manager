@@ -227,6 +227,18 @@ public record PromptResponseItemDto(
     [StringLength(2000)] string? OverrideNote = null
 );
 
+public record BatchPromptResponsesDto(
+    [Required] List<BatchPromptResponseItemDto> Responses
+);
+
+public record BatchPromptResponseItemDto(
+    [Required, StringLength(64)] string ClientId,
+    Guid? ProcessStepContentId,
+    Guid? StepTemplateContentId,
+    [Required, StringLength(1000)] string ResponseValue,
+    [StringLength(2000)] string? OverrideNote = null
+);
+
 // ──────────────────── Flow ────────────────────
 
 public record FlowCreateDto(

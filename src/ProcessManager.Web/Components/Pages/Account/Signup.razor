@@ -1,0 +1,202 @@
+@page "/account/signup"
+@layout EmptyLayout
+@attribute [AllowAnonymous]
+@using System.ComponentModel.DataAnnotations
+@using System.Net.Http.Json
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using ProcessManager.Api.DTOs
+@using ProcessManager.Domain.Entities
+@inject IHttpContextAccessor HttpContextAccessor
+@inject NavigationManager Nav
+@inject IConfiguration Config
+
+<PageTitle>Sign Up — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-center align-items-start" style="min-height: 100vh; background: #f8f9fa; padding-top: 3rem; padding-bottom: 3rem;">
+    <div class="card shadow-sm" style="width: 520px;">
+        <div class="card-body p-4">
+            <div class="text-center mb-4">
+                <i class="bi bi-gear-wide-connected fs-1 text-primary"></i>
+                <h4 class="mt-2 mb-0">Create your workspace</h4>
+                <p class="text-muted small">Start your free trial in under a minute</p>
+            </div>
+
+            @if (ErrorMessage is not null)
+            {
+                <div class="alert alert-danger py-2">
+                    <i class="bi bi-exclamation-triangle me-2"></i>@ErrorMessage
+                </div>
+            }
+
+            <EditForm Model="Input" OnValidSubmit="HandleSignup" FormName="signup" method="post">
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label class="form-label fw-medium">Company name</label>
+                    <InputText class="form-control" @bind-Value="Input.CompanyName" />
+                    <ValidationMessage For="() => Input.CompanyName" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-medium">Subdomain</label>
+                    <div class="input-group">
+                        <InputText class="form-control" @bind-Value="Input.Subdomain" placeholder="acme" />
+                        <span class="input-group-text">.processmgr.app</span>
+                    </div>
+                    <div class="form-text">Lowercase letters, numbers and hyphens — 3 to 63 characters.</div>
+                    <ValidationMessage For="() => Input.Subdomain" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-medium">Industry</label>
+                    <InputSelect class="form-select" @bind-Value="Input.Industry">
+                        <option value="@OnboardingIndustry.General">General manufacturing — neutral starting point</option>
+                        <option value="@OnboardingIndustry.CNC">CNC machining — milling/turning/grinding</option>
+                        <option value="@OnboardingIndustry.PCBA">PCB assembly — SMT/wave solder/inspection</option>
+                        <option value="@OnboardingIndustry.Medical">Medical device — regulated manufacture</option>
+                    </InputSelect>
+                    <div class="form-text">We use this to seed an industry-appropriate sample process on your first login.</div>
+                </div>
+
+                <hr class="my-3" />
+                <div class="text-muted small mb-3">Your admin account</div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-medium">Username</label>
+                    <InputText class="form-control" @bind-Value="Input.AdminUserName" autocomplete="username" />
+                    <ValidationMessage For="() => Input.AdminUserName" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-medium">Email</label>
+                    <InputText class="form-control" @bind-Value="Input.AdminEmail" autocomplete="email" />
+                    <ValidationMessage For="() => Input.AdminEmail" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-medium">Display name <span class="text-muted small">(optional)</span></label>
+                    <InputText class="form-control" @bind-Value="Input.AdminDisplayName" />
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-medium">Password</label>
+                    <InputText type="password" class="form-control" @bind-Value="Input.AdminPassword" autocomplete="new-password" />
+                    <div class="form-text">At least 8 characters.</div>
+                    <ValidationMessage For="() => Input.AdminPassword" />
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100" disabled="@_isSubmitting">
+                    @if (_isSubmitting)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                        <span>Creating workspace…</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-rocket-takeoff me-2"></i>
+                        <span>Create workspace</span>
+                    }
+                </button>
+
+                <div class="text-center mt-3 small">
+                    Already have an account? <a href="/account/login">Sign in</a>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private SignupInput Input { get; set; } = new();
+
+    private string? ErrorMessage { get; set; }
+    private bool _isSubmitting;
+
+    private async Task HandleSignup()
+    {
+        ErrorMessage = null;
+        _isSubmitting = true;
+        try
+        {
+            var context = HttpContextAccessor.HttpContext!;
+
+            var apiBase = Config["ApiBaseUrl"] ?? "http://localhost:5100";
+            using var http = new HttpClient { BaseAddress = new Uri(apiBase) };
+
+            var payload = new PublicSignupDto(
+                Input.CompanyName.Trim(),
+                Input.Subdomain.Trim().ToLowerInvariant(),
+                Input.Industry,
+                Input.AdminUserName.Trim(),
+                Input.AdminEmail.Trim(),
+                Input.AdminPassword,
+                string.IsNullOrWhiteSpace(Input.AdminDisplayName) ? null : Input.AdminDisplayName.Trim());
+
+            HttpResponseMessage response;
+            try
+            {
+                response = await http.PostAsJsonAsync("api/public/signup", payload);
+            }
+            catch (Exception ex)
+            {
+                ErrorMessage = $"Could not reach the API ({apiBase}). Details: {ex.Message}";
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                ErrorMessage = string.IsNullOrWhiteSpace(body)
+                    ? $"Signup failed ({(int)response.StatusCode})."
+                    : body.Trim('"');
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<PublicSignupResultDto>(
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (result is null)
+            {
+                ErrorMessage = "Unexpected signup response. Please try again.";
+                return;
+            }
+
+            var token = result.Token;
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.Name,  token.UserName),
+                new(ClaimTypes.Email, token.Email),
+                new(ClaimTypes.Role,  token.Role),
+                new("access_token",   token.Token)
+            };
+            if (!string.IsNullOrWhiteSpace(token.DisplayName))
+                claims.Add(new("display_name", token.DisplayName));
+
+            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            await context.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                new ClaimsPrincipal(identity));
+
+            Nav.NavigateTo("/onboarding", forceLoad: true);
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    public class SignupInput
+    {
+        [Required, StringLength(128)] public string CompanyName { get; set; } = "";
+        [Required, StringLength(63, MinimumLength = 3)]
+        [RegularExpression("^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$", ErrorMessage = "3–63 chars, lowercase alphanumerics or hyphens, not starting or ending with a hyphen.")]
+        public string Subdomain { get; set; } = "";
+        public OnboardingIndustry Industry { get; set; } = OnboardingIndustry.General;
+        [Required, StringLength(64)] public string AdminUserName { get; set; } = "";
+        [Required, EmailAddress] public string AdminEmail { get; set; } = "";
+        [StringLength(128)] public string? AdminDisplayName { get; set; }
+        [Required, MinLength(8)] public string AdminPassword { get; set; } = "";
+    }
+}

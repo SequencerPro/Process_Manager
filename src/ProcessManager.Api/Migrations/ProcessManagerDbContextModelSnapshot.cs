@@ -176,6 +176,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsPlatformAdmin")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
 
@@ -201,6 +204,9 @@ namespace ProcessManager.Api.Migrations
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("boolean");
@@ -290,6 +296,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -319,6 +328,71 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("SourceType", "SourceEntityId");
 
                     b.ToTable("ActionItems");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ApiKey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("KeyHash")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("KeyPrefix")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.Property<DateTime?>("LastUsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("WorkstationId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("KeyHash")
+                        .IsUnique();
+
+                    b.HasIndex("WorkstationId");
+
+                    b.ToTable("ApiKeys");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.ApprovalRecord", b =>
@@ -374,6 +448,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -389,6 +466,180 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("EntityType", "EntityId");
 
                     b.ToTable("ApprovalRecords");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.Audit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ActualDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("AuditType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LeadAuditor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("PlannedDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ProgramId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProgramId");
+
+                    b.ToTable("Audits");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.AuditFinding", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ActionItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AuditId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClauseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ClosureNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("FindingType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("ObjectiveEvidence")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActionItemId");
+
+                    b.HasIndex("AuditId");
+
+                    b.HasIndex("ClauseId");
+
+                    b.ToTable("AuditFindings");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.AuditProgram", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LeadAuditor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Standard")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AuditPrograms");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Batch", b =>
@@ -425,6 +676,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -443,6 +697,55 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("KindId");
 
                     b.ToTable("Batches");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.BillingEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RawPayload")
+                        .HasColumnType("text");
+
+                    b.Property<string>("StripeEventId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StripeEventId")
+                        .IsUnique();
+
+                    b.ToTable("BillingEvents");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.BomLine", b =>
@@ -476,6 +779,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("UnitOfMeasure")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -497,6 +803,321 @@ namespace ProcessManager.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("BomLines");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.CalibrationRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AsFoundReading")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("AsLeftReading")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("CalibrationDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CalibrationType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("CertificateFileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("CertificateNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("EquipmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("NextDueDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("PerformedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("StandardsUsed")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("TemperatureHumidity")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Uncertainty")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EquipmentId");
+
+                    b.HasIndex("NextDueDate");
+
+                    b.ToTable("CalibrationRecords");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.CalibrationSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ConsecutivePassCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("EquipmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ExtensionPercent")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("IntervalAdjustmentMethod")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("IntervalDays")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("MaxIntervalDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinIntervalDays")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EquipmentId")
+                        .IsUnique();
+
+                    b.ToTable("CalibrationSchedules");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.CapaRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ContainmentAction")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("EffectivenessReviewDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EffectivenessVerifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EffectivenessVerifiedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("OwnerDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("OwnerUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("PermanentCorrectiveAction")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("PreventiveAction")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("ProblemStatement")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<Guid?>("RootCauseAnalysisId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RootCauseAnalysisType")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid?>("SourceEntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("TeamMemberIds")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("VerificationDueDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VerificationMethod")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime?>("VerifiedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VerifiedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("OwnerUserId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("CapaRecords");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.CapaStep", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AttachmentFileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("CapaRecordId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CompletedByDisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("CompletedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("StepType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CapaRecordId");
+
+                    b.ToTable("CapaSteps");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.CeCorrelation", b =>
@@ -522,6 +1143,9 @@ namespace ProcessManager.Api.Migrations
 
                     b.Property<int>("Score")
                         .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -572,6 +1196,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -608,6 +1235,9 @@ namespace ProcessManager.Api.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<Guid>("ProcessStepId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -657,6 +1287,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -670,6 +1303,313 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("PortId");
 
                     b.ToTable("CeOutputs");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ChangeOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("Justification")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RequestedByDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("RequestedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("TargetImplementationDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("ChangeOrders");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ChangeOrderApprover", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChangeOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Comments")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChangeOrderId");
+
+                    b.ToTable("ChangeOrderApprovers");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ChangeOrderImpact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AffectedEntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AffectedEntityName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("AffectedEntityType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("ChangeOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ImpactDescription")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("MitigationPlan")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChangeOrderId");
+
+                    b.ToTable("ChangeOrderImpacts");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ChangeOrderTask", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AssigneeDisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("AssigneeUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<Guid>("ChangeOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CompletedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime?>("DueDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChangeOrderId");
+
+                    b.ToTable("ChangeOrderTasks");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ClauseEvidenceLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClauseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("EvidenceNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool>("IsAutoLinked")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClauseId", "EntityType", "EntityId")
+                        .IsUnique();
+
+                    b.ToTable("ClauseEvidenceLinks");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.CompetencyRecord", b =>
@@ -711,6 +1651,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("TrainingProcessId")
                         .HasColumnType("uuid");
 
@@ -746,6 +1689,206 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("UserId", "TrainingProcessId", "Status");
 
                     b.ToTable("CompetencyRecords");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ComplaintInvestigation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("CustomerComplaintId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Findings")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime>("InvestigatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("InvestigatedByDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("InvestigatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("InvestigationType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerComplaintId");
+
+                    b.ToTable("ComplaintInvestigations");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ComplaintResponse", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("CustomerComplaintId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResponseType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SentByDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SentByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerComplaintId");
+
+                    b.ToTable("ComplaintResponses");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ConfiguratorModel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<int>("CurrentRevision")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("ConfiguratorModels");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ConfiguratorModelRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ConfiguratorModelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DefinitionJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConfiguratorModelId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("ConfiguratorModelRevisions");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.ControlPlan", b =>
@@ -795,6 +1938,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<string>("StalenessClearedBy")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -876,6 +2022,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -893,6 +2042,122 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("ProcessStepId");
 
                     b.ToTable("ControlPlanEntries");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.CustomerComplaint", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("ComplaintDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("CustomerReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool?>("CustomerSatisfied")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<Guid?>("LinkedCapaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("LinkedNonConformanceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("LinkedSupplierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("LotNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("OwnerDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("OwnerUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<Guid?>("ProductKindId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("QuantityAffected")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("ReceivedDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ResponseDueDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ResponseSentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("Severity");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("CustomerComplaints");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.DocumentApprovalRequest", b =>
@@ -928,6 +2193,9 @@ namespace ProcessManager.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -965,6 +2233,9 @@ namespace ProcessManager.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("TermBatch")
                         .IsRequired()
@@ -1073,6 +2344,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -1138,6 +2412,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1175,6 +2452,9 @@ namespace ProcessManager.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1219,6 +2499,9 @@ namespace ProcessManager.Api.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<Guid?>("StepExecutionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("UnitOfMeasure")
@@ -1285,6 +2568,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -1329,6 +2615,9 @@ namespace ProcessManager.Api.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid?>("RootCauseLibraryEntryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -1391,6 +2680,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ThumbnailBase64")
                         .HasColumnType("text");
 
@@ -1417,6 +2709,19 @@ namespace ProcessManager.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ConversionError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ConversionStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("ConvertedModelFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1426,12 +2731,42 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid>("FloorPlanId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ModelFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<string>("ModelMimeType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<double>("ModelOffsetX")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("ModelOffsetY")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("ModelOffsetZ")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("ModelOriginalFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<double>("ModelScale")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("ModelYaw")
+                        .HasColumnType("double precision");
+
                     b.Property<string>("PlacementId")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
                     b.Property<Guid>("StorageLocationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -1453,11 +2788,61 @@ namespace ProcessManager.Api.Migrations
                     b.ToTable("FloorPlanInventoryLocations");
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.FloorPlanInventoryLocationKind", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("FloorPlanInventoryLocationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("KindId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("KindId");
+
+                    b.HasIndex("FloorPlanInventoryLocationId", "KindId")
+                        .IsUnique();
+
+                    b.ToTable("FloorPlanInventoryLocationKinds");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.FloorPlanWorkstation", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("ConversionError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ConversionStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("ConvertedModelFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1471,6 +2856,33 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid>("FloorPlanId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ModelFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<string>("ModelMimeType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<double>("ModelOffsetX")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("ModelOffsetY")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("ModelOffsetZ")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("ModelOriginalFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
+                    b.Property<double>("ModelScale")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("ModelYaw")
+                        .HasColumnType("double precision");
+
                     b.Property<Guid?>("OrgUnitId")
                         .HasColumnType("uuid");
 
@@ -1480,6 +2892,9 @@ namespace ProcessManager.Api.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<Guid?>("StorageLocationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -1523,6 +2938,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1563,6 +2981,9 @@ namespace ProcessManager.Api.Migrations
 
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1607,6 +3028,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid>("TargetProcessStepId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1626,6 +3050,137 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("TargetProcessStepId");
 
                     b.ToTable("Flows");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.GageStudy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AcceptanceDecision")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("CharacteristicName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("EquipmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("GrrPercent")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("LSL")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int?>("Ndc")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("NumberOfOperators")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("NumberOfParts")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("NumberOfTrials")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ProcessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("StudyType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Tolerance")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal?>("USL")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EquipmentId");
+
+                    b.HasIndex("ProcessId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("GageStudies");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.GageStudyMeasurement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("GageStudyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("MeasuredValue")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("OperatorId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("PartNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("TrialNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GageStudyId", "PartNumber", "OperatorId", "TrialNumber")
+                        .IsUnique();
+
+                    b.ToTable("GageStudyMeasurements");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Grade", b =>
@@ -1661,6 +3216,9 @@ namespace ProcessManager.Api.Migrations
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -1707,6 +3265,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<string>("ReferenceType")
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid?>("ToLocationId")
                         .HasColumnType("uuid");
@@ -1775,6 +3336,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid?>("RootCauseLibraryEntryId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1830,6 +3394,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(300)
@@ -1853,6 +3420,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Barcode")
+                        .HasColumnType("text");
 
                     b.Property<Guid?>("BatchId")
                         .HasColumnType("uuid");
@@ -1884,6 +3454,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid?>("StorageLocationId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1891,6 +3464,9 @@ namespace ProcessManager.Api.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Barcode")
+                        .IsUnique();
 
                     b.HasIndex("BatchId");
 
@@ -1963,6 +3539,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1992,6 +3571,10 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Barcode")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Code")
                         .IsRequired()
@@ -2066,6 +3649,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("UnitOfMeasure")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -2092,6 +3678,9 @@ namespace ProcessManager.Api.Migrations
                         .HasColumnType("character varying(20)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Barcode")
+                        .IsUnique();
 
                     b.HasIndex("Code")
                         .IsUnique();
@@ -2131,6 +3720,9 @@ namespace ProcessManager.Api.Migrations
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Title")
                         .HasMaxLength(200)
@@ -2189,6 +3781,9 @@ namespace ProcessManager.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(15)
                         .HasColumnType("character varying(15)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -2249,6 +3844,9 @@ namespace ProcessManager.Api.Migrations
 
                     b.Property<DateTime?>("NextDueAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -2330,6 +3928,10 @@ namespace ProcessManager.Api.Migrations
                     b.Property<DateTime>("ScheduledDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ScorecardSummary")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -2338,6 +3940,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<string>("SupplierQualityNotes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -2425,6 +4030,52 @@ namespace ProcessManager.Api.Migrations
                     b.ToTable("McpAuditLogs");
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.MeasureSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CaptureSource")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTime>("CapturedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("MeasureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("Value")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MeasureId", "CapturedAt");
+
+                    b.ToTable("MeasureSnapshots");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.MrbParticipant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2459,6 +4110,9 @@ namespace ProcessManager.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -2547,6 +4201,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<bool>("SupplierCaused")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2612,6 +4269,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid>("StepExecutionId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2625,6 +4285,166 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("StepExecutionId");
 
                     b.ToTable("NonConformances");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ObjectiveCauseLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("ScorecardId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SourceObjectiveId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TargetObjectiveId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScorecardId");
+
+                    b.HasIndex("TargetObjectiveId");
+
+                    b.HasIndex("SourceObjectiveId", "TargetObjectiveId")
+                        .IsUnique();
+
+                    b.ToTable("ObjectiveCauseLinks");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ObjectiveMeasure", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("BaselineValue")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal?>("GreenThreshold")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("ObjectiveId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("RedThreshold")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid?>("SourceEntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceParameter")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<decimal>("TargetValue")
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Units")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ObjectiveId");
+
+                    b.ToTable("ObjectiveMeasures");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ObjectiveProcessLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("ObjectiveId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ProcessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("WorkflowId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ObjectiveId");
+
+                    b.HasIndex("ProcessId");
+
+                    b.HasIndex("WorkflowId");
+
+                    b.ToTable("ObjectiveProcessLinks");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.OrgUnit", b =>
@@ -2653,6 +4473,9 @@ namespace ProcessManager.Api.Migrations
                         .HasColumnType("character varying(200)");
 
                     b.Property<Guid?>("ParentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Type")
@@ -2689,6 +4512,9 @@ namespace ProcessManager.Api.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("OrgUnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -2760,6 +4586,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2823,6 +4652,9 @@ namespace ProcessManager.Api.Migrations
 
                     b.Property<DateTime?>("TargetDate")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -2891,6 +4723,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2933,6 +4768,9 @@ namespace ProcessManager.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -2987,6 +4825,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -3004,6 +4845,55 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("SourceLocationId");
 
                     b.ToTable("PickListLines");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.PlanChangeLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ChangedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FromPlan")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ToPlan")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("PlanChangeLogs");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Port", b =>
@@ -3070,6 +4960,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid>("StepTemplateId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Units")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -3122,6 +5015,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid>("StepExecutionId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -3169,6 +5065,9 @@ namespace ProcessManager.Api.Migrations
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -3248,6 +5147,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -3299,6 +5201,9 @@ namespace ProcessManager.Api.Migrations
                         .HasColumnType("integer");
 
                     b.Property<Guid>("StepTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -3390,6 +5295,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Units")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -3449,6 +5357,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<int?>("SortOrderOverride")
                         .HasColumnType("integer");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -3496,6 +5407,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -3516,6 +5430,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("ClientId")
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -3547,6 +5464,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid?>("StepTemplateContentId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -3562,6 +5482,145 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("StepTemplateContentId");
 
                     b.ToTable("PromptResponses");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.QualityCost", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("CostCategory")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("USD");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid?>("JobId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("KindId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("KindName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RecordedByDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("RecordedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("SourceEntityCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("SourceEntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CostCategory");
+
+                    b.HasIndex("RecordedAt");
+
+                    b.HasIndex("SourceEntityId");
+
+                    b.ToTable("QualityCosts");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.QualityCostRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("DefaultAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("DefaultCategory")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("DefaultSourceType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TriggerEvent")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TriggerEvent");
+
+                    b.ToTable("QualityCostRules");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.RootCauseEntry", b =>
@@ -3592,6 +5651,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<string>("Tags")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -3649,6 +5711,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid>("StepTemplateId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -3662,6 +5727,390 @@ namespace ProcessManager.Api.Migrations
                     b.HasIndex("StepTemplateId");
 
                     b.ToTable("RunChartWidgets");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ScanEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApiKeyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid?>("ItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("ScannedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ScannedBarcode")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TransactionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkstationId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApiKeyId");
+
+                    b.HasIndex("ItemId");
+
+                    b.HasIndex("ScannedAt");
+
+                    b.HasIndex("TransactionId");
+
+                    b.HasIndex("WorkstationId");
+
+                    b.ToTable("ScanEvents");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.Scorecard", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("MissionStatement")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("OwnerOrgUnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("StrategyNotes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("VisionStatement")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerOrgUnitId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("Scorecards");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ScorecardPerspective", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("ScorecardId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScorecardId");
+
+                    b.ToTable("ScorecardPerspectives");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ShiftDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("ShiftDefinitions");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.SpcChart", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("CL")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("ChartType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("ContentBlockId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ControlLimitSource")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal?>("LCL")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal?>("LSL")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("ProcessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("RangeCL")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal?>("RangeLCL")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal?>("RangeUCL")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<int>("SubgroupSize")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("TargetCpk")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("UCL")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal?>("USL")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProcessId");
+
+                    b.ToTable("SpcCharts");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.SpcDataPoint", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CapturedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("SpcChartId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("StepExecutionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SubgroupIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("Value")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StepExecutionId");
+
+                    b.HasIndex("SpcChartId", "SubgroupIndex");
+
+                    b.ToTable("SpcDataPoints");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.StandardsClause", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClauseNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsAs9100Addition")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("RequirementSummary")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Standard")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Standard", "ClauseNumber")
+                        .IsUnique();
+
+                    b.ToTable("StandardsClauses");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepExecution", b =>
@@ -3709,6 +6158,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -3725,6 +6177,52 @@ namespace ProcessManager.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("StepExecutions");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.StepExecutionPhaseEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("EnteredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ExitedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OperatorUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Phase")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("StepExecutionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StepExecutionId");
+
+                    b.ToTable("StepExecutionPhaseEvents");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepModel", b =>
@@ -3755,6 +6253,9 @@ namespace ProcessManager.Api.Migrations
                         .HasColumnType("character varying(500)");
 
                     b.Property<Guid>("StepTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -3830,6 +6331,9 @@ namespace ProcessManager.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -3928,6 +6432,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid>("StepTemplateId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Units")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -3978,6 +6485,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid>("StepTemplateId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -4000,6 +6510,10 @@ namespace ProcessManager.Api.Migrations
                     b.Property<string>("Aisle")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Barcode")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Bay")
                         .HasMaxLength(50)
@@ -4037,6 +6551,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid?>("ParentId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -4049,12 +6566,507 @@ namespace ProcessManager.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("Barcode")
+                        .IsUnique();
+
                     b.HasIndex("Code")
                         .IsUnique();
 
                     b.HasIndex("ParentId");
 
                     b.ToTable("StorageLocations");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.StrategicObjective", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid?>("OwnerOrgUnitId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PerspectiveId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("TargetDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerOrgUnitId");
+
+                    b.HasIndex("PerspectiveId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("StrategicObjectives");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.Supplier", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("ApprovedDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ContactName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ContactPhone")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime?>("LastEvaluationDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Suppliers");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.SupplierEvaluation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<int>("DeliveryScore")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EvaluatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime>("EvaluationDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<int>("OverallScore")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("QualityScore")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ResponsivenessScore")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SupplierId", "EvaluationDate");
+
+                    b.ToTable("SupplierEvaluations");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.Tenant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Subdomain")
+                        .IsRequired()
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Subdomain")
+                        .IsUnique();
+
+                    b.ToTable("Tenants");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.TenantBranding", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FooterText")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("LogoFileName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("PrimaryColorHex")
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique();
+
+                    b.ToTable("TenantBrandings");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.TenantFeatureFlags", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("ShowAdvancedModules")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("ShowProductionTools")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("ShowQualityTools")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("ShowStrategyTools")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("ShowTrainingTools")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("ShowWarehouseTools")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique();
+
+                    b.ToTable("TenantFeatureFlags");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.TenantOnboardingState", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<int>("CurrentStep")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("FirstJobCompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("FirstJobId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("FirstKindId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("FirstProcessId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("FirstStepTemplateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Industry")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("SignupAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("SkippedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique();
+
+                    b.ToTable("TenantOnboardingStates");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.TenantSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CouponCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("CurrentPeriodEnd")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("FailedPaymentCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("GraceEndsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastStripeEventId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("PlanCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("StripeCustomerId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("StripeSubscriptionId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("TrialEndsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique();
+
+                    b.ToTable("TenantSubscriptions");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.UsageMetric", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("MetricType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("PeriodEnd")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("PeriodStart")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "MetricType", "PeriodStart")
+                        .IsUnique();
+
+                    b.ToTable("UsageMetrics");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.WebhookDelivery", b =>
@@ -4135,6 +7147,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -4178,6 +7193,9 @@ namespace ProcessManager.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -4229,6 +7247,9 @@ namespace ProcessManager.Api.Migrations
                     b.Property<Guid>("TargetWorkflowProcessId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -4263,6 +7284,9 @@ namespace ProcessManager.Api.Migrations
                         .HasColumnType("text");
 
                     b.Property<Guid>("GradeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -4319,6 +7343,9 @@ namespace ProcessManager.Api.Migrations
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -4391,6 +7418,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -4451,6 +7481,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -4495,6 +7528,9 @@ namespace ProcessManager.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -4521,6 +7557,59 @@ namespace ProcessManager.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("WorkorderJobs");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.Workstation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("FixedLocationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("FixedLocationId");
+
+                    b.ToTable("Workstations");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -4574,6 +7663,17 @@ namespace ProcessManager.Api.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ApiKey", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.Workstation", "Workstation")
+                        .WithMany("ApiKeys")
+                        .HasForeignKey("WorkstationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Workstation");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.ApprovalRecord", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.Process", "Process")
@@ -4589,6 +7689,43 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Process");
 
                     b.Navigation("StepTemplate");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.Audit", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.AuditProgram", "Program")
+                        .WithMany("Audits")
+                        .HasForeignKey("ProgramId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Program");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.AuditFinding", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.ActionItem", "ActionItem")
+                        .WithMany()
+                        .HasForeignKey("ActionItemId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ProcessManager.Domain.Entities.Audit", "Audit")
+                        .WithMany("Findings")
+                        .HasForeignKey("AuditId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProcessManager.Domain.Entities.StandardsClause", "Clause")
+                        .WithMany("Findings")
+                        .HasForeignKey("ClauseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ActionItem");
+
+                    b.Navigation("Audit");
+
+                    b.Navigation("Clause");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Batch", b =>
@@ -4635,6 +7772,39 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("ComponentKind");
 
                     b.Navigation("ParentKind");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.CalibrationRecord", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.Equipment", "Equipment")
+                        .WithMany()
+                        .HasForeignKey("EquipmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Equipment");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.CalibrationSchedule", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.Equipment", "Equipment")
+                        .WithMany()
+                        .HasForeignKey("EquipmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Equipment");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.CapaStep", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.CapaRecord", "CapaRecord")
+                        .WithMany("Steps")
+                        .HasForeignKey("CapaRecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CapaRecord");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.CeCorrelation", b =>
@@ -4707,6 +7877,50 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Port");
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ChangeOrderApprover", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.ChangeOrder", "ChangeOrder")
+                        .WithMany("Approvers")
+                        .HasForeignKey("ChangeOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ChangeOrder");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ChangeOrderImpact", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.ChangeOrder", "ChangeOrder")
+                        .WithMany("Impacts")
+                        .HasForeignKey("ChangeOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ChangeOrder");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ChangeOrderTask", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.ChangeOrder", "ChangeOrder")
+                        .WithMany("Tasks")
+                        .HasForeignKey("ChangeOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ChangeOrder");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ClauseEvidenceLink", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.StandardsClause", "Clause")
+                        .WithMany("EvidenceLinks")
+                        .HasForeignKey("ClauseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Clause");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.CompetencyRecord", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.Job", "Job")
@@ -4723,6 +7937,35 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Job");
 
                     b.Navigation("TrainingProcess");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ComplaintInvestigation", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.CustomerComplaint", null)
+                        .WithMany("Investigations")
+                        .HasForeignKey("CustomerComplaintId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ComplaintResponse", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.CustomerComplaint", null)
+                        .WithMany("Responses")
+                        .HasForeignKey("CustomerComplaintId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ConfiguratorModelRevision", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.ConfiguratorModel", "Model")
+                        .WithMany("Revisions")
+                        .HasForeignKey("ConfiguratorModelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Model");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.ControlPlan", b =>
@@ -4878,6 +8121,25 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("StorageLocation");
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.FloorPlanInventoryLocationKind", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.FloorPlanInventoryLocation", "FloorPlanInventoryLocation")
+                        .WithMany("DesignatedKinds")
+                        .HasForeignKey("FloorPlanInventoryLocationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProcessManager.Domain.Entities.Kind", "Kind")
+                        .WithMany()
+                        .HasForeignKey("KindId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("FloorPlanInventoryLocation");
+
+                    b.Navigation("Kind");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.FloorPlanWorkstation", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.Equipment", "Equipment")
@@ -4989,6 +8251,34 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("TargetPort");
 
                     b.Navigation("TargetProcessStep");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.GageStudy", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.Equipment", "Equipment")
+                        .WithMany()
+                        .HasForeignKey("EquipmentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ProcessManager.Domain.Entities.Process", "Process")
+                        .WithMany()
+                        .HasForeignKey("ProcessId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Equipment");
+
+                    b.Navigation("Process");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.GageStudyMeasurement", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.GageStudy", "GageStudy")
+                        .WithMany("Measurements")
+                        .HasForeignKey("GageStudyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("GageStudy");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Grade", b =>
@@ -5158,6 +8448,17 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Equipment");
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.MeasureSnapshot", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.ObjectiveMeasure", "Measure")
+                        .WithMany("Snapshots")
+                        .HasForeignKey("MeasureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Measure");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.MrbParticipant", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.MrbReview", "MrbReview")
@@ -5197,6 +8498,69 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("ContentBlock");
 
                     b.Navigation("StepExecution");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ObjectiveCauseLink", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.Scorecard", "Scorecard")
+                        .WithMany("CauseLinks")
+                        .HasForeignKey("ScorecardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProcessManager.Domain.Entities.StrategicObjective", "SourceObjective")
+                        .WithMany()
+                        .HasForeignKey("SourceObjectiveId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ProcessManager.Domain.Entities.StrategicObjective", "TargetObjective")
+                        .WithMany()
+                        .HasForeignKey("TargetObjectiveId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Scorecard");
+
+                    b.Navigation("SourceObjective");
+
+                    b.Navigation("TargetObjective");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ObjectiveMeasure", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.StrategicObjective", "Objective")
+                        .WithMany("Measures")
+                        .HasForeignKey("ObjectiveId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Objective");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ObjectiveProcessLink", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.StrategicObjective", "Objective")
+                        .WithMany("ProcessLinks")
+                        .HasForeignKey("ObjectiveId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProcessManager.Domain.Entities.Process", "Process")
+                        .WithMany()
+                        .HasForeignKey("ProcessId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("ProcessManager.Domain.Entities.Workflow", "Workflow")
+                        .WithMany()
+                        .HasForeignKey("WorkflowId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Objective");
+
+                    b.Navigation("Process");
+
+                    b.Navigation("Workflow");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.OrgUnit", b =>
@@ -5493,6 +8857,90 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("StepTemplate");
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ScanEvent", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.ApiKey", "ApiKey")
+                        .WithMany()
+                        .HasForeignKey("ApiKeyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ProcessManager.Domain.Entities.Item", "Item")
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ProcessManager.Domain.Entities.InventoryTransaction", "Transaction")
+                        .WithMany()
+                        .HasForeignKey("TransactionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ProcessManager.Domain.Entities.Workstation", "Workstation")
+                        .WithMany()
+                        .HasForeignKey("WorkstationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ApiKey");
+
+                    b.Navigation("Item");
+
+                    b.Navigation("Transaction");
+
+                    b.Navigation("Workstation");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.Scorecard", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.OrgUnit", "OwnerOrgUnit")
+                        .WithMany()
+                        .HasForeignKey("OwnerOrgUnitId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("OwnerOrgUnit");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ScorecardPerspective", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.Scorecard", "Scorecard")
+                        .WithMany("Perspectives")
+                        .HasForeignKey("ScorecardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Scorecard");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.SpcChart", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.Process", "Process")
+                        .WithMany()
+                        .HasForeignKey("ProcessId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Process");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.SpcDataPoint", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.SpcChart", "SpcChart")
+                        .WithMany("DataPoints")
+                        .HasForeignKey("SpcChartId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProcessManager.Domain.Entities.StepExecution", "StepExecution")
+                        .WithMany()
+                        .HasForeignKey("StepExecutionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SpcChart");
+
+                    b.Navigation("StepExecution");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepExecution", b =>
                 {
                     b.HasOne("ProcessManager.Domain.Entities.Equipment", "Equipment")
@@ -5517,6 +8965,17 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Job");
 
                     b.Navigation("ProcessStep");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.StepExecutionPhaseEvent", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.StepExecution", "StepExecution")
+                        .WithMany()
+                        .HasForeignKey("StepExecutionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("StepExecution");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepModel", b =>
@@ -5577,6 +9036,35 @@ namespace ProcessManager.Api.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Parent");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.StrategicObjective", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.OrgUnit", "OwnerOrgUnit")
+                        .WithMany()
+                        .HasForeignKey("OwnerOrgUnitId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ProcessManager.Domain.Entities.ScorecardPerspective", "Perspective")
+                        .WithMany("Objectives")
+                        .HasForeignKey("PerspectiveId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("OwnerOrgUnit");
+
+                    b.Navigation("Perspective");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.SupplierEvaluation", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.Supplier", "Supplier")
+                        .WithMany("Evaluations")
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Supplier");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.WebhookDelivery", b =>
@@ -5716,6 +9204,27 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Workorder");
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.Workstation", b =>
+                {
+                    b.HasOne("ProcessManager.Domain.Entities.StorageLocation", "FixedLocation")
+                        .WithMany()
+                        .HasForeignKey("FixedLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("FixedLocation");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.Audit", b =>
+                {
+                    b.Navigation("Findings");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.AuditProgram", b =>
+                {
+                    b.Navigation("Audits");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.Batch", b =>
                 {
                     b.Navigation("ExecutionData");
@@ -5723,6 +9232,11 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Items");
 
                     b.Navigation("PortTransactions");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.CapaRecord", b =>
+                {
+                    b.Navigation("Steps");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.CeInput", b =>
@@ -5744,9 +9258,30 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Correlations");
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ChangeOrder", b =>
+                {
+                    b.Navigation("Approvers");
+
+                    b.Navigation("Impacts");
+
+                    b.Navigation("Tasks");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ConfiguratorModel", b =>
+                {
+                    b.Navigation("Revisions");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.ControlPlan", b =>
                 {
                     b.Navigation("Entries");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.CustomerComplaint", b =>
+                {
+                    b.Navigation("Investigations");
+
+                    b.Navigation("Responses");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.Equipment", b =>
@@ -5780,11 +9315,21 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Workstations");
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.FloorPlanInventoryLocation", b =>
+                {
+                    b.Navigation("DesignatedKinds");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.FloorPlanWorkstation", b =>
                 {
                     b.Navigation("Processes");
 
                     b.Navigation("Tools");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.GageStudy", b =>
+                {
+                    b.Navigation("Measurements");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.IshikawaCause", b =>
@@ -5827,6 +9372,11 @@ namespace ProcessManager.Api.Migrations
             modelBuilder.Entity("ProcessManager.Domain.Entities.MrbReview", b =>
                 {
                     b.Navigation("Participants");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ObjectiveMeasure", b =>
+                {
+                    b.Navigation("Snapshots");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.OrgUnit", b =>
@@ -5872,6 +9422,30 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("PortOverrides");
                 });
 
+            modelBuilder.Entity("ProcessManager.Domain.Entities.Scorecard", b =>
+                {
+                    b.Navigation("CauseLinks");
+
+                    b.Navigation("Perspectives");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.ScorecardPerspective", b =>
+                {
+                    b.Navigation("Objectives");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.SpcChart", b =>
+                {
+                    b.Navigation("DataPoints");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.StandardsClause", b =>
+                {
+                    b.Navigation("EvidenceLinks");
+
+                    b.Navigation("Findings");
+                });
+
             modelBuilder.Entity("ProcessManager.Domain.Entities.StepExecution", b =>
                 {
                     b.Navigation("ExecutionData");
@@ -5903,6 +9477,18 @@ namespace ProcessManager.Api.Migrations
                     b.Navigation("Children");
 
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.StrategicObjective", b =>
+                {
+                    b.Navigation("Measures");
+
+                    b.Navigation("ProcessLinks");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.Supplier", b =>
+                {
+                    b.Navigation("Evaluations");
                 });
 
             modelBuilder.Entity("ProcessManager.Domain.Entities.WebhookSubscription", b =>
@@ -5937,6 +9523,11 @@ namespace ProcessManager.Api.Migrations
             modelBuilder.Entity("ProcessManager.Domain.Entities.Workorder", b =>
                 {
                     b.Navigation("WorkorderJobs");
+                });
+
+            modelBuilder.Entity("ProcessManager.Domain.Entities.Workstation", b =>
+                {
+                    b.Navigation("ApiKeys");
                 });
 #pragma warning restore 612, 618
         }

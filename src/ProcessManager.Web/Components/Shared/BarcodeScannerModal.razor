@@ -1,0 +1,110 @@
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+
+@if (_show)
+{
+<div class="modal d-block" style="background:rgba(0,0,0,.7);z-index:1060">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-upc-scan me-2"></i>Scan Barcode</h5>
+                <button type="button" class="btn-close" @onclick="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                @if (!_cameraSupported)
+                {
+                    <div class="alert alert-warning py-2 small">
+                        <i class="bi bi-exclamation-triangle me-1"></i>Camera barcode scanning not available on this device.
+                    </div>
+                }
+                else
+                {
+                    <video id="@_videoId" autoplay playsinline muted
+                           style="width:100%;max-height:300px;border-radius:6px;background:#000"></video>
+                    @if (_scanning)
+                    {
+                        <p class="text-muted small mt-2">Point camera at barcode…</p>
+                    }
+                }
+                <div class="mt-3">
+                    <label class="form-label small text-muted">Or enter manually:</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-keyboard"></i></span>
+                        <input type="text" class="form-control" @bind="_manualValue"
+                               @onkeydown="HandleKeyDown" placeholder="Type or scan with wedge reader" autofocus />
+                        <button class="btn btn-primary" @onclick="SubmitManual"
+                                disabled="@string.IsNullOrWhiteSpace(_manualValue)">OK</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+}
+
+@code {
+    [Parameter] public EventCallback<string> OnScanned { get; set; }
+
+    private bool _show;
+    private bool _scanning;
+    private bool _cameraSupported;
+    private string _manualValue = "";
+    private string _videoId = $"barcode-video-{Guid.NewGuid():N}";
+    private DotNetObjectReference<BarcodeScannerModal>? _objRef;
+
+    public async Task Open()
+    {
+        _show = true;
+        _manualValue = "";
+        _scanning = false;
+        StateHasChanged();
+
+        await Task.Delay(50);
+        _cameraSupported = await JS.InvokeAsync<bool>("BarcodeScanner.isSupported");
+
+        if (_cameraSupported)
+        {
+            _objRef ??= DotNetObjectReference.Create(this);
+            _scanning = await JS.InvokeAsync<bool>("BarcodeScanner.startScan", _objRef, _videoId);
+        }
+
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public async Task OnBarcodeDetected(string value)
+    {
+        _scanning = false;
+        _show = false;
+        StateHasChanged();
+        await OnScanned.InvokeAsync(value);
+    }
+
+    private async Task SubmitManual()
+    {
+        if (string.IsNullOrWhiteSpace(_manualValue)) return;
+        await StopCamera();
+        _show = false;
+        await OnScanned.InvokeAsync(_manualValue.Trim());
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SubmitManual();
+    }
+
+    private async Task Close()
+    {
+        await StopCamera();
+        _show = false;
+    }
+
+    private async Task StopCamera()
+    {
+        if (_scanning)
+        {
+            try { await JS.InvokeVoidAsync("BarcodeScanner.stopScan"); } catch { }
+            _scanning = false;
+        }
+    }
+}

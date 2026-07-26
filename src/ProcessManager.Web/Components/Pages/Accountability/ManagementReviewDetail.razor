@@ -61,7 +61,7 @@ else
 
     <div class="row g-3">
         @* ── Auto-populated Inputs (visible after Start) ── *@
-        @if (_review.NcSummary is not null || _review.ActionCloseRateSummary is not null || _review.MrbSummary is not null || _review.TrainingComplianceSummary is not null)
+        @if (_review.NcSummary is not null || _review.ActionCloseRateSummary is not null || _review.MrbSummary is not null || _review.TrainingComplianceSummary is not null || _review.ScorecardSummary is not null)
         {
             <div class="col-12">
                 <div class="card shadow-sm border-info">
@@ -96,6 +96,16 @@ else
                                 <div class="col-md-4">
                                     <div class="fw-semibold small mb-1">Training Compliance</div>
                                     <p class="mb-0 text-muted small">@_review.TrainingComplianceSummary</p>
+                                </div>
+                            }
+                            @if (_review.ScorecardSummary is not null)
+                            {
+                                <div class="col-md-8">
+                                    <div class="fw-semibold small mb-1">
+                                        Strategy — Balanced Scorecard
+                                        <a href="strategy/scorecards" class="ms-1 small text-decoration-none">view scorecards <i class="bi bi-arrow-right-short"></i></a>
+                                    </div>
+                                    <p class="mb-0 text-muted small">@_review.ScorecardSummary</p>
                                 </div>
                             }
                         </div>

@@ -189,6 +189,11 @@
                             <i class="bi bi-play-circle me-2"></i> @Vocab.StepExecutions
                         </NavLink>
                     </li>
+                    <li class="nav-item">
+                        <NavLink class="nav-link text-white ps-4" href="configurator">
+                            <i class="bi bi-diagram-3 me-2"></i> Configurator
+                        </NavLink>
+                    </li>
                 }
 
                 @* ── Config ── *@
@@ -664,7 +669,7 @@
     {
         ["design"]    = ["kinds", "step-templates", "processes", "approval-queue", "workflows"],
         ["strategy"]  = ["strategy/scorecards"],
-        ["execution"] = ["workorders", "jobs", "items", "batches", "step-executions"],
+        ["execution"] = ["workorders", "jobs", "items", "batches", "step-executions", "configurator"],
         ["config"]    = ["vocabulary", "orgunits"],
         ["quality"]   = ["pfmeas", "ce-matrices", "control-plans", "non-conformances", "root-cause-library", "ishikawa", "five-whys", "mrb", "spc", "gage-studies", "suppliers", "capas", "complaints"],
         ["documents"]  = ["documents"],

@@ -1,0 +1,32 @@
+/* ============================================================
+   SequencerPro — Fonts
+   Display/brand voice: Coda (with Kelly Slab accent "e"s in the
+   wordmark). UI + body: Mulish (the brochure's "Muli", since
+   renamed by Google). Codes/IDs/measurements: IBM Plex Mono —
+   a load-bearing choice in a data ERP. The real Blazor app
+   renders body in the native Calibri/Segoe stack; Mulish is the
+   faithful web match.
+
+   Fonts load from Google Fonts via @import (no binaries vendored,
+   so the compiler reports zero @font-face — see readme §6). Drop
+   self-hosted .woff2 in /assets/fonts and swap these lines for
+   fully-offline rendering.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Coda:wght@400;800&family=Kelly+Slab&family=Mulish:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* Families */
+  --font-sans:    'Mulish', 'Helvetica Neue', 'Arial', sans-serif;        /* @kind font */
+  --font-display: 'Coda', 'Trebuchet MS', sans-serif;                     /* @kind font */
+  --font-accent:  'Kelly Slab', 'Coda', serif;                           /* @kind font */
+  --font-mono:    'IBM Plex Mono', ui-monospace, 'SFMono-Regular', 'Consolas', monospace; /* @kind font */
+
+  /* Weights */
+  --fw-light:    300;  /* @kind other */
+  --fw-regular:  400;  /* @kind other */
+  --fw-medium:   500;  /* @kind other */
+  --fw-semibold: 600;  /* @kind other */
+  --fw-bold:     700;  /* @kind other */
+  --fw-display:  800;  /* @kind other */
+}

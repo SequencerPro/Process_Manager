@@ -1,0 +1,33 @@
+/* ============================================================
+   SequencerPro — Typography scale
+   Compact (14px base) for a table-dense ERP. Display sizes carry
+   the Coda brand voice; text sizes stay tight and legible inside
+   tables, port lists, and detail panels.
+   ============================================================ */
+
+:root {
+  /* ── Font sizes (rem, 16px root) ──────────────────────────── */
+  --text-2xs:  0.6875rem;  /* 11px — micro-labels, badges, eyebrows */
+  --text-xs:   0.75rem;    /* 12px — meta, codes, captions */
+  --text-sm:   0.8125rem;  /* 13px — dense table cells */
+  --text-base: 0.875rem;   /* 14px — default body (compact ERP base) */
+  --text-md:   0.9375rem;  /* 15px — comfortable body / inputs */
+  --text-lg:   1.0625rem;  /* 17px — lead paragraph */
+  --text-xl:   1.25rem;    /* 20px — card / panel titles */
+  --text-2xl:  1.625rem;   /* 26px — page titles */
+  --text-3xl:  2.125rem;   /* 34px — dashboard numerals, section heads */
+  --text-4xl:  2.875rem;   /* 46px — hero */
+  --text-5xl:  3.75rem;    /* 60px — marketing display */
+
+  /* ── Line heights ─────────────────────────────────────────── */
+  --lh-tight:   1.15;  /* @kind other */
+  --lh-snug:    1.3;   /* @kind other */
+  --lh-normal:  1.5;   /* @kind other */
+  --lh-relaxed: 1.65;  /* @kind other */
+
+  /* ── Letter spacing ───────────────────────────────────────── */
+  --ls-tight:  -0.01em;  /* @kind other */
+  --ls-normal: 0;        /* @kind other */
+  --ls-wide:   0.04em;   /* @kind other */
+  --ls-caps:   0.1em; /* @kind other */ /* uppercase eyebrows/labels */
+}

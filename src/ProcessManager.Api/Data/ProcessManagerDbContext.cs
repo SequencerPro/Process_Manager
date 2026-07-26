@@ -215,9 +215,34 @@ public class ProcessManagerDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ObjectiveCauseLink> ObjectiveCauseLinks => Set<ObjectiveCauseLink>();
     public DbSet<ObjectiveProcessLink> ObjectiveProcessLinks => Set<ObjectiveProcessLink>();
 
+    // Phase 51: BoM / Product Configurator (revision-controlled models)
+    public DbSet<ConfiguratorModel> ConfiguratorModels => Set<ConfiguratorModel>();
+    public DbSet<ConfiguratorModelRevision> ConfiguratorModelRevisions => Set<ConfiguratorModelRevision>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        // --- ConfiguratorModel (revision-controlled product configurator) ---
+        modelBuilder.Entity<ConfiguratorModel>(e =>
+        {
+            e.HasKey(m => m.Id);
+            e.HasIndex(m => new { m.TenantId, m.Code }).IsUnique();
+            e.Property(m => m.Code).HasMaxLength(50).IsRequired();
+            e.Property(m => m.Name).HasMaxLength(200).IsRequired();
+            e.Property(m => m.Description).HasMaxLength(2000);
+        });
+        modelBuilder.Entity<ConfiguratorModelRevision>(e =>
+        {
+            e.HasKey(r => r.Id);
+            e.HasIndex(r => new { r.ConfiguratorModelId, r.Revision }).IsUnique();
+            e.Property(r => r.Notes).HasMaxLength(2000);
+            e.Property(r => r.DefinitionJson).IsRequired();
+            e.HasOne(r => r.Model)
+                .WithMany(m => m.Revisions)
+                .HasForeignKey(r => r.ConfiguratorModelId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         // --- Kind ---
         modelBuilder.Entity<Kind>(e =>

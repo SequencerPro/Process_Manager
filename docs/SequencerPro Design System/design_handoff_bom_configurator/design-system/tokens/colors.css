@@ -1,0 +1,105 @@
+/* ============================================================
+   SequencerPro — Color tokens
+   Palette lifted verbatim from the product's new-age.css
+   (--sequencer-*), here given the system's working names plus
+   tint/shade ramps, a neutral ink scale, and semantic aliases.
+
+   The logo IS the palette: four nodes in a rising sequence —
+   gold → teal → blue → orange. Reuse these as accents; never
+   invent a fifth hue.
+   ============================================================ */
+
+:root {
+  /* ── Brand base (exact values from new-age.css) ───────────── */
+  --gold:       #f1c40f;   /* primary brand accent */
+  --teal:       #1da086;   /* the brochure's "cyan" — pass / good */
+  --blue:       #529bde;   /* info / in-progress */
+  --orange:     #e95b15;   /* action / rework */
+  --slate:      #212121;   /* dark chrome, primary ink */
+  --charcoal:   #3d3d3d;   /* secondary dark surface */
+  --grey:       #adadad;   /* muted / disabled */
+  --white:      #f6f6f6;   /* off-white app canvas */
+  --pure-white: #ffffff;   /* card surface */
+
+  /* ── Gold ramp ────────────────────────────────────────────── */
+  --gold-50:  #fef9e7;
+  --gold-100: #fcefb8;
+  --gold-200: #f9e285;
+  --gold-300: #f6d452;
+  --gold-400: #f3c92b;
+  --gold-500: #f1c40f;
+  --gold-600: #c79f08;
+  --gold-700: #93750a;
+  --gold-800: #5f4c0a;
+
+  /* ── Teal ramp ────────────────────────────────────────────── */
+  --teal-50:  #e6f5f1;
+  --teal-100: #c0e7dd;
+  --teal-200: #86d0bf;
+  --teal-300: #4cb8a0;
+  --teal-400: #28a98f;
+  --teal-500: #1da086;
+  --teal-600: #16806b;
+  --teal-700: #115f50;
+  --teal-800: #0c4138;
+
+  /* ── Blue ramp ────────────────────────────────────────────── */
+  --blue-50:  #eaf3fb;
+  --blue-100: #c8e0f5;
+  --blue-200: #9cc7ec;
+  --blue-300: #71ade3;
+  --blue-400: #529bde;
+  --blue-500: #3585d2;
+  --blue-600: #2769ab;
+  --blue-700: #1c4d7e;
+  --blue-800: #133250;
+
+  /* ── Orange ramp ──────────────────────────────────────────── */
+  --orange-50:  #fdede4;
+  --orange-100: #f9cdb8;
+  --orange-200: #f4a585;
+  --orange-300: #ef7c47;
+  --orange-400: #ec6a2e;
+  --orange-500: #e95b15;
+  --orange-600: #c44a0f;
+  --orange-700: #93380c;
+  --orange-800: #5f2408;
+
+  /* ── Neutral "ink" scale (cool slate-grey) ────────────────── */
+  --ink-900: #212121;   /* = slate */
+  --ink-800: #2a2a2a;
+  --ink-700: #3d3d3d;   /* = charcoal */
+  --ink-600: #5e5e5e;
+  --ink-500: #8a8a8a;
+  --ink-400: #adadad;   /* = grey */
+
+  /* ── Grey surface scale ───────────────────────────────────── */
+  --grey-50:  #fafafa;
+  --grey-100: #f0f0f0;
+  --grey-200: #e6e6e6;
+  --grey-300: #d4d4d4;
+  --grey-400: #adadad;
+
+  /* ── Semantic surfaces & text ─────────────────────────────── */
+  --bg-app:      #f6f6f6;          /* app canvas */
+  --bg-surface:  #ffffff;          /* cards, panels */
+  --bg-sunken:   #f0f0f0;          /* wells, code blocks */
+  --bg-dark:     var(--slate);     /* sidebar / top chrome */
+
+  --text-primary:   #212121;
+  --text-secondary: #5e5e5e;
+  --text-muted:     #8a8a8a;
+  --text-inverse:   #f6f6f6;
+  --text-link:      #2769ab;       /* blue-600 */
+
+  --border-default: #e6e6e6;
+  --border-strong:  #d4d4d4;
+
+  /* ── Status semantics (map to the four nodes + a true fail) ── */
+  --status-pass:   var(--teal);     /* completed / passed */
+  --status-info:   var(--blue);     /* in progress */
+  --status-hold:   var(--gold);     /* on hold / attention */
+  --status-rework: var(--orange);   /* rework / action */
+  --status-fail:   #d64545;         /* scrap / fail — kept distinct from orange */
+  --status-pending:var(--grey);     /* not started */
+}

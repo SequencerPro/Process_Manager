@@ -1,0 +1,296 @@
+@page "/configurator"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Engineer")]
+@using System.Text.Json
+@using ProcessManager.Domain.Configurator
+@inject ApiClient Api
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<PageTitle>Configurator Models — Process Manager</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4 page-heading-row">
+    <div>
+        <h3 class="mb-0"><i class="bi bi-diagram-3 me-2 text-primary"></i>Configurator Models</h3>
+        <p class="text-muted small mb-0 d-none d-md-block">Revision-controlled product platforms for the BoM configurator</p>
+    </div>
+    <div class="d-flex gap-2">
+        <label class="btn btn-sm btn-outline-secondary mb-0">
+            <i class="bi bi-upload me-1"></i>Import
+            <InputFile OnChange="ImportFile" accept=".json" hidden />
+        </label>
+        <button class="btn btn-sm btn-primary" @onclick="() => _showCreate = true">
+            <i class="bi bi-plus-lg me-1"></i>New model
+        </button>
+    </div>
+</div>
+
+@if (_error != null)
+{
+    <div class="alert alert-danger alert-dismissible">
+        @_error
+        <button type="button" class="btn-close" @onclick="() => _error = null"></button>
+    </div>
+}
+@if (_info != null)
+{
+    <div class="alert alert-success alert-dismissible">
+        @_info
+        <button type="button" class="btn-close" @onclick="() => _info = null"></button>
+    </div>
+}
+
+@if (_loading)
+{
+    <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading models…
+    </div>
+}
+else if (_models.Count == 0)
+{
+    <div class="text-center py-5 text-muted">
+        <i class="bi bi-diagram-3" style="font-size:2rem"></i>
+        <p class="mt-2 mb-3">No configurator models yet.</p>
+        <button class="btn btn-primary" @onclick="() => _showCreate = true"><i class="bi bi-plus-lg me-1"></i>Create your first model</button>
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var m in _models)
+        {
+            <div class="col-sm-6 col-lg-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h5 class="card-title mb-0">@m.Name</h5>
+                                <div class="text-muted small font-monospace">@m.Code</div>
+                            </div>
+                            <span class="badge text-bg-dark">Rev @m.CurrentRevision</span>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(m.Description))
+                        {
+                            <p class="card-text small text-muted mt-2 mb-0">@m.Description</p>
+                        }
+                        <div class="text-muted small mt-2 flex-grow-1">
+                            @m.RevisionCount revision@(m.RevisionCount == 1 ? "" : "s") · updated @m.UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                        </div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-sm btn-primary flex-grow-1" @onclick="@(() => Nav.NavigateTo($"configurator/{m.Id}"))">
+                                <i class="bi bi-sliders2 me-1"></i>Open
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" title="Export as portable JSON" @onclick="() => Export(m)">
+                                <i class="bi bi-download"></i>
+                            </button>
+                            <AuthorizeView Roles="Admin">
+                                <button class="btn btn-sm btn-outline-danger" title="Delete model" @onclick="() => _deleteTarget = m">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </AuthorizeView>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@* ── create dialog ── *@
+@if (_showCreate)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">New configurator model</h5>
+                    <button type="button" class="btn-close" @onclick="() => _showCreate = false"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input class="form-control" @bind="_newName" placeholder="e.g. Sequencer RX-9" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Code</label>
+                        <input class="form-control font-monospace" @bind="_newCode" placeholder="e.g. SEQ-RX9" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description <span class="text-muted">(optional)</span></label>
+                        <input class="form-control" @bind="_newDescription" />
+                    </div>
+                    <label class="form-label">Start from</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="tpl-blank" checked="@(_newTemplate == "blank")"
+                               @onchange='() => _newTemplate = "blank"' />
+                        <label class="form-check-label" for="tpl-blank">
+                            <b>Blank product</b> <span class="text-muted small">— empty tree; define your own panels, drag in Kinds, author rules from scratch</span>
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="tpl-rx6" checked="@(_newTemplate == "rx6")"
+                               @onchange='() => _newTemplate = "rx6"' />
+                        <label class="form-check-label" for="tpl-rx6">
+                            <b>Example: 6-axis robot</b> <span class="text-muted small">— a fully-populated demo platform to explore and adapt</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" @onclick="() => _showCreate = false">Cancel</button>
+                    <button class="btn btn-primary" disabled="@(_busy || string.IsNullOrWhiteSpace(_newName) || string.IsNullOrWhiteSpace(_newCode))" @onclick="Create">
+                        @if (_busy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Create
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── delete confirm ── *@
+@if (_deleteTarget != null)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,.5)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete model</h5>
+                    <button type="button" class="btn-close" @onclick="() => _deleteTarget = null"></button>
+                </div>
+                <div class="modal-body">
+                    Delete <b>@_deleteTarget.Name</b> (@_deleteTarget.Code) and all @_deleteTarget.RevisionCount of its revisions?
+                    This cannot be undone — consider exporting it first.
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" @onclick="() => _deleteTarget = null">Cancel</button>
+                    <button class="btn btn-danger" disabled="@_busy" @onclick="Delete">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ConfiguratorModelSummaryDto> _models = new();
+    private bool _loading = true;
+    private bool _busy;
+    private string? _error;
+    private string? _info;
+
+    private bool _showCreate;
+    private string _newName = "";
+    private string _newCode = "";
+    private string _newDescription = "";
+    private string _newTemplate = "blank";
+
+    private ConfiguratorModelSummaryDto? _deleteTarget;
+
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _loading = true;
+        try
+        {
+            _models = await Api.GetConfiguratorModelsAsync() ?? new();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not load models: {ex.Message}";
+        }
+        _loading = false;
+    }
+
+    private async Task Create()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            ProductPlatform definition;
+            if (_newTemplate == "rx6")
+            {
+                // Example template: the RX-6 demo platform restamped with the user's identity.
+                definition = RobotPlatformData.Build();
+                definition.Platform = new PlatformMeta
+                {
+                    Code = _newCode.Trim(), Name = _newName.Trim(),
+                    Tagline = _newDescription.Trim(), BasePrice = definition.Platform.BasePrice,
+                };
+            }
+            else
+            {
+                definition = ProductPlatform.CreateBlank(_newCode.Trim(), _newName.Trim(), _newDescription.Trim());
+            }
+            var created = await Api.CreateConfiguratorModelAsync(new ConfiguratorModelCreateDto(
+                _newCode.Trim(), _newName.Trim(),
+                string.IsNullOrWhiteSpace(_newDescription) ? null : _newDescription.Trim(),
+                "Initial revision",
+                JsonSerializer.Serialize(definition, JsonOpts)));
+            _showCreate = false;
+            if (created != null) Nav.NavigateTo($"configurator/{created.Id}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        _busy = false;
+    }
+
+    private async Task Delete()
+    {
+        if (_deleteTarget is null) return;
+        _busy = true;
+        try
+        {
+            await Api.DeleteConfiguratorModelAsync(_deleteTarget.Id);
+            _info = $"Deleted {_deleteTarget.Name}.";
+            _deleteTarget = null;
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Delete failed: {ex.Message}";
+        }
+        _busy = false;
+    }
+
+    private async Task Export(ConfiguratorModelSummaryDto m)
+    {
+        try
+        {
+            var json = await Api.ExportConfiguratorModelAsync(m.Id);
+            var name = $"configurator-model-{m.Code}-rev{m.CurrentRevision}.json";
+            await JS.InvokeVoidAsync("BomConfigurator.downloadFile", name, json, "application/json");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Export failed: {ex.Message}";
+        }
+    }
+
+    private async Task ImportFile(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        try
+        {
+            using var reader = new StreamReader(e.File.OpenReadStream(maxAllowedSize: 20 * 1024 * 1024));
+            var json = await reader.ReadToEndAsync();
+            var created = await Api.ImportConfiguratorModelAsync(json);
+            _info = $"Imported {created?.Name} ({created?.Code}) with {created?.RevisionCount} revision(s).";
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Import failed: {ex.Message}";
+        }
+    }
+}

@@ -3261,4 +3261,65 @@ public class ApiClient
         var resp = await _http.DeleteAsync($"api/scorecards/process-links/{linkId}");
         resp.EnsureSuccessStatusCode();
     }
+
+    // ═══════════════════ Configurator Models ═══════════════════
+
+    public Task<List<ConfiguratorModelSummaryDto>?> GetConfiguratorModelsAsync(string? search = null)
+        => _http.GetFromJsonAsync<List<ConfiguratorModelSummaryDto>>(
+            $"api/configuratormodels?search={E(search)}", _json);
+
+    public Task<ConfiguratorModelDetailDto?> GetConfiguratorModelAsync(Guid id)
+        => _http.GetFromJsonAsync<ConfiguratorModelDetailDto>($"api/configuratormodels/{id}", _json);
+
+    public Task<ConfiguratorRevisionDto?> GetConfiguratorRevisionAsync(Guid id, int revision)
+        => _http.GetFromJsonAsync<ConfiguratorRevisionDto>($"api/configuratormodels/{id}/revisions/{revision}", _json);
+
+    public async Task<ConfiguratorModelSummaryDto?> CreateConfiguratorModelAsync(ConfiguratorModelCreateDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync("api/configuratormodels", dto, _json);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to create model ({resp.StatusCode})");
+        }
+        return await resp.Content.ReadFromJsonAsync<ConfiguratorModelSummaryDto>(_json);
+    }
+
+    public async Task<ConfiguratorRevisionSummaryDto?> AddConfiguratorRevisionAsync(Guid id, ConfiguratorRevisionCreateDto dto)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/configuratormodels/{id}/revisions", dto, _json);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Failed to save revision ({resp.StatusCode})");
+        }
+        return await resp.Content.ReadFromJsonAsync<ConfiguratorRevisionSummaryDto>(_json);
+    }
+
+    public async Task DeleteConfiguratorModelAsync(Guid id)
+    {
+        var resp = await _http.DeleteAsync($"api/configuratormodels/{id}");
+        resp.EnsureSuccessStatusCode();
+    }
+
+    /// <summary>Fetches the portable export envelope as raw JSON text (for file download).</summary>
+    public async Task<string> ExportConfiguratorModelAsync(Guid id)
+    {
+        var resp = await _http.GetAsync($"api/configuratormodels/{id}/export");
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadAsStringAsync();
+    }
+
+    /// <summary>Imports a previously exported model file (raw envelope JSON).</summary>
+    public async Task<ConfiguratorModelSummaryDto?> ImportConfiguratorModelAsync(string envelopeJson)
+    {
+        using var content = new StringContent(envelopeJson, System.Text.Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync("api/configuratormodels/import", content);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            throw new HttpRequestException(ExtractErrorMessage(body) ?? $"Import failed ({resp.StatusCode})");
+        }
+        return await resp.Content.ReadFromJsonAsync<ConfiguratorModelSummaryDto>(_json);
+    }
 }

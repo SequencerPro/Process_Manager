@@ -259,6 +259,7 @@ try
         await DataSeeder.SeedQmsDocumentsAsync(db);
         await DataSeeder.SeedTrainingDocumentsAsync(db);
         await DataSeeder.SeedStandardsClausesAsync(db);
+        await ProcessManager.Api.Controllers.ConfiguratorModelsController.SeedAsync(db);
     }
 }
 catch (Exception ex)

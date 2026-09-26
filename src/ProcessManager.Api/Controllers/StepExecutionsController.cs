@@ -339,11 +339,16 @@ public class StepExecutionsController : ControllerBase
                 }
             }
 
-            // Upsert by (StepExecutionId + content block id)
-            var existing = await _db.PromptResponses.FirstOrDefaultAsync(r =>
-                r.StepExecutionId == id &&
-                r.ProcessStepContentId == item.ProcessStepContentId &&
-                r.StepTemplateContentId == item.StepTemplateContentId);
+            // Upsert by (StepExecutionId + content block id). Check the change tracker first so
+            // a prompt repeated within the same request updates the pending row instead of adding a duplicate.
+            var existing = _db.PromptResponses.Local.FirstOrDefault(r =>
+                               r.StepExecutionId == id &&
+                               r.ProcessStepContentId == item.ProcessStepContentId &&
+                               r.StepTemplateContentId == item.StepTemplateContentId)
+                           ?? await _db.PromptResponses.FirstOrDefaultAsync(r =>
+                               r.StepExecutionId == id &&
+                               r.ProcessStepContentId == item.ProcessStepContentId &&
+                               r.StepTemplateContentId == item.StepTemplateContentId);
 
             if (existing is not null)
             {

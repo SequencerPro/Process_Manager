@@ -321,4 +321,78 @@ public class StepExecutionTests : IntegrationTestBase
         Assert.NotNull(detail!.PortTransactions);
         Assert.Single(detail.PortTransactions!);
     }
+
+    // ───── Prompt Responses ─────
+
+    private async Task<(StepExecutionResponseDto Step1, StepTemplateContentResponseDto Prompt)> SetupStepWithNumericPrompt()
+    {
+        var (scenario, job) = await SetupRunningJob();
+
+        var promptResponse = await Client.PostAsJsonAsync(
+            $"/api/steptemplates/{scenario.DeburrStep.Id}/content/prompt",
+            new AddStepTemplatePromptBlockDto("Burr height", "NumericEntry", MinValue: 0m, MaxValue: 10m),
+            JsonOptions);
+        promptResponse.EnsureSuccessStatusCode();
+        var prompt = (await promptResponse.Content.ReadFromJsonAsync<StepTemplateContentResponseDto>(JsonOptions))!;
+
+        var executions = await Client.GetFromJsonAsync<List<StepExecutionResponseDto>>(
+            $"/api/jobs/{job.Id}/step-executions", JsonOptions);
+        return (executions!.First(se => se.Sequence == 1), prompt);
+    }
+
+    [Fact]
+    public async Task SavePromptResponses_SecondSave_UpdatesExistingResponse()
+    {
+        var (step1, prompt) = await SetupStepWithNumericPrompt();
+
+        await Client.PostAsJsonAsync($"/api/step-executions/{step1.Id}/prompt-responses",
+            new SavePromptResponsesDto(new() { new(null, prompt.Id, "3") }), JsonOptions);
+        var response = await Client.PostAsJsonAsync($"/api/step-executions/{step1.Id}/prompt-responses",
+            new SavePromptResponsesDto(new() { new(null, prompt.Id, "4") }), JsonOptions);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        var responses = await Client.GetFromJsonAsync<List<PromptResponseDto>>(
+            $"/api/step-executions/{step1.Id}/prompt-responses", JsonOptions);
+
+        var saved = Assert.Single(responses!);
+        Assert.Equal("4", saved.ResponseValue);
+    }
+
+    [Fact]
+    public async Task SavePromptResponses_SamePromptTwiceInOneRequest_KeepsSingleResponseWithLastValue()
+    {
+        var (step1, prompt) = await SetupStepWithNumericPrompt();
+
+        var response = await Client.PostAsJsonAsync($"/api/step-executions/{step1.Id}/prompt-responses",
+            new SavePromptResponsesDto(new()
+            {
+                new(null, prompt.Id, "3"),
+                new(null, prompt.Id, "12")
+            }), JsonOptions);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        var responses = await Client.GetFromJsonAsync<List<PromptResponseDto>>(
+            $"/api/step-executions/{step1.Id}/prompt-responses", JsonOptions);
+
+        var saved = Assert.Single(responses!);
+        Assert.Equal("12", saved.ResponseValue);
+        Assert.True(saved.IsOutOfRange);
+    }
+
+    [Fact]
+    public async Task SavePromptResponses_NumericOutsideBounds_FlagsOutOfRange()
+    {
+        var (step1, prompt) = await SetupStepWithNumericPrompt();
+
+        await Client.PostAsJsonAsync($"/api/step-executions/{step1.Id}/prompt-responses",
+            new SavePromptResponsesDto(new() { new(null, prompt.Id, "11", "Operator override") }), JsonOptions);
+
+        var responses = await Client.GetFromJsonAsync<List<PromptResponseDto>>(
+            $"/api/step-executions/{step1.Id}/prompt-responses", JsonOptions);
+
+        var saved = Assert.Single(responses!);
+        Assert.True(saved.IsOutOfRange);
+        Assert.Equal("Operator override", saved.OverrideNote);
+        Assert.Equal("Burr height", saved.Label);
+    }
 }

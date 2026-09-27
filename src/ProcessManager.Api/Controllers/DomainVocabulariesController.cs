@@ -81,6 +81,9 @@ public class DomainVocabulariesController : ControllerBase
         var vocab = await _db.DomainVocabularies.FindAsync(id);
         if (vocab is null) return NotFound();
 
+        if (await _db.DomainVocabularies.AnyAsync(v => v.Name == dto.Name && v.Id != id))
+            return Conflict($"A vocabulary named '{dto.Name}' already exists.");
+
         vocab.Name = dto.Name;
         vocab.TermKind = dto.TermKind;
         vocab.TermKindCode = dto.TermKindCode;

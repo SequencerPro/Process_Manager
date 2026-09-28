@@ -125,4 +125,32 @@ public class GradeTests : IntegrationTestBase
         var response = await Client.DeleteAsync($"/api/kinds/{kind.Id}/grades/{Guid.NewGuid()}");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
+
+    [Fact]
+    public async Task DeleteGrade_ReferencedByItem_ReturnsConflict()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var job = await CreateJob(scenario.Process.Id);
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var (kind, grade) = await CreateKindWithGrade($"GDI-{pfx}", "Grade Item Kind");
+        await CreateItem(job.Id, kind.Id, grade.Id);
+
+        var response = await Client.DeleteAsync($"/api/kinds/{kind.Id}/grades/{grade.Id}");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteGrade_ReferencedByBatch_ReturnsConflict()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var job = await CreateJob(scenario.Process.Id);
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var (kind, grade) = await CreateKindWithGrade($"GDB-{pfx}", "Grade Batch Kind", isBatchable: true);
+        await CreateBatch(job.Id, kind.Id, grade.Id);
+
+        var response = await Client.DeleteAsync($"/api/kinds/{kind.Id}/grades/{grade.Id}");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
 }

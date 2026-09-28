@@ -103,6 +103,12 @@ public class KindsController : ControllerBase
         if (await _db.Ports.AnyAsync(p => p.KindId == id))
             return Conflict("Cannot delete a Kind that is referenced by one or more Ports.");
 
+        if (await _db.Items.AnyAsync(i => i.KindId == id))
+            return Conflict("Cannot delete a Kind that is referenced by one or more Items.");
+
+        if (await _db.Batches.AnyAsync(b => b.KindId == id))
+            return Conflict("Cannot delete a Kind that is referenced by one or more Batches.");
+
         _db.Kinds.Remove(kind);
         await _db.SaveChangesAsync();
         return NoContent();
@@ -176,6 +182,12 @@ public class KindsController : ControllerBase
         // Check if any ports reference this grade
         if (await _db.Ports.AnyAsync(p => p.GradeId == gradeId))
             return Conflict("Cannot delete a Grade that is referenced by one or more Ports.");
+
+        if (await _db.Items.AnyAsync(i => i.GradeId == gradeId))
+            return Conflict("Cannot delete a Grade that is referenced by one or more Items.");
+
+        if (await _db.Batches.AnyAsync(b => b.GradeId == gradeId))
+            return Conflict("Cannot delete a Grade that is referenced by one or more Batches.");
 
         _db.Grades.Remove(grade);
         await _db.SaveChangesAsync();

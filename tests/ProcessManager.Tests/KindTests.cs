@@ -122,6 +122,34 @@ public class KindTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Delete_ReferencedByItem_ReturnsConflict()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var job = await CreateJob(scenario.Process.Id);
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var (kind, grade) = await CreateKindWithGrade($"KDI-{pfx}", "Kind Item");
+        await CreateItem(job.Id, kind.Id, grade.Id);
+
+        var response = await Client.DeleteAsync($"/api/kinds/{kind.Id}");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_ReferencedByBatch_ReturnsConflict()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var job = await CreateJob(scenario.Process.Id);
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var (kind, grade) = await CreateKindWithGrade($"KDB-{pfx}", "Kind Batch", isBatchable: true);
+        await CreateBatch(job.Id, kind.Id, grade.Id);
+
+        var response = await Client.DeleteAsync($"/api/kinds/{kind.Id}");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
     // ──────────── KIND WITH GRADES ────────────
 
     [Fact]

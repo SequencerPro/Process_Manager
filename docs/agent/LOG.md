@@ -22,6 +22,6 @@ Newest entries at the bottom.
 ## 2026-09-28: Deleting a Kind or Grade that Items or Batches still reference
 - **Task:** Bug fix (priority 2). Main was green: 0 build warnings, 167/167 tests.
 - **What:** `DELETE /api/kinds/{id}` and `DELETE /api/kinds/{kindId}/grades/{gradeId}` checked only Ports for references. Items and Batches also reference Kind and Grade with `DeleteBehavior.Restrict`. On Postgres the delete hit an FK violation and returned a 500. On EF InMemory it succeeded and left orphaned Items and Batches. Both endpoints now return 409 Conflict, matching the existing Port check. Added 4 reproduction tests to `KindTests.cs` and `GradeTests.cs`. 171/171 passing, 0 warnings.
-- **PR:** _(pending)_
+- **PR:** https://github.com/SequencerPro/Process_Manager/pull/23
 - **Notes:** `origin/main` is 214 commits behind `masterbranch-james` (open PR #16), and that branch has the same bug in `KindsController`. The fix needs porting there, or these agent runs should target that branch. Prior agent PRs #20, #21 and #22 are still open.
 - **Follow-ups:** Added 2 items to BACKLOG.md under Agent-discovered.

@@ -100,6 +100,11 @@ public class ProcessesController : ControllerBase
         var process = await _db.Processes.FindAsync(id);
         if (process is null) return NotFound();
 
+        if (await _db.Jobs.AnyAsync(j => j.ProcessId == id))
+            return Conflict("Cannot delete a Process that is used by one or more Jobs.");
+        if (await _db.WorkflowProcesses.AnyAsync(wp => wp.ProcessId == id))
+            return Conflict("Cannot delete a Process that is used in one or more Workflows.");
+
         _db.Processes.Remove(process); // Cascade deletes ProcessSteps and Flows
         await _db.SaveChangesAsync();
         return NoContent();
@@ -177,6 +182,9 @@ public class ProcessesController : ControllerBase
             .FirstOrDefaultAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
 
         if (processStep is null) return NotFound();
+
+        if (await _db.StepExecutions.AnyAsync(se => se.ProcessStepId == stepId))
+            return Conflict("Cannot delete a ProcessStep that has been executed by one or more Jobs.");
 
         // Remove any flows referencing this step
         var relatedFlows = await _db.Flows

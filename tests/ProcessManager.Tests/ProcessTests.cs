@@ -440,4 +440,59 @@ public class ProcessTests : IntegrationTestBase
         Assert.True(updated.IsActive);
         Assert.Equal("Renamed", updated.Name);
     }
+
+    // ──────────── DELETE GUARDS ────────────
+
+    [Fact]
+    public async Task Delete_ProcessUsedByJob_ReturnsConflict()
+    {
+        var process = await CreateProcess("PC-023", "Job Ref Process");
+        await CreateJob(process.Id);
+
+        var response = await Client.DeleteAsync($"/api/processes/{process.Id}");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+        var getResponse = await Client.GetAsync($"/api/processes/{process.Id}");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_ProcessUsedByWorkflow_ReturnsConflict()
+    {
+        var process = await CreateProcess("PC-024", "Workflow Ref Process");
+
+        var wfResponse = await Client.PostAsJsonAsync("/api/workflows",
+            new CreateWorkflowDto("WF-PC-024", "Workflow Ref"), JsonOptions);
+        wfResponse.EnsureSuccessStatusCode();
+        var workflow = (await wfResponse.Content.ReadFromJsonAsync<WorkflowResponseDto>(JsonOptions))!;
+
+        var wpResponse = await Client.PostAsJsonAsync($"/api/workflows/{workflow.Id}/processes",
+            new AddWorkflowProcessDto(process.Id, true, 0), JsonOptions);
+        wpResponse.EnsureSuccessStatusCode();
+
+        var response = await Client.DeleteAsync($"/api/processes/{process.Id}");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+        var getResponse = await Client.GetAsync($"/api/processes/{process.Id}");
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteStep_WithStepExecutions_ReturnsConflict()
+    {
+        var (kind, grade) = await CreateKindWithGrade("PC-025", "Exec Ref Kind");
+        var step = await CreateTransformStep("PS-025", "Exec Ref Step",
+            kind.Id, grade.Id, kind.Id, grade.Id);
+        var process = await CreateProcess("PC-025", "Exec Ref Process");
+        var ps = await AddProcessStep(process.Id, step.Id, 1);
+        await CreateJob(process.Id); // creates a StepExecution for ps
+
+        var response = await Client.DeleteAsync($"/api/processes/{process.Id}/steps/{ps.Id}");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+
+        var getResponse = await Client.GetAsync($"/api/processes/{process.Id}");
+        var result = await getResponse.Content.ReadFromJsonAsync<ProcessResponseDto>(JsonOptions);
+        Assert.NotNull(result);
+        Assert.Single(result.Steps);
+    }
 }

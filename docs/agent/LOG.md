@@ -29,6 +29,6 @@ Newest entries at the bottom.
 ## 2026-09-29: Deleting a Process or ProcessStep that Jobs or Workflows still reference
 - **Task:** Bug fix (priority 2). Main was green: 0 build warnings, 167/167 tests.
 - **What:** `DELETE /api/processes/{id}` didn't check Jobs or WorkflowProcesses. `DELETE /api/processes/{id}/steps/{stepId}` didn't check StepExecutions. All three FKs are `Restrict`. On Postgres these deletes returned a 500. On EF InMemory they succeeded and left orphaned rows. Because creating a Job auto-creates a StepExecution per ProcessStep, a step became undeletable as soon as any Job used its Process. Both endpoints now return 409 Conflict, the same as the existing StepTemplate and WorkflowProcess guards. Added 3 reproduction tests to `ProcessTests.cs`. 170/170 passing, 0 warnings.
-- **PR:** _(see below)_
+- **PR:** https://github.com/SequencerPro/Process_Manager/pull/24
 - **Notes:** `masterbranch-james` has the same gap in `ProcessesController.Delete` and `DeleteStep`, so the fix needs porting there. Agent PRs #20 through #23 are still open.
 - **Follow-ups:** Added 2 items to BACKLOG.md under Agent-discovered.

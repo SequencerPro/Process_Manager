@@ -150,4 +150,42 @@ public class ItemTests2 : IntegrationTestBase
 
         Assert.Equal(2, data!.Count);
     }
+
+    [Fact]
+    public async Task Update_AssignBatchFromSameJob_Succeeds()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var (kind, grade) = await CreateKindWithGrade($"LOT-{pfx}", "Lot Part", isBatchable: true);
+        var scenario = await BuildWidgetFinishingScenario();
+        var job = await CreateJob(scenario.Process.Id);
+        var batch = await CreateBatch(job.Id, kind.Id, grade.Id);
+        var item = await CreateItem(job.Id, kind.Id, grade.Id);
+
+        var response = await Client.PutAsJsonAsync($"/api/items/{item.Id}",
+            new UpdateItemDto(BatchId: batch.Id), JsonOptions);
+
+        response.EnsureSuccessStatusCode();
+        var updated = await response.Content.ReadFromJsonAsync<ItemResponseDto>(JsonOptions);
+        Assert.Equal(batch.Id, updated!.BatchId);
+    }
+
+    [Fact]
+    public async Task Update_AssignBatchFromDifferentJob_ReturnsBadRequest()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var (kind, grade) = await CreateKindWithGrade($"LOT-{pfx}", "Lot Part", isBatchable: true);
+        var scenario = await BuildWidgetFinishingScenario();
+        var itemJob = await CreateJob(scenario.Process.Id);
+        var otherJob = await CreateJob(scenario.Process.Id);
+        var otherJobBatch = await CreateBatch(otherJob.Id, kind.Id, grade.Id);
+        var item = await CreateItem(itemJob.Id, kind.Id, grade.Id);
+
+        var response = await Client.PutAsJsonAsync($"/api/items/{item.Id}",
+            new UpdateItemDto(BatchId: otherJobBatch.Id), JsonOptions);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var unchanged = await Client.GetFromJsonAsync<ItemResponseDto>($"/api/items/{item.Id}", JsonOptions);
+        Assert.Null(unchanged!.BatchId);
+    }
 }

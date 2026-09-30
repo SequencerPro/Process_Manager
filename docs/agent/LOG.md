@@ -36,6 +36,6 @@ Newest entries at the bottom.
 ## 2026-09-30: Assigning an Item to another Job's Batch on update
 - **Task:** Bug fix (priority 2). Main was green: 0 build warnings, 167/167 tests.
 - **What:** `PUT /api/items/{id}` with a `BatchId` checked that the Batch's Kind matched but not its Job. An Item could be moved into a Batch that belongs to a different Job. `POST /api/items` and `POST /api/batches/{id}/items/{itemId}` both already reject this. Update now returns 400 with the same message as Create. Added a reproduction test and a same-Job characterization test to `ItemTests2.cs`. 169/169 passing, 0 warnings.
-- **PR:** _(pending)_
+- **PR:** https://github.com/SequencerPro/Process_Manager/pull/25
 - **Notes:** `masterbranch-james` has the same gap in `ItemsController.Update`, so the fix needs porting there. Agent PRs #20 through #24 are still open.
 - **Follow-ups:** Added 2 items to BACKLOG.md under Agent-discovered.

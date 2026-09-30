@@ -162,6 +162,8 @@ public class ItemsController : ControllerBase
             if (batch is null) return BadRequest($"Batch '{dto.BatchId}' not found.");
             if (batch.KindId != item.KindId)
                 return BadRequest("Item Kind must match Batch Kind.");
+            if (batch.JobId != item.JobId)
+                return BadRequest("Item Job must match Batch Job.");
             item.BatchId = dto.BatchId;
         }
 

@@ -310,6 +310,59 @@ public class StepTemplateTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task UpdatePort_ValidQuantityRule_UpdatesPort()
+    {
+        var (kind, grade) = await CreateKindWithGrade("ST-019", "Port Update Kind");
+        var step = await CreateTransformStep("PORT-UPD", "Port Update Step", kind.Id, grade.Id, kind.Id, grade.Id);
+        var port = step.Ports.Single(p => p.Direction == PortDirection.Input);
+
+        var dto = new PortUpdateDto("Renamed In", PortType.Material, kind.Id, grade.Id,
+            QuantityRuleMode.Range, null, 2, 5, null, null, null, null, null, 0);
+        var response = await Client.PutAsJsonAsync($"/api/steptemplates/{step.Id}/ports/{port.Id}", dto, JsonOptions);
+        response.EnsureSuccessStatusCode();
+
+        var updated = await response.Content.ReadFromJsonAsync<PortResponseDto>(JsonOptions);
+        Assert.NotNull(updated);
+        Assert.Equal("Renamed In", updated.Name);
+        Assert.Equal(QuantityRuleMode.Range, updated.QtyRuleMode);
+        Assert.Equal(2, updated.QtyRuleMin);
+        Assert.Equal(5, updated.QtyRuleMax);
+    }
+
+    [Fact]
+    public async Task UpdatePort_ExactlyModeWithZeroN_ReturnsBadRequest()
+    {
+        var (kind, grade) = await CreateKindWithGrade("ST-020", "Port Bad N Kind");
+        var step = await CreateTransformStep("PORT-BADN", "Port Bad N Step", kind.Id, grade.Id, kind.Id, grade.Id);
+        var port = step.Ports.Single(p => p.Direction == PortDirection.Input);
+
+        var dto = new PortUpdateDto(port.Name, PortType.Material, kind.Id, grade.Id,
+            QuantityRuleMode.Exactly, 0, null, null, null, null, null, null, null, 0);
+        var response = await Client.PutAsJsonAsync($"/api/steptemplates/{step.Id}/ports/{port.Id}", dto, JsonOptions);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        // The invalid rule must not have been saved
+        var getResponse = await Client.GetAsync($"/api/steptemplates/{step.Id}");
+        var current = await getResponse.Content.ReadFromJsonAsync<StepTemplateResponseDto>(JsonOptions);
+        Assert.NotNull(current);
+        Assert.Equal(1, current.Ports.Single(p => p.Id == port.Id).QtyRuleN);
+        Assert.Equal(1, current.Version);
+    }
+
+    [Fact]
+    public async Task UpdatePort_RangeModeMinGreaterThanMax_ReturnsBadRequest()
+    {
+        var (kind, grade) = await CreateKindWithGrade("ST-021", "Port Bad Range Kind");
+        var step = await CreateTransformStep("PORT-BADR", "Port Bad Range Step", kind.Id, grade.Id, kind.Id, grade.Id);
+        var port = step.Ports.Single(p => p.Direction == PortDirection.Output);
+
+        var dto = new PortUpdateDto(port.Name, PortType.Material, kind.Id, grade.Id,
+            QuantityRuleMode.Range, null, 5, 2, null, null, null, null, null, 0);
+        var response = await Client.PutAsJsonAsync($"/api/steptemplates/{step.Id}/ports/{port.Id}", dto, JsonOptions);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Update_SetIsActiveFalse_DeactivatesStep()
     {
         var (kind, grade) = await CreateKindWithGrade("ST-017", "Deactivate Kind");

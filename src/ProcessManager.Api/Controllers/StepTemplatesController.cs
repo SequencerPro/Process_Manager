@@ -216,6 +216,10 @@ public class StepTemplatesController : ControllerBase
             if (!gradeValid)
                 return BadRequest("Grade does not belong to the specified Kind.");
 
+            var qtyErrors = ValidateQtyRule(dto.Name, dto.QtyRuleMode, dto.QtyRuleN, dto.QtyRuleMin, dto.QtyRuleMax);
+            if (qtyErrors.Count > 0)
+                return BadRequest(new { errors = qtyErrors });
+
             port.KindId = dto.KindId;
             port.GradeId = dto.GradeId;
             port.QtyRuleMode = dto.QtyRuleMode;
@@ -582,25 +586,34 @@ public class StepTemplatesController : ControllerBase
             if (!await _db.Grades.AnyAsync(g => g.Id == dto.GradeId && g.KindId == dto.KindId))
                 errors.Add($"Port '{dto.Name}': Grade {dto.GradeId} does not belong to Kind {dto.KindId}.");
 
-            // Quantity rule validation
-            switch (dto.QtyRuleMode)
-            {
-                case QuantityRuleMode.Exactly:
-                case QuantityRuleMode.ZeroOrN:
-                    if (dto.QtyRuleN is null or <= 0)
-                        errors.Add($"Port '{dto.Name}': {dto.QtyRuleMode} mode requires QtyRuleN > 0.");
-                    break;
-                case QuantityRuleMode.Range:
-                    if (dto.QtyRuleMin is null || dto.QtyRuleMax is null)
-                        errors.Add($"Port '{dto.Name}': Range mode requires both QtyRuleMin and QtyRuleMax.");
-                    else if (dto.QtyRuleMin > dto.QtyRuleMax)
-                        errors.Add($"Port '{dto.Name}': QtyRuleMin must be ≤ QtyRuleMax.");
-                    break;
-                case QuantityRuleMode.Unbounded:
-                    if (dto.QtyRuleMin is null)
-                        errors.Add($"Port '{dto.Name}': Unbounded mode requires QtyRuleMin.");
-                    break;
-            }
+            errors.AddRange(ValidateQtyRule(dto.Name, dto.QtyRuleMode, dto.QtyRuleN, dto.QtyRuleMin, dto.QtyRuleMax));
+        }
+
+        return errors;
+    }
+
+    private static List<string> ValidateQtyRule(
+        string portName, QuantityRuleMode? mode, int? n, int? min, int? max)
+    {
+        var errors = new List<string>();
+
+        switch (mode)
+        {
+            case QuantityRuleMode.Exactly:
+            case QuantityRuleMode.ZeroOrN:
+                if (n is null or <= 0)
+                    errors.Add($"Port '{portName}': {mode} mode requires QtyRuleN > 0.");
+                break;
+            case QuantityRuleMode.Range:
+                if (min is null || max is null)
+                    errors.Add($"Port '{portName}': Range mode requires both QtyRuleMin and QtyRuleMax.");
+                else if (min > max)
+                    errors.Add($"Port '{portName}': QtyRuleMin must be ≤ QtyRuleMax.");
+                break;
+            case QuantityRuleMode.Unbounded:
+                if (min is null)
+                    errors.Add($"Port '{portName}': Unbounded mode requires QtyRuleMin.");
+                break;
         }
 
         return errors;

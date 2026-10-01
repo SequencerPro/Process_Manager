@@ -43,6 +43,6 @@ Newest entries at the bottom.
 ## 2026-10-01: Port update skipped quantity-rule validation
 - **Task:** Bug fix (priority 2). Main was green: 0 build warnings, 167/167 tests.
 - **What:** `PUT /api/steptemplates/{id}/ports/{portId}` checked a Material port's Grade/Kind but not its quantity rule. `Exactly`/`ZeroOrN` with `QtyRuleN = 0`, or `Range` with Min > Max, was saved even though `POST /api/steptemplates` and `POST .../ports` reject the same values with 400. I moved the quantity-rule checks into a shared `ValidateQtyRule` helper. `ValidatePort` and `UpdatePort` both call it now, and `UpdatePort` returns 400 `{ errors }`, the same shape as `AddPort`. Added the first `UpdatePort` tests to `StepTemplateTests.cs`: 2 reproductions and 1 valid-update characterization. 170/170 passing, 0 warnings.
-- **PR:** _(pending)_
+- **PR:** https://github.com/SequencerPro/Process_Manager/pull/26
 - **Notes:** `masterbranch-james` has the same gap in `StepTemplatesController.UpdatePort`, so the fix needs porting there. Agent PRs #20 through #25 are still open.
 - **Follow-ups:** Added 2 items to BACKLOG.md under Agent-discovered.

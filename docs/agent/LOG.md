@@ -50,6 +50,6 @@ Newest entries at the bottom.
 ## 2026-10-02: Duplicate condition grades when creating a workflow link
 - **Task:** Bug fix (priority 2). Main was green: 0 build warnings, 167/167 tests.
 - **What:** `POST /api/workflows/{id}/links` added one `WorkflowLinkCondition` per entry in `ConditionGradeIds` and didn't check for repeats. `(WorkflowLinkId, GradeId)` has a unique index, so on Postgres a repeated grade returned a 500. On EF InMemory it saved duplicate conditions. `POST .../links/{linkId}/conditions` already rejects a duplicate with 409. Create now returns 400 when the list repeats a grade. Added a reproduction test to `WorkflowTests.cs`. 168/168 passing, 0 warnings.
-- **PR:** _(pending)_
+- **PR:** https://github.com/SequencerPro/Process_Manager/pull/27
 - **Notes:** I chose to reject with 400 rather than silently dedupe, because a repeated grade is most likely a client bug. Either choice removes the 500. `masterbranch-james` has the same gap in `WorkflowsController.CreateLink`, so the fix needs porting there. Agent PRs #20 through #26 are still open.
 - **Follow-ups:** Added 2 items to BACKLOG.md under Agent-discovered.

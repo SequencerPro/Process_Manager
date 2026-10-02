@@ -325,6 +325,10 @@ public class WorkflowsController : ControllerBase
             (dto.ConditionGradeIds == null || !dto.ConditionGradeIds.Any()))
             return BadRequest("GradeBased links must have at least one condition grade.");
 
+        if (dto.ConditionGradeIds != null &&
+            dto.ConditionGradeIds.Distinct().Count() != dto.ConditionGradeIds.Count)
+            return BadRequest("Condition grades must not contain duplicates.");
+
         var link = new WorkflowLink
         {
             WorkflowId = workflowId,

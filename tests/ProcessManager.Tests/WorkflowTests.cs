@@ -444,6 +444,40 @@ public class WorkflowTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task CreateLink_GradeBased_WithDuplicateConditionGrade_ReturnsBadRequest()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var widget = await CreateKind($"WDG-{pfx}", "Widget", isSerialized: true);
+        var rawGrade = await CreateGrade(widget.Id, "RAW", "Raw", isDefault: true);
+        var passedGrade = await CreateGrade(widget.Id, "PASS", "Passed");
+
+        var step1 = await CreateTransformStep($"S1-{pfx}", "Step1",
+            widget.Id, rawGrade.Id, widget.Id, rawGrade.Id);
+        var step2 = await CreateTransformStep($"S2-{pfx}", "Step2",
+            widget.Id, rawGrade.Id, widget.Id, rawGrade.Id);
+        var p1 = await CreateProcess($"P1-{pfx}", "Process 1");
+        await AddProcessStep(p1.Id, step1.Id, 1);
+        var p2 = await CreateProcess($"P2-{pfx}", "Process 2");
+        await AddProcessStep(p2.Id, step2.Id, 1);
+
+        var wf = await CreateWorkflow($"WF-{pfx}");
+        var wp1 = await AddWorkflowProcess(wf.Id, p1.Id, isEntryPoint: true);
+        var wp2 = await AddWorkflowProcess(wf.Id, p2.Id);
+
+        // (WorkflowLinkId, GradeId) is unique, so a repeated grade would violate the index
+        var dto = new CreateWorkflowLinkDto(wp1.Id, wp2.Id, RoutingType.GradeBased, "Dup", 0,
+            new List<Guid> { passedGrade.Id, passedGrade.Id });
+        var response = await Client.PostAsJsonAsync(
+            $"/api/workflows/{wf.Id}/links", dto, JsonOptions);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var links = await Client.GetFromJsonAsync<List<WorkflowLinkResponseDto>>(
+            $"/api/workflows/{wf.Id}/links", JsonOptions);
+        Assert.Empty(links!);
+    }
+
+    [Fact]
     public async Task Validate_ReworkLoop_WorkflowStructure_IsCorrect()
     {
         var scenario = await BuildWorkflowScenario();

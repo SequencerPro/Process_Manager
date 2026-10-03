@@ -216,6 +216,10 @@ public class StepExecutionsController : ControllerBase
         if (port is null)
             return BadRequest("Port does not belong to this step's template.");
 
+        // Untracked transactions (no item or batch) must carry a positive quantity
+        if (!dto.ItemId.HasValue && !dto.BatchId.HasValue && dto.Quantity <= 0)
+            return BadRequest("A port transaction without an item or batch must have a quantity greater than zero.");
+
         // Validate item if provided
         Item? item = null;
         if (dto.ItemId.HasValue)

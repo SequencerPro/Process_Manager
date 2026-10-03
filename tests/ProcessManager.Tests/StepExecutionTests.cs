@@ -219,6 +219,50 @@ public class StepExecutionTests : IntegrationTestBase
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-3)]
+    public async Task AddPortTransaction_NoItemNoBatchNonPositiveQuantity_ReturnsBadRequest(int quantity)
+    {
+        var (scenario, job) = await SetupRunningJob();
+
+        var executions = await Client.GetFromJsonAsync<List<StepExecutionResponseDto>>(
+            $"/api/jobs/{job.Id}/step-executions", JsonOptions);
+        var step1 = executions!.First(se => se.Sequence == 1);
+        await Client.PostAsync($"/api/step-executions/{step1.Id}/start", null);
+
+        var ptDto = new CreatePortTransactionDto(scenario.DeburrInPort.Id, Quantity: quantity);
+        var response = await Client.PostAsJsonAsync(
+            $"/api/step-executions/{step1.Id}/port-transactions", ptDto, JsonOptions);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var transactions = await Client.GetFromJsonAsync<List<PortTransactionResponseDto>>(
+            $"/api/step-executions/{step1.Id}/port-transactions", JsonOptions);
+        Assert.Empty(transactions!);
+    }
+
+    [Fact]
+    public async Task AddPortTransaction_UntrackedWithPositiveQuantity_Succeeds()
+    {
+        var (scenario, job) = await SetupRunningJob();
+
+        var executions = await Client.GetFromJsonAsync<List<StepExecutionResponseDto>>(
+            $"/api/jobs/{job.Id}/step-executions", JsonOptions);
+        var step1 = executions!.First(se => se.Sequence == 1);
+        await Client.PostAsync($"/api/step-executions/{step1.Id}/start", null);
+
+        var ptDto = new CreatePortTransactionDto(scenario.DeburrInPort.Id, Quantity: 5);
+        var response = await Client.PostAsJsonAsync(
+            $"/api/step-executions/{step1.Id}/port-transactions", ptDto, JsonOptions);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var pt = await response.Content.ReadFromJsonAsync<PortTransactionResponseDto>(JsonOptions);
+        Assert.Null(pt!.ItemId);
+        Assert.Null(pt.BatchId);
+        Assert.Equal(5, pt.Quantity);
+    }
+
     [Fact]
     public async Task AddPortTransaction_NotInProgress_ReturnsBadRequest()
     {

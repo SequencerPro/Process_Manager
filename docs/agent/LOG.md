@@ -57,6 +57,6 @@ Newest entries at the bottom.
 ## 2026-10-03: Empty port transactions were accepted
 - **Task:** Bug fix (priority 2). Main was green: 0 build warnings, 167/167 tests.
 - **What:** `docs/data-model.md` (PortTransaction constraints) requires that a transaction has an item, a batch, or a quantity > 0. `POST /api/step-executions/{id}/port-transactions` didn't check this, so a transaction with no item, no batch and `Quantity` 0 or negative was saved. That's a traceability record of nothing. It now returns 400 in that case. Added 2 reproductions (quantity 0 and -3) and 1 characterization test (an untracked transaction with quantity 5 still succeeds) to `StepExecutionTests.cs`. 170/170 passing, 0 warnings.
-- **PR:** _(see below)_
+- **PR:** https://github.com/SequencerPro/Process_Manager/pull/28
 - **Notes:** I enforced only the documented rule. A zero or negative quantity is still accepted when an item or batch is given, because the docs don't cover it. `masterbranch-james` probably has the same gap in `StepExecutionsController.AddPortTransaction`. Agent PRs #20 through #27 are still open.
 - **Follow-ups:** Added 2 items to BACKLOG.md under Agent-discovered.

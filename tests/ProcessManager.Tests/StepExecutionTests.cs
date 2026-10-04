@@ -238,6 +238,76 @@ public class StepExecutionTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task AddPortTransaction_ItemFromOtherJob_ReturnsBadRequest()
+    {
+        var (scenario, job) = await SetupRunningJob();
+        var otherJob = await CreateJob(scenario.Process.Id);
+        var otherItem = await CreateItem(otherJob.Id, scenario.WidgetKind.Id, scenario.RawGrade.Id, $"WDG-{Guid.NewGuid().ToString()[..6]}");
+
+        var executions = await Client.GetFromJsonAsync<List<StepExecutionResponseDto>>(
+            $"/api/jobs/{job.Id}/step-executions", JsonOptions);
+        var step1 = executions!.First(se => se.Sequence == 1);
+        await Client.PostAsync($"/api/step-executions/{step1.Id}/start", null);
+
+        var ptDto = new CreatePortTransactionDto(scenario.DeburrInPort.Id, otherItem.Id);
+        var response = await Client.PostAsJsonAsync(
+            $"/api/step-executions/{step1.Id}/port-transactions", ptDto, JsonOptions);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddPortTransaction_OutputPort_ItemFromOtherJob_DoesNotChangeGrade()
+    {
+        var (scenario, job) = await SetupRunningJob();
+        var otherJob = await CreateJob(scenario.Process.Id);
+        var otherItem = await CreateItem(otherJob.Id, scenario.WidgetKind.Id, scenario.RawGrade.Id, $"WDG-{Guid.NewGuid().ToString()[..6]}");
+
+        var executions = await Client.GetFromJsonAsync<List<StepExecutionResponseDto>>(
+            $"/api/jobs/{job.Id}/step-executions", JsonOptions);
+        var step1 = executions!.First(se => se.Sequence == 1);
+        await Client.PostAsync($"/api/step-executions/{step1.Id}/start", null);
+        await Client.PostAsync($"/api/step-executions/{step1.Id}/complete", null);
+        var step2 = executions!.First(se => se.Sequence == 2);
+        await Client.PostAsync($"/api/step-executions/{step2.Id}/start", null);
+
+        var ptDto = new CreatePortTransactionDto(scenario.InspGoodPort.Id, otherItem.Id);
+        var response = await Client.PostAsJsonAsync(
+            $"/api/step-executions/{step2.Id}/port-transactions", ptDto, JsonOptions);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var unchanged = await Client.GetFromJsonAsync<ItemResponseDto>($"/api/items/{otherItem.Id}", JsonOptions);
+        Assert.Equal(scenario.RawGrade.Id, unchanged!.GradeId);
+    }
+
+    [Fact]
+    public async Task AddPortTransaction_BatchFromOtherJob_ReturnsBadRequest()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var (kind, grade) = await CreateKindWithGrade($"BK-{pfx}", "Batch Kind", "STD", "Standard", isBatchable: true);
+        var template = await CreateTransformStep($"BST-{pfx}", "Batch Step", kind.Id, grade.Id, kind.Id, grade.Id);
+        var process = await CreateProcess($"BP-{pfx}", "Batch Process");
+        await AddProcessStep(process.Id, template.Id, 1);
+
+        var job = await CreateJob(process.Id);
+        await Client.PostAsync($"/api/jobs/{job.Id}/start", null);
+        var otherJob = await CreateJob(process.Id);
+        var otherBatch = await CreateBatch(otherJob.Id, kind.Id, grade.Id, quantity: 5);
+
+        var executions = await Client.GetFromJsonAsync<List<StepExecutionResponseDto>>(
+            $"/api/jobs/{job.Id}/step-executions", JsonOptions);
+        var step1 = executions!.First(se => se.Sequence == 1);
+        await Client.PostAsync($"/api/step-executions/{step1.Id}/start", null);
+
+        var inPort = template.Ports.First(p => p.Direction == PortDirection.Input);
+        var ptDto = new CreatePortTransactionDto(inPort.Id, BatchId: otherBatch.Id);
+        var response = await Client.PostAsJsonAsync(
+            $"/api/step-executions/{step1.Id}/port-transactions", ptDto, JsonOptions);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GetPortTransactions_ReturnsRecordedTransactions()
     {
         var (scenario, job) = await SetupRunningJob();

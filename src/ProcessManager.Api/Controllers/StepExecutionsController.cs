@@ -230,6 +230,9 @@ public class StepExecutionsController : ControllerBase
             // For input ports: item Kind must match port Kind
             if (item.KindId != port.KindId)
                 return BadRequest($"Item Kind '{item.Kind.Name}' does not match port Kind.");
+
+            if (item.JobId != se.JobId)
+                return BadRequest("Item Job must match step execution Job.");
         }
 
         // Validate batch if provided
@@ -244,6 +247,9 @@ public class StepExecutionsController : ControllerBase
 
             if (batch.KindId != port.KindId)
                 return BadRequest($"Batch Kind '{batch.Kind.Name}' does not match port Kind.");
+
+            if (batch.JobId != se.JobId)
+                return BadRequest("Batch Job must match step execution Job.");
         }
 
         var pt = new PortTransaction

@@ -111,6 +111,29 @@ public class BatchTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task AddItem_WithDifferentGrade_ReturnsInheritedGradeName()
+    {
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var kind = await CreateKind($"WAFER-{pfx}", "Wafer", isSerialized: true, isBatchable: true);
+        var rawGrade = await CreateGrade(kind.Id, "RAW", "Raw", isDefault: true);
+        var goodGrade = await CreateGrade(kind.Id, "GOOD", "Good");
+
+        var scenario = await BuildWidgetFinishingScenario();
+        var job = await CreateJob(scenario.Process.Id);
+
+        var batch = await CreateBatch(job.Id, kind.Id, goodGrade.Id);
+        var item = await CreateItem(job.Id, kind.Id, rawGrade.Id, $"WFR-{pfx}");
+
+        var response = await Client.PostAsync($"/api/batches/{batch.Id}/items/{item.Id}", null);
+        response.EnsureSuccessStatusCode();
+
+        var updated = await response.Content.ReadFromJsonAsync<ItemResponseDto>(JsonOptions);
+        Assert.Equal(goodGrade.Id, updated!.GradeId);
+        Assert.Equal("Good", updated.GradeName);
+        Assert.Equal(batch.Code, updated.BatchCode);
+    }
+
+    [Fact]
     public async Task AddItem_WrongKind_ReturnsBadRequest()
     {
         var (scenario, job, batchKind, batchGrade) = await SetupBatchableScenario();

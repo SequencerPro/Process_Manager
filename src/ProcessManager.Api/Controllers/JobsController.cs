@@ -249,6 +249,7 @@ public class JobsController : ControllerBase
         var items = await _db.Items
             .Include(i => i.Kind)
             .Include(i => i.Grade)
+            .Include(i => i.Job)
             .Where(i => i.JobId == jobId)
             .OrderBy(i => i.SerialNumber)
             .ToListAsync();
@@ -265,6 +266,7 @@ public class JobsController : ControllerBase
             .Include(b => b.Kind)
             .Include(b => b.Grade)
             .Include(b => b.Items)
+            .Include(b => b.Job)
             .Where(b => b.JobId == jobId)
             .OrderBy(b => b.Code)
             .ToListAsync();

@@ -78,6 +78,6 @@ Newest entries at the bottom.
 ## 2026-10-06: Empty JobName from a Job's Items and Batches lists
 - **Task:** Bug fix (priority 2). Main was green: 0 build warnings, 167/167 tests.
 - **What:** `GET /api/jobs/{id}/items` and `GET /api/jobs/{id}/batches` didn't `Include` the Job, so every row came back with `jobName: ""`. All the other Item and Batch endpoints (`/api/items`, `/api/batches`, `/api/batches/{id}/items`) include it. Both queries now `Include` the Job. Added `GetItems_ReturnsJobsItemsWithJobName` and `GetBatches_ReturnsJobsBatchesWithJobName` to `JobTests.cs`, the first tests for these two endpoints. Both failed before the fix (`""` vs the Job's name) and pass after. 169/169 passing, 0 warnings.
-- **PR:** _pending_
+- **PR:** https://github.com/SequencerPro/Process_Manager/pull/31
 - **Notes:** The in-repo UI doesn't call these two endpoints, so the impact is on API consumers only. No open agent PR touches `JobsController`. `masterbranch-james` has the same two queries without the Include. Agent PRs #20 through #30 are still open.
 - **Follow-ups:** Added 2 items to BACKLOG.md under Agent-discovered.

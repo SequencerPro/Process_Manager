@@ -209,4 +209,42 @@ public class JobTests : IntegrationTestBase
         var resumed = await resumeResponse.Content.ReadFromJsonAsync<JobResponseDto>(JsonOptions);
         Assert.Equal("InProgress", resumed!.Status);
     }
+
+    // ───── Job Sub-resources ─────
+
+    [Fact]
+    public async Task GetItems_ReturnsJobsItemsWithJobName()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var job = await CreateJob(scenario.Process.Id, name: "Items Job");
+        var item = await CreateItem(job.Id, scenario.WidgetKind.Id, scenario.RawGrade.Id,
+            $"WDG-{Guid.NewGuid().ToString()[..6]}");
+
+        var items = await Client.GetFromJsonAsync<List<ItemResponseDto>>(
+            $"/api/jobs/{job.Id}/items", JsonOptions);
+
+        var returned = Assert.Single(items!);
+        Assert.Equal(item.Id, returned.Id);
+        Assert.Equal(job.Id, returned.JobId);
+        Assert.Equal("Items Job", returned.JobName);
+    }
+
+    [Fact]
+    public async Task GetBatches_ReturnsJobsBatchesWithJobName()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var pfx = Guid.NewGuid().ToString()[..6];
+        var lotKind = await CreateKind($"LOT-{pfx}", "Lot", isSerialized: false, isBatchable: true);
+        var lotGrade = await CreateGrade(lotKind.Id, "STD", "Standard", isDefault: true);
+        var job = await CreateJob(scenario.Process.Id, name: "Batches Job");
+        var batch = await CreateBatch(job.Id, lotKind.Id, lotGrade.Id);
+
+        var batches = await Client.GetFromJsonAsync<List<BatchResponseDto>>(
+            $"/api/jobs/{job.Id}/batches", JsonOptions);
+
+        var returned = Assert.Single(batches!);
+        Assert.Equal(batch.Id, returned.Id);
+        Assert.Equal(job.Id, returned.JobId);
+        Assert.Equal("Batches Job", returned.JobName);
+    }
 }

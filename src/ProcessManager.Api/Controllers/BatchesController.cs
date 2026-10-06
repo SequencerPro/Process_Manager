@@ -173,7 +173,10 @@ public class BatchesController : ControllerBase
     [HttpPost("{id:guid}/items/{itemId:guid}")]
     public async Task<ActionResult<ItemResponseDto>> AddItem(Guid id, Guid itemId)
     {
-        var batch = await _db.Batches.FirstOrDefaultAsync(b => b.Id == id);
+        // Grade is loaded so the response can name the grade the item inherits
+        var batch = await _db.Batches
+            .Include(b => b.Grade)
+            .FirstOrDefaultAsync(b => b.Id == id);
         if (batch is null) return NotFound();
 
         if (batch.Status != BatchStatus.Open)
@@ -199,6 +202,7 @@ public class BatchesController : ControllerBase
 
         item.BatchId = id;
         item.GradeId = batch.GradeId; // Inherit batch grade
+        item.Grade = batch.Grade;
 
         await _db.SaveChangesAsync();
         return JobsController.MapItemToDto(item);

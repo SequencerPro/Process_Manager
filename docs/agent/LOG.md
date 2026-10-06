@@ -71,6 +71,6 @@ Newest entries at the bottom.
 ## 2026-10-05: Empty GradeName when adding an Item to a Batch
 - **Task:** Bug fix (priority 2). Main was green: 0 build warnings, 167/167 tests.
 - **What:** `POST /api/batches/{id}/items/{itemId}` makes the Item inherit the Batch's Grade by setting `GradeId`. The new Grade wasn't loaded into the DbContext, so on save EF cleared the Item's `Grade` navigation and the response came back with the new `gradeId` but `gradeName: ""`. The data saved was correct. Only the response was wrong. The endpoint now loads the Batch's Grade and assigns it to the Item. Added `AddItem_WithDifferentGrade_ReturnsInheritedGradeName` to `BatchTests.cs`. It failed before the fix (`""` vs `"Good"`) and passes after. 168/168 passing, 0 warnings.
-- **PR:** _see below_
+- **PR:** https://github.com/SequencerPro/Process_Manager/pull/30
 - **Notes:** The in-repo UI (`BatchDetail.razor`) ignores this response and reloads, so the visible impact is on API consumers only. I picked an area that no open agent PR touches, so it won't conflict with them. `masterbranch-james` has the same code. Agent PRs #20 through #29 are still open.
 - **Follow-ups:** Added 2 items to BACKLOG.md under Agent-discovered.

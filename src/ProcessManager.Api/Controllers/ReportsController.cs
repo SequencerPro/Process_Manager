@@ -29,9 +29,10 @@ public class ReportsController : ControllerBase
         var failedSteps = await _db.StepExecutions.CountAsync(se =>
             se.Status == StepExecutionStatus.Failed);
 
-        // Average duration — load timestamps then compute in C# (provider-agnostic)
+        // Average duration — load timestamps then compute in C# (provider-agnostic).
+        // Cancel also sets CompletedAt, so filter on Status.
         var timestamps = await _db.Jobs
-            .Where(j => j.StartedAt != null && j.CompletedAt != null)
+            .Where(j => j.Status == JobStatus.Completed && j.StartedAt != null && j.CompletedAt != null)
             .Select(j => new { j.StartedAt, j.CompletedAt })
             .ToListAsync();
 
@@ -128,7 +129,7 @@ public class ReportsController : ControllerBase
             .ToListAsync();
 
         var completed = await _db.Jobs
-            .Where(j => j.CompletedAt >= since && j.CompletedAt != null)
+            .Where(j => j.Status == JobStatus.Completed && j.CompletedAt >= since && j.CompletedAt != null)
             .GroupBy(j => j.CompletedAt!.Value.Date)
             .Select(g => new { Date = g.Key, Count = g.Count() })
             .ToListAsync();

@@ -85,6 +85,6 @@ Newest entries at the bottom.
 ## 2026-10-07: Reports counted cancelled jobs as completed
 - **Task:** Bug fix (priority 2). Main was green: 0 build warnings, 167/167 tests.
 - **What:** `POST /api/jobs/{id}/cancel` sets `CompletedAt`, as `docs/data-model.md` documents ("completed or cancelled"). `GET /api/reports/throughput` counted every job with a `CompletedAt` in its "Completed" series, and `GET /api/reports/summary` averaged every job with both timestamps into `AvgJobDurationHours`. Cancelled jobs therefore showed up as completions on the Reports chart and skewed "Avg Job Duration". Both queries now also require `Status == Completed`, the same filter `CompletedThisMonth` and `recent-completions` already use. Added `ReportTests.cs`, the first tests for `ReportsController`: 2 reproductions (throughput and average duration with a cancelled job) and 1 characterization (a completed job is still counted). Both reproductions failed before the fix and pass after. 170/170 passing, 0 warnings.
-- **PR:** _(see below)_
+- **PR:** https://github.com/SequencerPro/Process_Manager/pull/32
 - **Notes:** The tests compare before/after values because the test class shares one database and seeded data, so they don't depend on absolute counts. No open agent PR touches `ReportsController`. `masterbranch-james` has the same two queries. Agent PRs #20 through #31 are still open.
 - **Follow-ups:** Added 2 items to BACKLOG.md under Agent-discovered.

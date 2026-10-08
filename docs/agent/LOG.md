@@ -92,6 +92,6 @@ Newest entries at the bottom.
 ## 2026-10-08: Blank serial number accepted when updating a serialized Item
 - **Task:** Bug fix (priority 2). Main was green: 0 build warnings, 167/167 tests.
 - **What:** `docs/data-model.md` (Item constraints) says `serial_number` is required when the Item's Kind is serialized, and `POST /api/items` rejects a blank one with 400. `PUT /api/items/{id}` only checked uniqueness, so `""` or whitespace was saved on a serialized Item and its serial number was lost. Update now returns 400 with the same message as Create. Added to `ItemTests2.cs` a reproduction theory (`""` and `"   "`, which also checks that the serial is unchanged) and a characterization test (a valid rename still succeeds). Both reproduction cases failed before the fix (200) and pass after it. 170/170 passing, 0 warnings.
-- **PR:** _pending_
+- **PR:** https://github.com/SequencerPro/Process_Manager/pull/33
 - **Notes:** I only blocked blank serials for serialized Kinds. For non-serialized Kinds a blank serial is still saved as `""` rather than `null` (see backlog). PR #25 also edits `ItemsController.Update`, but in the `BatchId` block a few lines below, so the two shouldn't conflict. `masterbranch-james` has the same code. Agent PRs #20 through #32 are still open.
 - **Follow-ups:** Added 2 items to BACKLOG.md under Agent-discovered.

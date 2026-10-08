@@ -150,4 +150,37 @@ public class ItemTests2 : IntegrationTestBase
 
         Assert.Equal(2, data!.Count);
     }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Update_SerializedKindBlankSerialNumber_ReturnsBadRequest(string serialNumber)
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var job = await CreateJob(scenario.Process.Id, $"JOB-IU1-{serialNumber.Length}");
+        var item = await CreateItem(job.Id, scenario.WidgetKind.Id, scenario.RawGrade.Id, "WDG-UPD-BLANK");
+
+        var response = await Client.PutAsJsonAsync($"/api/items/{item.Id}",
+            new UpdateItemDto(serialNumber), JsonOptions);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var unchanged = await Client.GetFromJsonAsync<ItemResponseDto>($"/api/items/{item.Id}", JsonOptions);
+        Assert.Equal("WDG-UPD-BLANK", unchanged!.SerialNumber);
+    }
+
+    [Fact]
+    public async Task Update_SerializedKindNewSerialNumber_ReturnsUpdatedItem()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var job = await CreateJob(scenario.Process.Id, "JOB-IU3");
+        var item = await CreateItem(job.Id, scenario.WidgetKind.Id, scenario.RawGrade.Id, "WDG-UPD-OLD");
+
+        var response = await Client.PutAsJsonAsync($"/api/items/{item.Id}",
+            new UpdateItemDto("WDG-UPD-NEW"), JsonOptions);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var updated = await response.Content.ReadFromJsonAsync<ItemResponseDto>(JsonOptions);
+        Assert.Equal("WDG-UPD-NEW", updated!.SerialNumber);
+    }
 }

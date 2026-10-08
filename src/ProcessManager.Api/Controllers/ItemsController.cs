@@ -148,6 +148,9 @@ public class ItemsController : ControllerBase
 
         if (dto.SerialNumber != null)
         {
+            if (item.Kind.IsSerialized && string.IsNullOrWhiteSpace(dto.SerialNumber))
+                return BadRequest($"Kind '{item.Kind.Name}' is serialized — serial number is required.");
+
             if (await _db.Items.AnyAsync(i => i.KindId == item.KindId && i.SerialNumber == dto.SerialNumber && i.Id != id))
                 return Conflict($"An item with serial number '{dto.SerialNumber}' already exists for this Kind.");
             item.SerialNumber = dto.SerialNumber;

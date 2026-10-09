@@ -252,10 +252,11 @@ public class ProcessesController : ControllerBase
                 $"Type mismatch: source port flows {sourcePort.Kind?.Code}/{sourcePort.Grade?.Code} " +
                 $"but target port expects {targetPort.Kind?.Code}/{targetPort.Grade?.Code}.");
 
-        // Check for duplicate connections
-        if (await _db.Flows.AnyAsync(f => f.SourcePortId == dto.SourcePortId && f.ProcessId == processId))
+        // Check for duplicate connections. A StepTemplate can appear at several steps in a Process,
+        // so a port is identified by its ProcessStep as well as its Port id.
+        if (await _db.Flows.AnyAsync(f => f.SourceProcessStepId == dto.SourceProcessStepId && f.SourcePortId == dto.SourcePortId))
             return Conflict("Source port is already connected to a flow in this process.");
-        if (await _db.Flows.AnyAsync(f => f.TargetPortId == dto.TargetPortId && f.ProcessId == processId))
+        if (await _db.Flows.AnyAsync(f => f.TargetProcessStepId == dto.TargetProcessStepId && f.TargetPortId == dto.TargetPortId))
             return Conflict("Target port is already connected to a flow in this process.");
 
         var flow = new Flow

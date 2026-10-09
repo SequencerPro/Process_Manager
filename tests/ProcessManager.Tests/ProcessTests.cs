@@ -274,6 +274,64 @@ public class ProcessTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task AddFlow_DuplicateTargetPort_ReturnsConflict()
+    {
+        var (kind, grade) = await CreateKindWithGrade("PC-023", "Dup Target Kind");
+        var stepB = await CreateTransformStep("FL-007B", "B", kind.Id, grade.Id, kind.Id, grade.Id);
+        var stepC = await CreateDivisionStep("FL-007C", "C", kind.Id, grade.Id,
+            [("Out 1", kind.Id, grade.Id), ("Out 2", kind.Id, grade.Id)]);
+        var process = await CreateProcess("PC-023", "Dup Target Process");
+
+        var ps1 = await AddProcessStep(process.Id, stepC.Id, 1);
+        var ps2 = await AddProcessStep(process.Id, stepB.Id, 2);
+
+        var outPorts = stepC.Ports.Where(p => p.Direction == PortDirection.Output).ToList();
+        var inPort = stepB.Ports.Single(p => p.Direction == PortDirection.Input);
+
+        await AddFlow(process.Id, ps1.Id, outPorts[0].Id, ps2.Id, inPort.Id);
+
+        // A different source port into the same input port on the same step conflicts
+        var dto = new FlowCreateDto(ps1.Id, outPorts[1].Id, ps2.Id, inPort.Id);
+        var response = await Client.PostAsJsonAsync($"/api/processes/{process.Id}/flows", dto, JsonOptions);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddFlow_TemplateReusedAtTwoSteps_ConnectsEachStepsPorts()
+    {
+        // A appears at steps 1 and 3, B at steps 2 and 4: A1 → B2 → A3 → B4.
+        // The flow A3 → B4 reuses the same template ports as A1 → B2, but on different steps.
+        var (kind, grade) = await CreateKindWithGrade("PC-024", "Reuse Kind");
+        var stepA = await CreateTransformStep("FL-008A", "A", kind.Id, grade.Id, kind.Id, grade.Id);
+        var stepB = await CreateTransformStep("FL-008B", "B", kind.Id, grade.Id, kind.Id, grade.Id);
+        var process = await CreateProcess("PC-024", "Reuse Process");
+
+        var ps1 = await AddProcessStep(process.Id, stepA.Id, 1);
+        var ps2 = await AddProcessStep(process.Id, stepB.Id, 2);
+        var ps3 = await AddProcessStep(process.Id, stepA.Id, 3);
+        var ps4 = await AddProcessStep(process.Id, stepB.Id, 4);
+
+        var aIn = stepA.Ports.Single(p => p.Direction == PortDirection.Input);
+        var aOut = stepA.Ports.Single(p => p.Direction == PortDirection.Output);
+        var bIn = stepB.Ports.Single(p => p.Direction == PortDirection.Input);
+        var bOut = stepB.Ports.Single(p => p.Direction == PortDirection.Output);
+
+        await AddFlow(process.Id, ps1.Id, aOut.Id, ps2.Id, bIn.Id);
+        await AddFlow(process.Id, ps2.Id, bOut.Id, ps3.Id, aIn.Id);
+
+        var dto = new FlowCreateDto(ps3.Id, aOut.Id, ps4.Id, bIn.Id);
+        var response = await Client.PostAsJsonAsync($"/api/processes/{process.Id}/flows", dto, JsonOptions);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var validate = await Client.GetAsync($"/api/processes/{process.Id}/validate");
+        var result = await validate.Content.ReadFromJsonAsync<ProcessValidationResultDto>(JsonOptions);
+        Assert.NotNull(result);
+        Assert.Empty(result.Errors);
+        Assert.Empty(result.Warnings);
+    }
+
+    [Fact]
     public async Task DeleteFlow_Existing_ReturnsNoContent()
     {
         var (kind, grade) = await CreateKindWithGrade("PC-014", "Del Flow Kind");

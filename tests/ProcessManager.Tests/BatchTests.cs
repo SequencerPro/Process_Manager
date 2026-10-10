@@ -90,6 +90,37 @@ public class BatchTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Update_NegativeQuantity_ReturnsBadRequestAndKeepsQuantity()
+    {
+        var (_, job, batchKind, batchGrade) = await SetupBatchableScenario();
+        var batch = await CreateBatch(job.Id, batchKind.Id, batchGrade.Id, $"LOT-NEG-{Guid.NewGuid().ToString()[..6]}", 50);
+
+        var dto = new UpdateBatchDto(-5);
+        var response = await Client.PutAsJsonAsync($"/api/batches/{batch.Id}", dto, JsonOptions);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var reloaded = await Client.GetFromJsonAsync<BatchResponseDto>($"/api/batches/{batch.Id}", JsonOptions);
+        Assert.Equal(50, reloaded!.Quantity);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(75)]
+    public async Task Update_NonNegativeQuantity_Succeeds(int quantity)
+    {
+        var (_, job, batchKind, batchGrade) = await SetupBatchableScenario();
+        var batch = await CreateBatch(job.Id, batchKind.Id, batchGrade.Id, $"LOT-QTY-{Guid.NewGuid().ToString()[..6]}", 50);
+
+        var dto = new UpdateBatchDto(quantity);
+        var response = await Client.PutAsJsonAsync($"/api/batches/{batch.Id}", dto, JsonOptions);
+        response.EnsureSuccessStatusCode();
+
+        var updated = await response.Content.ReadFromJsonAsync<BatchResponseDto>(JsonOptions);
+        Assert.Equal(quantity, updated!.Quantity);
+    }
+
+    [Fact]
     public async Task AddItem_ToBatch_Succeeds()
     {
         // Need a batchable + serialized kind for this test

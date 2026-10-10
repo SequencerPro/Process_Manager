@@ -70,7 +70,7 @@ public record CreateBatchDto(
     [Range(0, int.MaxValue)] int Quantity = 0);
 
 public record UpdateBatchDto(
-    int? Quantity = null);
+    [Range(0, int.MaxValue)] int? Quantity = null);
 
 public record BatchResponseDto(
     Guid Id,

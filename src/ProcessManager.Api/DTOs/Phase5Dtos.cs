@@ -42,7 +42,7 @@ public record CreateItemDto(
     Guid? BatchId = null);
 
 public record UpdateItemDto(
-    string? SerialNumber = null,
+    [StringLength(100)] string? SerialNumber = null,
     Guid? BatchId = null);
 
 public record ItemResponseDto(

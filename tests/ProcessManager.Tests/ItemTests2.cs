@@ -79,6 +79,36 @@ public class ItemTests2 : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Update_SerialNumberOver100Chars_ReturnsBadRequestAndKeepsSerial()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var job = await CreateJob(scenario.Process.Id, "JOB-I-LEN1");
+        var item = await CreateItem(job.Id, scenario.WidgetKind.Id, scenario.RawGrade.Id, "WDG-LEN1");
+
+        var dto = new UpdateItemDto(new string('S', 101));
+        var response = await Client.PutAsJsonAsync($"/api/items/{item.Id}", dto, JsonOptions);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var fetched = await Client.GetFromJsonAsync<ItemResponseDto>($"/api/items/{item.Id}", JsonOptions);
+        Assert.Equal("WDG-LEN1", fetched!.SerialNumber);
+    }
+
+    [Fact]
+    public async Task Update_SerialNumberOf100Chars_Succeeds()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        var job = await CreateJob(scenario.Process.Id, "JOB-I-LEN2");
+        var item = await CreateItem(job.Id, scenario.WidgetKind.Id, scenario.RawGrade.Id, "WDG-LEN2");
+
+        var serial = new string('S', 100);
+        var response = await Client.PutAsJsonAsync($"/api/items/{item.Id}", new UpdateItemDto(serial), JsonOptions);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var updated = await response.Content.ReadFromJsonAsync<ItemResponseDto>(JsonOptions);
+        Assert.Equal(serial, updated!.SerialNumber);
+    }
+
+    [Fact]
     public async Task Delete_ItemWithPortTransactions_ReturnsConflict()
     {
         var scenario = await BuildWidgetFinishingScenario();

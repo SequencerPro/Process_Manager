@@ -113,6 +113,6 @@ Newest entries at the bottom.
 ## 2026-10-11: Over-length serial number accepted when updating an Item
 - **Task:** Bug fix (priority 2). Main was green: 0 build warnings, 167/167 tests.
 - **What:** `CreateItemDto.SerialNumber` has `[StringLength(100)]`, matching the column's `HasMaxLength(100)`. `UpdateItemDto.SerialNumber` had no limit, so `PUT /api/items/{id}` passed a longer serial through to the database. On Postgres that fails on save with a 500. EF InMemory doesn't enforce max length, so it saved. I added the same `[StringLength(100)]` to the update DTO, and model validation now returns 400. Added `Update_SerialNumberOver100Chars_ReturnsBadRequestAndKeepsSerial` (reproduction: 200 before the fix, 400 with the serial unchanged after it) and `Update_SerialNumberOf100Chars_Succeeds` (characterization at the limit) to `ItemTests2.cs`. 169/169 passing, 0 warnings.
-- **PR:** PR_LINK
+- **PR:** https://github.com/SequencerPro/Process_Manager/pull/36
 - **Notes:** This came from the 2026-10-10 Agent-discovered backlog item. It was deferred because PRs #25 and #33 edit `ItemsController.Update`. This fix only touches the DTO, and I put the tests mid-file rather than at the end, to avoid conflicts with those PRs' test additions. `masterbranch-james` has the same DTO. Agent PRs #20 through #35 are still open.
 - **Follow-ups:** Added 2 items to BACKLOG.md under Agent-discovered.

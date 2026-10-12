@@ -442,7 +442,8 @@ public class StepTemplatesController : ControllerBase
             .FirstOrDefaultAsync(s => s.Id == id);
         if (st is null) return NotFound();
 
-        if (!Enum.TryParse<PromptType>(dto.PromptType, ignoreCase: true, out var promptType))
+        if (!Enum.TryParse<PromptType>(dto.PromptType, ignoreCase: true, out var promptType)
+            || !Enum.IsDefined(promptType))
             return BadRequest($"Unknown PromptType '{dto.PromptType}'.");
 
         var sortOrder = st.Contents.Any() ? st.Contents.Max(c => c.SortOrder) + 1 : 0;

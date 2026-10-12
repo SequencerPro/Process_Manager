@@ -396,7 +396,8 @@ public class ProcessesController : ControllerBase
             .FirstOrDefaultAsync(ps => ps.Id == stepId && ps.ProcessId == processId);
         if (step is null) return NotFound();
 
-        if (!Enum.TryParse<PromptType>(dto.PromptType, ignoreCase: true, out var promptType))
+        if (!Enum.TryParse<PromptType>(dto.PromptType, ignoreCase: true, out var promptType)
+            || !Enum.IsDefined(promptType))
             return BadRequest($"Unknown PromptType '{dto.PromptType}'.");
 
         var sortOrder = step.Contents.Any() ? step.Contents.Max(c => c.SortOrder) + 1 : 0;

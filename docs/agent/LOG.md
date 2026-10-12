@@ -116,3 +116,10 @@ Newest entries at the bottom.
 - **PR:** https://github.com/SequencerPro/Process_Manager/pull/36
 - **Notes:** This came from the 2026-10-10 Agent-discovered backlog item. It was deferred because PRs #25 and #33 edit `ItemsController.Update`. This fix only touches the DTO, and I put the tests mid-file rather than at the end, to avoid conflicts with those PRs' test additions. `masterbranch-james` has the same DTO. Agent PRs #20 through #35 are still open.
 - **Follow-ups:** Added 2 items to BACKLOG.md under Agent-discovered.
+
+## 2026-10-12: Numeric PromptType strings saved undefined prompt types
+- **Task:** Bug fix (priority 2). Main was green: 0 build warnings, 167/167 tests.
+- **What:** Both `AddPromptBlock` endpoints (`POST /api/steptemplates/{id}/content/prompt` and `POST /api/processes/{id}/steps/{stepId}/content/prompt`) validated `PromptType` with `Enum.TryParse`. `Enum.TryParse` accepts any integer string, so `"99"` or `"-1"` was saved as an undefined prompt type instead of returning the endpoint's own 400 "Unknown PromptType". Both endpoints now also require `Enum.IsDefined`. Added `PromptBlockTests.cs`, the first tests for these endpoints: reproduction theories for both (`"99"`, `"-1"`, `"NotAType"`, asserting 400 and that nothing was saved) and characterization tests for named types. The numeric cases failed before the fix (201) and pass after it. 176/176 passing, 0 warnings.
+- **PR:** https://github.com/SequencerPro/Process_Manager/pull/37
+- **Notes:** A numeric string for a defined value (for example `"1"`) is still accepted, so the behavior change is as small as possible. I put the tests in a new file to avoid conflicts with the open agent PRs that append to `ProcessTests.cs`/`StepTemplateTests.cs`. `masterbranch-james` probably has the same checks. Agent PRs #20 through #36 are still open.
+- **Follow-ups:** Added 2 items to BACKLOG.md under Agent-discovered.

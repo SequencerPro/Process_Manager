@@ -152,17 +152,20 @@ public class WorkflowsController : ControllerBase
             if (lastStep?.StepTemplate?.Ports == null || firstStep?.StepTemplate?.Ports == null)
                 continue;
 
+            // Only Material ports carry a Kind. Non-Material ports have a null KindId,
+            // which must not count as a match between the two sides.
             var outputKinds = lastStep.StepTemplate.Ports
-                .Where(p => p.Direction == PortDirection.Output)
+                .Where(p => p.Direction == PortDirection.Output && p.KindId != null)
                 .Select(p => p.KindId)
                 .ToHashSet();
 
             var inputKinds = firstStep.StepTemplate.Ports
-                .Where(p => p.Direction == PortDirection.Input)
+                .Where(p => p.Direction == PortDirection.Input && p.KindId != null)
                 .Select(p => p.KindId)
                 .ToHashSet();
 
-            if (!outputKinds.Intersect(inputKinds).Any())
+            // No Material ports on either side: no items flow, so there is nothing to mismatch
+            if ((outputKinds.Count > 0 || inputKinds.Count > 0) && !outputKinds.Intersect(inputKinds).Any())
             {
                 warnings.Add($"Link '{srcProcess.Name}' → '{tgtProcess.Name}': " +
                     "source output Kinds do not match target input Kinds.");

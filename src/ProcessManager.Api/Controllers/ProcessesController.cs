@@ -518,13 +518,15 @@ public class ProcessesController : ControllerBase
             var current = steps[i];
             var next = steps[i + 1];
 
-            // Load ports for both steps
+            // Load Material ports for both steps — only Material ports can carry flows
             var currentOutputPorts = await _db.Ports
-                .Where(p => p.StepTemplateId == current.StepTemplateId && p.Direction == PortDirection.Output)
+                .Where(p => p.StepTemplateId == current.StepTemplateId && p.Direction == PortDirection.Output
+                    && p.PortType == PortType.Material)
                 .ToListAsync();
 
             var nextInputPorts = await _db.Ports
-                .Where(p => p.StepTemplateId == next.StepTemplateId && p.Direction == PortDirection.Input)
+                .Where(p => p.StepTemplateId == next.StepTemplateId && p.Direction == PortDirection.Input
+                    && p.PortType == PortType.Material)
                 .ToListAsync();
 
             var flowsBetween = process.Flows

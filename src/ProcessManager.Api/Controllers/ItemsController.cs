@@ -113,7 +113,8 @@ public class ItemsController : ControllerBase
 
         var item = new Item
         {
-            SerialNumber = dto.SerialNumber,
+            // Store a blank serial as null so it doesn't collide on the (KindId, SerialNumber) unique index
+            SerialNumber = string.IsNullOrWhiteSpace(dto.SerialNumber) ? null : dto.SerialNumber,
             KindId = dto.KindId,
             GradeId = dto.GradeId,
             JobId = dto.JobId,

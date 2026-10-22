@@ -155,6 +155,6 @@ Newest entries at the bottom.
 ## 2026-10-21: Job Items list returned no Batch code
 - **Task:** Bug fix (priority 2). Main was green: 0 build warnings, 167/167 tests. No BACKLOG items are marked [ready].
 - **What:** `GET /api/jobs/{id}/items` loaded each Item's Kind and Grade but not its Batch, so `BatchCode` was always `null` for an Item in a Batch, even though `BatchId` was set. `GET /api/items`, `GET /api/items/{id}` and `GET /api/batches/{id}/items` all include `Batch`. The query now includes `Batch` too. Added `JobItemsBatchCodeTests.cs` with 1 reproduction (an Item in a Batch reports the Batch's code; it returned `null` before the fix) and 1 characterization test (an Item without a Batch still reports `null`). 169/169 passing, 0 warnings.
-- **PR:** _(link added after the PR is opened)_
+- **PR:** https://github.com/SequencerPro/Process_Manager/pull/42
 - **Notes:** PR #31 adds `.Include(i => i.Job)` to the same query. I put the new Include first, not next to #31's line, and checked with a three-way merge that the two PRs merge cleanly. The in-repo UI doesn't call this endpoint, so only API consumers see the bug. I put the tests in a new file so they don't conflict with open agent PRs. `masterbranch-james` has the same query without `Batch` (`JobsController.cs` around line 451). Agent PRs #20 through #41 are still open. #41 (2026-10-20) fixes the same bug as #23 (2026-09-28), so one of them can be closed.
 - **Follow-ups:** Added 2 items to BACKLOG.md under Agent-discovered.

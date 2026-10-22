@@ -307,7 +307,10 @@ public class StepExecutionsController : ControllerBase
     [HttpPost("{id:guid}/prompt-responses")]
     public async Task<IActionResult> SavePromptResponses(Guid id, SavePromptResponsesDto dto)
     {
-        if (!await _db.StepExecutions.AnyAsync(se => se.Id == id)) return NotFound();
+        var se = await _db.StepExecutions
+            .Include(s => s.ProcessStep)
+            .FirstOrDefaultAsync(s => s.Id == id);
+        if (se is null) return NotFound();
 
         foreach (var item in dto.Responses)
         {
@@ -319,7 +322,10 @@ public class StepExecutionsController : ControllerBase
             if (item.ProcessStepContentId.HasValue)
             {
                 var content = await _db.ProcessStepContents.FindAsync(item.ProcessStepContentId);
-                if (content?.PromptType == Domain.Enums.PromptType.NumericEntry &&
+                if (content is null || content.ProcessStepId != se.ProcessStepId)
+                    return BadRequest($"Content '{item.ProcessStepContentId}' does not belong to this step.");
+
+                if (content.PromptType == Domain.Enums.PromptType.NumericEntry &&
                     decimal.TryParse(item.ResponseValue, System.Globalization.NumberStyles.Any,
                         System.Globalization.CultureInfo.InvariantCulture, out var val))
                 {
@@ -330,7 +336,10 @@ public class StepExecutionsController : ControllerBase
             else if (item.StepTemplateContentId.HasValue)
             {
                 var content = await _db.StepTemplateContents.FindAsync(item.StepTemplateContentId);
-                if (content?.PromptType == Domain.Enums.PromptType.NumericEntry &&
+                if (content is null || content.StepTemplateId != se.ProcessStep.StepTemplateId)
+                    return BadRequest($"Content '{item.StepTemplateContentId}' does not belong to this step's template.");
+
+                if (content.PromptType == Domain.Enums.PromptType.NumericEntry &&
                     decimal.TryParse(item.ResponseValue, System.Globalization.NumberStyles.Any,
                         System.Globalization.CultureInfo.InvariantCulture, out var val))
                 {

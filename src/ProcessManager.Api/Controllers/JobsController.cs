@@ -247,6 +247,7 @@ public class JobsController : ControllerBase
         if (!await _db.Jobs.AnyAsync(j => j.Id == jobId)) return NotFound();
 
         var items = await _db.Items
+            .Include(i => i.Batch)
             .Include(i => i.Kind)
             .Include(i => i.Grade)
             .Where(i => i.JobId == jobId)

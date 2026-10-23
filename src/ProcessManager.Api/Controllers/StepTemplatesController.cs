@@ -284,6 +284,9 @@ public class StepTemplatesController : ControllerBase
         if (await _db.Flows.AnyAsync(f => f.SourcePortId == portId || f.TargetPortId == portId))
             return Conflict("Cannot delete a Port that is referenced by one or more Flows.");
 
+        if (await _db.PortTransactions.AnyAsync(pt => pt.PortId == portId))
+            return Conflict("Cannot delete a Port that has port transaction records.");
+
         _db.Ports.Remove(port);
 
         var step = await _db.StepTemplates.FindAsync(stepTemplateId);

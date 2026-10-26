@@ -138,16 +138,33 @@ public class StepTemplatesController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id)
+    public async Task<IActionResult> Delete(
+        Guid id,
+        [FromServices] IImageStorageService imageStorage)
     {
-        var step = await _db.StepTemplates.FindAsync(id);
+        var step = await _db.StepTemplates
+            .Include(s => s.Images)
+            .Include(s => s.Contents)
+            .FirstOrDefaultAsync(s => s.Id == id);
         if (step is null) return NotFound();
 
         if (await _db.ProcessSteps.AnyAsync(ps => ps.StepTemplateId == id))
             return Conflict("Cannot delete a StepTemplate that is used in one or more Processes.");
 
+        // The cascade removes the image rows; collect their files to delete once the rows are gone
+        var filePaths = step.Images
+            .Select(i => $"uploads/steptemplates/{i.FileName}")
+            .Concat(step.Contents
+                .Where(c => c.ContentType == StepContentType.Image && c.FileName is not null)
+                .Select(c => $"uploads/step-template-content/{c.FileName}"))
+            .ToList();
+
         _db.StepTemplates.Remove(step);
         await _db.SaveChangesAsync();
+
+        foreach (var path in filePaths)
+            await imageStorage.DeleteAsync(path);
+
         return NoContent();
     }
 

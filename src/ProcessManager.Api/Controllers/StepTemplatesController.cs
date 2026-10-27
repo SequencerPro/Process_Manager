@@ -310,7 +310,10 @@ public class StepTemplatesController : ControllerBase
 
         var (fileName, _) = await imageStorage.SaveAsync(file, "steptemplates");
 
-        var sortOrder = await _db.StepTemplateImages.CountAsync(i => i.StepTemplateId == id);
+        var maxSortOrder = await _db.StepTemplateImages
+            .Where(i => i.StepTemplateId == id)
+            .MaxAsync(i => (int?)i.SortOrder);
+        var sortOrder = maxSortOrder is null ? 0 : maxSortOrder.Value + 1;
         var image = new StepTemplateImage
         {
             StepTemplateId = id,

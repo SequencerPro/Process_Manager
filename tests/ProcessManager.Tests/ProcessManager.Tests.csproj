@@ -25,6 +25,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\ProcessManager.Domain\ProcessManager.Domain.csproj" />
     <ProjectReference Include="..\..\src\ProcessManager.Api\ProcessManager.Api.csproj" />
+    <!-- Aliased so the Web project's Program class doesn't clash with the Api's. -->
+    <ProjectReference Include="..\..\src\ProcessManager.Web\ProcessManager.Web.csproj" Aliases="Web" />
   </ItemGroup>
 
 </Project>

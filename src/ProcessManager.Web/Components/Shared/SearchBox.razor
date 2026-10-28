@@ -1,4 +1,5 @@
 @* Search bar with debounced input *@
+@implements IDisposable
 <div class="input-group input-group-sm" style="max-width: 300px;">
     <span class="input-group-text"><i class="bi bi-search"></i></span>
     <input type="text" class="form-control" placeholder="@Placeholder"
@@ -17,6 +18,7 @@
     [Parameter] public EventCallback<string> ValueChanged { get; set; }
 
     private System.Timers.Timer? _debounce;
+    private bool _disposed;
 
     private void OnInput(ChangeEventArgs e)
     {
@@ -27,7 +29,16 @@
         _debounce.Elapsed += async (_, _) =>
         {
             _debounce?.Stop();
-            await InvokeAsync(() => ValueChanged.InvokeAsync(val));
+            // Elapsed is a sync event, so this lambda is async void: an exception escaping it
+            // would crash the process. Hand it to the renderer like any other event handler error.
+            try
+            {
+                await InvokeAsync(() => _disposed ? Task.CompletedTask : ValueChanged.InvokeAsync(val));
+            }
+            catch (Exception ex)
+            {
+                await DispatchExceptionAsync(ex);
+            }
         };
         _debounce.AutoReset = false;
         _debounce.Start();
@@ -38,5 +49,11 @@
         await ValueChanged.InvokeAsync("");
     }
 
-    public void Dispose() => _debounce?.Dispose();
+    public void Dispose()
+    {
+        // A tick already past Stop() checks _disposed on the dispatcher and is dropped.
+        _disposed = true;
+        _debounce?.Stop();
+        _debounce?.Dispose();
+    }
 }

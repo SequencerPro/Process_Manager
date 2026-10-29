@@ -8,7 +8,7 @@
             </small>
             <ul class="pagination pagination-sm mb-0">
                 <li class="page-item @(Page <= 1 ? "disabled" : "")">
-                    <a class="page-link" href="javascript:void(0)" @onclick="() => OnPageChanged.InvokeAsync(Page - 1)">
+                    <a class="page-link" href="javascript:void(0)" @onclick="() => GoToPage(Page - 1)">
                         <i class="bi bi-chevron-left"></i>
                     </a>
                 </li>
@@ -16,11 +16,11 @@
                 {
                     var p = i;
                     <li class="page-item @(p == Page ? "active" : "")">
-                        <a class="page-link" href="javascript:void(0)" @onclick="() => OnPageChanged.InvokeAsync(p)">@p</a>
+                        <a class="page-link" href="javascript:void(0)" @onclick="() => GoToPage(p)">@p</a>
                     </li>
                 }
                 <li class="page-item @(Page >= TotalPages ? "disabled" : "")">
-                    <a class="page-link" href="javascript:void(0)" @onclick="() => OnPageChanged.InvokeAsync(Page + 1)">
+                    <a class="page-link" href="javascript:void(0)" @onclick="() => GoToPage(Page + 1)">
                         <i class="bi bi-chevron-right"></i>
                     </a>
                 </li>
@@ -39,4 +39,8 @@
 
     private int StartPage => Math.Max(1, Page - 2);
     private int EndPage => Math.Min(TotalPages, Page + 2);
+
+    // Disabled links only block the mouse; keyboard activation still raises onclick.
+    private Task GoToPage(int page) =>
+        page >= 1 && page <= TotalPages ? OnPageChanged.InvokeAsync(page) : Task.CompletedTask;
 }

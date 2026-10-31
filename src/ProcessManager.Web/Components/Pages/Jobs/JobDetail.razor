@@ -321,7 +321,9 @@ else
     {
         try
         {
-            _job = await Api.JobTransitionAsync(Id, action);
+            // The transition response omits step executions, so reload the full job.
+            await Api.JobTransitionAsync(Id, action);
+            _job = await Api.GetJobAsync(Id);
             await LoadSubResources();
         }
         catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }

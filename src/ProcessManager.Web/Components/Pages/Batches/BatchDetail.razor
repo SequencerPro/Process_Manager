@@ -391,8 +391,8 @@ else
     {
         _addItemId = "";
         _showAddItemForm = true;
-        // Load items from the same job that are not already in a batch
-        _availableItems = await Api.GetItemsAsync(jobId: _batch!.JobId, status: "Available", page: 1, pageSize: 200);
+        // Load items of the batch's Kind from the same job; the markup hides those already in a batch
+        _availableItems = await Api.GetItemsAsync(jobId: _batch!.JobId, kindId: _batch.KindId, status: "Available", page: 1, pageSize: 200);
         StateHasChanged();
     }
 

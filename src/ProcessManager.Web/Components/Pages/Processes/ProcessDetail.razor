@@ -386,14 +386,16 @@ else
 
     private async Task Validate()
     {
-        _validation = await Api.ValidateProcessAsync(Id);
+        try { _validation = await Api.ValidateProcessAsync(Id); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
     }
 
     private async Task ShowAddStep()
     {
         _stepTemplateId = ""; _stepSequence = (_proc?.Steps.Count ?? 0) + 1; _stepNameOverride = "";
         _showStepForm = true;
-        _templates = await Api.GetStepTemplatesAsync("", true, 1, 100);
+        try { _templates = await Api.GetStepTemplatesAsync("", true, 1, 100); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
         StateHasChanged();
     }
 
@@ -457,8 +459,12 @@ else
             var step = _proc!.Steps.FirstOrDefault(s => s.Id == stepId);
             if (step is not null)
             {
-                var tpl = await Api.GetStepTemplateAsync(step.StepTemplateId);
-                _flowSrcPorts = tpl?.Ports?.Where(p => p.Direction == PortDirection.Output).OrderBy(p => p.SortOrder).ToList();
+                try
+                {
+                    var tpl = await Api.GetStepTemplateAsync(step.StepTemplateId);
+                    _flowSrcPorts = tpl?.Ports?.Where(p => p.Direction == PortDirection.Output).OrderBy(p => p.SortOrder).ToList();
+                }
+                catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
             }
         }
     }
@@ -471,8 +477,12 @@ else
             var step = _proc!.Steps.FirstOrDefault(s => s.Id == stepId);
             if (step is not null)
             {
-                var tpl = await Api.GetStepTemplateAsync(step.StepTemplateId);
-                _flowTgtPorts = tpl?.Ports?.Where(p => p.Direction == PortDirection.Input).OrderBy(p => p.SortOrder).ToList();
+                try
+                {
+                    var tpl = await Api.GetStepTemplateAsync(step.StepTemplateId);
+                    _flowTgtPorts = tpl?.Ports?.Where(p => p.Direction == PortDirection.Input).OrderBy(p => p.SortOrder).ToList();
+                }
+                catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
             }
         }
     }

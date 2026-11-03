@@ -338,7 +338,8 @@ else if (_data is not null)
         _formPorts.Clear();
         ResetInlinePort();
         _showForm = true;
-        _kinds = await Api.GetKindsAsync("", 1, 100);
+        try { _kinds = await Api.GetKindsAsync("", 1, 100); }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
         StateHasChanged();
     }
 
@@ -360,8 +361,12 @@ else if (_data is not null)
         _ipGradeId = "";
         if (Guid.TryParse(_ipKindId, out var kindId))
         {
-            var kind = await Api.GetKindAsync(kindId);
-            _ipGrades = kind?.Grades?.ToList();
+            try
+            {
+                var kind = await Api.GetKindAsync(kindId);
+                _ipGrades = kind?.Grades?.ToList();
+            }
+            catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
         }
     }
 

@@ -200,8 +200,12 @@ else if (_data is not null)
         _formSerial = ""; _formJobId = ""; _formKindId = ""; _formGradeId = "";
         _formGrades = null;
         _showForm = true;
-        _jobs = await Api.GetJobsAsync(page: 1, pageSize: 100);
-        _kinds = await Api.GetKindsAsync("", 1, 100);
+        try
+        {
+            _jobs = await Api.GetJobsAsync(page: 1, pageSize: 100);
+            _kinds = await Api.GetKindsAsync("", 1, 100);
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
         StateHasChanged();
     }
 
@@ -212,8 +216,12 @@ else if (_data is not null)
         _formGrades = null; _formGradeId = "";
         if (Guid.TryParse(_formKindId, out var kindId))
         {
-            var kind = await Api.GetKindAsync(kindId);
-            _formGrades = kind?.Grades?.ToList();
+            try
+            {
+                var kind = await Api.GetKindAsync(kindId);
+                _formGrades = kind?.Grades?.ToList();
+            }
+            catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
         }
     }
 

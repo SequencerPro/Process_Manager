@@ -39,6 +39,23 @@ public class ProcessBuilderLoadErrorTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Save_AfterFailedLoad_ShowsErrorToastInsteadOfThrowing()
+    {
+        var scenario = await BuildWidgetFinishingScenario();
+        using var renderer = new TestRenderer(new ApiClient(FailingClient(), JsonOptions));
+        var page = await renderer.Render(scenario.Process.Id);
+        SetField(page, "_code", "NEW-CODE");
+        SetField(page, "_name", "New name");
+        var toastsBefore = renderer.Toasts.Toasts.Count;
+
+        var ex = await Record.ExceptionAsync(() => renderer.Dispatcher.InvokeAsync(() => InvokeTask(page, "Save")));
+
+        Assert.Null(ex);
+        var toast = Assert.Single(renderer.Toasts.Toasts.Skip(toastsBefore));
+        Assert.Equal(ToastType.Danger, toast.Type);
+    }
+
+    [Fact]
     public async Task RunValidation_ApiFailure_ShowsErrorToastInsteadOfThrowing()
     {
         var scenario = await BuildWidgetFinishingScenario();
@@ -82,6 +99,9 @@ public class ProcessBuilderLoadErrorTests : IntegrationTestBase
 
     private static object? GetField(IComponent page, string name) =>
         page.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(page);
+
+    private static void SetField(IComponent page, string name, object value) =>
+        page.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(page, value);
 
     private static void SetApi(IComponent page, ApiClient api) =>
         page.GetType().GetProperty("Api", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(page, api);

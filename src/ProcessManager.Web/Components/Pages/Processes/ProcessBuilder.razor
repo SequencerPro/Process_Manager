@@ -1216,6 +1216,7 @@ else
     {
         if (string.IsNullOrWhiteSpace(_code)) { Toast.ShowError("Code is required."); return; }
         if (string.IsNullOrWhiteSpace(_name)) { Toast.ShowError("Name is required."); return; }
+        if (Id.HasValue && _origProc is null) { Toast.ShowError("The process did not load. Reload the page before saving."); return; }
 
         _saving = true;
         try

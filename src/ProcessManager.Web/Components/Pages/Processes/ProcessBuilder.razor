@@ -746,36 +746,46 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        if (Id.HasValue)
+        try
         {
-            _origProc = await Api.GetProcessAsync(Id.Value);
-            if (_origProc is not null)
+            if (Id.HasValue)
             {
-                _code = _origProc.Code;
-                _name = _origProc.Name;
-                _description = _origProc.Description;
-
-                foreach (var s in _origProc.Steps.OrderBy(s => s.Sequence))
+                _origProc = await Api.GetProcessAsync(Id.Value);
+                if (_origProc is not null)
                 {
-                    _steps.Add(new BuilderStep
+                    _code = _origProc.Code;
+                    _name = _origProc.Name;
+                    _description = _origProc.Description;
+
+                    foreach (var s in _origProc.Steps.OrderBy(s => s.Sequence))
                     {
-                        ServerId = s.Id,
-                        Sequence = s.Sequence,
-                        StepTemplateId = s.StepTemplateId,
-                        NameOverride = s.NameOverride,
-                        DescriptionOverride = s.DescriptionOverride
-                    });
+                        _steps.Add(new BuilderStep
+                        {
+                            ServerId = s.Id,
+                            Sequence = s.Sequence,
+                            StepTemplateId = s.StepTemplateId,
+                            NameOverride = s.NameOverride,
+                            DescriptionOverride = s.DescriptionOverride
+                        });
+                    }
+
+                    // Load all step templates in parallel
+                    await Task.WhenAll(_steps.Select(async step =>
+                        step.Template = await Api.GetStepTemplateAsync(step.StepTemplateId)));
+
+                    RecomputeConnections();
+                    RestoreFlowsFromOriginal();
                 }
-
-                // Load all step templates in parallel
-                await Task.WhenAll(_steps.Select(async step =>
-                    step.Template = await Api.GetStepTemplateAsync(step.StepTemplateId)));
-
-                RecomputeConnections();
-                RestoreFlowsFromOriginal();
             }
         }
-        _loading = false;
+        catch (HttpRequestException ex)
+        {
+            Toast.ShowError(ex.Message);
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private void RestoreFlowsFromOriginal()
@@ -1188,7 +1198,14 @@ else
     private async Task RunValidation()
     {
         if (!Id.HasValue) return;
-        _validation = await Api.ValidateProcessAsync(Id.Value);
+        try
+        {
+            _validation = await Api.ValidateProcessAsync(Id.Value);
+        }
+        catch (HttpRequestException ex)
+        {
+            Toast.ShowError(ex.Message);
+        }
     }
 
     // ──────────────────────────────────────────────
@@ -1199,6 +1216,7 @@ else
     {
         if (string.IsNullOrWhiteSpace(_code)) { Toast.ShowError("Code is required."); return; }
         if (string.IsNullOrWhiteSpace(_name)) { Toast.ShowError("Name is required."); return; }
+        if (Id.HasValue && _origProc is null) { Toast.ShowError("The process did not load. Reload the page before saving."); return; }
 
         _saving = true;
         try

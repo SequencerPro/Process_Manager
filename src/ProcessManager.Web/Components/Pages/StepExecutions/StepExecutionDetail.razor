@@ -504,15 +504,25 @@ else
     private async Task LoadAll()
     {
         _loading = true;
-        _exec = await Api.GetStepExecutionAsync(Id);
-        if (_exec is not null)
+        try
         {
-            _notes = _exec.Notes ?? "";
-            _transactions = await Api.GetStepExecutionPortTransactionsAsync(Id);
-            _data = await Api.GetStepExecutionDataAsync(Id);
-            _ = LoadInstructions();
+            _exec = await Api.GetStepExecutionAsync(Id);
+            if (_exec is not null)
+            {
+                _notes = _exec.Notes ?? "";
+                _transactions = await Api.GetStepExecutionPortTransactionsAsync(Id);
+                _data = await Api.GetStepExecutionDataAsync(Id);
+                _ = LoadInstructions();
+            }
         }
-        _loading = false;
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load data: {ex.Message}");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task LoadInstructions()

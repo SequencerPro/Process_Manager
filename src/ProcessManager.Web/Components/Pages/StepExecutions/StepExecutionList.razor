@@ -88,8 +88,15 @@ else if (_data is not null)
     protected override async Task OnInitializedAsync()
     {
         _status = StatusQuery;
-        var jobResult = await Api.GetJobsAsync(page: 1, pageSize: 200);
-        _jobs = jobResult?.Items?.ToList();
+        try
+        {
+            var jobResult = await Api.GetJobsAsync(page: 1, pageSize: 200);
+            _jobs = jobResult?.Items?.ToList();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load jobs: {ex.Message}");
+        }
         await LoadData();
     }
 

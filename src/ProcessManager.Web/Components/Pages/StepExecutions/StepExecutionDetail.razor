@@ -563,6 +563,11 @@ else
                     _promptValues[blockId] = r.ResponseValue;
             }
         }
+        catch (Exception ex)
+        {
+            // Started fire-and-forget by LoadAll, so an uncaught exception would go unobserved.
+            Toast.ShowError($"Failed to load instructions: {ex.Message}");
+        }
         finally
         {
             _contentLoading = false;

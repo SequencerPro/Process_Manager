@@ -523,7 +523,11 @@ else
     {
         _wpProcessId = ""; _wpIsEntry = false; _wpSortOrder = 0;
         _showProcessForm = true;
-        _availableProcesses = await Api.GetProcessesAsync("", true, 1, 100);
+        try
+        {
+            _availableProcesses = await Api.GetProcessesAsync("", true, 1, 100);
+        }
+        catch (HttpRequestException ex) { Toast.ShowError(ex.Message); }
         StateHasChanged();
     }
 

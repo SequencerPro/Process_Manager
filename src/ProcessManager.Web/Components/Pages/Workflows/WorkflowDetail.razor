@@ -575,7 +575,7 @@ else
         {
             await LoadAllGrades();
         }
-        _lkAvailableGrades = _allGrades;
+        _lkAvailableGrades = _allGrades ?? new();
         StateHasChanged();
     }
 
@@ -587,7 +587,7 @@ else
             {
                 await LoadAllGrades();
             }
-            _lkAvailableGrades = _allGrades;
+            _lkAvailableGrades = _allGrades ?? new();
         }
         else
         {
@@ -661,7 +661,11 @@ else
             var kindsResult = await Api.GetKindsAsync(page: 1, pageSize: 100);
             _allGrades = kindsResult?.Items?.SelectMany(k => k.Grades).OrderBy(g => g.Code).ToList() ?? new();
         }
-        catch { _allGrades = new(); }
+        catch (Exception ex)
+        {
+            // Leave _allGrades null so the next form open retries instead of caching "no grades".
+            Toast.ShowError($"Failed to load grades: {ex.Message}");
+        }
     }
 
     private async Task ShowAddCondition(WorkflowLinkResponseDto lk)

@@ -1,0 +1,160 @@
+extern alias Web;
+
+using System.Net;
+using System.Reflection;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.RenderTree;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.JSInterop;
+using ProcessManager.Api.DTOs;
+using ProcessManager.Domain.Enums;
+using Web::ProcessManager.Web.Services;
+using WorkflowDetail = Web::ProcessManager.Web.Components.Pages.Workflows.WorkflowDetail;
+
+// Renderer and RenderBatch are framework-internal types; this is a deliberately minimal test host.
+#pragma warning disable BL0006
+
+namespace ProcessManager.Tests;
+
+/// <summary>
+/// The Workflow detail page loads every Kind's Grades the first time the Add Link or
+/// Add Condition form needs them. A failed load must tell the operator, and must not be
+/// cached as "no grades", so that opening the form again retries.
+/// </summary>
+public class WorkflowDetailGradeLoadTests : IntegrationTestBase
+{
+    public WorkflowDetailGradeLoadTests(TestWebApplicationFactory factory) : base(factory) { }
+
+    [Fact]
+    public async Task ShowAddCondition_KindsRequestFails_ShowsErrorToast()
+    {
+        var handler = new KindsFailingHandler(Client) { FailKinds = true };
+        using var renderer = new TestRenderer(new ApiClient(OuterClient(handler), JsonOptions));
+        var page = await renderer.Render(Guid.NewGuid());
+        var toastsBefore = renderer.Toasts.Toasts.Count;
+
+        await renderer.Dispatcher.InvokeAsync(() => InvokeTask(page, "ShowAddCondition", AnyLink()));
+
+        var toast = Assert.Single(renderer.Toasts.Toasts.Skip(toastsBefore));
+        Assert.Equal(ToastType.Danger, toast.Type);
+    }
+
+    [Fact]
+    public async Task ShowAddLink_AfterFailedGradeLoad_RetriesAndLoadsGrades()
+    {
+        var (_, grade) = await CreateKindWithGrade($"WG-{Guid.NewGuid():N}"[..20], "Workflow grade kind");
+        var handler = new KindsFailingHandler(Client) { FailKinds = true };
+        using var renderer = new TestRenderer(new ApiClient(OuterClient(handler), JsonOptions));
+        var page = await renderer.Render(Guid.NewGuid());
+
+        await renderer.Dispatcher.InvokeAsync(() => InvokeTask(page, "ShowAddLink"));
+        handler.FailKinds = false;
+        await renderer.Dispatcher.InvokeAsync(() => InvokeTask(page, "ShowAddLink"));
+
+        var available = (List<GradeResponseDto>)GetField(page, "_lkAvailableGrades")!;
+        Assert.Contains(available, g => g.Id == grade.Id);
+    }
+
+    [Fact]
+    public async Task ShowAddLink_KindsAvailable_LoadsGradesWithoutToast()
+    {
+        var (_, grade) = await CreateKindWithGrade($"WG-{Guid.NewGuid():N}"[..20], "Workflow grade kind");
+        using var renderer = new TestRenderer(new ApiClient(Client, JsonOptions));
+        var page = await renderer.Render(Guid.NewGuid());
+        var toastsBefore = renderer.Toasts.Toasts.Count;
+
+        await renderer.Dispatcher.InvokeAsync(() => InvokeTask(page, "ShowAddLink"));
+
+        Assert.Empty(renderer.Toasts.Toasts.Skip(toastsBefore));
+        Assert.True((bool)GetField(page, "_showLinkForm")!);
+        var available = (List<GradeResponseDto>)GetField(page, "_lkAvailableGrades")!;
+        Assert.Contains(available, g => g.Id == grade.Id);
+    }
+
+    // ShowAddCondition only reads the link's Id.
+    private static WorkflowLinkResponseDto AnyLink() =>
+        new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Source", Guid.NewGuid(), "Target",
+            RoutingType.GradeBased, null, 0, null, DateTime.UtcNow, DateTime.UtcNow);
+
+    private static HttpClient OuterClient(HttpMessageHandler handler) =>
+        new(handler) { BaseAddress = new Uri("http://localhost/") };
+
+    private static Task InvokeTask(IComponent page, string method, params object[] args) =>
+        (Task)page.GetType()
+            .GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(page, args)!;
+
+    private static object? GetField(IComponent page, string name) =>
+        page.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(page);
+
+    /// <summary>Returns 500 for /api/kinds while <see cref="FailKinds"/> is set; forwards everything else.</summary>
+    private sealed class KindsFailingHandler : HttpMessageHandler
+    {
+        private readonly HttpClient _inner;
+        public KindsFailingHandler(HttpClient inner) => _inner = inner;
+        public bool FailKinds { get; set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (FailKinds && request.RequestUri!.AbsolutePath.StartsWith("/api/kinds", StringComparison.OrdinalIgnoreCase))
+                return new HttpResponseMessage(HttpStatusCode.InternalServerError);
+
+            var copy = new HttpRequestMessage(request.Method, request.RequestUri) { Content = request.Content };
+            return await _inner.SendAsync(copy, cancellationToken);
+        }
+    }
+
+    private sealed class TestRenderer : Renderer
+    {
+        public TestRenderer(ApiClient api) : this(new ServiceCollection()
+            .AddSingleton(api)
+            .AddSingleton<ToastService>()
+            .AddSingleton<NavigationManager, TestNavigationManager>()
+            .AddSingleton<IJSRuntime, NoJSRuntime>()
+            .BuildServiceProvider()) { }
+
+        private TestRenderer(IServiceProvider services) : base(services, NullLoggerFactory.Instance)
+        {
+            Toasts = services.GetRequiredService<ToastService>();
+        }
+
+        public ToastService Toasts { get; }
+
+        public override Dispatcher Dispatcher { get; } = Dispatcher.CreateDefault();
+
+        public async Task<IComponent> Render(Guid workflowId)
+        {
+            var page = InstantiateComponent(typeof(WorkflowDetail));
+            var parameters = ParameterView.FromDictionary(new Dictionary<string, object?> { ["Id"] = workflowId });
+            await Dispatcher.InvokeAsync(() => RenderRootComponentAsync(AssignRootComponentId(page), parameters));
+            return page;
+        }
+
+        // The page declares @rendermode InteractiveServer; this host renders it in place.
+        protected override IComponent ResolveComponentForRenderMode(
+            Type componentType, int? parentComponentId,
+            IComponentActivator componentActivator, IComponentRenderMode renderMode) =>
+            componentActivator.CreateInstance(componentType);
+
+        protected override void HandleException(Exception exception) => throw exception;
+
+        protected override Task UpdateDisplayAsync(in RenderBatch renderBatch) => Task.CompletedTask;
+    }
+
+    private sealed class TestNavigationManager : NavigationManager
+    {
+        public TestNavigationManager() => Initialize("http://localhost/", "http://localhost/");
+
+        protected override void NavigateToCore(string uri, NavigationOptions options) { }
+    }
+
+    private sealed class NoJSRuntime : IJSRuntime
+    {
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
+            throw new NotSupportedException("JS interop is not available in this test.");
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) =>
+            throw new NotSupportedException("JS interop is not available in this test.");
+    }
+}

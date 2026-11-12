@@ -469,7 +469,7 @@ else
                             <div class="row mb-3">
                                 <div class="col-6">
                                     <label class="form-label">Kind</label>
-                                    <select class="form-select" @bind="_portKindId">
+                                    <select class="form-select" @bind="_portKindId" @bind:after="OnPortKindChanged">
                                         <option value="">Select...</option>
                                         @if (_kinds is not null)
                                         {
@@ -786,6 +786,24 @@ else
         finally
         {
             StateHasChanged();
+        }
+    }
+
+    // The Grade list belongs to the selected Kind, so a new Kind needs its own Grades
+    // and invalidates any Grade picked for the previous one.
+    private async Task OnPortKindChanged()
+    {
+        _portGradeId = "";
+        _grades = new();
+        if (!Guid.TryParse(_portKindId, out var kindId)) return;
+        try
+        {
+            var kind = await Api.GetKindAsync(kindId);
+            _grades = kind?.Grades?.ToList() ?? new();
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"Failed to load grades: {ex.Message}");
         }
     }
 

@@ -28,6 +28,26 @@ public class ApiClient
         => _http.GetFromJsonAsync<PaginatedResponse<KindResponseDto>>(
             $"api/kinds?search={search}&page={page}&pageSize={pageSize}", _json);
 
+    /// <summary>
+    /// Fetches every Kind by paging through <c>api/kinds</c>, for pickers that must offer all of them.
+    /// Returns a single page holding all Kinds, so callers can use it like a <see cref="GetKindsAsync"/> result.
+    /// </summary>
+    public async Task<PaginatedResponse<KindResponseDto>> GetAllKindsAsync(int pageSize = 100)
+    {
+        var all = new List<KindResponseDto>();
+        for (var page = 1; ; page++)
+        {
+            var result = await GetKindsAsync("", page, pageSize);
+            if (result is null) break;
+            all.AddRange(result.Items);
+            if (result.Items.Count < pageSize || all.Count >= result.TotalCount) break;
+        }
+
+        // A Kind added or renamed mid-paging can shift a row onto the next page; list it once.
+        var kinds = all.DistinctBy(k => k.Id).ToList();
+        return new PaginatedResponse<KindResponseDto>(kinds, kinds.Count, 1, kinds.Count);
+    }
+
     public Task<KindResponseDto?> GetKindAsync(Guid id)
         => _http.GetFromJsonAsync<KindResponseDto>($"api/kinds/{id}", _json);
 

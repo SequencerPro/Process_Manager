@@ -373,10 +373,10 @@ else
                     <div class="mb-3">
                         <label class="form-label">Data Type</label>
                         <select class="form-select" @bind="_dataType">
-                            <option value="String">String</option>
-                            <option value="Number">Number</option>
-                            <option value="Boolean">Boolean</option>
-                            <option value="DateTime">DateTime</option>
+                            @foreach (var dt in Enum.GetValues<DataValueType>())
+                            {
+                                <option value="@dt">@dt</option>
+                            }
                         </select>
                     </div>
                     <div class="mb-3">

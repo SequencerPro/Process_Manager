@@ -770,7 +770,7 @@ else
     {
         try
         {
-            _kinds = await Api.GetKindsAsync("", 1, 100);
+            _kinds = await Api.GetAllKindsAsync();
             _grades = new();
             // Pre-load grades for the selected kind
             if (Guid.TryParse(_portKindId, out var kindId))

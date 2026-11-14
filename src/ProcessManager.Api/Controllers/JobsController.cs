@@ -142,6 +142,13 @@ public class JobsController : ControllerBase
         if (job.Status == JobStatus.InProgress)
             return BadRequest("Cannot delete an in-progress job. Cancel it first.");
 
+        // Deleting a Job cascades to its Items and Batches, but PortTransaction.ItemId/BatchId
+        // are Restrict, so the database rejects the delete while any transaction references them.
+        if (await _db.PortTransactions.AnyAsync(pt =>
+                (pt.Item != null && pt.Item.JobId == id) ||
+                (pt.Batch != null && pt.Batch.JobId == id)))
+            return Conflict("Cannot delete job — its items or batches have port transaction records.");
+
         _db.Jobs.Remove(job);
         await _db.SaveChangesAsync();
         return NoContent();
